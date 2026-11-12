@@ -4024,13 +4024,14 @@ class PricingManager:
             if fleet_kw is not None:
                 power_kw = min(power_kw, fleet_kw)
             # Value deadline energy against the import it displaces (#662)
-            # where the arbitrage margin is on (zero means off), and only in
-            # Dynamic Pricing: Time Slot prices are synthetic.
-            margin = getattr(self._controller, "min_arbitrage_margin", None)
-            value_deadlines = bool(
-                margin
-                and margin > 0
-                and getattr(self._controller, "predictive_charging_mode", None)
+            # in Dynamic Pricing (zero margin means round-trip losses only),
+            # never in Time Slot: its prices are synthetic.
+            margin = max(
+                0.0,
+                float(getattr(self._controller, "min_arbitrage_margin", None) or 0.0),
+            )
+            value_deadlines = (
+                getattr(self._controller, "predictive_charging_mode", None)
                 == PREDICTIVE_MODE_DYNAMIC_PRICING
             )
             evaluation = self.evaluate_chronological_projection(

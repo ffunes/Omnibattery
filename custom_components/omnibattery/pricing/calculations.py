@@ -993,10 +993,9 @@ def slot_arbitrage_ceilings(
 
     A slot kept by the pairing gets the best value of any later slot as its
     ceiling, which is at or above its own price; a slot left out gets
-    ``-inf``. Returns None when the gate is disabled.
+    ``-inf``. A margin of 0 or None counts only the round-trip losses.
     """
-    if min_arbitrage_margin is None or min_arbitrage_margin <= 0:
-        return None
+    min_arbitrage_margin = max(0.0, float(min_arbitrage_margin or 0.0))
     ordered = sorted(slots, key=lambda s: s.start)
 
     def value(slot) -> float:
@@ -1035,14 +1034,14 @@ def effective_charge_ceilings(
     """Return ``(slot_ceilings, reported_arbitrage_ceiling)``.
 
     ``slot_ceilings`` maps ``slot.start`` to the stricter of the static and the
-    slot's own arbitrage ceiling, and is None when the gate is off (callers then
-    use the static ``max_price_threshold`` alone). Pass it to
+    slot's own arbitrage ceiling, and is None only without price data (callers
+    then use the static ``max_price_threshold`` alone). Pass it to
     ``select_cheapest_hours`` / the chronological planner next to the static
     threshold.
 
     ``reported_arbitrage_ceiling`` is for notifications: the highest finite
     arbitrage ceiling of any remaining slot, i.e. no slot is allowed above it.
-    It is None when the gate is off or no slot has an arbitrage value. It
+    It is None without price data or when no slot has an arbitrage value. It
     constrains nothing when the static ceiling is lower, so callers that explain
     a decision must compare the two.
 
@@ -1053,11 +1052,10 @@ def effective_charge_ceilings(
         now = datetime.now()
     future_slots = [s for s in slots if s.end > now]
 
+    min_arbitrage_margin = max(0.0, float(min_arbitrage_margin or 0.0))
     arb = slot_arbitrage_ceilings(
         future_slots, min_arbitrage_margin, round_trip_efficiency
     )
-    if arb is None:
-        return None, None
     if not future_slots:
         _LOGGER.warning(
             "Dynamic pricing: arbitrage margin enabled but no price data to "

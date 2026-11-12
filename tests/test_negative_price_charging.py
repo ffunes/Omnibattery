@@ -592,10 +592,12 @@ def test_guaranteed_minimum_floor_keeps_only_deficit_in_solar_risk_window():
     decision = _decision(should_charge=True, deficit=1.0)
     decision["floor_active"] = True
     ctrl = _controller([battery], decision=decision)
-    risky = _future_slots([-0.50])[0]
+    # The dear hour after it is where the energy is used: round-trip losses
+    # always count, so a deficit charge needs a later slot to repay them.
+    risky, later = _future_slots([-0.50, 0.50])
     manager = PricingManager(SimpleNamespace(), ctrl)
     manager._maybe_refresh_service_prices = _noop
-    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [risky]
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [risky, later]
     manager._send_dynamic_pricing_notification = _noop
     manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
         status="planned", reason="solar_risk", risk_slots=[risky]

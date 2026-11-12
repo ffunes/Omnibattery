@@ -12,10 +12,10 @@
     "ASSUMED: every price (read off the chart by eye, +/- 0.02; only their falling order and the range are reported); the consumption shape (also by eye); 5.12 kWh, 2500 W, SOC 13 % with min SOC 12 %, max SOC 100 %; efficiency 0.85 (the default); no max price, reserve off, no peak shaving; contracted power 17.25 kW; no solar left and no dated periods; sunrise 07:51, solar noon 12:22; the feed stops at 10:00 like the chart.",
     "ASSUMED ON PURPOSE: the arbitrage margin is unset. The reporter's value is unknown; this scenario tests whether an unset margin explains the report.",
     "TODAY (release/v1.6.1): it does. ok, 3.06 kWh in ten quarter-hour slots: 22:00 0.41 + 22:15 0.08, 23:00 0.30, 00:00 0.30, 01:00 0.37, 02:00 0.22, 03:00 0.22, 04:00-04:45 1.15, the pattern of the screenshot. Every one costs more than the import it displaces: 22:00 is bought at 0.438 and used at 0.438, worth 0.438 x 0.85 = 0.372; 04:00 is bought at 0.351 and used at 0.358, worth 0.304. Without a margin each depletion deadline is served by the cheapest slot before it, whatever the energy is worth when it is used.",
-    "With a margin of 0.01 or 0.04 the same night plans 0 kWh (cheaper_to_import 3.59 kWh): no hour before sunrise repays a charge."
+    "With a margin of 0.01 or 0.04 the same night plans 0 kWh (cheaper_to_import 3.59 kWh): no hour before sunrise repays a charge.",
+    "NOW: round-trip losses always count in Dynamic Pricing and an unset margin means losses only, so this night books 0 kWh (cheaper_to_import), the same as a margin of 0.01."
   ],
   "level": "engine",
-  "xfail": "#858: with the arbitrage margin unset each depletion deadline is served by the cheapest earlier slot, so energy is bought and used at the same hourly price (0.438 against a use value of 0.438 x 0.85 = 0.372) at the start of every hour of a falling night",
   "now": "2026-11-11T21:45:00",
   "time_zone": "Europe/Amsterdam",
   "sun": {"sunrise": "07:51", "solar_noon": "12:22"},

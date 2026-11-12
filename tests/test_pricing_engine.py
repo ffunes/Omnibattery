@@ -1455,6 +1455,9 @@ def test_evening_recharge_picks_informational_slots_on_price_and_arms_only_those
 
     morning, noon, afternoon = _slot(9, 0.40), _slot(12, 0.27), _slot(13, 0.30)
     evening = _slot(18, 0.45)
+    # Round-trip losses always count: each cheap slot needs its own dear hour
+    # after it to repay them.
+    late_evening = _slot(19, 0.45)
     schedule = SimpleNamespace(
         selected_slots=[noon, afternoon, evening],
         slot_purposes={noon: "deficit", afternoon: "deficit", evening: "deficit"},
@@ -1470,7 +1473,7 @@ def test_evening_recharge_picks_informational_slots_on_price_and_arms_only_those
         max_charge_capacity=3000,
     )
     manager = _evening_mgr(ctrl, 0.0)
-    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [morning, noon, afternoon, evening]
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: [morning, noon, afternoon, evening, late_evening]
     manager._send_evening_recharge_notification = _async_noop
 
     asyncio.run(manager._evaluate_evening_recharge())
@@ -2537,6 +2540,16 @@ def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
             price=0.30 - i / 1000,
         )
         for i in range(18)
+    ]
+    # Round-trip losses always count: the charge needs dear slots after it to
+    # be used in.
+    slots += [
+        PriceSlot(
+            start=start + timedelta(minutes=15 * i),
+            end=start + timedelta(minutes=15 * (i + 1)),
+            price=0.60,
+        )
+        for i in range(18, 24)
     ]
     ctrl = _controller(
         _should_activate_grid_charging=should_charge,

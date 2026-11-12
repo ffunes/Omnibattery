@@ -20,6 +20,7 @@ from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import (
     CHARGE_EFFICIENCY,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
+    PREDICTIVE_MODE_TIME_SLOT,
 )
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.engine import PricingManager
@@ -1054,13 +1055,14 @@ def test_peak_shaving_hold_keeps_min_soc_floor_for_the_projection():
 
 @pytest.mark.parametrize(
     ("margin", "reserve_on", "expected"),
-    [(0.05, True, True), (0.05, False, False), (0.0, True, False)],
+    [(0.05, True, True), (0.05, False, False), (0.0, True, True)],
 )
 def test_the_plan_knows_whether_the_discharge_reserve_holds_energy(
     margin, reserve_on, expected
 ):
     # The reserve lets a valued deadline be served across an hour left to the
-    # grid, so it only matters while deadlines are valued (margin on).
+    # grid, so it only matters while deadlines are valued (always, in Dynamic
+    # Pricing: a zero margin means round-trip losses only).
     now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
     slots = [
         PriceSlot(now + timedelta(hours=h), now + timedelta(hours=h + 1), 0.40)
@@ -1092,6 +1094,45 @@ def test_the_plan_knows_whether_the_discharge_reserve_holds_energy(
     )
 
     assert requests[0].reserve_holds is expected
+
+
+@pytest.mark.parametrize(
+    ("mode", "efficiency"),
+    [(PREDICTIVE_MODE_DYNAMIC_PRICING, 0.85), (PREDICTIVE_MODE_TIME_SLOT, None)],
+)
+def test_zero_margin_values_deadlines_in_dynamic_pricing_only(mode, efficiency):
+    # Margin 0 means "round-trip losses only" in Dynamic Pricing; Time Slot
+    # prices are synthetic and never valued.
+    now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
+    slots = [
+        PriceSlot(now + timedelta(hours=h), now + timedelta(hours=h + 1), 0.40)
+        for h in range(5)
+    ]
+    manager = _floor_manager(25.0)
+    manager._controller.min_arbitrage_margin = 0.0
+    manager._controller.predictive_charging_mode = mode
+    manager._controller.round_trip_efficiency = 0.85
+    requests = []
+    evaluate = manager.evaluate_chronological_projection
+    manager.evaluate_chronological_projection = lambda request: (
+        requests.append(request) or evaluate(request)
+    )
+
+    manager._build_chronological_plan(
+        now=now,
+        slots=slots,
+        decision_data={
+            "should_charge": True,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 1.25,
+            "planned_grid_charge_kwh": 1.25,
+            "excluded_demand_claim_kwh": 0.0,
+        },
+        price_ceiling=None,
+    )
+
+    assert requests[0].import_value_efficiency == efficiency
+    assert requests[0].import_value_margin == 0.0
 
 
 def test_the_plan_sizes_its_slots_with_the_power_the_fleet_averages():
