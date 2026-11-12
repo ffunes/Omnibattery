@@ -13,6 +13,7 @@
 - **Dynamic Pricing: the price sensor is no longer re-read on every control cycle**: the parsed slots were cached for one horizon at a time, and every cycle asked for at least two, so each call parsed the sensor again. They are now kept per horizon until the prices or the quarter-hour change.
 - **Real-Time Price: no full energy balance on every control cycle**: while the price is cheap and no charge is needed, the last decision is reused until 5 minutes pass, the SOC moves 1 point, the price changes or a setting the plan reads is changed.
 - **Time Slot plans up to the next cheap window** (#611): with several windows (say 02:00–06:00 and 12:00–16:00) the charge in a window was sized only for the load until midnight, so a sunny midday window skipped charging and the evening and the night until 02:00 ran on the grid. It now covers the load until the next window starts, never past the next sunrise, counting only the sun expected before then. A single window keeps the midnight horizon.
+- **Predictive charging on a new install assumes a daily use sized to the batteries**: until a week of consumption has been learned, each missing day counted as 5 kWh whatever the home. It now counts as 80 % of the fleet's capacity (5 kWh while that is not known yet).
 - **Real-Time Price plans up to sunrise**: a cheap period in the afternoon or evening now also covers the night, not only the load until midnight.
 
 ### Fixed
