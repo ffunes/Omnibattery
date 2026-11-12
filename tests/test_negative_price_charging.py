@@ -352,7 +352,8 @@ def test_unavailable_battery_does_not_create_opportunistic_energy():
     manager = PricingManager(SimpleNamespace(), ctrl)
 
     assert manager._negative_price_energy_needed_kwh() == 0.0
-    assert manager._opportunistic_target_pending() is False
+    # No eligible battery is "unknown", not "target reached".
+    assert manager._opportunistic_target_pending() is True
 
 
 def test_exact_duration_uses_contracted_and_system_charge_bottlenecks():
@@ -1016,3 +1017,30 @@ def test_download_diagnostics_exposes_typed_calendar():
     assert info["active_slot_purpose"] == SLOT_PURPOSE_NEGATIVE_PRICE
     assert "negative_price_charging_threshold" not in info
     assert "negative_price_charging_target_soc" not in info
+
+
+def test_cycle_without_available_battery_keeps_future_negative_slots():
+    """No eligible battery means unknown, not target reached."""
+    battery = _Battery("b1", 20, 10)
+    ctrl = _controller([battery])
+    now = datetime.now()
+    future = PriceSlot(now + timedelta(hours=3), now + timedelta(hours=4), -0.20)
+    manager = _prepare_runtime_manager(ctrl, future, [])
+    ctrl._current_price_slot_active = False
+    ctrl._active_dynamic_slot_purpose = None
+    ctrl.grid_charging_active = False
+
+    battery.is_available = False
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert future in ctrl._dynamic_pricing_schedule.selected_slots
+
+    # Back online and at its target: pruned as before.
+    battery.is_available = True
+    battery.data["battery_soc"] = battery.max_soc
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert future not in (
+        ctrl._dynamic_pricing_schedule.selected_slots
+        if ctrl._dynamic_pricing_schedule is not None
+        else []
+    )
+
