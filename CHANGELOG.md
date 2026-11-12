@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Predictive charging no longer floods the log at INFO**: the lines written on every control cycle during a charge or a window are now DEBUG; INFO is logged on state changes only.
+- **Real-Time Price: no full energy balance on every control cycle**: while the price is cheap and no charge is needed, the last decision is reused until 5 minutes pass, the SOC moves 1 point, the price changes or a setting the plan reads is changed.
+
+### Fixed
+
+- **A grid-charge slot no longer raises the import peak it regulates** (#683): a slot started at the full limit on top of the house load and the first correction pushed it higher. It now starts with the headroom the house leaves, waits for the meter to show the new charge before steering, hands over to peak shaving after 2 fresh samples when the house alone is above the limit (a contracted-power overload still needs 3), and drops the minimum charge to 0 W while the grid is above the limit.
+- **Real-Time Price: the charge kept running unregulated when the price threshold disappeared**: with the average price sensor unavailable and no fixed threshold, or the manual threshold cleared mid-charge, the batteries stayed on their last command. The charge now stops, as it does when the price itself is missing.
+- **Real-Time Price: charges again later in the same cheap period**: once the target was reached nothing re-evaluated until the price rose and fell again, not even at midnight, so a battery drained by the house during a long cheap period stayed empty.
+- **Weekly Full Charge: reserved slots no longer vanish when Smart Pre-Discharge finds a curtailment risk window**: re-selecting the deficit slots around the window dropped the weekly ones, and on a day with only the weekly charge it booked the pre-dawn slots instead. Weekly slots inside a risk window are still left out and are not moved elsewhere.
+- **Dynamic Pricing: the daily average price covers the whole day** (#569): it was the average of the hours left (plus tomorrow's up to the planning horizon), so the automatic discharge threshold changed with the time of the evaluation and after a restart. Providers that publish only future prices keep the previous figure.
+- **Predictive charging kept the old plan after three more changes**: moving the discharge price threshold, switching price-based discharge control, or switching a fleet-wide No-Discharge Time Slot on or off now re-plans; the plan projects the battery idle in those hours.
+
+### Internal
+
+- The pricing engine reads the time from one injectable clock, and reported nights run as data-file regression scenarios (`tests/scenarios/`); four of them (#834 ×3, #858) are marked as known failures until their fixes land.
+
 ## [1.6.1b2] - 2026-11-11
 
 ### Fixed
