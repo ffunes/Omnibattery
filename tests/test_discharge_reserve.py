@@ -465,19 +465,29 @@ def test_horizon_moves_to_tomorrow_once_the_sun_is_up(minutes_after_sunrise):
     assert manager._horizon_end(now) == OCT_28_SUNRISE
 
 
+def _oct_27_coordinator(max_soc: float = 100.0):
+    # 1.859 kWh above the 10 % floor of the 10 kWh stand-in battery.
+    coordinator = _coordinator(soc=28.59)
+    coordinator.max_soc = max_soc
+    return coordinator
+
+
 def test_the_evening_peak_does_not_release_the_reserve_after_midnight():
     """Replay of 27 Oct 00:05: usable energy 1.859 kWh, 13.8 kWh forecast.
 
     With the horizon on tomorrow's sunrise the dearer evening took every claim,
     the day's sun paid for all of them, and the battery drained into the night
     with nothing held for the morning.
+
+    The stand-in's sun is two quarter-hours, 4.25 kWh into the battery at most.
+    A 50 % ceiling leaves it 2.14 kWh of room, so the sun refills the battery
+    and the plan ends where the sun takes over.
     """
     now = OCT_27 + timedelta(minutes=5)
     controller = _controller(
         _pricing_mgr=_after_midnight_pricing(),
         discharge_reserve_min_saving=0.029,
-        # 1.859 kWh above the 10 % floor of the 10 kWh stand-in battery.
-        coordinators=[_coordinator(soc=28.59)],
+        coordinators=[_oct_27_coordinator(max_soc=50.0)],
     )
     manager = _built(controller, now)
 
@@ -489,6 +499,34 @@ def test_the_evening_peak_does_not_release_the_reserve_after_midnight():
     assert all(
         datetime.fromisoformat(slot["start"]) < OCT_27_SUNRISE
         for slot in status["reserved_slots"]
+    )
+
+
+def test_a_sun_that_cannot_refill_keeps_the_evening_and_still_the_morning():
+    """The same night with 7.14 kWh of room: the 4.25 kWh of sun cannot fill it.
+
+    Nothing held now is pushed out by the PV, so the evening stays in the plan.
+    The morning is still held in full; the sun pays the evening's claims.
+    """
+    now = OCT_27 + timedelta(minutes=5)
+    controller = _controller(
+        _pricing_mgr=_after_midnight_pricing(),
+        discharge_reserve_min_saving=0.029,
+        coordinators=[_oct_27_coordinator()],
+    )
+    manager = _built(controller, now)
+
+    assert manager.plan.horizon_end == OCT_28_SUNRISE
+    assert manager.reserve_soc_pct() == pytest.approx(15.0)
+    status = manager.get_status()
+    assert status["reason"] == "reserved_for_dearer_hours"
+    claims = status["claims"]
+    morning = [c for c in claims if datetime.fromisoformat(c["start"]) < OCT_27_SUNRISE]
+    evening = [c for c in claims if datetime.fromisoformat(c["start"]).hour >= 18]
+    assert sum(c["claimed_kwh"] for c in morning) == pytest.approx(1.5)
+    assert all(c["pv_credit_kwh"] == pytest.approx(0.0) for c in morning)
+    assert sum(c["pv_credit_kwh"] for c in evening) == pytest.approx(
+        sum(c["claimed_kwh"] for c in evening)
     )
 
 
@@ -1587,7 +1625,7 @@ def test_a_morning_the_sun_does_not_cover_by_noon_keeps_sunrise():
 TOMORROW_NIGHT = TOMORROW + timedelta(hours=22)
 
 
-def _full_day_manager(periods, extended=TOMORROW_NIGHT):
+def _full_day_manager(periods, extended=TOMORROW_NIGHT, weekly_pending=False):
     """Prices from 21:00 to tomorrow 22:00: 0.30, tomorrow 18:00-21:00 at 0.60.
 
     ``extended`` is the charge planner's horizon once tomorrow's prices are in.
@@ -1610,6 +1648,7 @@ def _full_day_manager(periods, extended=TOMORROW_NIGHT):
         _pricing_mgr=pricing,
         discharge_reserve_min_saving=0.05,
         coordinators=[_coordinator(soc=80.0)],
+        _weekly_full_charge_pending=lambda: weekly_pending,
     )
     manager._now = lambda: EVENING
     asyncio.get_event_loop().run_until_complete(manager.async_rebuild_plan("test"))
@@ -1631,8 +1670,28 @@ def test_a_day_the_sun_never_covers_keeps_tomorrow_s_evening():
 
 
 def test_a_sunny_tomorrow_still_ends_where_the_sun_takes_over():
+    """The sun covers the house from 09:00 and refills the 2 kWh of room."""
+    sunny = {**DULL_DAY, **TOMORROW_SUN, 12: 1.5, 13: 1.5}
+    manager = _full_day_manager(_periods(TOMORROW, sunny))
+
+    assert manager.plan.horizon_end == TOMORROW + timedelta(hours=9)
+
+
+def test_a_morning_sun_too_small_to_refill_keeps_tomorrow_s_evening():
+    """The same sun from 09:00, but only 1.7 kWh of it lands in 2 kWh of room."""
     sunny = {**DULL_DAY, **TOMORROW_SUN}
     manager = _full_day_manager(_periods(TOMORROW, sunny))
+
+    assert manager.plan.horizon_end == TOMORROW_NIGHT
+    manager.reserve_soc_pct()
+    claimed = {slot["start"] for slot in manager.get_status()["claims"]}
+    assert (TOMORROW + timedelta(hours=18)).isoformat() in claimed
+
+
+def test_a_weekly_charge_tonight_keeps_the_sun_bound():
+    """The run fills the battery overnight, so tomorrow's sun refills a full one."""
+    sunny = {**DULL_DAY, **TOMORROW_SUN}
+    manager = _full_day_manager(_periods(TOMORROW, sunny), weekly_pending=True)
 
     assert manager.plan.horizon_end == TOMORROW + timedelta(hours=9)
 
@@ -1641,3 +1700,115 @@ def test_without_an_extended_horizon_a_dull_tomorrow_keeps_sunrise():
     manager = _full_day_manager(_periods(TOMORROW, DULL_DAY), extended=None)
 
     assert manager.plan.horizon_end == TOMORROW_SUNRISE
+
+
+# ----------------------------------------------------------------------
+# 13 Nov: a sun that covers the house at noon but cannot refill the battery
+# ----------------------------------------------------------------------
+
+
+def _nov_13_manager(periods, soc=30.0):
+    """12 Nov 21:00: an empty-ish battery, tomorrow's prices 0.37 overnight,
+    15:00 0.396, 16:00 0.447, 17:00-20:00 0.47, the house 0.5 kWh an hour."""
+
+    def price(start):
+        if start.date() == TOMORROW.date():
+            if start.hour == 15:
+                return 0.396
+            if start.hour == 16:
+                return 0.447
+            if 17 <= start.hour < 20:
+                return 0.47
+            if 10 <= start.hour < 15:
+                return 0.31
+        return 0.37
+
+    slots = [
+        PriceSlot(EVENING + timedelta(hours=i), EVENING + timedelta(hours=i + 1),
+                  price(EVENING + timedelta(hours=i)))
+        for i in range(25)
+    ]
+    pricing = _evening_pricing()
+    pricing.get_future_price_slots = lambda horizon_end=None: [
+        slot for slot in slots if horizon_end is None or slot.start <= horizon_end
+    ]
+    pricing._get_current_price = lambda: 0.37
+    pricing._extended_planning_end = lambda _now: TOMORROW_NIGHT
+    manager = _curve_manager(
+        periods,
+        _pricing_mgr=pricing,
+        discharge_reserve_min_saving=0.02,
+        coordinators=[_coordinator(soc=soc)],
+    )
+    manager._now = lambda: EVENING
+    asyncio.get_event_loop().run_until_complete(manager.async_rebuild_plan("test"))
+    return manager
+
+
+# The sun beats the 0.5 kWh an hour only from 12:00 to 15:00, by 0.4 kWh.
+NOV_13_SUN = {**{hour: 0.2 for hour in range(8, 17)}, 12: 0.9, 13: 0.9, 14: 0.9}
+
+
+def test_a_noon_sun_that_cannot_refill_keeps_tomorrow_s_evening():
+    """13 Nov: the sun covers the house only from 12:00, about 1 kWh into 7 kWh
+    of room. The plan used to end at sunrise (the noon bound)."""
+    manager = _nov_13_manager(_periods(TOMORROW, NOV_13_SUN))
+
+    assert manager.plan.horizon_end == TOMORROW_NIGHT
+
+
+def test_the_projection_holds_the_noon_sun_for_the_evening_peak():
+    """The timeline asks the plan for 15:00 tomorrow: with 1 kWh of sun stored,
+    the reserve keeps it for 17:00 at 0.47 instead of spending it at 0.396."""
+    manager = _nov_13_manager(_periods(TOMORROW, NOV_13_SUN))
+    reserve_at = manager.projected_reserve_fn()
+
+    assert reserve_at is not None
+    assert reserve_at(TOMORROW + timedelta(hours=15), 1.0, 6.0) == pytest.approx(1.0)
+    # From 17:00 the dear hours are now: nothing dearer after them to hold for.
+    assert reserve_at(TOMORROW + timedelta(hours=19), 1.0, 6.0) == pytest.approx(0.0)
+
+
+def test_a_noon_sun_that_refills_a_nearly_full_battery_keeps_sunrise():
+    """With 1 kWh of room the same sun refills it; the noon bound stays."""
+    manager = _nov_13_manager(_periods(TOMORROW, NOV_13_SUN), soc=90.0)
+
+    assert manager.plan.horizon_end == TOMORROW_SUNRISE
+
+
+def test_today_s_sun_that_cannot_refill_keeps_the_evening():
+    """In the morning, a sun that covers the house at 11:00 but leaves room
+    keeps the evening in the plan instead of ending at 11:00."""
+    morning = DAY + timedelta(hours=8)
+    slots = [
+        PriceSlot(morning + timedelta(hours=i), morning + timedelta(hours=i + 1), 0.40)
+        for i in range(14)
+    ]
+    consumption = {slot: 0.5 for slot in slots}
+    solar = {slot: (0.9 if 11 <= slot.start.hour < 14 else 0.0) for slot in slots}
+    day_end = DAY + timedelta(days=1, hours=7)
+    manager = _manager(_controller(), now=morning)
+    manager._horizon_end = lambda _now: day_end
+    manager._sun_covers_now = lambda: None
+    fraction = lambda hour: 0.2  # before the solar midpoint
+
+    def horizon(room):
+        return manager._sun_covered_horizon_end(
+            morning, slots, consumption, solar, fraction, day_end, room
+        )
+
+    assert horizon(None) == DAY + timedelta(hours=11)
+    assert horizon(0.5) == DAY + timedelta(hours=11)  # 1.02 kWh refills 0.5
+    assert horizon(5.0) == day_end
+
+
+def test_sun_can_refill_caps_by_charge_power_and_counts_the_loss():
+    manager = _manager(_controller(max_charge_capacity=1000.0))
+    slot = _slot(12, 0.2)
+    # 3 kWh raw surplus in an hour behind a 1 kW charger: 0.85 kWh stored.
+    assert manager._sun_can_refill([slot], {slot: 0.5}, {slot: 3.5}, 0.85)
+    assert not manager._sun_can_refill([slot], {slot: 0.5}, {slot: 3.5}, 0.9)
+    # No room, a missing or a non-finite one: nothing to keep out of.
+    assert manager._sun_can_refill([slot], {slot: 0.5}, {slot: 0.5}, 0.0)
+    assert manager._sun_can_refill([slot], {slot: 0.5}, {slot: 0.5}, float("nan"))
+
