@@ -27,6 +27,7 @@
 ### Internal
 
 - The pricing engine reads the time from one injectable clock, and reported nights run as data-file regression scenarios (`tests/scenarios/`).
+- The inputs of the chronological charge planner (consumption shape, solar timeline, idle intervals, Time Slot windows, fleet state, weekly reservation, guaranteed floor) are pure functions in `pricing/plan_inputs.py`; a test-only recorder checks that the planner receives the same requests across the suite.
 
 ## [1.6.1b2] - 2026-11-11
 
