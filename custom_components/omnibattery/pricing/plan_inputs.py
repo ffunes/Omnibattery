@@ -251,3 +251,66 @@ def battery_idle_intervals(
             for item in intervals
         ]
     return intervals
+
+
+def time_slot_window_hold(
+    intervals: Sequence[EnergyInterval],
+    windows: Sequence[Any],
+) -> tuple[list[EnergyInterval], float | None]:
+    """Idle the battery inside the Time Slot ``windows`` (each with ``start``/``end``).
+
+    Returns the intervals and the load the grid carries inside the windows;
+    that load is ``None`` when there are no windows, and the intervals pass
+    through untouched.
+    """
+    if not windows:
+        return intervals, None
+    window_load_on_grid = 0.0
+    held = []
+    for item in intervals:
+        if any(w.start <= item.start < w.end for w in windows):
+            window_load_on_grid += max(
+                0.0, item.consumption_kwh - item.solar_kwh
+            )
+            item = item.with_battery_idle()
+        held.append(item)
+    return held, window_load_on_grid
+
+
+@dataclass(frozen=True)
+class FleetPlanState:
+    """Fleet energy figures the plan is sized with."""
+
+    total_capacity_kwh: float
+    weighted_min_soc: float
+    usable_kwh: float
+    room_kwh: tuple[float, ...]
+    headroom_kwh: float
+
+
+def fleet_plan_state(
+    batteries: Sequence[tuple[float, float, float, float]],
+) -> FleetPlanState:
+    """Capacity, usable energy and room below the ceiling of the fleet.
+
+    Each battery is ``(capacity_kwh, soc, floor_soc, ceiling_soc)``, SOCs in
+    percent; ``room_kwh`` keeps the order of ``batteries``.
+    """
+    total_capacity = sum(cap for cap, _soc, _floor, _ceiling in batteries)
+    weighted_min_soc = (
+        sum(floor * cap for cap, _soc, floor, _ceiling in batteries)
+        / total_capacity
+        if total_capacity > 0
+        else 0.0
+    )
+    usable = sum(
+        max(0.0, (soc - floor) / 100.0 * cap)
+        for cap, soc, floor, _ceiling in batteries
+    )
+    room_kwh = tuple(
+        max(0.0, (ceiling - soc) / 100.0 * cap)
+        for cap, soc, _floor, ceiling in batteries
+    )
+    return FleetPlanState(
+        total_capacity, weighted_min_soc, usable, room_kwh, sum(room_kwh)
+    )
