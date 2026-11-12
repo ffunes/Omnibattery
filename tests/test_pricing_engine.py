@@ -3571,10 +3571,9 @@ def test_midnight_reset_retains_post_midnight_slots(monkeypatch):
     assert ctrl._dynamic_pricing_evaluated_date is None
 
 
-@pytest.mark.parametrize(
-    "mode", [PREDICTIVE_MODE_TIME_SLOT, PREDICTIVE_MODE_REALTIME_PRICE]
-)
-def test_time_slot_and_realtime_price_keep_midnight_horizon(mode):
+def test_time_slot_without_next_window_keeps_midnight_horizon():
+    # #611: Time Slot without a next window falls back to midnight.
+    mode = PREDICTIVE_MODE_TIME_SLOT
     now = datetime(2026, 9, 19, 12, 0)
     captured = []
     ctrl = _controller(
@@ -3592,6 +3591,243 @@ def test_time_slot_and_realtime_price_keep_midnight_horizon(mode):
     asyncio.run(manager._current_horizon_grid_charging_decision(now=now))
 
     assert captured == [datetime(2026, 9, 20, 0, 0)]
+
+
+ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def _window(start, end, days=ALL_DAYS):
+    return {
+        "start_time": f"{start}:00",
+        "end_time": f"{end}:00",
+        "days": list(days),
+        "enabled": True,
+    }
+
+
+def _ts_manager(windows, forecast=None):
+    """Time Slot manager; sunrise 07:30; flat 1 kWh/h consumption profile."""
+    def forecast_between(start, end, **_kwargs):
+        hours = (end - start).total_seconds() / 3600.0
+        return ConsumptionForecast(
+            hours, [hours / INTERVAL_COUNT] * INTERVAL_COUNT, "profile", True
+        )
+
+    async def average():
+        return 24.0
+
+    async def should_activate(**overrides):
+        return {"should_charge": False}
+
+    ctrl = _controller(
+        predictive_charging_mode=PREDICTIVE_MODE_TIME_SLOT,
+        charging_time_slots=windows,
+        _consumption_tracker=SimpleNamespace(
+            consumption_profile=SimpleNamespace(_timezone=lambda: None),
+            get_dynamic_base_consumption=average,
+            calculate_sunrise=lambda for_date=None: 7.5,
+            forecast_consumption_between=forecast_between,
+        ),
+        _should_activate_grid_charging=should_activate,
+    )
+    manager = _mgr(ctrl)
+    manager._remaining_solar_today_kwh = lambda _now: 0.0
+    return manager
+
+
+def _balance(manager, now):
+    return asyncio.run(manager._current_horizon_grid_charging_decision(now=now))
+
+
+# 2026-09-19 is a Saturday.
+@pytest.mark.parametrize(
+    ("windows", "now", "expected"),
+    [
+        # 1. two daily windows, inside 12-16: up to tomorrow 02:00.
+        (
+            [_window("02:00", "06:00"), _window("12:00", "16:00")],
+            datetime(2026, 9, 19, 12, 30),
+            datetime(2026, 9, 20, 2, 0),
+        ),
+        # 2. inside 02-06: up to today 12:00.
+        (
+            [_window("02:00", "06:00"), _window("12:00", "16:00")],
+            datetime(2026, 9, 19, 3, 0),
+            datetime(2026, 9, 19, 12, 0),
+        ),
+        # 3. single window: its own next day does not count -> midnight.
+        ([_window("02:00", "06:00")], datetime(2026, 9, 19, 3, 0),
+         datetime(2026, 9, 20, 0, 0)),
+        # 4a. A daily 12-16, B Mondays 02-06; Sunday 12:30 -> Monday 02:00.
+        (
+            [_window("12:00", "16:00"), _window("02:00", "06:00", ["mon"])],
+            datetime(2026, 9, 20, 12, 30),
+            datetime(2026, 9, 21, 2, 0),
+        ),
+        # 4b. Monday 12:30: next B is next Monday, past the sunrise bound.
+        (
+            [_window("12:00", "16:00"), _window("02:00", "06:00", ["mon"])],
+            datetime(2026, 9, 21, 12, 30),
+            datetime(2026, 9, 22, 7, 30),
+        ),
+        # 5a. overnight 22-06 + 12-16, at 12:30 -> 22:00 today.
+        (
+            [_window("22:00", "06:00"), _window("12:00", "16:00")],
+            datetime(2026, 9, 19, 12, 30),
+            datetime(2026, 9, 19, 22, 0),
+        ),
+        # 5b. inside 22-06 at 23:00: next is 12:00 tomorrow, bounded by sunrise.
+        (
+            [_window("22:00", "06:00"), _window("12:00", "16:00")],
+            datetime(2026, 9, 19, 23, 0),
+            datetime(2026, 9, 20, 7, 30),
+        ),
+    ],
+)
+def test_time_slot_balance_horizon_is_next_window(windows, now, expected):
+    manager = _ts_manager(windows)
+    decision = _balance(manager, now)
+    assert decision["energy_horizon_end"] == expected
+    # The balance covers exactly [now, horizon): nothing counted twice
+    # across midnight.
+    hours = (expected - now).total_seconds() / 3600.0
+    assert decision["remaining_consumption_kwh"] == pytest.approx(hours)
+
+
+@pytest.mark.parametrize(
+    ("now", "horizon"),
+    [
+        (datetime(2026, 9, 19, 12, 30), datetime(2026, 9, 20, 2, 0)),
+        (datetime(2026, 9, 19, 3, 0), datetime(2026, 9, 19, 12, 0)),
+    ],
+)
+def test_time_slot_plan_uses_the_balance_horizon(now, horizon):
+    manager = _ts_manager([_window("02:00", "06:00"), _window("12:00", "16:00")])
+    seen = []
+
+    def build(**kwargs):
+        seen.append((kwargs["horizon_end"], kwargs["slots"]))
+        return None
+
+    manager._build_chronological_plan_for_horizon = build
+    decision = _balance(manager, now)
+    manager._apply_time_slot_chronological_plan(decision, now=now)
+
+    assert seen[0][0] == decision["energy_horizon_end"] == horizon
+    assert seen[0][1] == manager._time_slot_price_slots_for_horizon(now, horizon)
+    assert seen[0][1]
+
+
+@pytest.mark.parametrize(
+    ("windows", "now", "expected"),
+    [
+        # (a) no active window: the upcoming one is the reference.
+        (
+            [_window("02:00", "06:00"), _window("12:00", "16:00")],
+            datetime(2026, 9, 19, 23, 0),
+            datetime(2026, 9, 20, 7, 30),
+        ),
+        (
+            [_window("02:00", "06:00"), _window("12:00", "16:00")],
+            datetime(2026, 9, 19, 10, 0),
+            datetime(2026, 9, 20, 2, 0),
+        ),
+        # (a) a single window still has no next one: midnight.
+        ([_window("02:00", "06:00")], datetime(2026, 9, 19, 23, 0),
+         datetime(2026, 9, 20, 0, 0)),
+        # (b) a window starting exactly where the active one ends counts.
+        (
+            [_window("02:00", "06:00"), _window("06:00", "08:00")],
+            datetime(2026, 9, 19, 3, 0),
+            datetime(2026, 9, 19, 6, 0),
+        ),
+    ],
+)
+def test_time_slot_horizon_reference_window_and_adjacency(windows, now, expected):
+    decision = _balance(_ts_manager(windows), now)
+    assert decision["energy_horizon_end"] == expected
+
+
+def _solar_fraction(hour):
+    return min(1.0, max(0.0, (hour - 8.0) / 16.0))
+
+
+def test_time_slot_balance_counts_only_solar_before_the_horizon():
+    # 03:00, horizon 12:00: only the morning share of the 6 kWh remaining
+    # today (F(12) = 0.25 of the day) is available before the next window.
+    manager = _ts_manager([_window("02:00", "06:00"), _window("12:00", "16:00")])
+    manager._remaining_solar_today_kwh = lambda _now: 6.0
+    manager._curtailment_forecast_model = lambda _now: (6.0, _solar_fraction, 0.0)
+    seen = []
+
+    async def should_activate(**overrides):
+        seen.append(overrides)
+        return {"should_charge": False}
+
+    manager._controller._should_activate_grid_charging = should_activate
+    decision = _balance(manager, datetime(2026, 9, 19, 3, 0))
+
+    assert seen[0]["solar_forecast_override_kwh"] == pytest.approx(1.5)
+    assert decision["remaining_solar_kwh"] == pytest.approx(1.5)
+
+
+def test_time_slot_balance_solar_uses_dated_periods_before_the_horizon():
+    manager = _ts_manager([_window("02:00", "06:00"), _window("12:00", "16:00")])
+    day = datetime(2026, 9, 19, tzinfo=ZoneInfo("UTC"))
+    periods = (
+        SolarForecastPeriod(day + timedelta(hours=6), day + timedelta(hours=12), 1.0),
+        SolarForecastPeriod(day + timedelta(hours=12), day + timedelta(hours=18), 5.0),
+    )
+    manager._remaining_solar_today_kwh = lambda _now: 6.0
+    manager._read_remaining_solar_input = lambda **_kw: SimpleNamespace(
+        remaining_kwh=6.0,
+        periods=periods,
+        source="remaining",
+        original_source="remaining",
+        conversion=None,
+    )
+    seen = []
+
+    async def should_activate(**overrides):
+        seen.append(overrides)
+        return {"should_charge": False}
+
+    manager._controller._should_activate_grid_charging = should_activate
+    _balance(manager, datetime(2026, 9, 19, 3, 0))
+
+    assert seen[0]["solar_forecast_override_kwh"] == pytest.approx(1.0)
+
+
+def test_solar_is_not_trimmed_when_the_horizon_passes_midnight():
+    # Dynamic Pricing and the 23:00 Time Slot case: horizon after midnight.
+    manager = _ts_manager([_window("22:00", "06:00"), _window("12:00", "16:00")])
+    manager._remaining_solar_today_kwh = lambda _now: 6.0
+    manager._curtailment_forecast_model = lambda _now: (6.0, _solar_fraction, 0.0)
+    seen = []
+
+    async def should_activate(**overrides):
+        seen.append(overrides)
+        return {"should_charge": False}
+
+    manager._controller._should_activate_grid_charging = should_activate
+    _balance(manager, datetime(2026, 9, 19, 23, 0))
+
+    assert seen[0]["solar_forecast_override_kwh"] == pytest.approx(6.0)
+
+
+def test_realtime_price_horizon_is_the_next_sunrise():
+    manager = _ts_manager([])
+    manager._controller.predictive_charging_mode = PREDICTIVE_MODE_REALTIME_PRICE
+    decision = _balance(manager, datetime(2026, 9, 19, 14, 0))
+    assert decision["energy_horizon_end"] == datetime(2026, 9, 20, 7, 30)
+
+
+def test_time_slot_evening_peak_and_night_load_are_charged_in_the_window():
+    # At 12:30 the balance sees demand through 02:00 tomorrow (13.5 h), not
+    # just until midnight (11.5 h).
+    manager = _ts_manager([_window("02:00", "06:00"), _window("12:00", "16:00")])
+    decision = _balance(manager, datetime(2026, 9, 19, 12, 30))
+    assert decision["remaining_consumption_kwh"] == pytest.approx(13.5)
 
 
 def test_soc_drop_at_0300_counts_today_and_the_next_overnight_leg():
