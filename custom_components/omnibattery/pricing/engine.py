@@ -118,6 +118,7 @@ from .plan_inputs import (  # noqa: F401  (_apply_excluded_demand_claim: re-expo
     weekly_reserve,
     battery_idle_intervals,
     EnergyProjection,
+    energy_over,
     consumption_shape,
     solar_timeline,
     time_slot_window_hold,
@@ -2598,6 +2599,26 @@ class PricingManager:
         reserved = list(reserved_slots or [])
         reserved.extend(self._curtailment_operation_blocked_slots(daily_slots))
         export_mode, export_limit_w = self._curtailment_export_settings()
+        # The house load follows the learned profile the planner uses; without
+        # a projection the planner keeps its flat share of the daily average.
+        projection = (
+            self.energy_projection(evaluated_at, max(slot.end for slot in daily_slots))
+            if daily_slots
+            else None
+        )
+        consumption_by_slot = (
+            {
+                slot: energy_over(
+                    projection.boundaries,
+                    projection.consumption_kwh,
+                    slot.start,
+                    slot.end,
+                )
+                for slot in daily_slots
+            }
+            if projection is not None
+            else None
+        )
         try:
             plan = plan_curtailment(
                 daily_slots,
@@ -2619,6 +2640,7 @@ class PricingManager:
                 solar_fraction_fn=solar_model,
                 solar_forecast_is_remaining=is_remaining,
                 consumption_forecast_is_remaining=is_remaining,
+                consumption_by_slot=consumption_by_slot,
                 reserved_slots=reserved,
                 export_slots=self._curtailment_export_slots(daily_slots),
                 now=evaluated_at,
