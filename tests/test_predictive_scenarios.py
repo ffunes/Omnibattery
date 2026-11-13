@@ -238,6 +238,11 @@ class Outcome:
     booked: tuple[tuple[PriceSlot, float], ...]
     # The request the allocator received (the engine's first build).
     request: ChronologicalEvaluationRequest
+    # The plan that build produced (2.0.0: the optimizer's, or the allocator's
+    # for what it does not model yet) and the slots it charges to their end.
+    plan: object = None
+    to_end: frozenset = frozenset()
+    planner: str | None = None
 
     def describe(self) -> str:
         request = self.request
@@ -533,13 +538,24 @@ def _run_engine(scenario: Scenario, monkeypatch) -> Outcome:
     manager._send_dynamic_pricing_notification = _no_io
 
     requests: list[ChronologicalEvaluationRequest] = []
+    plans: list = []
     evaluate = manager.evaluate_chronological_projection
+    evaluate_dp = manager.evaluate_dynamic_pricing_plan
 
     def _recording(request):
         requests.append(request)
-        return evaluate(request)
+        result = evaluate(request)
+        plans.append(result.plan)
+        return result
+
+    def _recording_dp(request):
+        requests.append(request)
+        result = evaluate_dp(request)
+        plans.append(result.plan)
+        return result
 
     manager.evaluate_chronological_projection = _recording
+    manager.evaluate_dynamic_pricing_plan = _recording_dp
 
     asyncio.run(
         manager._evaluate_dynamic_pricing(
@@ -567,6 +583,9 @@ def _run_engine(scenario: Scenario, monkeypatch) -> Outcome:
         str(reason),
         tuple(sorted(booked.items(), key=lambda item: item[0].start)),
         request,
+        plans[0],
+        frozenset(getattr(schedule, "slot_charge_to_end", ()) or ()),
+        decision.get("planner"),
     )
 
 

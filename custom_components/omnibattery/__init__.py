@@ -6140,6 +6140,7 @@ class ChargeDischargeController:
         *,
         log: bool = True,
         window_hours: float | None = None,
+        to_slot_end: bool = False,
     ) -> Optional[dict]:
         """Calculate per-battery grid-only SOC targets for a forecast deficit.
 
@@ -6234,7 +6235,10 @@ class ChargeDischargeController:
                 targets[c] = ceiling
                 continue
             share_kwh = shares[c]
-            target = min(ceiling, current_soc + (share_kwh / capacity) * 100.0)
+            # A slot planned to charge until it ends asks each battery one SOC
+            # step more, so its whole-percent target is not reached early.
+            step = 1.0 if to_slot_end else 0.0
+            target = min(ceiling, current_soc + (share_kwh / capacity) * 100.0 + step)
             if floor_soc:
                 target = min(ceiling, max(target, floor_soc))
             targets[c] = max(target, current_soc)  # never go below current SOC
@@ -6378,6 +6382,7 @@ class ChargeDischargeController:
         # the lightweight controller stand-ins used by the planning tests.
         planned_kwh = None
         window_hours = None
+        to_slot_end = False
         if getattr(self, "predictive_charging_mode", None) == PREDICTIVE_MODE_TIME_SLOT:
             planned_kwh = getattr(self, "_active_time_slot_quota_kwh", None)
         schedule = getattr(self, "_dynamic_pricing_schedule", None)
@@ -6394,6 +6399,7 @@ class ChargeDischargeController:
             if active_slot is not None:
                 planned_kwh = schedule.slot_energy_targets_kwh.get(active_slot)
                 window_hours = max(0.0, (active_slot.end - now).total_seconds() / 3600.0)
+                to_slot_end = active_slot in getattr(schedule, "slot_charge_to_end", ())
                 if planned_kwh is not None:
                     planned_kwh = max(
                         0.0,
@@ -6401,7 +6407,11 @@ class ChargeDischargeController:
                         - ChargeDischargeController._charged_in_slot(self, active_slot),
                     )
         deficit_targets = ChargeDischargeController._compute_deficit_target_soc(
-            self, planned_kwh=planned_kwh, log=log, window_hours=window_hours
+            self,
+            planned_kwh=planned_kwh,
+            log=log,
+            window_hours=window_hours,
+            to_slot_end=to_slot_end,
         )
         self._predictive_deficit_target_soc = (
             deficit_targets

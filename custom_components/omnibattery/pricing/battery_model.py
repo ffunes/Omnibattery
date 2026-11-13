@@ -80,6 +80,12 @@ class BatteryModel:
         """Stored kWh a quota adds when the slot has the time to charge it."""
         return np.maximum(self.slot_target(e, quota) - np.asarray(e, dtype=float), 0.0)
 
+    def charge_rate(self, q: Quarter) -> float:
+        """Stored kWh a slot charge adds in the quarter at most: the power the
+        grid ceiling leaves after the house, through the charge efficiency."""
+        net = q.house_kwh - q.solar_kwh
+        return min(q.charge_kwh, max(0.0, q.ceiling_kwh - max(0.0, net))) * self.eff
+
     def normal_step(self, q: Quarter, e, target=None):
         """(energy after, cost) of the quarter. With an open slot (``target``
         from ``slot_target``, passed until the slot first reaches it: the
@@ -89,7 +95,7 @@ class BatteryModel:
         The two phases are priced apart: they do not net."""
         e = np.asarray(e, dtype=float)
         net = q.house_kwh - q.solar_kwh
-        rate = min(q.charge_kwh, max(0.0, q.ceiling_kwh - max(0.0, net))) * self.eff
+        rate = self.charge_rate(q)
         if target is None or not q.grid_charge_allowed:
             add = np.zeros_like(e)
         else:
