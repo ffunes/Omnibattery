@@ -1567,9 +1567,18 @@ def allocate_price_slots(
             # hours that repay the slot, and the shortfall above is zero, so
             # it never kept them whole. Give the trimmed energy back, latest
             # slot first, as far as it fits and covers such hours.
+            def stop_of(begin: datetime, item: PriceSlot, amount: float) -> datetime:
+                # At the rate the grid ceiling leaves the slot: a charge at
+                # the bare power stops too soon and drains the rest.
+                hours = _duration_hours(begin, min(item.end, horizon_end))
+                full = capacity(item)
+                if full <= _EPSILON or hours <= 0.0:
+                    return item.end
+                return begin + timedelta(hours=hours * min(1.0, amount / full))
+
             def simulated() -> tuple[list[float], float]:
                 result = simulate(sorted(
-                    (begin, window_end(begin, item, amount), amount)
+                    (begin, stop_of(begin, item, amount), amount)
                     for item, amount in allocations.items()
                     for begin in (max(now, item.start),)
                 ), partial=True)
