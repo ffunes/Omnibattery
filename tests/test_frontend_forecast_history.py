@@ -94,6 +94,13 @@ def test_revisions_are_drawn_as_step_lines_that_reach_the_right_edge():
     assert "s.step" in line and "s.marks" in line
 
 
+def test_a_step_line_holds_its_value_up_to_the_point_where_it_ends():
+    line = _method("_fcLineSVG")
+    hold = 'if (open && s.step) d += "L" + X(i).toFixed(1) + " " + Y(prev).toFixed(1) + " ";'
+    # Before a point without a value (the line ends there) and before a step.
+    assert line.count(hold) == 2
+
+
 def test_the_drift_axis_starts_at_the_first_drawn_revision():
     drift = _method("_fcDrawDrift")
     assert 'all.findIndex((p) => p.v != null)' in drift

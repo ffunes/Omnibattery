@@ -45,7 +45,9 @@ class Clock:
         return self.value
 
 
-def _setup(clock: Clock, *, timeline_store=None, history_store=None):
+def _setup(clock: Clock, *, timeline_store=None, history_store=None, startup_settle_s=0):
+    """``startup_settle_s``: 0 records from the first observation on, as most
+    tests want; ``None`` keeps the wait after a restart."""
     hass = SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Amsterdam"))
     entry = SimpleNamespace(entry_id="entry", data={}, options={})
     timeline = DailyOperationTimelineManager(
@@ -56,7 +58,9 @@ def _setup(clock: Clock, *, timeline_store=None, history_store=None):
         now_provider=clock,
         debounce_seconds=0.0,
     )
-    history = ForecastHistoryManager(hass, entry, store=history_store or FakeStore())
+    history = ForecastHistoryManager(
+        hass, entry, store=history_store or FakeStore(), startup_settle_s=startup_settle_s
+    )
     history.attach(timeline)
     return timeline, history
 
@@ -783,3 +787,80 @@ def test_a_solar_sensor_silent_at_night_is_no_gap():
     assert series[10] == 0.0 and series[40] == pytest.approx(0.3)
     # Quarters 32 and 33 were forecast at 0.3 but the sensor was still silent.
     assert summary["day_ahead"]["compare"]["solar"]["error"] == pytest.approx(0.6)
+
+
+# --- the first projections after a restart -----------------------------------
+
+def _startup_plan(now, *, extension, grid_kwh):
+    plan = _plan(now, extension=extension)
+    plan["extended_intervals"][8]["grid_to_battery_kwh"] = grid_kwh
+    return plan
+
+
+def test_nothing_is_recorded_while_the_plan_settles_after_a_restart():
+    """The first projections after a restart are built before the planner has
+    run. On 13 Nov tomorrow's plan was stored with a 48-quarter horizon and
+    then with 7.5 instead of 4.5 kWh grid charge, within a minute of the
+    restart; the short horizon also broke the day-ahead line."""
+    start = datetime(2026, 11, 13, 22, 9, 14, tzinfo=AMS)
+    clock = Clock(start)
+    timeline, history = _setup(clock, startup_settle_s=None)
+
+    def observe(seconds, plan):
+        clock.value = start + timedelta(seconds=seconds)
+        timeline.rebuild_future_projection(plan, now=clock.value, mode="time_slot")
+        return history.observe(timeline, decision={}, now=clock.value)
+
+    # No prices yet: half the horizon. Then slots at full power, then the plan.
+    assert observe(0, _startup_plan(start, extension=48, grid_kwh=0.0)) is False
+    assert observe(5, _startup_plan(start, extension=96, grid_kwh=7.5)) is False
+    assert observe(62, _startup_plan(start, extension=96, grid_kwh=4.5)) is False
+    assert not history._days
+
+    assert observe(121, _startup_plan(start, extension=96, grid_kwh=4.5)) is True
+    tomorrow = history._days["2026-11-14"]["revisions"]
+    assert [(r["cov"], r["p_grid_charge"]) for r in tomorrow] == [(96, 4.5)]
+    assert len(_intraday(history, "2026-11-13")) == 1
+    captured = history._days["2026-11-13"]["start_of_day"]
+    assert captured["captured_at"].startswith("2026-11-13T22:11")
+
+
+async def test_a_restart_with_an_unchanged_plan_adds_no_revision():
+    """The revisions from before the restart stay the reference: once the plan
+    has settled on the same totals, the restart leaves no trace."""
+    start = datetime(2026, 11, 13, 22, 9, 14, tzinfo=AMS)
+    clock = Clock(start)
+    before = {
+        "t": "2026-11-13T21:49:00+01:00", "h": "day_ahead", "mode": "time_slot", "cov": 96,
+        "p_solar": 9.6, "p_consumption": 11.52, "p_grid_charge": 0.4, "p_discharge": 0.0,
+        "soc_end": 50.0,
+    }
+    store = FakeStore({"version": 1, "days": {
+        "2026-11-14": {"date": "2026-11-14", "revisions": [before]},
+    }})
+    timeline, history = _setup(clock, history_store=store, startup_settle_s=None)
+    await history.async_load()
+
+    for seconds, extension in ((0, 48), (5, 96), (130, 96)):
+        clock.value = start + timedelta(seconds=seconds)
+        timeline.rebuild_future_projection(
+            _plan(clock.value, extension=extension), now=clock.value, mode="time_slot"
+        )
+        history.observe(timeline, decision={}, now=clock.value)
+
+    assert history._days["2026-11-14"]["revisions"] == [before]
+
+
+def test_a_clock_that_jumped_back_does_not_prolong_the_wait():
+    start = datetime(2026, 11, 13, 22, 9, 14, tzinfo=AMS)
+    clock = Clock(start)
+    timeline, history = _setup(clock, startup_settle_s=None)
+    timeline.rebuild_future_projection(_plan(start), now=start, mode="time_slot")
+    assert history.observe(timeline, decision={}, now=start) is False
+    # The time was corrected by ten minutes: the first observation is no
+    # reference any more, so recording starts.
+    earlier = start - timedelta(minutes=10)
+    assert history.observe(
+        view=view_from_timeline_payload(timeline.forecast_history_payload()),
+        decision={}, now=earlier,
+    ) is True
