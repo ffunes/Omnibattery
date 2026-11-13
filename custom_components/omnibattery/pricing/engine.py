@@ -4846,65 +4846,54 @@ class PricingManager:
         floor_enabled = getattr(
             self._controller, "_predictive_min_soc_floor_enabled", False
         )
-        # With an extended horizon the scalar balance is not authoritative (it
-        # nets tomorrow's solar against tonight), so the plan always decides.
-        if deficit_charging_needed or floor_enabled or planning_end:
-            chronological_plan = self._build_chronological_plan(
+        # The plan always decides: the scalar balance nets later solar (today's
+        # or tomorrow's) against tonight's gap, so a "sufficient" balance
+        # vetoed a plan that books a cheap top-up before the sun.
+        chronological_plan = self._build_chronological_plan(
+            now=eval_now,
+            slots=plan_slots,
+            decision_data=decision_data,
+            price_ceiling=ceiling,
+            slot_ceilings=slot_ceilings,
+            planning_end=planning_end,
+        )
+        if planning_end:
+            full_plan = chronological_plan
+            chronological_plan = self._plan_within(full_plan, slots)
+            self._record_deferred_grid_charge(
+                decision_data, full_plan, chronological_plan
+            )
+            # All the energy sits in tomorrow's slots: nothing to charge
+            # now, and the notification must not call that "no slots".
+            decision_data["deferred_to_next_day"] = bool(
+                full_plan is not None
+                and full_plan.allocations
+                and not chronological_plan.allocations
+            )
+        if not decision_data.get("should_charge", False) and not (
+            deficit_charging_needed or floor_enabled
+        ):
+            # Nothing needed: keep the informational calendar below, with
+            # the existing no-charge semantics.
+            chronological_plan = None
+            self._build_chronological_plan(
                 now=eval_now,
                 slots=plan_slots,
                 decision_data=decision_data,
                 price_ceiling=ceiling,
+                diagnostic_only=True,
                 slot_ceilings=slot_ceilings,
                 planning_end=planning_end,
             )
-            if planning_end:
-                full_plan = chronological_plan
-                chronological_plan = self._plan_within(full_plan, slots)
-                self._record_deferred_grid_charge(
-                    decision_data, full_plan, chronological_plan
-                )
-                # All the energy sits in tomorrow's slots: nothing to charge
-                # now, and the notification must not call that "no slots".
-                decision_data["deferred_to_next_day"] = bool(
-                    full_plan is not None
-                    and full_plan.allocations
-                    and not chronological_plan.allocations
-                )
-                if not decision_data.get("should_charge", False) and not (
-                    deficit_charging_needed or floor_enabled
-                ):
-                    # Nothing needed: keep the informational calendar below.
-                    chronological_plan = None
-                    self._build_chronological_plan(
-                        now=eval_now,
-                        slots=plan_slots,
-                        decision_data=decision_data,
-                        price_ceiling=ceiling,
-                        diagnostic_only=True,
-                        slot_ceilings=slot_ceilings,
-                        planning_end=planning_end,
-                    )
-            deficit_charging_needed = bool(decision_data.get("should_charge", False))
-            if deficit_charging_needed and chronological_plan is not None:
-                deficit_kwh = float(
-                    decision_data.get("energy_deficit_kwh", deficit_kwh) or 0.0
-                )
-                deficit_hours_needed = calculations.calculate_exact_charging_hours_needed(
-                    chronological_plan.total_required_kwh,
-                    self._contracted_charge_ceiling(),
-                    self._controller.max_charge_capacity,
-                )
-        else:
-            # A sufficient balance still deserves a forecast/timeline
-            # projection.  Keep it diagnostic-only so the final schedule keeps
-            # its existing no-charge semantics.
-            self._build_chronological_plan(
-                now=eval_now,
-                slots=slots,
-                decision_data=decision_data,
-                price_ceiling=ceiling,
-                diagnostic_only=True,
-                slot_ceilings=slot_ceilings,
+        deficit_charging_needed = bool(decision_data.get("should_charge", False))
+        if deficit_charging_needed and chronological_plan is not None:
+            deficit_kwh = float(
+                decision_data.get("energy_deficit_kwh", deficit_kwh) or 0.0
+            )
+            deficit_hours_needed = calculations.calculate_exact_charging_hours_needed(
+                chronological_plan.total_required_kwh,
+                self._contracted_charge_ceiling(),
+                self._controller.max_charge_capacity,
             )
         weekly_pending = getattr(self._controller, "_weekly_full_charge_pending", None)
         if (
