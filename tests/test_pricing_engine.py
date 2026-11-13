@@ -356,9 +356,10 @@ def test_dynamic_pricing_builds_diagnostics_when_balance_needs_no_charge():
         )
     )
 
-    assert len(diagnostic_builds) == 1
-    assert diagnostic_builds[0]["diagnostic_only"] is True
-    assert diagnostic_builds[0]["slots"] == slots
+    # The plan decides first (the balance cannot veto it); booking nothing,
+    # the evaluation falls back to the diagnostic projection.
+    assert [b.get("diagnostic_only", False) for b in diagnostic_builds] == [False, True]
+    assert diagnostic_builds[-1]["slots"] == slots
 
 
 # ----------------------------------------------------------------------
