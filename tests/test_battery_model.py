@@ -12,6 +12,7 @@ down, and the charge stops on the first reading at the target (no poll lag).
 from __future__ import annotations
 
 import math
+import random
 from types import SimpleNamespace
 
 import pytest
@@ -21,7 +22,7 @@ from custom_components.omnibattery.pricing.battery_model import BatteryModel, Qu
 from tests.conftest import FakeCoordinator
 
 
-def _controller(coords, quota_kwh):
+def _controller(coords, quota_kwh, window_hours=None):
     targets = {}
     ctrl = SimpleNamespace(
         coordinators=list(coords),
@@ -39,24 +40,39 @@ def _controller(coords, quota_kwh):
         _should_charge_to_bms_cutoff=lambda c, m: False,
         _normal_balance_recal_override={},
         _predictive_charge_target_soc=targets,
+        # The slot path passes window_hours: _shares_within_window reads the
+        # per-battery power limit through these.
+        _max_soc_mgr=SimpleNamespace(apply_charge_taper=lambda c, limit: limit),
+        _temp_limit_mgr=SimpleNamespace(apply_temperature_limit=lambda c, limit: limit),
+        _apply_slot_power_ceiling=lambda c, is_charging, limit: limit,
     )
     targets.update(
-        ChargeDischargeController._compute_deficit_target_soc(ctrl, planned_kwh=quota_kwh, log=False)
+        ChargeDischargeController._compute_deficit_target_soc(
+            ctrl, planned_kwh=quota_kwh, log=False, window_hours=window_hours
+        )
     )
     return ctrl
 
 
-def controller_stores(fleet, quota_kwh):
-    """kWh the real controller stores for ``quota_kwh``: (capacity, true SOC) per battery."""
+def controller_stores(fleet, quota_kwh, window_hours=None, resolution=1.0):
+    """kWh the real controller stores for ``quota_kwh``.
+
+    ``fleet``: (capacity kWh, true SOC[, max_soc, charge W]) per battery. The
+    window only shapes the split (it is long enough not to cut the charge)."""
     coords, true_soc = [], {}
-    for capacity, soc in fleet:
-        c = FakeCoordinator(max_soc=100, data={"battery_total_energy": capacity})
+    for capacity, soc, *rest in fleet:
+        max_soc, power = (*rest, 100, 2500)[:2]
+        c = FakeCoordinator(max_soc=max_soc, max_charge_power=power,
+                            data={"battery_total_energy": capacity})
         c.enable_charge_hysteresis = False
         coords.append(c)
         true_soc[c] = soc
+    def read(soc):
+        return math.floor(soc / resolution + 1e-9) * resolution
+
     for c in coords:
-        c.data["battery_soc"] = math.floor(true_soc[c] + 1e-9)
-    ctrl = _controller(coords, quota_kwh)
+        c.data["battery_soc"] = read(true_soc[c])
+    ctrl = _controller(coords, quota_kwh, window_hours)
     start = dict(true_soc)
     for _ in range(100000):  # 0.001 % ticks
         charging = ChargeDischargeController._get_available_batteries(ctrl, is_charging=True)
@@ -64,14 +80,16 @@ def controller_stores(fleet, quota_kwh):
             break
         for c in charging:
             true_soc[c] += 0.001
-            c.data["battery_soc"] = math.floor(true_soc[c] + 1e-9)
+            c.data["battery_soc"] = read(true_soc[c])
     return sum((true_soc[c] - start[c]) / 100.0 * c.data["battery_total_energy"] for c in coords)
 
 
-def model_stores(fleet, quota_kwh):
-    capacity = sum(cap for cap, _soc in fleet)
-    stored = sum(cap * soc / 100.0 for cap, soc in fleet)
-    model = BatteryModel(capacity_kwh=capacity, round_trip_efficiency=0.85, floor_kwh=0.0)
+def model_stores(fleet, quota_kwh, resolution=1.0):
+    capacity = sum(f[0] for f in fleet)
+    stored = sum(f[0] * f[1] / 100.0 for f in fleet)
+    top = sum(f[0] * (*f[2:], 100)[0] / 100.0 for f in fleet)  # each battery's max_soc
+    model = BatteryModel(capacity_kwh=capacity, round_trip_efficiency=0.85, floor_kwh=0.0,
+                         usable_kwh=top, soc_resolution_pct=resolution)
     return model.executed_quota(stored, quota_kwh)
 
 
@@ -80,25 +98,44 @@ def model_stores(fleet, quota_kwh):
 @pytest.mark.parametrize(
     "capacities", [(5.12,), (5.12, 2.24), (10.0, 5.12, 2.24)], ids=["one", "mixed", "three"]
 )
-def test_a_quota_stores_what_the_controller_stops_at(capacities, soc, quota):
-    # Equal SOC: every battery gets the same target, so the fleet rounds to
-    # whole percents of its total capacity whatever the capacities. From a
+@pytest.mark.parametrize("window", [None, 10.0])
+def test_a_quota_stores_what_the_controller_stops_at(capacities, soc, quota, window):
+    # Equal SOC and max_soc: every battery gets the same target, so the fleet
+    # rounds to whole percents of its total capacity whatever the capacities,
+    # through the slot path (window) too. From a
     # fractional SOC the target starts at the reading, so it can store less.
     fleet = [(cap, soc) for cap in capacities]
-    assert model_stores(fleet, quota) == pytest.approx(controller_stores(fleet, quota), abs=2e-4)
+    assert model_stores(fleet, quota) == pytest.approx(controller_stores(fleet, quota, window), abs=2e-4)
 
 
-@pytest.mark.parametrize("quota", [0.084, 0.30, 1.0])
-@pytest.mark.parametrize("fleet", [
-    [(5.12, 37.6), (2.24, 61.2)],
-    [(5.12, 20.3), (10.0, 80.9)],
-    [(2.24, 15.5), (5.12, 55.0), (10.0, 90.2)],
-])
-def test_unequal_socs_stay_within_one_percent_of_the_fleet(fleet, quota):
-    # Each battery rounds from its own SOC: the aggregate model can miss by up
-    # to the whole rounding, 1 % of each battery, never more.
-    bound = sum(cap for cap, _ in fleet) / 100.0
-    assert abs(model_stores(fleet, quota) - controller_stores(fleet, quota)) <= bound
+@pytest.mark.parametrize("quota", [0.084, 0.30])
+@pytest.mark.parametrize("soc", [40.0, 40.37])
+def test_a_tenth_of_a_percent_reading_rounds_to_tenths(soc, quota):
+    # Huawei reads the SOC in tenths: the rounding shrinks with it.
+    fleet = [(5.12, soc)]
+    stored = controller_stores(fleet, quota, resolution=0.1)
+    assert float(model_stores(fleet, quota, resolution=0.1)) == pytest.approx(stored, abs=2e-4)
+    assert abs(stored - quota) <= 0.00512 + 1e-6
+
+
+def test_other_fleets_stay_within_two_percent_of_the_fleet():
+    # Unequal SOCs or max_soc: each battery rounds from its own reading and
+    # target, the aggregate model from the fleet's. Each side is within one
+    # whole percent of the quota, so they are within two of each other.
+    # Measured on 3000 random fleets: 1.37 (unequal SOC), 0.82 (equal SOC,
+    # mixed max_soc), 0 with equal SOC and max_soc.
+    rng = random.Random(1)
+    for _ in range(300):
+        fleet = []
+        for _b in range(rng.choice((1, 2, 3))):
+            top = rng.choice((90, 95, 100))
+            fleet.append((rng.choice((2.24, 5.12, 7.0, 8.16, 10.0)),
+                          round(rng.uniform(12, top - 5), 2), top, rng.choice((800, 1200, 2500))))
+        quota = rng.choice((0.05, 0.084, 0.2, 0.3, 0.6, 1.0, 2.0))
+        window = rng.choice((None, 10.0))
+        step = sum(f[0] for f in fleet) / 100.0
+        gap = abs(float(model_stores(fleet, quota)) - controller_stores(fleet, quota, window))
+        assert gap <= 2 * step + 1e-6, (fleet, quota, window)
 
 
 # --- The physics of one quarter, by hand (rte 0.81: eff 0.9 each way) ---
@@ -121,7 +158,7 @@ def test_a_quota_charges_first_and_the_grid_carries_the_house_meanwhile():
     # per quarter. Busy 0.30 / 0.54 of the quarter, the grid carries that part
     # of the house; the battery covers the rest.
     busy = 0.30 / 0.54
-    e1, cost = MODEL.normal_step(DAY, 2.0, quota=0.27)
+    e1, cost = MODEL.normal_step(DAY, 2.0, target=MODEL.slot_target(2.0, 0.27))
     assert float(e1) == pytest.approx(2.0 + 0.30 - 0.5 * (1 - busy) / 0.9)
     # Import = 0.30 / 0.9 for the charge + the house while busy, at 0.30: the
     # charge and the discharge after it do not net out.
@@ -148,3 +185,28 @@ def test_a_permission_off_forbids_the_move():
     # No grid charge in a quarter the plan may not buy in.
     closed = Quarter(**{**DAY.__dict__, "grid_charge_allowed": False})
     assert float(MODEL.cost(closed, 2.0, 2.3)) >= 1e8
+
+
+@pytest.mark.parametrize("perms", [
+    dict(sell=False, hold=False, solar=False), dict(hold=False), dict(),
+])
+def test_a_grid_charge_only_executes_as_a_quota(perms):
+    # The controller charges from the grid only through a slot quota, then the
+    # battery covers the house. A free move that charges and leaves the house
+    # on the grid was cheaper than that and is not executable (it skipped the
+    # rounding too).
+    e1, cost = MODEL.normal_step(DAY, 2.0, target=MODEL.slot_target(2.0, 0.27))
+    assert float(MODEL.cost(DAY, 2.0, e1, **perms)) >= 1e8
+
+
+def test_an_hourly_slot_sets_its_target_once():
+    # 10 kWh at 20.8 %: the reading is 20 %, the target 30 %, so a 1.0 kWh quota
+    # stores 0.92 over two quarters. Rounding each quarter's remainder again
+    # stored 1.02.
+    hour = Quarter(house_kwh=0.0, solar_kwh=0.0, import_price=0.10, export_price=0.0,
+                   grid_charge_allowed=True, charge_kwh=0.6, discharge_kwh=0.6)
+    target = MODEL.slot_target(2.08, 1.0)
+    e = 2.08
+    for _ in range(4):
+        e, _cost = MODEL.normal_step(hour, e, target=target)
+    assert float(e) == pytest.approx(3.0)

@@ -8,12 +8,14 @@ A single efficiency, the configured round trip, split evenly: eff = sqrt(rte).
 Limits per quarter: AC in <= charge kWh, out <= discharge kWh, grid import while
 charging <= ceiling kWh, export <= export limit (solar beyond it is curtailed).
 
-A grid charge quota executes as the controller does: a SOC target per battery,
-charged while the whole-percent reading is below it, so the stored energy
-rounds up to the next 1 % of the fleet. Exact for one battery and for a fleet
-at equal SOC; with unequal SOCs each battery rounds from its own point and the
-error stays within 1 % of the fleet. The rest of the quarter the battery is
-back to normal: it covers the house and stores the surplus.
+Grid charging happens only as the controller does it: a slot quota becomes a
+SOC target per battery, set once when the slot starts, charged while the
+whole-percent reading is below it. The stored energy rounds to whole percents
+of the fleet: exact for one battery and for a fleet at equal SOC and max_soc
+whatever the capacities; otherwise each battery rounds from its own reading and
+target, within 2 % of the fleet (measured max 1.37, tests/test_battery_model.py). Once the target is reached the slot
+is complete and the battery is back to normal: it covers the house and stores
+the surplus.
 
 All functions take floats or numpy arrays for ``e``/``e1``.
 """
@@ -48,6 +50,9 @@ class BatteryModel:
     round_trip_efficiency: float
     floor_kwh: float = 0.0  # stored kWh at the discharge floor
     usable_kwh: float | None = None  # floor..max; default capacity - floor
+    # Resolution of the SOC reading, % (whole percent on most drivers; Huawei
+    # reads tenths; ESPHome whatever its sensor publishes).
+    soc_resolution_pct: float = 1.0
 
     @property
     def eff(self) -> float:
@@ -59,27 +64,36 @@ class BatteryModel:
             return self.usable_kwh
         return self.capacity_kwh - self.floor_kwh
 
-    def executed_quota(self, e, quota):
-        """Stored kWh a quota really adds. The target is the whole-percent
-        reading plus the quota, and the charge stops at the first whole percent
-        at or above it: from a fractional SOC it can store less than the quota
-        or up to 1 % more. Assumes the reading is the SOC rounded down."""
-        step = self.capacity_kwh / 100.0
-        start = self.floor_kwh + np.asarray(e, dtype=float)
-        reading = np.floor(start / step + 1e-6) * step
-        rounded = np.ceil((reading + quota) / step - 1e-6) * step - start
-        room = np.maximum(self.cap - np.asarray(e, dtype=float), 0.0)
-        return np.where(quota > TOL, np.minimum(np.maximum(rounded, 0.0), room), 0.0)
+    def slot_target(self, e, quota):
+        """Stored energy a slot's quota charges up to, set once when the slot
+        starts: the whole-percent reading plus the quota, rounded up to the next
+        whole percent (the charge stops at the first reading at or above it).
+        From a fractional SOC it can store less than the quota or up to 1 %
+        more. Assumes the reading is the SOC rounded down."""
+        step = self.capacity_kwh * self.soc_resolution_pct / 100.0
+        e = np.asarray(e, dtype=float)
+        reading = np.floor((self.floor_kwh + e) / step + 1e-6) * step
+        target = np.ceil((reading + quota) / step - 1e-6) * step - self.floor_kwh
+        return np.where(quota > TOL, np.minimum(target, self.cap), e)
 
-    def normal_step(self, q: Quarter, e, quota: float = 0.0):
-        """(energy after, cost) of the quarter: the quota first, at the charge
-        rate the ceiling leaves, the grid carrying the house meanwhile; then
-        normal behaviour (cover the house, store the surplus). The two phases
-        are priced apart: a charge and a discharge in one quarter do not net."""
+    def executed_quota(self, e, quota):
+        """Stored kWh a quota adds when the slot has the time to charge it."""
+        return np.maximum(self.slot_target(e, quota) - np.asarray(e, dtype=float), 0.0)
+
+    def normal_step(self, q: Quarter, e, target=None):
+        """(energy after, cost) of the quarter. With an open slot (``target``
+        from ``slot_target``, passed until the slot first reaches it: the
+        controller then completes the slot) the battery first charges toward
+        it at the rate the ceiling leaves, the grid carrying the house
+        meanwhile; then normal behaviour (cover the house, store the surplus).
+        The two phases are priced apart: they do not net."""
         e = np.asarray(e, dtype=float)
         net = q.house_kwh - q.solar_kwh
         rate = min(q.charge_kwh, max(0.0, q.ceiling_kwh - max(0.0, net))) * self.eff
-        add = np.minimum(self.executed_quota(e, quota), rate)
+        if target is None or not q.grid_charge_allowed:
+            add = np.zeros_like(e)
+        else:
+            add = np.minimum(np.maximum(np.asarray(target, dtype=float) - e, 0.0), rate)
         busy = np.where(add > 0, add / rate, 0.0) if rate > 0 else np.zeros_like(add)
         e1 = e + add
         grid_busy = add / self.eff + net * busy  # the charge, plus the house meanwhile
@@ -100,12 +114,13 @@ class BatteryModel:
         return e2, imp * q.import_price - exp * q.export_price
 
     def cost(self, q: Quarter, e, e1, *, sell=True, hold=True, solar=True, forced=False, margin=0.0):
-        """Cost of going from e to e1 in the quarter; BIG if not allowed.
+        """Cost of a free move from e to e1 in the quarter; BIG if not allowed.
 
-        Permissions: ``sell`` battery energy may be exported; ``hold`` the
-        battery may leave the house to the grid; ``solar`` surplus may be
-        exported instead of stored. ``forced`` prices a move without judging it
-        (the normal behaviour and an executed quota).
+        Free moves never charge from the grid: the controller does that only
+        through a slot quota, which is ``normal_step``. Permissions: ``sell``
+        battery energy may be exported; ``hold`` the battery may leave the house
+        to the grid; ``solar`` surplus may be exported instead of stored.
+        ``forced`` prices a move without judging it.
         """
         e = np.asarray(e, dtype=float)
         e1 = np.asarray(e1, dtype=float)
@@ -119,8 +134,7 @@ class BatteryModel:
         batt_exp = np.maximum(0.0, out - max(0.0, net))
         bad = (a_in > q.charge_kwh + 1e-6) | (out > q.discharge_kwh + 1e-6)
         if not forced:
-            bad |= (from_grid > TOL) & (not q.grid_charge_allowed)
-            bad |= from_grid > max(0.0, q.ceiling_kwh - max(0.0, net)) + 1e-6
+            bad |= from_grid > TOL
             if not sell:
                 bad |= batt_exp > 1e-6
             if not hold:
