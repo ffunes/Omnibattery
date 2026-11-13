@@ -2,6 +2,10 @@
 
 ## [1.6.1b2] - 2026-11-11
 
+### Added
+
+- **Decision log for reviewing a night afterwards**: the integration now writes `/config/omnibattery_logs/decisions-YYYY-MM-DD.jsonl`, one JSON object per line, kept for 14 days. Every quarter-hour it records the state (SOC and stored energy per battery and in total, battery, solar and grid power, the commanded power, the mode, grid charging, the active slot, charge delay, discharge reserve, surplus hold, high-price discharge and charge blockers). Every planner decision is recorded with its numbers (deficit, solar forecast, consumption until sunrise, planned grid charge, booked slots with prices), and any change of the control state at the moment it happens, plus the options in force at startup and whenever they change. It answers questions such as "why was the battery still this full when the sun came up?" without turning on debug logging. Connection details and passwords are left out.
+
 ### Fixed
 
 - **Daily operation timeline no longer fills the recorder** (#850): its attributes change on every publish (about once a minute), so each write stored a new attributes row. From Home Assistant 2024.7 the sensor's attributes are no longer recorded; the panel reads the live state, so the Daily operation card is unchanged. The card also updates at once again when an interval closes, instead of up to a minute later. Thanks to @mhjansen79.
