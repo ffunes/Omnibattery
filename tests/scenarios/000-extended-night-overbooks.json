@@ -1,0 +1,109 @@
+{
+  "source": {
+    "issue": null,
+    "kind": "synthetic",
+    "reporter": null,
+    "date": "2026-11-13",
+    "url": null
+  },
+  "note": [
+    "Found by the invariant sweep (docs/plans/barrido): tomorrow's prices are published, so the plan runs to tomorrow's solar noon and sizes itself from the deadlines (#710). Each night slot was bounded by the room it has when it opens, not by the slots booked after it, which saw an empty battery.",
+    "Inputs: one 5.12 kWh battery at 60 %, a flat 1.2 kW house, no solar forecast, 0.10 until 07:00, 0.20 by day, 0.30 from 18:00 to 22:00, both days; evaluation at 16:00.",
+    "BEFORE: the night booked more than the 4.6 kWh the battery holds (9.19 kWh in total, 2.9 kWh with no room when its slot charges).",
+    "NOW: the night fills the battery, 4.6 kWh from 04:45 to 07:00."
+  ],
+  "level": "engine",
+  "now": "2026-11-10T16:00:00",
+  "time_zone": "Europe/Madrid",
+  "sun": {
+    "sunrise": "08:00",
+    "solar_noon": "13:15"
+  },
+  "prices": {
+    "slot_minutes": 15,
+    "blocks": [
+      {
+        "start": "2026-11-10T00:00:00",
+        "end": "2026-11-10T07:00:00",
+        "price": 0.1
+      },
+      {
+        "start": "2026-11-10T07:00:00",
+        "end": "2026-11-10T18:00:00",
+        "price": 0.2
+      },
+      {
+        "start": "2026-11-10T18:00:00",
+        "end": "2026-11-10T22:00:00",
+        "price": 0.3
+      },
+      {
+        "start": "2026-11-10T22:00:00",
+        "end": "2026-11-11T00:00:00",
+        "price": 0.2
+      },
+      {
+        "start": "2026-11-11T00:00:00",
+        "end": "2026-11-11T07:00:00",
+        "price": 0.1
+      },
+      {
+        "start": "2026-11-11T07:00:00",
+        "end": "2026-11-11T18:00:00",
+        "price": 0.2
+      },
+      {
+        "start": "2026-11-11T18:00:00",
+        "end": "2026-11-11T22:00:00",
+        "price": 0.3
+      },
+      {
+        "start": "2026-11-11T22:00:00",
+        "end": "2026-11-12T00:00:00",
+        "price": 0.2
+      }
+    ]
+  },
+  "consumption": {
+    "profile_kw": [
+      {
+        "from": "00:00",
+        "kw": 1.2
+      }
+    ]
+  },
+  "solar": {
+    "remaining_kwh": 0.0,
+    "periods": []
+  },
+  "fleet": [
+    {
+      "capacity_kwh": 5.12,
+      "soc": 60,
+      "min_soc": 10,
+      "max_soc": 100,
+      "max_charge_w": 2500,
+      "max_discharge_w": 2500
+    }
+  ],
+  "settings": {
+    "max_price_threshold": 1.0,
+    "min_arbitrage_margin": null,
+    "round_trip_efficiency": 0.85,
+    "discharge_reserve": false,
+    "peak_shaving": null,
+    "contracted_power_w": 5750,
+    "guaranteed_floor_soc": null,
+    "safety_margin_kwh": 0.0
+  },
+  "expected": {
+    "windows": [
+      {
+        "start": "2026-11-11T00:00:00",
+        "end": "2026-11-11T07:00:00",
+        "min_kwh": 4.4,
+        "max_kwh": 4.65
+      }
+    ]
+  }
+}
