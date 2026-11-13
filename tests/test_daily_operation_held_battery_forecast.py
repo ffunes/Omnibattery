@@ -281,3 +281,106 @@ def test_a_held_interval_keeps_the_original_forecast_through_later_steps():
     assert idle.expected_consumption_kwh == pytest.approx(0.1)
     assert capped.consumption_kwh == pytest.approx(0.05)
     assert capped.expected_consumption_kwh == pytest.approx(0.1)
+
+
+# --- solar shown before the safety margin and the excluded-device claim -------
+
+DAY = datetime(2026, 11, 10, 10, 0)
+DAY_END = datetime(2026, 11, 11, 6, 0)
+
+
+def _solar_plan(manager, *, claim=0.0, slots=()):
+    manager._solar_timeline_window = lambda _now, _tracker: (
+        DAY.replace(hour=8),
+        DAY.replace(hour=16),
+    )
+    return manager.build_extended_chronological_projection(
+        now=DAY,
+        slots=tuple(slots),
+        base_decision_data={
+            "avg_consumption_kwh": LOAD_KW * 6,
+            "solar_remaining_raw_kwh": 2.0,
+            "excluded_demand_claim_kwh": claim,
+            "planned_grid_charge_kwh": 3.0,
+        },
+        price_ceiling=None,
+        horizon_end=DAY_END,
+    ).plan
+
+
+def test_the_timeline_solar_is_the_forecast_before_margin_and_claim():
+    """A 2.0 kWh provider forecast with a 0.512 kWh margin was shown (and
+    compared in the forecast history) as 1.488 kWh: -26 % for a perfect
+    forecast. The planner keeps the cautious figure."""
+    manager = _manager(PREDICTIVE_MODE_TIME_SLOT, _predictive_safety_margin_kwh=0.512)
+    plan = _solar_plan(manager, claim=0.3)
+
+    assert sum(item.solar_kwh for item in plan.intervals) == pytest.approx(2.0 - 0.512 - 0.3)
+    assert sum(item.expected_solar_kwh for item in plan.intervals) == pytest.approx(2.0)
+    published = build_daily_operation_projection(
+        DailyOperationProjectionRequest(
+            now=DAY,
+            plan_intervals=tuple(plan.intervals),
+            allocations=(),
+            battery_inputs=(BATTERY,),
+            mode="time_slot",
+            decision_data={},
+        )
+    )["intervals"]
+    assert sum(item["solar_forecast_kwh"] for item in published) == pytest.approx(2.0)
+    assert sum(item["solar_kwh"] for item in published) == pytest.approx(2.0)
+    # The battery covers the load the cautious solar left; shown solar only
+    # feeds what is left of the house load, never more than the load.
+    for item in published:
+        assert (
+            item["solar_to_home_kwh"] + item["battery_to_home_kwh"]
+            <= item["consumption_kwh"] + 1e-9
+        )
+        assert item["grid_to_home_kwh"] >= 0.0
+
+
+def test_the_forecast_solar_leaves_the_plan_unchanged(monkeypatch):
+    """Everything the planner decides from must stay as it was: only the
+    displayed forecast carrier is new."""
+    from custom_components.omnibattery.pricing import engine
+
+    real = engine.build_solar_timeline
+
+    def planner_only(*args, **kwargs):
+        # The old code made only the planner's call (with the margin).
+        if kwargs.get("safety_margin_kwh") == 0.0:
+            return SimpleNamespace(intervals_kwh=(), source="none")
+        return real(*args, **kwargs)
+
+    slots = [
+        PriceSlot(DAY + timedelta(hours=hour), DAY + timedelta(hours=hour + 1), 0.1 + 0.02 * hour)
+        for hour in range(6)
+    ]
+    # A nearly empty battery, so the plan has deadlines and books slots.
+    low = SimpleNamespace(data={"battery_soc": 12, "battery_total_energy": 10.0}, min_soc=10, max_soc=100)
+    kwargs = dict(_predictive_safety_margin_kwh=0.512, coordinators=[low])
+    new = _solar_plan(_manager(PREDICTIVE_MODE_DYNAMIC_PRICING, **kwargs), claim=0.3, slots=slots)
+    monkeypatch.setattr(engine, "build_solar_timeline", planner_only)
+    old = _solar_plan(_manager(PREDICTIVE_MODE_DYNAMIC_PRICING, **kwargs), claim=0.3, slots=slots)
+
+    assert new.allocations and new.deadlines
+
+    assert [(i.start, i.end, i.consumption_kwh, i.solar_kwh, i.house_load_kwh) for i in new.intervals] == [
+        (i.start, i.end, i.consumption_kwh, i.solar_kwh, i.house_load_kwh) for i in old.intervals
+    ]
+    assert new.deadlines == old.deadlines
+    assert new.allocations == old.allocations
+    assert new.total_required_kwh == old.total_required_kwh
+    assert new.reason == old.reason
+    assert [i.forecast_solar_kwh for i in old.intervals] == [i.solar_kwh for i in old.intervals]
+    assert sum(i.forecast_solar_kwh for i in new.intervals) == pytest.approx(2.0)
+
+
+def test_held_and_idle_intervals_keep_the_forecast_solar():
+    interval = EnergyInterval(
+        DAY, DAY + timedelta(minutes=15), 0.3, 0.1, forecast_solar_kwh=0.2
+    )
+    assert interval.with_battery_idle().expected_solar_kwh == pytest.approx(0.2)
+    (capped,) = cap_battery_drain([interval], 0.4)
+    assert capped.expected_solar_kwh == pytest.approx(0.2)
+    assert capped.solar_kwh == pytest.approx(0.1)

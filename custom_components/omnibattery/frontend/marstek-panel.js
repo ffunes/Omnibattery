@@ -59,6 +59,7 @@ const I18N = {
     evCharger: "EV charger",
     flowToggle: "Switch diagram",
     tabResumen: "Overview", tabBaterias: "Batteries", tabControl: "Control",
+    tabForecast: "Forecast", fcAccuracyTitle: "Forecast vs actual", fcDetailTitle: "Day in quarter-hours", fcDriftTitle: "Prediction over time", fcSolar: "Solar", fcConsumption: "Consumption", fcGridCharge: "Grid charge", fcDischarge: "Battery discharge", fcActual: "Actual", fcDayAhead: "Day-ahead plan", fcStartOfDay: "Start-of-day plan", fcCurrentPlan: "Current plan", fcExpected: "Expected for the day", fcExport: "Download as CSV", fcExportDays: "Days", fcExportIntervals: "Quarter-hours", fcExportRevisions: "Revisions", fcNoHistory: "No forecast history yet. It is recorded from now on: tonight's plan for tomorrow is the first day-ahead forecast.", fcUnavailable: "Forecast history is not available. Restart Home Assistant after updating the integration.", fcNoFinishedDays: "No finished days yet", fcNoRevisions: "No plan revisions recorded for this day", fcDate: "Date", fcError: "error", fcCoverage: "covers {n} of 96 quarters", fcPartialShort: "{n}/96", fcCaptured: "made {time}", fcPartial: "so far", fcFullDay: "{kwh} kWh all day", fcPrev: "Previous day", fcNext: "Next day", fcToday: "Today", fcTomorrow: "Tomorrow", fcAxis: "kWh/15 min", fcDriftNote: "Each point is a plan revision: the measured part of the day plus what the plan still expected. Day-ahead points only appear when that plan covered the whole day. The line holds each value until the next revision.", fcPartialPlanNote: "Plans that covered only part of the day have no bar; the table compares them over the quarters they covered.", fcNoPlanMode: "This mode makes no plan ahead, so only measurements are recorded.",
     moreInfo: "Show history",
     zoomReset: "All",
     infoModel: "Model", infoSoftware: "Software", infoSerial: "Serial", infoInverter: "Inverter", infoPowerModule: "Power module",
@@ -150,6 +151,7 @@ const I18N = {
     evCharger: "Cargador VE",
     flowToggle: "Cambiar diagrama",
     tabResumen: "Resumen", tabBaterias: "Baterías", tabControl: "Control",
+    tabForecast: "Previsión", fcAccuracyTitle: "Previsión vs real", fcDetailTitle: "Día en cuartos de hora", fcDriftTitle: "Previsión en el tiempo", fcSolar: "Solar", fcConsumption: "Consumo", fcGridCharge: "Carga de red", fcDischarge: "Descarga de batería", fcActual: "Real", fcDayAhead: "Plan del día anterior", fcStartOfDay: "Plan de inicio del día", fcCurrentPlan: "Plan actual", fcExpected: "Previsto para el día", fcExport: "Descargar como CSV", fcExportDays: "Días", fcExportIntervals: "Cuartos de hora", fcExportRevisions: "Revisiones", fcNoHistory: "Aún no hay historial de previsiones. Se registra a partir de ahora: el plan de esta noche para mañana es la primera previsión del día anterior.", fcUnavailable: "El historial de previsiones no está disponible. Reinicia Home Assistant tras actualizar la integración.", fcNoFinishedDays: "Aún no hay días terminados", fcNoRevisions: "No hay revisiones del plan para este día", fcDate: "Fecha", fcError: "error", fcCoverage: "cubre {n} de 96 cuartos", fcPartialShort: "{n}/96", fcCaptured: "hecho {time}", fcPartial: "hasta ahora", fcFullDay: "{kwh} kWh todo el día", fcPrev: "Día anterior", fcNext: "Día siguiente", fcToday: "Hoy", fcTomorrow: "Mañana", fcAxis: "kWh/15 min", fcDriftNote: "Cada punto es una revisión del plan: la parte medida del día más lo que el plan aún esperaba. Los puntos del día anterior solo aparecen cuando ese plan cubría el día completo. La línea mantiene cada valor hasta la siguiente revisión.", fcPartialPlanNote: "Los planes que solo cubrían parte del día no tienen barra; la tabla los compara en los cuartos que cubrían.", fcNoPlanMode: "Este modo no hace un plan por adelantado, así que solo se registran las mediciones.",
     moreInfo: "Ver histórico",
     zoomReset: "Todo",
     infoModel: "Modelo", infoSoftware: "Software", infoSerial: "N.º serie", infoInverter: "Inversor", infoPowerModule: "Módulo de potencia",
@@ -242,6 +244,7 @@ const I18N = {
     evCharger: "Carregador VE",
     flowToggle: "Canviar diagrama",
     tabResumen: "Resum", tabBaterias: "Bateries", tabControl: "Control",
+    tabForecast: "Previsió", fcAccuracyTitle: "Previsió vs real", fcDetailTitle: "Dia en quarts d'hora", fcDriftTitle: "Previsió en el temps", fcSolar: "Solar", fcConsumption: "Consum", fcGridCharge: "Càrrega de xarxa", fcDischarge: "Descàrrega de bateria", fcActual: "Real", fcDayAhead: "Pla del dia anterior", fcStartOfDay: "Pla d'inici del dia", fcCurrentPlan: "Pla actual", fcExpected: "Previst per al dia", fcExport: "Baixa com a CSV", fcExportDays: "Dies", fcExportIntervals: "Quarts d'hora", fcExportRevisions: "Revisions", fcNoHistory: "Encara no hi ha historial de previsions. Es registra a partir d'ara: el pla d'aquesta nit per a demà és la primera previsió del dia anterior.", fcUnavailable: "L'historial de previsions no està disponible. Reinicia Home Assistant després d'actualitzar la integració.", fcNoFinishedDays: "Encara no hi ha dies acabats", fcNoRevisions: "No hi ha revisions del pla per a aquest dia", fcDate: "Data", fcError: "error", fcCoverage: "cobreix {n} de 96 quarts", fcPartialShort: "{n}/96", fcCaptured: "fet {time}", fcPartial: "fins ara", fcFullDay: "{kwh} kWh tot el dia", fcPrev: "Dia anterior", fcNext: "Dia següent", fcToday: "Avui", fcTomorrow: "Demà", fcAxis: "kWh/15 min", fcDriftNote: "Cada punt és una revisió del pla: la part mesurada del dia més el que el pla encara esperava. Els punts del dia anterior només apareixen quan aquell pla cobria el dia sencer. La línia manté cada valor fins a la revisió següent.", fcPartialPlanNote: "Els plans que només cobrien part del dia no tenen barra; la taula els compara en els quarts que cobrien.", fcNoPlanMode: "Aquest mode no fa cap pla per endavant, així que només es registren les mesures.",
     moreInfo: "Veure històric",
     zoomReset: "Tot",
     infoModel: "Model", infoSoftware: "Programari", infoSerial: "Núm. sèrie", infoInverter: "Inversor", infoPowerModule: "Mòdul de potència",
@@ -329,6 +332,7 @@ const I18N = {
     evCharger: "E-Auto-Lader",
     flowToggle: "Diagramm wechseln",
     tabResumen: "Übersicht", tabBaterias: "Batterien", tabControl: "Steuerung",
+    tabForecast: "Prognose", fcAccuracyTitle: "Prognose vs. Ist", fcDetailTitle: "Tag in Viertelstunden", fcDriftTitle: "Prognose im Zeitverlauf", fcSolar: "Solar", fcConsumption: "Verbrauch", fcGridCharge: "Netzladung", fcDischarge: "Batterieentladung", fcActual: "Ist", fcDayAhead: "Vortagesplan", fcStartOfDay: "Plan zu Tagesbeginn", fcCurrentPlan: "Aktueller Plan", fcExpected: "Erwartet für den Tag", fcExport: "Als CSV herunterladen", fcExportDays: "Tage", fcExportIntervals: "Viertelstunden", fcExportRevisions: "Revisionen", fcNoHistory: "Noch kein Prognoseverlauf. Er wird ab jetzt aufgezeichnet: Der heutige Abendplan für morgen ist die erste Vortagesprognose.", fcUnavailable: "Der Prognoseverlauf ist nicht verfügbar. Starte Home Assistant nach dem Update der Integration neu.", fcNoFinishedDays: "Noch keine abgeschlossenen Tage", fcNoRevisions: "Für diesen Tag wurden keine Planrevisionen aufgezeichnet", fcDate: "Datum", fcError: "Abweichung", fcCoverage: "deckt {n} von 96 Viertelstunden ab", fcPartialShort: "{n}/96", fcCaptured: "erstellt {time}", fcPartial: "bisher", fcFullDay: "{kwh} kWh ganzer Tag", fcPrev: "Vorheriger Tag", fcNext: "Nächster Tag", fcToday: "Heute", fcTomorrow: "Morgen", fcAxis: "kWh/15 min", fcDriftNote: "Jeder Punkt ist eine Planrevision: der gemessene Teil des Tages plus das, was der Plan noch erwartete. Vortagespunkte erscheinen nur, wenn dieser Plan den ganzen Tag abdeckte. Die Linie hält jeden Wert bis zur nächsten Revision.", fcPartialPlanNote: "Pläne, die nur einen Teil des Tages abdeckten, haben keinen Balken; die Tabelle vergleicht sie über die abgedeckten Viertelstunden.", fcNoPlanMode: "Dieser Modus plant nicht voraus, daher werden nur Messwerte aufgezeichnet.",
     moreInfo: "Verlauf anzeigen",
     zoomReset: "Alles",
     infoModel: "Modell", infoSoftware: "Software", infoSerial: "Seriennr.", infoInverter: "Wechselrichter", infoPowerModule: "Leistungsmodul",
@@ -416,6 +420,7 @@ const I18N = {
     evCharger: "Chargeur VE",
     flowToggle: "Changer de diagramme",
     tabResumen: "Résumé", tabBaterias: "Batteries", tabControl: "Contrôle",
+    tabForecast: "Prévision", fcAccuracyTitle: "Prévision vs réel", fcDetailTitle: "Journée par quarts d'heure", fcDriftTitle: "Prévision dans le temps", fcSolar: "Solaire", fcConsumption: "Consommation", fcGridCharge: "Charge réseau", fcDischarge: "Décharge batterie", fcActual: "Réel", fcDayAhead: "Plan de la veille", fcStartOfDay: "Plan du début de journée", fcCurrentPlan: "Plan actuel", fcExpected: "Prévu pour la journée", fcExport: "Télécharger en CSV", fcExportDays: "Jours", fcExportIntervals: "Quarts d'heure", fcExportRevisions: "Révisions", fcNoHistory: "Pas encore d'historique des prévisions. Il est enregistré à partir de maintenant : le plan de ce soir pour demain est la première prévision de la veille.", fcUnavailable: "L'historique des prévisions n'est pas disponible. Redémarrez Home Assistant après la mise à jour de l'intégration.", fcNoFinishedDays: "Pas encore de journées terminées", fcNoRevisions: "Aucune révision du plan enregistrée pour ce jour", fcDate: "Date", fcError: "écart", fcCoverage: "couvre {n} des 96 quarts d'heure", fcPartialShort: "{n}/96", fcCaptured: "établi {time}", fcPartial: "jusqu'ici", fcFullDay: "{kwh} kWh sur la journée", fcPrev: "Jour précédent", fcNext: "Jour suivant", fcToday: "Aujourd'hui", fcTomorrow: "Demain", fcAxis: "kWh/15 min", fcDriftNote: "Chaque point est une révision du plan : la partie mesurée de la journée plus ce que le plan prévoyait encore. Les points de la veille n'apparaissent que si ce plan couvrait toute la journée. La ligne garde chaque valeur jusqu'à la révision suivante.", fcPartialPlanNote: "Les plans qui ne couvraient qu'une partie de la journée n'ont pas de barre ; le tableau les compare sur les quarts d'heure couverts.", fcNoPlanMode: "Ce mode ne fait pas de plan à l'avance : seules les mesures sont enregistrées.",
     moreInfo: "Voir l'historique",
     zoomReset: "Tout",
     infoModel: "Modèle", infoSoftware: "Logiciel", infoSerial: "N° série", infoInverter: "Onduleur", infoPowerModule: "Module de puissance",
@@ -503,6 +508,7 @@ const I18N = {
     evCharger: "EV-lader",
     flowToggle: "Diagram wisselen",
     tabResumen: "Overzicht", tabBaterias: "Batterijen", tabControl: "Bediening",
+    tabForecast: "Prognose", fcAccuracyTitle: "Prognose vs werkelijk", fcDetailTitle: "Dag per kwartier", fcDriftTitle: "Prognose in de tijd", fcSolar: "Zon", fcConsumption: "Verbruik", fcGridCharge: "Netladen", fcDischarge: "Batterij-ontlading", fcActual: "Werkelijk", fcDayAhead: "Plan van de dag ervoor", fcStartOfDay: "Plan bij start van de dag", fcCurrentPlan: "Huidig plan", fcExpected: "Verwacht voor de dag", fcExport: "Downloaden als CSV", fcExportDays: "Dagen", fcExportIntervals: "Kwartieren", fcExportRevisions: "Revisies", fcNoHistory: "Nog geen prognosegeschiedenis. Die wordt vanaf nu vastgelegd: het plan van vanavond voor morgen is de eerste prognose van de dag ervoor.", fcUnavailable: "De prognosegeschiedenis is niet beschikbaar. Herstart Home Assistant na het bijwerken van de integratie.", fcNoFinishedDays: "Nog geen afgeronde dagen", fcNoRevisions: "Geen planrevisies vastgelegd voor deze dag", fcDate: "Datum", fcError: "afwijking", fcCoverage: "dekt {n} van 96 kwartieren", fcPartialShort: "{n}/96", fcCaptured: "gemaakt {time}", fcPartial: "tot nu toe", fcFullDay: "{kwh} kWh hele dag", fcPrev: "Vorige dag", fcNext: "Volgende dag", fcToday: "Vandaag", fcTomorrow: "Morgen", fcAxis: "kWh/15 min", fcDriftNote: "Elk punt is een planrevisie: het gemeten deel van de dag plus wat het plan nog verwachtte. Punten van de dag ervoor verschijnen alleen als dat plan de hele dag besloeg. De lijn houdt elke waarde vast tot de volgende revisie.", fcPartialPlanNote: "Plannen die maar een deel van de dag besloegen hebben geen staaf; de tabel vergelijkt ze over de kwartieren die ze besloegen.", fcNoPlanMode: "Deze modus maakt geen plan vooruit, dus alleen metingen worden vastgelegd.",
     moreInfo: "Geschiedenis tonen",
     zoomReset: "Alles",
     infoModel: "Model", infoSoftware: "Software", infoSerial: "Serienr.", infoInverter: "Omvormer", infoPowerModule: "Vermogensmodule",
@@ -588,6 +594,20 @@ const I18N = {
 // Backend diagnostics stay stable and machine-readable. Translate them only at
 // the presentation boundary so entities and downloaded diagnostics keep their
 // existing contract while the panel never exposes internal reason codes.
+// Forecast history view: the energy metrics the backend compares per day.
+const FORECAST_METRICS = [
+  { key: "solar", lk: "fcSolar" },
+  { key: "consumption", lk: "fcConsumption" },
+  { key: "grid_charge", lk: "fcGridCharge" },
+  { key: "discharge", lk: "fcDischarge" },
+];
+const FORECAST_COLORS = {
+  actual: "var(--accent)",
+  day_ahead: "var(--flow-orange)",
+  start_of_day: "var(--flow-blue)",
+  current_plan: "var(--ink-dim)",
+};
+
 const DAILY_OPERATION_REASON_KEYS = {
   no_profile_data: "profileNoData",
   insufficient_days: "profileInsufficientDays",
@@ -1874,6 +1894,7 @@ class MarstekVenusPanel extends HTMLElement {
     if (this._histTimer) clearInterval(this._histTimer);
     this._histTimer = null;
     this._historyStarted = false;
+    this._fcStopTimer();
   }
 
   // --- config / theme --------------------------------------------------------
@@ -2492,6 +2513,7 @@ class MarstekVenusPanel extends HTMLElement {
       ["resumen", "mdi:view-dashboard-outline", this._t("tabResumen")],
       ["baterias", "mdi:battery-high", this._t("tabBaterias")],
       ["control", "mdi:tune-variant", this._t("tabControl")],
+      ["forecast", "mdi:chart-bell-curve-cumulative", this._t("tabForecast")],
     ];
     this._tabEls = {};
     for (const [id, icon, label] of TABS) {
@@ -2515,6 +2537,7 @@ class MarstekVenusPanel extends HTMLElement {
     }
     if (!this._main) return;
     this._detachDailyOperationGlobalListeners();
+    if (view !== "forecast") this._fcStopTimer();
     this._main.innerHTML = "";
     if (view === "resumen") {
       this._main.appendChild(this._renderResumen());
@@ -2525,8 +2548,553 @@ class MarstekVenusPanel extends HTMLElement {
     } else if (view === "control") {
       this._main.appendChild(this._renderControl());
       this._patchControl();
+    } else if (view === "forecast") {
+      this._main.appendChild(this._renderForecast());
     } else {
       this._main.appendChild(this._placeholder(view));
+    }
+  }
+
+  // ===== Forecast view ======================================================
+  /** Forecast history: day-ahead and start-of-day plans against the measured
+   *  day, plus how the prediction for a day moved over time. Data comes from
+   *  the integration's forecast_history websocket commands; an older backend
+   *  without them only shows a notice. */
+  _renderForecast() {
+    this._fc = this._fc || { metric: "solar", date: null, list: null, detail: null, error: null };
+    this._fcr = {};
+    const root = document.createElement("div");
+    root.className = "res-stack fc-stack";
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "fc-toolbar";
+    const chips = document.createElement("div");
+    chips.className = "fc-chips";
+    for (const m of FORECAST_METRICS) {
+      const b = document.createElement("button");
+      b.className = "fc-chip";
+      b.dataset.metric = m.key;
+      b.textContent = this._t(m.lk);
+      b.addEventListener("click", () => { this._fc.metric = m.key; this._fcDraw(); });
+      chips.appendChild(b);
+    }
+    const exports = document.createElement("div");
+    exports.className = "fc-exports";
+    for (const [kind, lk] of [["days", "fcExportDays"], ["intervals", "fcExportIntervals"], ["revisions", "fcExportRevisions"]]) {
+      const b = document.createElement("button");
+      b.className = "fc-chip fc-export";
+      b.innerHTML = `<ha-icon icon="mdi:download"></ha-icon><span>${this._t(lk)}</span>`;
+      b.title = this._t("fcExport");
+      b.addEventListener("click", () => this._fcExport(kind));
+      exports.appendChild(b);
+    }
+    toolbar.appendChild(chips);
+    toolbar.appendChild(exports);
+    root.appendChild(toolbar);
+    this._fcr.chips = chips;
+
+    const notice = document.createElement("div");
+    notice.className = "card fc-notice dim";
+    notice.hidden = true;
+    root.appendChild(notice);
+    this._fcr.notice = notice;
+    const planNotice = document.createElement("div");
+    planNotice.className = "card fc-notice dim";
+    planNotice.hidden = true;
+    planNotice.textContent = this._t("fcNoPlanMode");
+    root.appendChild(planNotice);
+    this._fcr.planNotice = planNotice;
+
+    const acc = this._card(this._t("fcAccuracyTitle"), "mdi:target");
+    acc.card.classList.add("chart-card", "fc-card");
+    const accLegend = document.createElement("span");
+    accLegend.className = "chart-legend";
+    accLegend.style.marginLeft = "auto";
+    acc.head.appendChild(accLegend);
+    const accPlot = document.createElement("div");
+    accPlot.className = "chart-plot fc-plot";
+    const accX = document.createElement("div");
+    accX.className = "chart-xaxis dim";
+    const accNote = document.createElement("div");
+    accNote.className = "fc-note dim";
+    accNote.hidden = true;
+    accNote.textContent = this._t("fcPartialPlanNote");
+    const table = document.createElement("div");
+    table.className = "fc-table";
+    acc.card.append(accPlot, accX, accNote, table);
+    this._attachHover(accPlot);
+    Object.assign(this._fcr, { accPlot, accX, accLegend, accNote, table });
+
+    const det = this._card(this._t("fcDetailTitle"), "mdi:chart-timeline-variant");
+    det.card.classList.add("chart-card", "fc-card");
+    const nav = document.createElement("span");
+    nav.className = "fc-nav";
+    nav.innerHTML =
+      `<button class="fc-navbtn" data-step="-1" aria-label="${this._t("fcPrev")}"><ha-icon icon="mdi:chevron-left"></ha-icon></button>` +
+      `<span class="fc-date"></span>` +
+      `<button class="fc-navbtn" data-step="1" aria-label="${this._t("fcNext")}"><ha-icon icon="mdi:chevron-right"></ha-icon></button>`;
+    nav.querySelectorAll(".fc-navbtn").forEach((b) =>
+      b.addEventListener("click", () => this._fcStep(Number(b.dataset.step)))
+    );
+    det.head.appendChild(nav);
+    const detLegend = document.createElement("div");
+    detLegend.className = "chart-legend fc-legend";
+    const detPlot = document.createElement("div");
+    detPlot.className = "chart-plot fc-plot";
+    const detX = document.createElement("div");
+    detX.className = "chart-xaxis dim";
+    detX.innerHTML = `<span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>`;
+    const stats = document.createElement("div");
+    stats.className = "fc-stats";
+    det.card.append(detLegend, detPlot, detX, stats);
+    this._attachHover(detPlot);
+    Object.assign(this._fcr, { nav, detLegend, detPlot, stats });
+
+    const drift = this._card(this._t("fcDriftTitle"), "mdi:chart-line-variant");
+    drift.card.classList.add("chart-card", "fc-card");
+    const driftLegend = document.createElement("div");
+    driftLegend.className = "chart-legend fc-legend";
+    const driftPlot = document.createElement("div");
+    driftPlot.className = "chart-plot fc-plot";
+    const driftX = document.createElement("div");
+    driftX.className = "chart-xaxis dim";
+    const driftNote = document.createElement("div");
+    driftNote.className = "fc-note dim";
+    driftNote.textContent = this._t("fcDriftNote");
+    drift.card.append(driftLegend, driftPlot, driftX, driftNote);
+    this._attachHover(driftPlot);
+    Object.assign(this._fcr, { driftLegend, driftPlot, driftX });
+
+    const pair = document.createElement("div");
+    pair.className = "fc-pair";
+    pair.append(det.card, drift.card);
+    root.append(acc.card, pair);
+    this._fcDraw();
+    this._fcRefresh();
+    this._fcStopTimer();
+    this._fcTimer = setInterval(() => this._fcRefresh(), 5 * 60 * 1000);
+    return root;
+  }
+
+  _fcStopTimer() {
+    if (this._fcTimer) clearInterval(this._fcTimer);
+    this._fcTimer = null;
+  }
+
+  async _fcCall(payload) {
+    if (!this._hass || !this._hass.callWS) throw new Error("no_connection");
+    return this._hass.callWS({ ...payload, type: `${this._domain()}/forecast_history/${payload.type}` });
+  }
+
+  async _fcRefresh() {
+    const fc = this._fc;
+    try {
+      fc.list = await this._fcCall({ type: "list" });
+      fc.error = null;
+      if (!fc.date) fc.date = fc.list.today;
+    } catch (err) {
+      fc.error = err;
+    }
+    this._fcDraw();
+    if (!fc.error && fc.date) await this._fcLoadDay(fc.date);
+  }
+
+  async _fcLoadDay(date) {
+    const fc = this._fc;
+    fc.date = date;
+    this._fcDraw();
+    try {
+      const detail = await this._fcCall({ type: "day", date });
+      if (fc.date === date) fc.detail = detail;
+    } catch (err) {
+      if (fc.date === date) fc.detail = null;
+    }
+    this._fcDraw();
+  }
+
+  /** Dates the day navigation can reach: the stored days plus tomorrow. */
+  _fcDates() {
+    const list = this._fc.list;
+    const dates = new Set(((list && list.days) || []).map((d) => d.date));
+    if (list && list.today) {
+      dates.add(list.today);
+      dates.add(this._fcShiftDate(list.today, 1));
+    }
+    return [...dates].sort();
+  }
+
+  _fcShiftDate(iso, days) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  }
+
+  _fcStep(step) {
+    const dates = this._fcDates();
+    const i = dates.indexOf(this._fc.date);
+    const next = dates[this._clamp((i < 0 ? dates.length - 1 : i) + step, 0, dates.length - 1)];
+    if (next && next !== this._fc.date) this._fcLoadDay(next);
+  }
+
+  _fcDayLabel(iso, long = false) {
+    if (!iso) return "";
+    const list = this._fc.list;
+    if (long && list && iso === list.today) return this._t("fcToday");
+    if (long && list && iso === this._fcShiftDate(list.today, 1)) return this._t("fcTomorrow");
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(this._lang(), long
+      ? { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }
+      : { timeZone: "UTC", day: "numeric", month: "numeric" });
+  }
+
+  _fcMetric() {
+    return FORECAST_METRICS.find((m) => m.key === this._fc.metric) || FORECAST_METRICS[0];
+  }
+
+  /** A stored plan that covered the whole day (start-of-day entries from
+   *  before coverage was stored covered it). */
+  _fcFullPlan(item) {
+    return !!item && (item.coverage == null ? 96 : item.coverage) >= 96;
+  }
+
+  /** Quarters of a day measured for one metric (96 when not reported). */
+  _fcMeasured(day, key) {
+    const m = day && day.actual_measured;
+    return m && m[key] != null ? m[key] : 96;
+  }
+
+  /** A finished day's measured total, "n/96" when part of it was measured
+   *  and a plain dash when nothing was. */
+  _fcActualText(value, measured) {
+    if (value == null || measured <= 0) return "—";
+    const tag = measured < 96 ? ` <small class="dim">${this._t("fcPartialShort", { n: measured })}</small>` : "";
+    return `${this._nf(value, 2)} kWh${tag}`;
+  }
+
+  _fcErrorText(cmp) {
+    if (!cmp) return "—";
+    const sign = cmp.error > 0 ? "+" : "";
+    const pct = cmp.error_pct == null ? "" : ` (${sign}${this._nf(cmp.error_pct, 0)}%)`;
+    return `${sign}${this._nf(cmp.error, 2)} kWh${pct}`;
+  }
+
+  _fcDraw() {
+    const r = this._fcr;
+    if (!r || !r.chips || this._view !== "forecast") return;
+    const fc = this._fc;
+    r.chips.querySelectorAll(".fc-chip").forEach((b) =>
+      b.classList.toggle("active", b.dataset.metric === fc.metric)
+    );
+    const days = (fc.list && fc.list.days) || [];
+    const hasData = days.some((d) => d.finalized || d.day_ahead || d.start_of_day);
+    r.notice.hidden = !fc.error && (hasData || !fc.list);
+    r.notice.textContent = fc.error ? this._t("fcUnavailable") : this._t("fcNoHistory");
+    // Real-Time Price and manual mode plan nothing ahead (the backend says
+    // so); an older backend without the flag shows no notice.
+    r.planNotice.hidden = !!fc.error || !fc.list || fc.list.today_has_plan !== false;
+    this._fcDrawAccuracy();
+    this._fcDrawDetail();
+    this._fcDrawDrift();
+  }
+
+  _fcDrawAccuracy() {
+    const r = this._fcr;
+    const metric = this._fcMetric();
+    const all = ((this._fc.list && this._fc.list.days) || []).filter((d) => d.actual && d.finalized);
+    const days = all.slice(0, 14).reverse();
+    if (!days.length) {
+      r.accPlot.innerHTML = `<div class="chart-empty dim">${this._t("fcNoFinishedDays")}</div>`;
+      r.accPlot.__hv = null;
+      r.accX.innerHTML = "";
+      r.accLegend.innerHTML = "";
+      r.accNote.hidden = true;
+      r.table.innerHTML = "";
+      return;
+    }
+    const cmpOf = (d, source) => (d[source] && d[source].compare && d[source].compare[metric.key]) || null;
+    // A plan that covered only part of the day has no bar: its total is not
+    // the day's. It is no zero either, so the hover shows a dash.
+    const barOf = (d, source) => (this._fcFullPlan(d[source]) && cmpOf(d, source) ? cmpOf(d, source).forecast : null);
+    const groups = [
+      { label: this._t("fcActual"), color: FORECAST_COLORS.actual, values: days.map((d) => d.actual[metric.key] ?? null) },
+      { label: this._t("fcDayAhead"), color: FORECAST_COLORS.day_ahead, values: days.map((d) => barOf(d, "day_ahead")) },
+      { label: this._t("fcStartOfDay"), color: FORECAST_COLORS.start_of_day, values: days.map((d) => barOf(d, "start_of_day")) },
+    ];
+    r.accLegend.innerHTML = this._legendHTML(groups);
+    const { svg, yMax } = this._barChartSVG({ groups, count: days.length });
+    r.accPlot.innerHTML = this._chartWithYAxis(svg, { yMin: 0, yMax, unit: "kWh" });
+    r.accPlot.__hv = {
+      kind: "bar", count: days.length, groups, unit: "kWh", decimals: 2, gaps: true,
+      xLabel: (i) => this._fcDayLabel(days[i].date, true),
+    };
+    r.accX.innerHTML = days.map((d) => `<span>${this._fcDayLabel(d.date)}</span>`).join("");
+    r.accNote.hidden = !days.some((d) =>
+      ["day_ahead", "start_of_day"].some((s) => d[s] && !this._fcFullPlan(d[s]))
+    );
+
+    const errCls = (c) => (c && c.error_pct != null && Math.abs(c.error_pct) >= 25 ? " fc-bad" : "");
+    const partialTag = (item) => (item && !this._fcFullPlan(item)
+      ? ` <small class="dim">${this._t("fcPartialShort", { n: item.coverage || 0 })}</small>`
+      : "");
+    const rows = all.slice(0, 31).map((d) => {
+      const da = cmpOf(d, "day_ahead");
+      const sod = cmpOf(d, "start_of_day");
+      const measured = this._fcMeasured(d, metric.key);
+      return (
+        `<button class="fc-row${d.date === this._fc.date ? " active" : ""}" data-date="${d.date}">` +
+        `<span>${this._fcDayLabel(d.date, true)}</span>` +
+        `<span>${this._fcActualText(d.actual[metric.key], measured)}</span>` +
+        `<span class="fc-err${errCls(da)}">${this._fcErrorText(da)}${da ? partialTag(d.day_ahead) : ""}</span>` +
+        `<span class="fc-err${errCls(sod)}">${this._fcErrorText(sod)}${sod ? partialTag(d.start_of_day) : ""}</span>` +
+        `</button>`
+      );
+    });
+    r.table.innerHTML =
+      `<div class="fc-row fc-head"><span>${this._t("fcDate")}</span><span>${this._t("fcActual")}</span>` +
+      `<span>${this._t("fcDayAhead")} · ${this._t("fcError")}</span><span>${this._t("fcStartOfDay")} · ${this._t("fcError")}</span></div>` +
+      rows.join("");
+    r.table.querySelectorAll("button.fc-row").forEach((b) =>
+      b.addEventListener("click", () => this._fcLoadDay(b.dataset.date))
+    );
+  }
+
+  /** Line chart with gaps (null), optional dashes and point markers. */
+  _fcLineSVG({ series, yMin, yMax, xs, n }) {
+    const W = 320, H = 160;
+    const span = yMax - yMin || 1;
+    const X = (i) => (xs ? this._clamp(xs[i], 0, 1) : n > 1 ? i / (n - 1) : 0) * W;
+    const Y = (v) => H - ((this._clamp(v, yMin, yMax) - yMin) / span) * H;
+    let g = "";
+    for (let k = 0; k <= 4; k++) {
+      const y = ((k / 4) * H).toFixed(1);
+      g += `<line class="chart-grid" x1="0" y1="${y}" x2="${W}" y2="${y}"/>`;
+    }
+    let paths = "";
+    for (const s of series) {
+      let d = "";
+      let open = false;
+      let points = 0;
+      let prev = null;
+      s.data.forEach((v, i) => {
+        if (v == null) { open = false; return; }
+        // ``step``: the value holds until the next point, then jumps.
+        if (open && s.step) d += "L" + X(i).toFixed(1) + " " + Y(prev).toFixed(1) + " ";
+        d += (open ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " ";
+        open = true;
+        prev = v;
+        points += 1;
+      });
+      if (!points) continue;
+      paths +=
+        `<path d="${d.trim()}" fill="none" stroke="${s.color}" stroke-width="${s.width || 2}" ` +
+        (s.dash ? `stroke-dasharray="${s.dash}" ` : "") +
+        `vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>`;
+      if (points === 1 || s.dots) {
+        // Round caps on zero-length segments draw a dot that stays round
+        // under the non-uniform viewBox scaling (a <circle> would not).
+        s.data.forEach((v, i) => {
+          if (v == null || (s.marks && !s.marks[i])) return;
+          const x = X(i).toFixed(1), y = Y(v).toFixed(1);
+          paths +=
+            `<path d="M${x} ${y} L${x} ${y}" stroke="${s.color}" stroke-width="5" ` +
+            `stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+        });
+      }
+    }
+    return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="100%" height="100%">${g}${paths}</svg>`;
+  }
+
+  _fcLegend(items) {
+    return items
+      .map(
+        (it) =>
+          `<span class="legend-item"><span class="fc-swatch" style="border-top:2px ${it.dash ? "dashed" : "solid"} ${it.color}"></span>${it.label}</span>`
+      )
+      .join("");
+  }
+
+  _fcDrawDetail() {
+    const r = this._fcr;
+    const fc = this._fc;
+    const metric = this._fcMetric();
+    r.nav.querySelector(".fc-date").textContent = this._fcDayLabel(fc.date, true);
+    const dates = this._fcDates();
+    const i = dates.indexOf(fc.date);
+    const [prev, next] = r.nav.querySelectorAll(".fc-navbtn");
+    prev.disabled = i <= 0;
+    next.disabled = i < 0 || i >= dates.length - 1;
+    const detail = fc.detail && fc.detail.date === fc.date ? fc.detail : null;
+    const series = (detail && detail.series) || {};
+    const defs = [
+      { key: "actual", label: this._t("fcActual"), color: FORECAST_COLORS.actual, width: 2.4 },
+      { key: "day_ahead", label: this._t("fcDayAhead"), color: FORECAST_COLORS.day_ahead, dash: "5 4" },
+      { key: "start_of_day", label: this._t("fcStartOfDay"), color: FORECAST_COLORS.start_of_day, dash: "2 3" },
+      { key: "current_plan", label: this._t("fcCurrentPlan"), color: FORECAST_COLORS.current_plan, width: 1.4 },
+    ];
+    const avail = defs
+      .map((d) => ({ ...d, data: ((series[d.key] || {})[metric.key] || []).slice(0, 96) }))
+      .filter((d) => d.data.some((v) => v != null));
+    if (!avail.length) {
+      r.detPlot.innerHTML = `<div class="chart-empty dim">${this._t("noData")}</div>`;
+      r.detPlot.__hv = null;
+      r.detLegend.innerHTML = "";
+      r.stats.innerHTML = "";
+      return;
+    }
+    for (const s of avail) while (s.data.length < 96) s.data.push(null);
+    let hi = 0;
+    for (const s of avail) for (const v of s.data) if (v != null && v > hi) hi = v;
+    const yMax = Math.max(0.05, hi * 1.12);
+    r.detLegend.innerHTML = this._fcLegend(avail);
+    r.detPlot.innerHTML = this._chartWithYAxis(
+      this._fcLineSVG({ series: avail, yMin: 0, yMax, n: 96 }),
+      { yMin: 0, yMax, unit: "kWh" }
+    );
+    r.detPlot.__hv = {
+      kind: "line", n: 96, xs: null,
+      series: avail.map((s) => ({ label: s.label, color: s.color, data: s.data })),
+      yMin: 0, yMax, unit: this._t("fcAxis"), decimals: 3,
+      xLabel: (k) => `${String(Math.floor(k / 4)).padStart(2, "0")}:${String((k % 4) * 15).padStart(2, "0")}`,
+    };
+
+    const parts = [];
+    if (detail && detail.actual) {
+      // A finished day with unmeasured quarters (Home Assistant down, or the
+      // first day after install) is no whole-day total.
+      const value = detail.actual[metric.key];
+      const text = detail.actual_partial
+        ? (value == null ? "—" : `${this._nf(value, 2)} kWh <small class="dim">${this._t("fcPartial")}</small>`)
+        : this._fcActualText(value, this._fcMeasured(detail, metric.key));
+      parts.push(`<span><b>${this._t("fcActual")}</b> ${text}</span>`);
+    }
+    for (const [key, lk] of [["day_ahead", "fcDayAhead"], ["start_of_day", "fcStartOfDay"]]) {
+      const item = detail && detail[key];
+      if (!item) continue;
+      const cmp = item.compare && item.compare[metric.key];
+      const total = cmp ? cmp.forecast : (item.totals || {})[metric.key];
+      const meta = [];
+      if (item.captured_at) meta.push(this._t("fcCaptured", { time: this._fcStamp(item.captured_at) }));
+      const full = this._fcFullPlan(item);
+      if (!full) meta.push(this._t("fcCoverage", { n: item.coverage || 0 }));
+      // While the day is running the comparison covers only the measured
+      // quarters, so label that figure like the actual and add the plan for
+      // the whole day; otherwise it reads as the day's total. A plan that
+      // covered part of the day has no whole-day figure.
+      const dayTotal = (item.totals || {})[metric.key];
+      const running = cmp && detail.actual_partial;
+      parts.push(
+        `<span><b>${this._t(lk)}</b> ${this._nf(total, 2)} kWh` +
+        (running ? ` <small class="dim">${this._t("fcPartial")}</small>` : "") +
+        (running && full && dayTotal != null ? ` · ${this._t("fcFullDay", { kwh: this._nf(dayTotal, 2) })}` : "") +
+        (cmp && !detail.actual_partial ? ` · ${this._t("fcError")} ${this._fcErrorText(cmp)}` : "") +
+        (meta.length ? ` <small class="dim">${meta.join(" · ")}</small>` : "") +
+        `</span>`
+      );
+    }
+    r.stats.innerHTML = parts.join("");
+  }
+
+  _fcStamp(iso) {
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return "";
+    return new Date(t).toLocaleString(this._lang(), this._dateTimeOptions({
+      weekday: "short", hour: this._useAmPm() ? "numeric" : "2-digit", minute: "2-digit",
+    }));
+  }
+
+  _fcDrawDrift() {
+    const r = this._fcr;
+    const fc = this._fc;
+    const k = this._fcMetric().key;
+    const detail = fc.detail && fc.detail.date === fc.date ? fc.detail : null;
+    // Day-ahead totals are only comparable with the day when the plan covered
+    // all of it; until tomorrow's prices are known it stops at sunrise. Such a
+    // revision ends the day-ahead line (null) instead of drawing a point.
+    const all = ((detail && detail.revisions) || [])
+      .map((rev) => {
+        const at = Date.parse(rev.t);
+        if (Number.isNaN(at)) return null;
+        if (rev.h === "day_ahead") {
+          return { at, h: "day_ahead", v: (rev.cov || 0) >= 96 ? rev[`p_${k}`] ?? null : null };
+        }
+        return { at, h: "intraday", v: (rev[`a_${k}`] || 0) + (rev[`p_${k}`] || 0) };
+      })
+      .filter((p) => p)
+      .sort((a, b) => a.at - b.at);
+    // The axis starts at the first drawn point: partial day-ahead revisions
+    // before it draw nothing. Later ones stay, as they end the day-ahead line.
+    const first = all.findIndex((p) => p.v != null);
+    const points = first < 0 ? [] : all.slice(first);
+    if (!points.length) {
+      r.driftPlot.innerHTML = `<div class="chart-empty dim">${this._t("fcNoRevisions")}</div>`;
+      r.driftPlot.__hv = null;
+      r.driftLegend.innerHTML = "";
+      r.driftX.innerHTML = "";
+      return;
+    }
+    const [y, m, d] = fc.date.split("-").map(Number);
+    const dayEnd = this._zonedMidnight(y, m, d + 1);
+    const lo = points[0].at;
+    const last = points[points.length - 1].at;
+    const hi = Math.max(last, detail.finalized ? dayEnd : Math.min(Date.now(), dayEnd));
+    const times = points.map((p) => p.at);
+    if (hi > last) times.push(hi);
+    const xs = times.map((t) => (hi > lo ? (t - lo) / (hi - lo) : 0.5));
+    // A revision is only stored when the total moved, so each value holds
+    // until the next revision of its horizon and the last one up to the
+    // right edge. The data carries that held value at every x, so the hover
+    // reads what the step line shows.
+    const held = (h) => {
+      let v = null;
+      const data = [], marks = [];
+      times.forEach((t, i) => {
+        const p = points[i];
+        const own = !!p && p.h === h;
+        if (own) v = p.v;
+        data.push(v);
+        marks.push(own && v != null);
+      });
+      return { data, marks };
+    };
+    const series = [
+      { label: this._t("fcDayAhead"), color: FORECAST_COLORS.day_ahead, dots: true, step: true, ...held("day_ahead") },
+      { label: this._t("fcExpected"), color: FORECAST_COLORS.start_of_day, dots: true, step: true, ...held("intraday") },
+    ];
+    const actualTotal = detail.actual && !detail.actual_partial ? detail.actual[k] : null;
+    if (actualTotal != null) {
+      series.push({ label: this._t("fcActual"), color: FORECAST_COLORS.actual, dash: "6 4", data: times.map(() => actualTotal) });
+    }
+    const shown = series.filter((s) => s.data.some((v) => v != null));
+    let top = 0;
+    for (const s of shown) for (const v of s.data) if (v != null && v > top) top = v;
+    const yMax = Math.max(0.1, top * 1.12);
+    r.driftLegend.innerHTML = this._fcLegend(shown);
+    r.driftPlot.innerHTML = this._chartWithYAxis(
+      this._fcLineSVG({ series: shown, yMin: 0, yMax, xs, n: times.length }),
+      { yMin: 0, yMax, unit: "kWh" }
+    );
+    r.driftPlot.__hv = {
+      kind: "line", n: times.length, xs, series: shown, yMin: 0, yMax, unit: "kWh", decimals: 2,
+      xLabel: (i) => this._fcStamp(new Date(times[i]).toISOString()),
+    };
+    const ticks = hi > lo ? [0, 0.5, 1].map((f) => lo + (hi - lo) * f) : [lo];
+    r.driftX.innerHTML = ticks.map((t) => `<span>${this._fcStamp(new Date(t).toISOString())}</span>`).join("");
+  }
+
+  async _fcExport(kind) {
+    try {
+      const res = await this._fcCall({ type: "export", kind });
+      const blob = new Blob([res.csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.filename || `forecast_${kind}.csv`;
+      this.shadowRoot.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      this._fc.error = err;
+      this._fcDraw();
     }
   }
 
@@ -4679,8 +5247,11 @@ class MarstekVenusPanel extends HTMLElement {
     const li = this._clamp(Math.floor(fx * c), 0, c - 1);
     const leftPx = ((li + 0.5) / c) * rect.width;
     ov.dots.innerHTML = "";
+    // ``gaps``: a missing value is no data (a dash), not zero.
     const rows = hv.groups.map((g) =>
-      this._hoverRow(g.color, g.label, `${this._nf(g.values[li] || 0, hv.decimals)} ${hv.unit}`)
+      this._hoverRow(g.color, g.label, hv.gaps && g.values[li] == null
+        ? "—"
+        : `${this._nf(g.values[li] || 0, hv.decimals)} ${hv.unit}`)
     );
     this._placeTip(ov, rect, leftPx, hv.xLabel(li), rows);
   }
@@ -7675,6 +8246,36 @@ class MarstekVenusPanel extends HTMLElement {
       .chart-legend { display: inline-flex; gap: 12px; flex-wrap: wrap; }
       .legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-mid); }
       .legend-dot { width: 9px; height: 9px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
+      /* Forecast view */
+      .fc-toolbar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+      .fc-chips, .fc-exports { display: flex; flex-wrap: wrap; gap: 8px; }
+      .fc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 999px; border: 1px solid var(--line);
+        background: var(--bg-1); color: var(--ink-mid); font: inherit; font-size: 12px; cursor: pointer; --mdc-icon-size: 15px; }
+      .fc-chip:hover { border-color: var(--line-strong); color: var(--ink); }
+      .fc-chip.active { background: var(--accent-soft); border-color: var(--accent-line); color: var(--ink); }
+      .fc-notice { font-size: 13px; line-height: 1.5; }
+      .fc-plot { flex: none; height: 200px; }
+      .fc-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--gap); }
+      @media (max-width: 1080px) { .fc-pair { grid-template-columns: 1fr; } }
+      .fc-legend { margin-bottom: 10px; }
+      .fc-swatch { display: inline-block; width: 16px; height: 0; }
+      .fc-nav { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-mid); }
+      .fc-date { min-width: 92px; text-align: center; }
+      .fc-navbtn { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line);
+        background: transparent; color: var(--ink-mid); cursor: pointer; --mdc-icon-size: 16px; }
+      .fc-navbtn:disabled { opacity: 0.35; cursor: default; }
+      .fc-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: 12px; color: var(--ink-mid); }
+      .fc-stats b { color: var(--ink); font-weight: 600; }
+      .fc-note { margin-top: 10px; font-size: 11px; line-height: 1.45; }
+      .fc-table { margin-top: 16px; display: flex; flex-direction: column; max-height: 340px; overflow-y: auto; }
+      .fc-row { display: grid; grid-template-columns: 1.1fr 0.9fr 1.4fr 1.4fr; gap: 10px; padding: 8px 6px; border: 0;
+        border-top: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 12px; text-align: left; }
+      button.fc-row { cursor: pointer; }
+      button.fc-row:hover, button.fc-row.active { background: var(--accent-soft); }
+      .fc-row.fc-head { border-top: 0; color: var(--ink-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+      .fc-err { font-variant-numeric: tabular-nums; }
+      .fc-bad { color: var(--flow-orange); }
+      @media (max-width: 720px) { .fc-row { grid-template-columns: 1fr 1fr; } }
       .chart-empty { display: grid; place-items: center; height: 100%; min-height: 96px; font-size: 12px; }
       /* zoom: range buttons under the chart + drag-to-brush selection box */
       .chart-zoom { display: flex; gap: 4px; justify-content: flex-end; margin-top: 6px; padding-left: 48px; }

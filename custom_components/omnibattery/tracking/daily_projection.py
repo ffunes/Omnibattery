@@ -399,15 +399,16 @@ def build_daily_operation_projection(
             solar_left = solar - _finite(getattr(flow, "solar_to_battery_kwh", 0.0))
             if solar_to_home > solar_left + 1e-9:
                 solar_to_home = max(0.0, solar_left)
+            # The forecast shown is before the safety margin, so it can hold
+            # more solar than the simulation saw; the battery then covers
+            # part of the load that solar seems to cover. Solar feeds only
+            # what the battery leaves, so the two never exceed the load.
+            battery_to_home = _finite(getattr(flow, "battery_to_home_kwh", 0.0))
+            solar_to_home = min(solar_to_home, max(0.0, load - battery_to_home))
             item["solar_kwh"] += solar
             item["consumption_kwh"] += load
             item["solar_to_home_kwh"] += solar_to_home
-            item["grid_to_home_kwh"] += max(
-                0.0,
-                load
-                - solar_to_home
-                - _finite(getattr(flow, "battery_to_home_kwh", 0.0)),
-            )
+            item["grid_to_home_kwh"] += max(0.0, load - solar_to_home - battery_to_home)
         if flow_index < len(full_forecasts):
             item["solar_forecast_kwh"] += full_forecasts[flow_index][0]
             item["consumption_forecast_kwh"] += full_forecasts[flow_index][1]

@@ -3541,6 +3541,30 @@ class PricingManager:
                 daily_horizon_end,
             )
             solar_source = timeline.source
+            # The Daily operation timeline and the forecast history show the
+            # forecast itself: before the safety margin and the excluded
+            # devices' claim, which only make the plan cautious. A provider
+            # forecast of 2.0 kWh read 1.49 kWh there with a 0.51 kWh margin,
+            # so a perfect forecast showed -26 %. The planner keeps
+            # ``solar_kwh``.
+            forecast_solar = list(timeline.intervals_kwh)
+            if safety > 0.0:
+                forecast_solar = list(
+                    build_solar_timeline(
+                        boundaries,
+                        solar_input.remaining_kwh,
+                        safety_margin_kwh=0.0,
+                        provider_periods=provider_periods,
+                        temporal_shape=temporal_shape,
+                        learned_shape=(learned_snapshot.shape if learned_snapshot else None),
+                        learned_mature=bool(learned_snapshot and learned_snapshot.mature),
+                        solar_start=solar_start_dt,
+                        solar_end=solar_end_dt,
+                        mode=solar_profile_mode,
+                    ).intervals_kwh
+                )
+            if len(forecast_solar) != len(boundaries) or not any(forecast_solar):
+                forecast_solar = list(solar)
             # Peak shaving that is conserving now holds the battery to the
             # excess above its limit; the grid carries the rest of the load.
             # Projecting a full overnight drain instead booked a phantom
@@ -3562,7 +3586,13 @@ class PricingManager:
                 float(getattr(self._controller, "capacity_protection_limit", 0.0) or 0.0),
             ) / 1000.0
             intervals = [
-                EnergyInterval(start, end, consumption[index], solar[index])
+                EnergyInterval(
+                    start,
+                    end,
+                    consumption[index],
+                    solar[index],
+                    forecast_solar_kwh=forecast_solar[index],
+                )
                 if held_until is None or start >= held_until
                 else EnergyInterval(
                     start,
@@ -3575,6 +3605,7 @@ class PricingManager:
                     solar[index],
                     # The timeline still shows the whole load.
                     forecast_consumption_kwh=consumption[index],
+                    forecast_solar_kwh=forecast_solar[index],
                 )
                 for index, (start, end) in enumerate(boundaries)
             ]
