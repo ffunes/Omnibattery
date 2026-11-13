@@ -19,6 +19,7 @@
 
 ### Fixed
 
+- **Dynamic Pricing: a charge limited by the room or by the charger no longer stops short**: the plan takes off the house load the grid carries while a slot charges, as if the slot stopped early. When the room or the slots' power had already capped the charge, that left the battery part empty (3.3 of 4.6 kWh at midnight in one case) for hours where storing still paid, and more house load trimmed more. The trimmed energy is now kept where it fits and those hours repay it.
 - **A grid-charge slot no longer raises the import peak it regulates** (#683): a slot started at the full limit on top of the house load and the first correction pushed it higher. It now starts with the headroom the house leaves, waits for the meter to show the new charge before steering, hands over to peak shaving after 2 fresh samples when the house alone is above the limit (a contracted-power overload still needs 3), and drops the minimum charge to 0 W while the grid is above the limit.
 - **Real-Time Price: the charge kept running unregulated when the price threshold disappeared**: with the average price sensor unavailable and no fixed threshold, or the manual threshold cleared mid-charge, the batteries stayed on their last command. The charge now stops, as it does when the price itself is missing.
 - **Real-Time Price: charges again later in the same cheap period**: once the target was reached nothing re-evaluated until the price rose and fell again, not even at midnight, so a battery drained by the house during a long cheap period stayed empty.

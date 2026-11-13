@@ -349,16 +349,18 @@ def test_a_slot_in_an_hour_left_to_the_grid_keeps_its_charge():
 
 
 def test_a_slot_in_an_hour_the_battery_covers_is_still_trimmed():
-    """A dear night (0.60) is worth storing for, from the cheapest slot.
+    """A dear night (0.60 to 06:00) is worth storing for, from the cheapest slot.
 
     The battery then covers the night, the load inside the later slots was
     stored for, and the grid carrying it while they charge saves that charge.
+    After 06:00 (0.20) storing at 0.30 does not pay, so the saved charge is
+    not given back: the battery is empty at 06:00.
     """
     intervals = [
         EnergyInterval(BASE + i * QUARTER, BASE + (i + 1) * QUARTER, 0.25, 0.0)
         for i in range(48)
     ]
-    prices = [0.10] * 4 + [0.60] * 4 + [0.30] * 4 + [0.60] * 36
+    prices = [0.10] * 4 + [0.60] * 4 + [0.30] * 4 + [0.60] * 12 + [0.20] * 24
     slots = tuple(
         PriceSlot(BASE + i * QUARTER, BASE + (i + 1) * QUARTER, prices[i])
         for i in range(48)
@@ -440,3 +442,49 @@ def test_solar_covering_part_of_the_house_is_not_left_load():
     # 0.15 kWh came from the battery or the grid; 0.10 of it was left.
     assert drained.consumption_kwh == pytest.approx(0.15)
     assert drained.solar_kwh == pytest.approx(0.10)
+
+
+def test_a_partly_charging_quarter_still_drains_the_battery():
+    """Invariant sweep (I1, 1x5k soc60 1.56 kW night-cheap 16:00): 0.20 until
+    18:00, 0.30 to 22:00 (0.255 after the losses), a 2.05 kWh room.
+
+    A slot that stores its amount in part of the quarter lets the battery
+    cover the house for the rest of it. The planner counted the whole quarter
+    as carried by the grid, so it saw the battery full at 18:00 with 3.6 kWh
+    in it and booked no more, and the peak ran on the grid from 20:15.
+    """
+    start = BASE + timedelta(hours=16)
+    intervals = [
+        EnergyInterval(start + i * QUARTER, start + (i + 1) * QUARTER, 0.39, 0.0)
+        for i in range(64)
+    ]
+
+    def price(i):
+        return 0.20 if i < 8 else (0.30 if i < 24 else 0.20)
+
+    slots = tuple(
+        PriceSlot(start + i * QUARTER, start + (i + 1) * QUARTER, price(i))
+        for i in range(32)
+    )
+    plan = evaluate_chronological_request(
+        ChronologicalEvaluationRequest(
+            now=start,
+            horizon_end=start + timedelta(hours=16),
+            intervals=tuple(intervals),
+            price_slots=slots,
+            total_required_kwh=2.048,
+            effective_power_kw=2.5,
+            headroom_kwh=2.048,
+            usable_initial_kwh=2.56,
+            max_price_threshold=0.25,
+            required_from_deadlines=True,
+            import_value_efficiency=0.85,
+            grid_carries_load_while_charging=True,
+            grid_ceiling_kw=5.75,
+        )
+    ).plan
+
+    _low, at_six = _simulate(
+        intervals[:8], plan.allocations, 2.56, 2.5 * CHARGE_EFFICIENCY
+    )
+    assert at_six == pytest.approx(2.56 + 2.048, abs=0.1)
