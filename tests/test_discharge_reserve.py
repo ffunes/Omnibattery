@@ -27,7 +27,11 @@ from custom_components.omnibattery.control.discharge_reserve import (
     DischargeReserveManager,
 )
 from custom_components.omnibattery.pricing import PriceSlot
-from custom_components.omnibattery.pricing.discharge_reserve import STATUS_DISABLED
+from custom_components.omnibattery.pricing.discharge_reserve import (
+    REASON_GRID_REFILLS_CHEAPER,
+    REASON_RESERVED,
+    STATUS_DISABLED,
+)
 from custom_components.omnibattery.solar_forecast import SolarForecastPeriod
 
 DAY = datetime(2026, 9, 4)
@@ -1707,9 +1711,10 @@ def test_without_an_extended_horizon_a_dull_tomorrow_keeps_sunrise():
 # ----------------------------------------------------------------------
 
 
-def _nov_13_manager(periods, soc=30.0):
+def _nov_13_manager(periods, soc=30.0, midday=0.31):
     """12 Nov 21:00: an empty-ish battery, tomorrow's prices 0.37 overnight,
-    15:00 0.396, 16:00 0.447, 17:00-20:00 0.47, the house 0.5 kWh an hour."""
+    10:00-15:00 ``midday``, 15:00 0.396, 16:00 0.447, 17:00-20:00 0.47, the
+    house 0.5 kWh an hour."""
 
     def price(start):
         if start.date() == TOMORROW.date():
@@ -1720,7 +1725,7 @@ def _nov_13_manager(periods, soc=30.0):
             if 17 <= start.hour < 20:
                 return 0.47
             if 10 <= start.hour < 15:
-                return 0.31
+                return midday
         return 0.37
 
     slots = [
@@ -1767,6 +1772,33 @@ def test_the_projection_holds_the_noon_sun_for_the_evening_peak():
     assert reserve_at(TOMORROW + timedelta(hours=15), 1.0, 6.0) == pytest.approx(1.0)
     # From 17:00 the dear hours are now: nothing dearer after them to hold for.
     assert reserve_at(TOMORROW + timedelta(hours=19), 1.0, 6.0) == pytest.approx(0.0)
+
+
+def test_a_daytime_grid_charge_serves_the_evening_inside_the_longer_plan():
+    """A cheap midday slot the planner can charge in does not end the plan: a
+    grid charge stops at its target SOC, so it buys less rather than pushing
+    held energy out. Inside the plan it refills the evening instead (#842)."""
+    cheap = _nov_13_manager(_periods(TOMORROW, NOV_13_SUN))
+
+    assert cheap.plan.horizon_end == TOMORROW_NIGHT
+    assert cheap.reserve_soc_pct() == pytest.approx(0.0)
+    status = cheap.get_status()
+    assert status["reason"] == REASON_GRID_REFILLS_CHEAPER
+    refilled = {slot["start"] for slot in status["refills"]}
+    assert {
+        (TOMORROW + timedelta(hours=hour)).isoformat() for hour in (17, 18, 19)
+    } <= refilled
+    reserve_at = cheap.projected_reserve_fn()
+    # Before the charge the evening is the grid's; after it, the battery's.
+    assert reserve_at(TOMORROW + timedelta(hours=9), 1.0, 6.0) == pytest.approx(0.0)
+    assert reserve_at(TOMORROW + timedelta(hours=15), 1.0, 6.0) == pytest.approx(1.0)
+
+    # The same day with a dear midday: nothing refills, tonight's energy is held.
+    dear = _nov_13_manager(_periods(TOMORROW, NOV_13_SUN), midday=0.45)
+    assert dear.plan.horizon_end == TOMORROW_NIGHT
+    assert dear.reserve_soc_pct() > 0.0
+    assert dear.get_status()["reason"] == REASON_RESERVED
+    assert dear.get_status()["refills"] == []
 
 
 def test_a_noon_sun_that_refills_a_nearly_full_battery_keeps_sunrise():
