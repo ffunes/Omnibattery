@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import math
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from time import monotonic
@@ -87,6 +88,16 @@ RESERVE_SOC_TOLERANCE_PCT = 1e-6
 # raw AC surplus first would discount sun that was never going to fit in the
 # battery anyway, and read as if the uncertainty had been accounted for.
 SURPLUS_CREDIT_FACTOR = 0.75
+
+
+def _finite_room(value) -> float:
+    """A room in kWh, 0 for a missing or non-finite one."""
+    try:
+        room = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return room if math.isfinite(room) and room > 0.0 else 0.0
+
 
 # Dynamic pricing's daily evaluation, the first re-plan from the live SOC that
 # is certain to run after the reserve releases energy (hour, minute).
@@ -343,8 +354,9 @@ class DischargeReserveManager:
         consumption, solar, fraction_fn = self._consumption_and_solar(
             pricing, day_slots, now, day_end
         )
+        room_kwh = free_space_kwh(fleet)
         horizon_end = self._sun_covered_horizon_end(
-            now, day_slots, consumption, solar, fraction_fn, day_end
+            now, day_slots, consumption, solar, fraction_fn, day_end, room_kwh
         )
         if horizon_end == self._horizon_end(now) and self._past_solar_midpoint(
             now, fraction_fn
@@ -352,7 +364,7 @@ class DischargeReserveManager:
             # In the evening the next sunrise is the whole plan, but tomorrow's
             # dear morning runs until the sun covers the house, as it does after
             # midnight. Tomorrow's prices and dated solar are known by now.
-            morning = self._tomorrow_morning(pricing, now, horizon_end)
+            morning = self._tomorrow_morning(pricing, now, horizon_end, room_kwh)
             if morning is not None:
                 horizon_end, day_slots, consumption, solar = morning
         slots = [slot for slot in day_slots if slot.start < horizon_end]
@@ -362,7 +374,7 @@ class DischargeReserveManager:
                 slots,
                 demand,
                 surplus_by_slot=surplus,
-                free_space_kwh=free_space_kwh(fleet),
+                free_space_kwh=room_kwh,
                 usable_energy_kwh=usable_energy_kwh(fleet),
                 total_capacity_kwh=eligible_capacity_kwh(fleet),
                 current_price=self._current_price(),
@@ -424,7 +436,14 @@ class DischargeReserveManager:
         return horizon_end
 
     def _sun_covered_horizon_end(
-        self, now: datetime, day_slots, consumption, solar, fraction_fn, day_end
+        self,
+        now: datetime,
+        day_slots,
+        consumption,
+        solar,
+        fraction_fn,
+        day_end,
+        room_kwh: float | None = None,
     ) -> datetime:
         """End the morning's plan where the sun takes over, not where it rises.
 
@@ -440,6 +459,12 @@ class DischargeReserveManager:
         the question is settled for the day: a later slot the sun happens to cover
         must not cut the evening off. Without a forecast there is nothing to go
         on, and the horizon stays where :meth:`_horizon_end` puts it.
+
+        The same holds for a sun that covers the house but cannot refill the
+        battery: what is held now is then never pushed out by the PV, so
+        cutting at the sun only spends the evening's energy in the morning.
+        With ``room_kwh``, the battery's free space now, such a day keeps the
+        evening too.
         """
         fallback = self._horizon_end(now)
         if not solar or fraction_fn is None:
@@ -457,7 +482,71 @@ class DischargeReserveManager:
             self._sun_took_over_on = now.date()
         if covered is None or covered <= now:
             return day_end
+        if (
+            room_kwh is not None
+            and not self._weekly_fills_first(now, tonight=False)
+            and not self._sun_can_refill(
+                [slot for slot in day_slots if slot.end > now],
+                consumption,
+                solar,
+                room_kwh,
+            )
+        ):
+            return day_end
         return covered
+
+    def _sun_can_refill(self, slots, consumption, solar, room_kwh: float) -> bool:
+        """True when the sun's surplus over ``slots`` fills ``room_kwh``.
+
+        ``room_kwh`` is the free space now. Energy used before the sun only
+        adds room, so a sun that cannot fill it cannot push anything held now
+        out of the battery either. The surplus counts what the battery can take
+        at its charge power, after the charge loss, without the credit haircut:
+        assuming more sun keeps the old, shorter horizon.
+        """
+        room = _finite_room(room_kwh)
+        if room <= 0.0:
+            return True
+        charge_power_w = max(
+            0.0, float(getattr(self._controller, "max_charge_capacity", 0.0) or 0.0)
+        )
+        stored = 0.0
+        for slot in slots:
+            raw_kwh = max(
+                0.0,
+                float(solar.get(slot, 0.0) or 0.0)
+                - float(consumption.get(slot, 0.0) or 0.0),
+            )
+            duration_h = max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
+            stored += min(raw_kwh, charge_power_w * duration_h / 1000.0) * CHARGE_EFFICIENCY
+            if stored >= room:
+                return True
+        return False
+
+    def _weekly_fills_first(self, now: datetime, *, tonight: bool) -> bool:
+        """True while a weekly full charge fills the battery before that sun.
+
+        Then the room now says nothing about the room at sunrise: the run takes
+        the battery to 100 % overnight. ``tonight`` asks for tomorrow's sun, so
+        any pending run counts; for today's sun only the night after the run
+        day, before its sunrise.
+        """
+        pending = getattr(self._controller, "_weekly_full_charge_pending", None)
+        try:
+            if not callable(pending) or not pending():
+                return False
+        except Exception:  # noqa: BLE001 - keep the old horizon when unsure
+            return True
+        if tonight:
+            return True
+        manager = getattr(self._controller, "_weekly_charge_mgr", None)
+        overnight = getattr(manager, "in_overnight_extension", None)
+        if not callable(overnight):
+            return True
+        try:
+            return bool(overnight(now))
+        except Exception:  # noqa: BLE001
+            return True
 
     @staticmethod
     def _past_solar_midpoint(now: datetime, fraction_fn) -> bool:
@@ -470,7 +559,9 @@ class DischargeReserveManager:
         except (TypeError, ValueError):
             return hour >= 12.0
 
-    def _tomorrow_morning(self, pricing, now: datetime, sunrise: datetime):
+    def _tomorrow_morning(
+        self, pricing, now: datetime, sunrise: datetime, room_kwh: float | None = None
+    ):
         """Tomorrow up to where the sun covers the house, or None.
 
         Returns ``(horizon_end, slots, consumption, solar)``. Tomorrow's sun
@@ -481,7 +572,9 @@ class DischargeReserveManager:
         A day the sun never covers the house has nothing to refill the battery
         before tomorrow's evening, so, as :meth:`_sun_covered_horizon_end` does
         for today, that evening joins the plan (#840): the plan then runs to the
-        charge planner's extended horizon, when it has one.
+        charge planner's extended horizon, when it has one. So does a day whose
+        sun covers the house but cannot fill ``room_kwh``, the free space now,
+        unless a weekly full charge fills the battery tonight.
         """
         periods = getattr(self._controller, "solar_forecast_periods", None)
         if not periods:
@@ -552,8 +645,15 @@ class DischargeReserveManager:
         covered = first_sun_covered_start(morning, consumption, solar)
         if covered is None and end > noon:
             return end, slots, consumption, solar
-        # ponytail: a sun that only takes over after noon keeps the old sunrise
-        # bound; extend it too if a report shows that afternoon.
+        if (
+            end > noon
+            and room_kwh is not None
+            and not self._weekly_fills_first(now, tonight=True)
+            and not self._sun_can_refill(morning, consumption, solar, room_kwh)
+        ):
+            return end, slots, consumption, solar
+        # ponytail: a sun that refills the battery but only takes over after
+        # noon keeps the old sunrise bound.
         if covered is None or covered <= sunrise or covered >= noon:
             return None
         return covered, slots, consumption, solar
