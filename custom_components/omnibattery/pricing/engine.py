@@ -231,6 +231,89 @@ def _apply_excluded_demand_claim(
     return adjusted, claim
 
 
+def _plan_trace(
+    *,
+    now: datetime,
+    horizon_end: datetime,
+    intervals: Any,
+    slots: Any,
+    slot_ceilings: Mapping[datetime, float] | None,
+    plan: ChronologicalPlan,
+    inputs: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Everything a control plan was built from and what it booked.
+
+    Read by the decision log only, so a night can be replayed exactly the next
+    morning: the energy curves the allocator saw, every deadline and every
+    slot's amount. Never raises into planning.
+    """
+
+    def num(value: Any, digits: int = 4) -> float | None:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return round(parsed, digits) if math.isfinite(parsed) else None
+
+    try:
+        ceilings = slot_ceilings or {}
+        return {
+            "now": now.isoformat(),
+            "horizon_end": horizon_end.isoformat(),
+            "inputs": {key: num(value) if not isinstance(value, bool) and value is not None else value
+                       for key, value in inputs.items()},
+            "result": {
+                "reason": plan.reason,
+                "total_required_kwh": num(plan.total_required_kwh),
+                "deadline_required_kwh": num(plan.deadline_required_kwh),
+                "flexible_required_kwh": num(plan.flexible_required_kwh),
+                "allocated_kwh": num(plan.allocated_kwh),
+                "deadline_shortfall_kwh": num(plan.deadline_shortfall_kwh),
+                "total_shortfall_kwh": num(plan.total_shortfall_kwh),
+                "minimum_projected_energy_kwh": num(plan.minimum_projected_energy_kwh),
+                "earliest_depletion_at": (
+                    plan.earliest_depletion_at.isoformat() if plan.earliest_depletion_at else None
+                ),
+                "cheaper_to_import_kwh": num(plan.cheaper_to_import_kwh),
+                "awaiting_prices_kwh": num(plan.awaiting_prices_kwh),
+            },
+            # [start, consumption, solar, house_load] per interval, kWh.
+            "intervals": [
+                [
+                    item.start.isoformat(),
+                    num(item.consumption_kwh),
+                    num(item.solar_kwh),
+                    num(getattr(item, "house_load_kwh", None)),
+                ]
+                for item in intervals
+            ],
+            # [deadline, required cumulative kWh, kind]
+            "deadlines": [
+                [item.deadline.isoformat(), num(item.required_cumulative_kwh), item.kind]
+                for item in plan.deadlines
+            ],
+            # [slot start, price, stored kWh, deadline it serves, kind]
+            "allocations": [
+                [
+                    item.slot.start.isoformat(),
+                    num(item.slot.price),
+                    num(item.planned_battery_kwh),
+                    item.deadline.isoformat() if item.deadline else None,
+                    item.kind,
+                ]
+                for item in plan.allocations
+            ],
+            # [slot start, price, ceiling] for every price slot offered.
+            "price_slots": [
+                [item.start.isoformat(), num(item.price), num(ceilings.get(item.start))]
+                for item in slots
+            ],
+        }
+    except Exception:  # noqa: BLE001 - a trace must never break planning
+        _LOGGER.debug("Plan trace could not be built", exc_info=True)
+        return None
+
+
 @dataclass(frozen=True)
 class ChronologicalProjectionResult:
     """Read-only dashboard projection adapted from current runtime inputs.
@@ -3916,6 +3999,28 @@ class PricingManager:
                 )
             )
             plan = evaluation.plan
+            if not diagnostic_only:
+                self._controller._last_plan_trace = _plan_trace(
+                    now=now,
+                    horizon_end=horizon_end,
+                    intervals=intervals,
+                    slots=slots,
+                    slot_ceilings=slot_ceilings,
+                    plan=plan,
+                    inputs={
+                        "total_required_kwh": required,
+                        "uncapped_required_kwh": uncapped_required,
+                        "effective_power_kw": power_kw,
+                        "headroom_kwh": headroom,
+                        "usable_initial_kwh": usable,
+                        "price_ceiling": price_ceiling,
+                        "required_from_deadlines": control_extension,
+                        "grid_carried_load_kwh": grid_carried_kwh,
+                        "window_load_on_grid_kwh": window_load_on_grid,
+                        "discharge_limit_w": discharge_limit_w,
+                        "value_deadlines": value_deadlines,
+                    },
+                )
             if control_extension and not diagnostic_only:
                 # The scalar balance nets tomorrow's solar against tonight's
                 # gap; publish the need the plan actually found so should_charge,

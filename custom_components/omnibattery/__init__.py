@@ -1061,6 +1061,8 @@ class ChargeDischargeController:
         # Chronological forecast diagnostics survive later balance-only
         # re-evaluations, which replace _last_decision_data wholesale.
         self._last_chronological_diagnostics = None
+        # Inputs and output of the latest control plan, for the decision log.
+        self._last_plan_trace = None
         self._slot_entry_time = None  # When we first entered the time slot (for 5-min delay)
         self._predictive_charge_target_soc: Optional[dict] = None  # Per-battery grid-only SOC targets {coordinator: target_%}
         self._active_time_slot_quota_kwh: Optional[float] = None
@@ -1384,6 +1386,7 @@ class ChargeDischargeController:
         self._consumption_tracker = None
         self._daily_operation_timeline = None
         self.daily_operation_timeline = None
+        self._decision_log = None
         self._daily_operation_last_runtime_at: datetime | None = None
         self._daily_operation_grid_energy_date = None
         self._daily_operation_grid_energy_kwh = [0.0] * 96
@@ -9914,6 +9917,12 @@ class ChargeDischargeController:
         refresh_timeline = getattr(self, "_refresh_daily_operation_timeline", None)
         if callable(refresh_timeline):
             refresh_timeline(now=now or dt_util.now())
+        decision_log = getattr(self, "_decision_log", None)
+        if decision_log is not None:
+            try:
+                decision_log.tick(now or dt_util.now())
+            except Exception:  # noqa: BLE001 - the log must never gate control
+                _LOGGER.debug("Decision log update failed", exc_info=True)
 
         # === BALANCE MONITOR ===
         # Run before manual mode and PD control checks so readings are never gated
@@ -12106,6 +12115,17 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
         now=startup_now, force_projection=True
     )
 
+    from .tracking.decision_log import DecisionLogger
+    decision_log = DecisionLogger(hass, entry, controller)
+    try:
+        from homeassistant.loader import async_get_integration
+
+        integration_version = (await async_get_integration(hass, DOMAIN)).version
+    except Exception:  # noqa: BLE001 - the version is informative only
+        integration_version = None
+    decision_log.log_start(str(integration_version) if integration_version else None)
+    controller._decision_log = decision_log
+
     # Set up the control safety timer and store unsub callbacks for manual cancellation during unload.
     # Each unsub is registered twice: stored in hass.data so async_unload_entry can cancel
     # the timers early (before platform teardown), and via entry.async_on_unload so HA cleans
@@ -12558,6 +12578,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             timeline = getattr(controller, "_daily_operation_timeline", None)
             if timeline is not None:
                 await _persist("daily operation timeline", timeline.async_shutdown)
+            decision_log = getattr(controller, "_decision_log", None)
+            if decision_log is not None:
+                controller._decision_log = None
+                await _persist("decision log", decision_log.async_flush)
 
         if unload_ok:
             hass.data[DOMAIN].pop(entry.entry_id, None)
