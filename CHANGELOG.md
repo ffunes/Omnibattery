@@ -15,6 +15,7 @@
 - **Time Slot plans up to the next cheap window** (#611): with several windows (say 02:00–06:00 and 12:00–16:00) the charge in a window was sized only for the load until midnight, so a sunny midday window skipped charging and the evening and the night until 02:00 ran on the grid. It now covers the load until the next window starts, never past the next sunrise, counting only the sun expected before then. A single window keeps the midnight horizon.
 - **Predictive charging on a new install assumes a daily use sized to the batteries**: until a week of consumption has been learned, each missing day counted as 5 kWh whatever the home. It now counts as 80 % of the fleet's capacity (5 kWh while that is not known yet).
 - **Real-Time Price plans up to sunrise**: a cheap period in the afternoon or evening now also covers the night, not only the load until midnight.
+- **Dynamic Pricing: the plan is no longer capped by the room in the battery when it is made**: a battery that runs down before the cheap slots has more room when they start. A 60 % battery evaluated at 00:05 booked only its 2.05 kWh of room for 06:00, where 4.6 kWh fit, and a re-evaluation an hour later booked more. Every plan is now sized from what each hour needs and what fits when each slot starts, as it already was with tomorrow's prices published, and only energy worth storing after the round-trip losses is bought; that can include daytime slots for an evening peak. The notification's "Grid charge planned" now shows what the plan books, not the energy balance.
 
 ### Fixed
 
