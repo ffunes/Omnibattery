@@ -4,13 +4,17 @@
 # Install once per clone: git config core.hooksPath .githooks
 # Skip once: git merge --no-verify. A merge that stops on conflicts is
 # committed with `git commit`, which does not run this hook.
-changed=$(git diff --name-only HEAD...MERGE_HEAD 2>/dev/null) || exit 0
+# What the merge brings in: the merged index against HEAD (MERGE_HEAD is not
+# written yet when the merge commits at once).
+changed=$(git diff --cached --name-only HEAD 2>/dev/null) || exit 0
 echo "$changed" | grep -qE '^(custom_components/omnibattery/(__init__\.py|pricing/|control/)|tests/(scenarios/|test_predictive_s(weep|cenarios)\.py|sweep_known\.json))' || exit 0
-if [ -x .venv-test/Scripts/python.exe ]; then
-    py=.venv-test/Scripts/python.exe
-elif [ -x .venv-test/bin/python ]; then
-    py=.venv-test/bin/python
-else
+# The test venv lives in the main checkout; a worktree uses that one.
+main=$(cd "$(git rev-parse --git-common-dir)/.." && pwd)
+py=
+for candidate in .venv-test/Scripts/python.exe .venv-test/bin/python         "$main/.venv-test/Scripts/python.exe" "$main/.venv-test/bin/python"; do
+    if [ -x "$candidate" ]; then py=$candidate; break; fi
+done
+if [ -z "$py" ]; then
     echo "pre-merge-commit: no .venv-test, planner sweep skipped" >&2
     exit 0
 fi
