@@ -1,0 +1,18 @@
+#!/bin/sh
+# Runs the Dynamic Pricing planner invariant sweep (tests/test_predictive_sweep.py)
+# before a merge commit that brings changes to the predictive charging code.
+# Install once per clone: git config core.hooksPath .githooks
+# Skip once: git merge --no-verify. A merge that stops on conflicts is
+# committed with `git commit`, which does not run this hook.
+changed=$(git diff --name-only HEAD...MERGE_HEAD 2>/dev/null) || exit 0
+echo "$changed" | grep -qE '^(custom_components/omnibattery/(__init__\.py|pricing/|control/)|tests/(scenarios/|test_predictive_s(weep|cenarios)\.py|sweep_known\.json))' || exit 0
+if [ -x .venv-test/Scripts/python.exe ]; then
+    py=.venv-test/Scripts/python.exe
+elif [ -x .venv-test/bin/python ]; then
+    py=.venv-test/bin/python
+else
+    echo "pre-merge-commit: no .venv-test, planner sweep skipped" >&2
+    exit 0
+fi
+echo "pre-merge-commit: running the planner sweep (about 4 minutes); git merge --no-verify skips it" >&2
+exec "$py" -m pytest -q -p no:cacheprovider -m sweep -n auto

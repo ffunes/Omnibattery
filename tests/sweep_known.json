@@ -1,0 +1,20 @@
+{
+  "I1 1x5k-2500-soc15-flat1.2-night-cheap-tomorrow-none-0005": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I1 1x5k-2500-soc60-evening-falling-night-today-dull-1600": "Already on release/v2.0.0 before the sweep (5d647c4a, same drop); not analysed yet.",
+  "I1 1x5k-2500-soc60-evening-night-cheap-today-dull-1600": "Already on release/v2.0.0 before the sweep (5d647c4a, same drop); not analysed yet.",
+  "I1 1x5k-2500-soc60-flat1.2-falling-night-today-sunny-1600": "Already on release/v2.0.0 before the sweep (5d647c4a, same drop); not analysed yet.",
+  "I1 1x5k-2500-soc60-flat1.2-falling-night-tomorrow-dull-2240": "Appeared with 8288ff57 (later charges bounded by the energy they really store), -0.12 kWh; not analysed yet.",
+  "I1 1x5k-2500-soc60-flat1.2-falling-night-tomorrow-none-2240": "Already on release/v2.0.0 before the sweep (5d647c4a, same drop); not analysed yet.",
+  "I1 1x5k-2500-soc60-flat1.2-night-cheap-today-sunny-1600": "Already on release/v2.0.0 before the sweep (5d647c4a, same drop); not analysed yet.",
+  "I1 1x5k-2500-soc60-flat1.2-night-cheap-tomorrow-none-0005": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I1 1x7k-800-soc15-flat1.2-night-cheap-tomorrow-dull-0305": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I1 1x7k-800-soc60-flat1.2-night-cheap-tomorrow-dull-0005": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I1 1x7k-800-soc60-flat1.2-night-cheap-tomorrow-dull-0305": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I1 2x5k-2500-soc15-flat1.2-falling-night-tomorrow-none-2240": "Already on release/v2.0.0 before the sweep (5d647c4a, same drop); not analysed yet.",
+  "I5 1x5k-2500-soc60-flat1.2-night-cheap-tomorrow-dull-0005": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I5 1x5k-2500-soc60-flat1.2-night-cheap-tomorrow-none-0005": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I6x1.0 2x5k-2500-soc15-flat1.2-solar-dip-tomorrow-dull-0005": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I6x1.0 2x5k-2500-soc15-flat1.2-solar-dip-tomorrow-dull-0305": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I6x1.0 2x5k-2500-soc60-flat1.2-solar-dip-tomorrow-dull-0005": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13).",
+  "I6x1.0 2x5k-2500-soc60-flat1.2-solar-dip-tomorrow-dull-0305": "Two nights in the horizon: tomorrow's prices published at 00:05/03:05, which needs prices beyond the day-ahead market; not seen with the supported providers (checked 2026-11-13)."
+}

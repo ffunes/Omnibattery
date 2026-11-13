@@ -43,6 +43,7 @@
 
 - The pricing engine reads the time from one injectable clock, and reported nights run as data-file regression scenarios (`tests/scenarios/`).
 - The inputs of the chronological charge planner (consumption shape, solar timeline, idle intervals, Time Slot windows, fleet state, weekly reservation, guaranteed floor) are pure functions in `pricing/plan_inputs.py`.
+- An invariant sweep holds the Dynamic Pricing planner to rules over a grid of generic nights (more load never books less, the published charge matches the slots, a re-evaluation keeps the plan, nothing is booked without room): `pytest -m sweep -n auto`, run by the `.githooks/pre-merge-commit` hook when a merge touches the predictive code (`git config core.hooksPath .githooks`). Known findings, with their reason, live in `tests/sweep_known.json`.
 
 ## [1.6.1b2] - 2026-11-11
 
