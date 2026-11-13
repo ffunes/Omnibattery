@@ -425,3 +425,145 @@ def test_an_unbounded_room_is_never_room_bound():
     )
 
     assert with_need.allocated_kwh == pytest.approx(plain.allocated_kwh)
+
+
+# --- A solar fill between the night slots and the need beyond the room ----
+#
+# 13 Nov 2026: the need beyond the room was tonight's, after a sunny day that
+# fills the battery to full by 13:00. Energy kept in the night slots for it
+# is overwritten by that fill and exported, so the night slots keep the plain
+# #785 trim. A slot after the fill still serves the need beyond the room.
+
+_DAY_START = datetime(2026, 11, 13, 0, 0)
+_DAY_END = _DAY_START + timedelta(hours=24)
+
+
+def _two_drains(solar_kw: float) -> list[EnergyInterval]:
+    """Night drain, a day with ``solar_kw`` from 08:00 to 16:00, evening drain."""
+    intervals = []
+    for i in range(96):
+        start = _DAY_START + timedelta(minutes=15 * i)
+        hour = start.hour
+        solar = solar_kw / 4 if 8 <= hour < 16 else 0.0
+        intervals.append(EnergyInterval(start, start + timedelta(minutes=15), _LOAD_KW / 4, solar))
+    return intervals
+
+
+def _two_drain_slots() -> list[PriceSlot]:
+    # Cheap night 00-04 and cheap late evening 20-24; dear otherwise.
+    return [
+        PriceSlot(
+            _DAY_START + timedelta(hours=h),
+            _DAY_START + timedelta(hours=h + 1),
+            0.10 if h < 4 or h >= 20 else 0.30,
+        )
+        for h in range(24)
+    ]
+
+
+def _allocate_two_drains(solar_kw: float, uncapped):
+    intervals = _two_drains(solar_kw)
+    return allocate_price_slots(
+        intervals,
+        build_energy_deadlines(intervals, _USABLE, usable_capacity_kwh=_USABLE + _ROOM),
+        _two_drain_slots(),
+        total_required_kwh=_ROOM,
+        effective_power_kw=_POWER_KW,
+        now=_DAY_START,
+        horizon_end=_DAY_END,
+        headroom_kwh=_ROOM,
+        usable_initial_kwh=_USABLE,
+        grid_carries_load_while_charging=True,
+        uncapped_required_kwh=uncapped,
+    )
+
+
+def _night_kwh(plan) -> float:
+    return sum(a.planned_battery_kwh for a in plan.allocations if a.slot.start.hour < 8)
+
+
+def test_night_slots_keep_the_plain_trim_when_the_sun_fills_the_battery_before_the_need():
+    # 3 kW of sun against a 0.8 kW load fills the 2.5 kWh battery by midday.
+    need = _LOAD_KW * 16 - _USABLE  # night and evening, well above the room
+    plain = _allocate_two_drains(3.0, None)
+    fixed = _allocate_two_drains(3.0, need)
+
+    assert _night_kwh(plain) > 0.5  # the scenario books a night charge
+    assert _night_kwh(fixed) == pytest.approx(_night_kwh(plain), abs=1e-6)
+
+
+def test_without_a_solar_fill_the_night_slots_still_fill_the_room():
+    # A dull day (0.4 kW of sun under a 0.8 kW load) never fills the battery:
+    # the night charge lasts until the need beyond the room, as on 11 Nov.
+    need = _LOAD_KW * 16 - _USABLE
+    plain = _allocate_two_drains(0.4, None)
+    fixed = _allocate_two_drains(0.4, need)
+
+    assert _night_kwh(fixed) > _night_kwh(plain) + 0.3
+
+
+def test_slots_after_the_solar_fill_still_fill_the_room():
+    # The sun fills the battery from 12:00 to 14:00; the slots charge after
+    # it, for a drain no later fill reaches, so the room-bound plan books the
+    # whole room, as without any sun.
+    now = _DAY_START + timedelta(hours=12)
+    intervals = [
+        EnergyInterval(
+            _DAY_START + timedelta(minutes=15 * i),
+            _DAY_START + timedelta(minutes=15 * (i + 1)),
+            _LOAD_KW / 4,
+            3.0 / 4 if 48 <= i < 56 else 0.0,
+        )
+        for i in range(48, 96)
+    ]
+    slots = [
+        PriceSlot(
+            _DAY_START + timedelta(hours=h),
+            _DAY_START + timedelta(hours=h + 1),
+            0.10 if 16 <= h < 20 else 0.30,
+        )
+        for h in range(12, 24)
+    ]
+
+    def run(uncapped):
+        return allocate_price_slots(
+            intervals,
+            build_energy_deadlines(intervals, _USABLE, usable_capacity_kwh=_USABLE + _ROOM),
+            slots,
+            total_required_kwh=_ROOM,
+            effective_power_kw=_POWER_KW,
+            now=now,
+            horizon_end=_DAY_END,
+            headroom_kwh=_ROOM,
+            usable_initial_kwh=_USABLE,
+            grid_carries_load_while_charging=True,
+            uncapped_required_kwh=uncapped,
+        )
+
+    plain, fixed = run(None), run(20.0)
+    assert all(a.slot.start.hour >= 16 for a in fixed.allocations)
+    assert plain.allocated_kwh < _ROOM - 0.5
+    assert fixed.allocated_kwh == pytest.approx(_ROOM, abs=1e-6)
+
+
+def test_last_solar_fill_ignores_a_battery_the_night_slots_fill():
+    from custom_components.omnibattery.pricing.chronological import _last_solar_fill
+
+    intervals = _night()
+    slot = PriceSlot(_START, _START + timedelta(hours=2), 0.10)
+    # The slot alone tops the 2.5 kWh battery up: not a solar fill.
+    assert _last_solar_fill(intervals, _USABLE, _USABLE + _ROOM, {slot: 2.4},
+                            now=_START, rate_kwh_h=_POWER_KW * CHARGE_EFFICIENCY) is None
+
+
+def test_last_solar_fill_finds_the_last_interval_the_sun_fills():
+    from custom_components.omnibattery.pricing.chronological import _last_solar_fill
+
+    intervals = _two_drains(3.0)
+    last = _last_solar_fill(intervals, _USABLE, _USABLE + _ROOM, {},
+                            now=_DAY_START, rate_kwh_h=_POWER_KW * CHARGE_EFFICIENCY)
+    assert last == _DAY_START + timedelta(hours=16)  # full until the sun sets
+    assert _last_solar_fill(intervals, _USABLE, math.inf, {}, now=_DAY_START,
+                            rate_kwh_h=1.0) is None
+    assert _last_solar_fill(_two_drains(0.4), _USABLE, _USABLE + _ROOM, {},
+                            now=_DAY_START, rate_kwh_h=1.0) is None

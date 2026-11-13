@@ -590,6 +590,50 @@ def _unclipped_room(
     return max(0.0, capacity - energy if room is None else room)
 
 
+def _last_solar_fill(
+    intervals: Sequence[EnergyInterval],
+    usable_initial_kwh: float,
+    capacity: float,
+    allocations: Mapping[PriceSlot, float],
+    *,
+    now: datetime,
+    rate_kwh_h: float,
+) -> datetime | None:
+    """End of the last interval in which solar tops the battery up to full.
+
+    Projected with the booked slots, each landing when it is stored. Only an
+    interval where solar exceeds the load counts: a battery the slots
+    themselves fill at night is no solar fill.
+    """
+    if not math.isfinite(capacity) or capacity <= 0.0:
+        return None
+    landings = []
+    for slot, amount in allocations.items():
+        start = max(now, slot.start)
+        lands = (
+            min(slot.end, start + timedelta(hours=amount / rate_kwh_h))
+            if rate_kwh_h > _EPSILON
+            else slot.end
+        )
+        landings.append((lands, amount))
+    landings.sort(key=lambda entry: entry[0])
+    energy = min(_finite_non_negative(usable_initial_kwh), capacity)
+    index = 0
+    last: datetime | None = None
+    for interval in intervals:
+        while index < len(landings) and landings[index][0] <= interval.end:
+            energy += landings[index][1]
+            index += 1
+        energy = max(0.0, energy + interval.solar_kwh - interval.consumption_kwh)
+        if (
+            interval.solar_kwh > interval.consumption_kwh
+            and energy >= capacity - _ROOM_BOUND_TOLERANCE_KWH
+        ):
+            last = interval.end
+        energy = min(capacity, energy)
+    return last
+
+
 def allocate_price_slots(
     intervals: Iterable[EnergyInterval],
     deadlines: Iterable[EnergyDeadline],
@@ -1340,6 +1384,23 @@ def allocate_price_slots(
             if room_bound
             else 0.0
         )
+        # The need beyond the room only keeps a slot's energy while that
+        # energy lasts until then. A solar fill after the slot tops the
+        # battery up to full anyway, so energy kept for later is exported,
+        # not stored: such a slot keeps the plain trim. Two nights with a
+        # sunny day between left 2.3 kWh at sunrise (13 Nov 2026).
+        last_fill = (
+            _last_solar_fill(
+                intervals,
+                usable_initial_kwh,
+                usable_capacity,
+                allocations,
+                now=now,
+                rate_kwh_h=power * efficiency,
+            )
+            if beyond_room > _EPSILON
+            else None
+        )
         for slot in sorted(allocations, key=lambda item: item.start):
             amount = allocations[slot]
             start, end = max(now, slot.start), min(slot.end, horizon_end)
@@ -1365,7 +1426,11 @@ def allocate_price_slots(
                     drained, amount + cover, start, end, power * efficiency
                 ),
             )
-            if beyond_room > _EPSILON and amount - net > _EPSILON:
+            if (
+                beyond_room > _EPSILON
+                and amount - net > _EPSILON
+                and (last_fill is None or slot.start >= last_fill)
+            ):
                 kept = min(amount - net, beyond_room)
                 beyond_room -= kept
                 net += kept
