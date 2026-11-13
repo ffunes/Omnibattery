@@ -4052,6 +4052,19 @@ class PricingManager:
                 self._contracted_charge_ceiling(),
                 max(0.0, float(self._controller.max_charge_capacity)),
             ) / 1000.0
+            # Value deadline energy against the import it displaces (#662)
+            # in Dynamic Pricing (zero margin means round-trip losses only),
+            # never in Time Slot: its prices are synthetic.
+            value_deadlines = (
+                getattr(self._controller, "predictive_charging_mode", None)
+                == PREDICTIVE_MODE_DYNAMIC_PRICING
+            )
+            # Size the plan from the deadlines, each slot bounded by the room
+            # it has when it opens, not by the room now: a battery that drains
+            # before the cheap slots can store more then (a 60 % battery at
+            # 00:05 booked only its 2.05 kWh room for 06:00, 4.6 fit). Valued
+            # deadlines keep it to energy worth storing.
+            size_from_deadlines = control_extension or value_deadlines
             # A battery that is full stops charging, so the fleet stores the
             # end of a charge at less than its summed power: a slot sized at
             # the sum left the battery with more room short (11 Nov 2026: 12
@@ -4066,23 +4079,16 @@ class PricingManager:
                         + [
                             item.required_cumulative_kwh
                             for item in deadlines
-                            if control_extension
+                            if size_from_deadlines
                         ]
                     ),
                 ),
             )
             if fleet_kw is not None:
                 power_kw = min(power_kw, fleet_kw)
-            # Value deadline energy against the import it displaces (#662)
-            # in Dynamic Pricing (zero margin means round-trip losses only),
-            # never in Time Slot: its prices are synthetic.
             margin = max(
                 0.0,
                 float(getattr(self._controller, "min_arbitrage_margin", None) or 0.0),
-            )
-            value_deadlines = (
-                getattr(self._controller, "predictive_charging_mode", None)
-                == PREDICTIVE_MODE_DYNAMIC_PRICING
             )
             evaluation = self.evaluate_chronological_projection(
                 ChronologicalEvaluationRequest(
@@ -4099,7 +4105,7 @@ class PricingManager:
                     premium_kwh=premium_kwh,
                     premium_price_threshold=self._controller.max_price_threshold,
                     slot_ceilings=slot_ceilings,
-                    required_from_deadlines=control_extension,
+                    required_from_deadlines=size_from_deadlines,
                     import_value_efficiency=(
                         effective_round_trip_efficiency(self._controller)[0]
                         if value_deadlines
@@ -4124,9 +4130,9 @@ class PricingManager:
             if not diagnostic_only:
                 # What the published projection starts from and is capped at.
                 plan.projection_inputs = (usable, usable + headroom)
-            if control_extension and not diagnostic_only:
-                # The scalar balance nets tomorrow's solar against tonight's
-                # gap; publish the need the plan actually found so should_charge,
+            if size_from_deadlines and not diagnostic_only:
+                # The scalar balance nets later solar against tonight's gap and
+                # stops at the room now; publish the need the plan actually found so should_charge,
                 # the deficit and the notification agree with the schedule.
                 planned = plan.total_required_kwh
                 decision_data["planned_grid_charge_kwh"] = planned
