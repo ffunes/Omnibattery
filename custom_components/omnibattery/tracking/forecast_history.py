@@ -66,6 +66,13 @@ MAX_REVISIONS_PER_HORIZON = 120
 # The automatic dynamic-pricing run plans the full day at 00:05.
 START_OF_DAY_CAPTURE_AFTER = time(0, 6)
 
+# After a restart the first projections are built before the planner has run:
+# without prices the horizon is shorter, and Dynamic Pricing's first checks
+# book slots at full power until the startup evaluation sizes them (13 Nov
+# 2026: 48 quarters, then 7.5 instead of 4.5 kWh, within a minute). Nothing is
+# recorded until the plan has had this long to settle.
+STARTUP_SETTLE = timedelta(minutes=2)
+
 HORIZON_INTRADAY = "intraday"
 HORIZON_DAY_AHEAD = "day_ahead"
 
@@ -385,6 +392,7 @@ class ForecastHistoryManager:
         now_provider: Callable[[], datetime] | None = None,
         retention_days: int = FORECAST_HISTORY_RETENTION_DAYS,
         save_delay_s: float = FORECAST_HISTORY_SAVE_DELAY_S,
+        startup_settle_s: float | None = None,
     ) -> None:
         self._hass = hass
         self._config_entry = config_entry
@@ -401,6 +409,12 @@ class ForecastHistoryManager:
         self._now_provider = now_provider
         self._retention_days = max(1, int(retention_days))
         self._save_delay_s = max(0.0, float(save_delay_s))
+        self._startup_settle = (
+            STARTUP_SETTLE
+            if startup_settle_s is None
+            else timedelta(seconds=max(0.0, float(startup_settle_s)))
+        )
+        self._first_observed_at: datetime | None = None
         self._days: dict[str, dict[str, Any]] = {}
         self._timeline: Any = None
         self._last_projection: tuple[date, datetime] | None = None
@@ -473,6 +487,16 @@ class ForecastHistoryManager:
         if view is None or view.get("stale"):
             return False
         current = now or self._now()
+        # The first projections of this run are not the plan yet (see
+        # STARTUP_SETTLE). A clock that jumped back does not prolong the wait.
+        if self._first_observed_at is None:
+            self._first_observed_at = current
+        try:
+            settling = current - self._first_observed_at
+        except TypeError:  # naive and aware clocks mixed: no way to tell
+            settling = self._startup_settle
+        if timedelta(0) <= settling < self._startup_settle:
+            return False
         local_date: date = view["date"]
         changed = False
         record = self._day(local_date)

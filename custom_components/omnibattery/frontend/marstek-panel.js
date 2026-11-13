@@ -2875,7 +2875,12 @@ class MarstekVenusPanel extends HTMLElement {
       let points = 0;
       let prev = null;
       s.data.forEach((v, i) => {
-        if (v == null) { open = false; return; }
+        if (v == null) {
+          // ``step``: the value held until here, where the line ends.
+          if (open && s.step) d += "L" + X(i).toFixed(1) + " " + Y(prev).toFixed(1) + " ";
+          open = false;
+          return;
+        }
         // ``step``: the value holds until the next point, then jumps.
         if (open && s.step) d += "L" + X(i).toFixed(1) + " " + Y(prev).toFixed(1) + " ";
         d += (open ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " ";
