@@ -33,6 +33,12 @@ class EnergyInterval:
     # battery can deliver (``cap_battery_drain``). ``consumption_kwh`` is the
     # battery drain; the grid import ceiling must still see the whole load.
     house_load_kwh: float | None = None
+    # The house load and solar the forecast expects, set when
+    # ``consumption_kwh`` and ``solar_kwh`` hold what a held, idle or capped
+    # battery sees instead. The Daily operation timeline shows the forecast;
+    # the planner never reads these two.
+    forecast_consumption_kwh: float | None = None
+    forecast_solar_kwh: float | None = None
 
     def __post_init__(self) -> None:
         if self.end <= self.start:
@@ -41,10 +47,16 @@ class EnergyInterval:
             value = float(getattr(self, name))
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and non-negative")
-        if self.house_load_kwh is not None:
-            value = float(self.house_load_kwh)
+        for name in (
+            "house_load_kwh",
+            "forecast_consumption_kwh",
+            "forecast_solar_kwh",
+        ):
+            if getattr(self, name) is None:
+                continue
+            value = float(getattr(self, name))
             if not math.isfinite(value) or value < 0:
-                raise ValueError("house_load_kwh must be finite and non-negative")
+                raise ValueError(f"{name} must be finite and non-negative")
 
     @property
     def grid_load_kwh(self) -> float:
@@ -53,17 +65,35 @@ class EnergyInterval:
             return self.consumption_kwh
         return max(self.consumption_kwh, self.house_load_kwh)
 
+    @property
+    def expected_consumption_kwh(self) -> float:
+        """House load the forecast expects, whatever part the battery covers."""
+        if self.forecast_consumption_kwh is None:
+            return self.consumption_kwh
+        return self.forecast_consumption_kwh
+
+    @property
+    def expected_solar_kwh(self) -> float:
+        """Solar the forecast expects, including what the house uses directly."""
+        if self.forecast_solar_kwh is None:
+            return self.solar_kwh
+        return self.forecast_solar_kwh
+
     def with_battery_idle(self) -> "EnergyInterval":
         """Interval in which the battery may not discharge.
 
         The grid carries the load the battery would have covered, but the
         household still consumes solar first: only the surplus charges (#616).
+        The forecast itself stays in ``forecast_consumption_kwh`` and
+        ``forecast_solar_kwh``.
         """
         return EnergyInterval(
             self.start,
             self.end,
             0.0,
             max(0.0, self.solar_kwh - self.consumption_kwh),
+            forecast_consumption_kwh=self.expected_consumption_kwh,
+            forecast_solar_kwh=self.expected_solar_kwh,
         )
 
 
@@ -76,7 +106,8 @@ def cap_battery_drain(
     not from the battery. Projecting the whole load as drain sized the night
     charge for energy the battery could never hand out, so it reached sunrise
     half full. Solar still feeds the house first. The uncapped load is kept
-    in ``house_load_kwh`` for the grid import ceiling.
+    in ``house_load_kwh`` for the grid import ceiling, and as the forecast in
+    ``forecast_consumption_kwh``.
     """
     items = list(intervals)
     if discharge_kw is None or not math.isfinite(float(discharge_kw)):
@@ -87,7 +118,13 @@ def cap_battery_drain(
         limit = item.solar_kwh + rate * _duration_hours(item.start, item.end)
         if item.consumption_kwh > limit:
             item = EnergyInterval(
-                item.start, item.end, limit, item.solar_kwh, item.grid_load_kwh
+                item.start,
+                item.end,
+                limit,
+                item.solar_kwh,
+                item.grid_load_kwh,
+                forecast_consumption_kwh=item.expected_consumption_kwh,
+                forecast_solar_kwh=item.forecast_solar_kwh,
             )
         capped.append(item)
     return capped
