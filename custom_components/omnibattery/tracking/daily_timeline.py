@@ -720,6 +720,9 @@ class _TimelineCell:
     planned_discharge_power_w: float | None = None
     actual_charge_to_battery_kwh: float | None = None
     actual_discharge_from_battery_kwh: float | None = None
+    # What the grid delivered into the battery: per sample the AC-side charge,
+    # at most the grid import. ``None`` in diaries from before it existed.
+    actual_grid_to_battery_kwh: float | None = None
     actual_soc_pct: float | None = None
     planned_solar_to_battery_kwh: float | None = None
     planned_grid_to_battery_kwh: float | None = None
@@ -772,6 +775,7 @@ class _TimelineCell:
             "planned_discharge_power_w": self.planned_discharge_power_w,
             "actual_charge_to_battery_kwh": self.actual_charge_to_battery_kwh,
             "actual_discharge_from_battery_kwh": self.actual_discharge_from_battery_kwh,
+            "actual_grid_to_battery_kwh": self.actual_grid_to_battery_kwh,
             "actual_soc_pct": self.actual_soc_pct,
             "planned_solar_to_battery_kwh": self.planned_solar_to_battery_kwh,
             "planned_grid_to_battery_kwh": self.planned_grid_to_battery_kwh,
@@ -840,6 +844,7 @@ class DailyOperationTimelineManager:
         self._save_revision = 0
         self._save_reschedule_requested = False
         self._listeners: list[Callable[..., Any]] = []
+        self._day_closed_listeners: list[Callable[[dict[str, Any]], Any]] = []
         self._update_batch_depth = 0
         self._update_notification_pending = False
         self._dirty = False
@@ -1260,9 +1265,39 @@ class DailyOperationTimelineManager:
         seconds += value.microsecond / 1_000_000
         return min(1.0, max(0.0, seconds / INTERVAL_SECONDS))
 
+    def add_day_closed_listener(
+        self, listener: Callable[[dict[str, Any]], Any]
+    ) -> Callable[[], None]:
+        """Call ``listener`` with a finished day's Store payload.
+
+        It runs at the rollover, before the arrays are reset, and at load when
+        the stored diary belongs to a past day (Home Assistant was not running
+        at midnight). Listeners must not raise; failures are only logged.
+        """
+        self._day_closed_listeners.append(listener)
+
+        def remove() -> None:
+            if listener in self._day_closed_listeners:
+                self._day_closed_listeners.remove(listener)
+
+        return remove
+
+    def _notify_day_closed(self, payload: Mapping[str, Any]) -> None:
+        for listener in list(self._day_closed_listeners):
+            try:
+                listener(dict(payload))
+            except Exception:  # noqa: BLE001 - history must not gate the diary
+                _LOGGER.debug("Daily operation day-closed listener failed", exc_info=True)
+
+    def forecast_history_payload(self) -> dict[str, Any]:
+        """The JSON payload the forecast history reads (same as the Store)."""
+        return self._store_payload()
+
     def _ensure_current_day(self, current: datetime) -> bool:
         if current.date() == self._local_date:
             return False
+        if current.date() > self._local_date and self._day_closed_listeners:
+            self._notify_day_closed(self._store_payload())
         self._local_date = current.date()
         self._reset_arrays(self._local_date)
         self._mode = self._controller_mode()
@@ -2014,6 +2049,21 @@ class DailyOperationTimelineManager:
                 (cell.actual_charge_to_battery_kwh or 0.0)
                 + charge_power * duration / 3_600_000.0,
             )
+            # The battery's own charge says nothing about its source: in a
+            # daytime slot solar covers part of it. The grid delivered at most
+            # what it imported, and only the AC side can come from the grid.
+            grid_power = _finite_float(kwargs.get("grid_power_w", mapping.get("grid_power_w")))
+            if grid_power is not None and parsed_action_mask & ACTION_GRID_CHARGE:
+                ac_charge = _finite_non_negative(
+                    kwargs.get("ac_charge_power_w", mapping.get("ac_charge_power_w"))
+                )
+                if ac_charge is None:
+                    ac_charge = charge_power
+                cell.actual_grid_to_battery_kwh = min(
+                    1_000_000.0,
+                    (cell.actual_grid_to_battery_kwh or 0.0)
+                    + min(ac_charge, max(0.0, grid_power)) * duration / 3_600_000.0,
+                )
         if (
             duration > 0.0
             and discharge_power is not None
@@ -2710,6 +2760,7 @@ class DailyOperationTimelineManager:
             "planned_discharge_power_w",
             "actual_charge_to_battery_kwh",
             "actual_discharge_from_battery_kwh",
+            "actual_grid_to_battery_kwh",
             "actual_soc_pct",
         ):
             parsed = _finite_non_negative(raw.get(name))
@@ -2784,10 +2835,20 @@ class DailyOperationTimelineManager:
             self._last_error = "load: invalid_store"
             self._restore_status = "empty" if data is None else "corrupt"
             return False
+        stored_date = str(data.get("local_date", data.get("date", "")))
+        if (
+            data.get("schema_version") == DAILY_TIMELINE_SCHEMA_VERSION
+            and data.get("interval_count") == INTERVAL_COUNT
+            and data.get("timezone") == expected_timezone
+            and stored_date < expected_date.isoformat()
+        ):
+            # Home Assistant was not running at midnight: the stored diary is
+            # a finished day the forecast history has not frozen yet.
+            self._notify_day_closed(data)
         if (
             data.get("schema_version") != DAILY_TIMELINE_SCHEMA_VERSION
             or data.get("interval_count") != INTERVAL_COUNT
-            or str(data.get("local_date", data.get("date", ""))) != expected_date.isoformat()
+            or stored_date != expected_date.isoformat()
             or data.get("timezone") != expected_timezone
         ):
             self._reset_arrays(expected_date)

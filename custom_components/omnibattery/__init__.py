@@ -1386,6 +1386,7 @@ class ChargeDischargeController:
         self._consumption_tracker = None
         self._daily_operation_timeline = None
         self.daily_operation_timeline = None
+        self._forecast_history = None
         self._decision_log = None
         self._daily_operation_last_runtime_at: datetime | None = None
         self._daily_operation_grid_energy_date = None
@@ -1747,6 +1748,9 @@ class ChargeDischargeController:
         )
         total_power = 0.0
         charge_power = 0.0
+        # What the charging batteries take on the AC side. Direct PV never
+        # passes the grid meter, so only this part can come from the grid.
+        ac_charge_power = 0.0
         discharge_power = 0.0
         measured = False
         positive_batteries = 0
@@ -1814,6 +1818,11 @@ class ChargeDischargeController:
             total_power += cell_power
             if cell_power > 10.0:
                 charge_power += cell_power
+                # The cell power less the direct PV: for MPPT devices that is
+                # -ac_power less the off-grid output; for aggregate PV, whose
+                # ac_power is the negated pack power including the PV (#738),
+                # the pack power less the PV.
+                ac_charge_power += max(0.0, cell_power - direct_pv_w)
                 positive_batteries += 1
                 if direct_pv_w > 10.0:
                     direct_solar_charge = True
@@ -1875,6 +1884,8 @@ class ChargeDischargeController:
             )
             if total_power > 10.0:
                 charge_power = total_power
+                # The commanded power is the AC-side setpoint.
+                ac_charge_power = total_power
                 net_grid_energy_kwh = (
                     ChargeDischargeController._daily_operation_accumulate_grid_charge_energy(
                         self,
@@ -1971,6 +1982,10 @@ class ChargeDischargeController:
             "hourly_balance_active": bool(context_mask & CONTEXT_HOURLY_BALANCE),
             "grid_charge_decision": grid_decision,
             "charge_power_w": charge_power,
+            "ac_charge_power_w": ac_charge_power,
+            # Signed grid sample, import positive: the diary counts
+            # min(ac_charge_power_w, import) as grid charge.
+            "grid_power_w": grid_power_w if math.isfinite(grid_power_w) else None,
             "discharge_power_w": discharge_power,
             "soc_pct": system_soc,
             "delay_active": delay_active,
@@ -2655,6 +2670,17 @@ class ChargeDischargeController:
                     stale=projection.get("stale", False),
                     stale_reason=projection.get("stale_reason"),
                 )
+                history = getattr(self, "_forecast_history", None)
+                if history is not None and not projection.get("stale", False):
+                    try:
+                        history.observe(
+                            manager,
+                            # No decision yet (just started) is no plan either.
+                            decision=getattr(self, "_last_decision_data", None) or {},
+                            now=current,
+                        )
+                    except Exception:  # noqa: BLE001 - history is diagnostic only
+                        _LOGGER.debug("Forecast history update failed", exc_info=True)
             else:
                 manager.update_runtime_metadata(
                     setpoint=setpoint,
@@ -12048,6 +12074,9 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
     )
     controller._daily_operation_timeline = daily_operation_timeline
     controller.daily_operation_timeline = daily_operation_timeline
+    from .tracking.forecast_history import ForecastHistoryManager
+    forecast_history = ForecastHistoryManager(hass, entry)
+    forecast_history.attach(daily_operation_timeline)
 
     from .infra.external_loads import ExternalLoads
     controller._external_loads = ExternalLoads(hass, entry, controller)
@@ -12110,10 +12139,16 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
 
     # Restore the current-day operation diary only after the profile and charge-delay
     # state are available, then seed the dashboard with the first authoritative view.
+    # The history must be loaded before the diary: loading a diary from a past
+    # day freezes that day into the history.
+    await forecast_history.async_load()
     await daily_operation_timeline.async_load()
+    controller._forecast_history = forecast_history
     controller._refresh_daily_operation_timeline(
         now=startup_now, force_projection=True
     )
+    from .forecast_history_ws import async_register_forecast_history_ws
+    async_register_forecast_history_ws(hass)
 
     from .tracking.decision_log import DecisionLogger
     decision_log = DecisionLogger(hass, entry, controller)
@@ -12277,6 +12312,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
         "coordinators": coordinators,
         "controller": controller,
         "daily_operation_timeline": daily_operation_timeline,
+        "forecast_history": forecast_history,
         "unsub_control": unsub_control,
         "unsub_consumption": unsub_consumption,
         "unsub_consumption_reported": unsub_consumption_reported,
@@ -12578,6 +12614,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             timeline = getattr(controller, "_daily_operation_timeline", None)
             if timeline is not None:
                 await _persist("daily operation timeline", timeline.async_shutdown)
+            history = getattr(controller, "_forecast_history", None)
+            if history is not None:
+                await _persist("forecast history", history.async_shutdown)
             decision_log = getattr(controller, "_decision_log", None)
             if decision_log is not None:
                 controller._decision_log = None

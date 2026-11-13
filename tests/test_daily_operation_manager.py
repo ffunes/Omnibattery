@@ -1371,3 +1371,142 @@ def test_batched_routine_change_keeps_an_earlier_immediate_notification():
     manager.end_update_batch()
 
     assert seen == [True, False]
+
+
+# --- what the grid delivered into the battery (forecast history) -------------
+
+
+@pytest.mark.asyncio
+async def test_grid_to_battery_energy_is_the_ac_charge_up_to_the_grid_import():
+    """A daytime slot: the battery takes 2.5 kW while solar covers 0.8 kW of
+    it, so the meter imports 1.7 kW. The battery's own charge cannot tell."""
+    clock = MutableClock(datetime(2026, 8, 23, 10, 7, tzinfo=MADRID))
+    store = FakeStore()
+    manager = _manager(clock, store)
+    manager.record_runtime_decision(
+        {"grid_power_w": 1700.0, "ac_charge_power_w": 2500.0},
+        action_mask=ACTION_GRID_CHARGE,
+        charge_power_w=2500,
+        duration_s=360,
+    )
+    # Exporting while charging delivers nothing from the grid.
+    manager.record_runtime_decision(
+        {"grid_power_w": -300.0, "ac_charge_power_w": 2500.0},
+        action_mask=ACTION_GRID_CHARGE,
+        charge_power_w=2500,
+        duration_s=60,
+    )
+    cell = manager.forecast_history_payload()["cells"][40]
+    assert cell["actual_charge_to_battery_kwh"] == pytest.approx(2.5 * 420 / 3600)
+    assert cell["actual_grid_to_battery_kwh"] == pytest.approx(1.7 * 360 / 3600)
+    # Kept out of the public sensor snapshot.
+    snapshot = manager.build_public_snapshot()
+    assert "actual_grid_to_battery_kwh" not in json.dumps(snapshot)
+
+    await manager.async_save_all()
+    restored = _manager(clock, store)
+    assert await restored.async_load() is True
+    restored_cell = restored.forecast_history_payload()["cells"][40]
+    assert restored_cell["actual_grid_to_battery_kwh"] == pytest.approx(0.17)
+
+
+def test_grid_to_battery_energy_needs_a_grid_sample_and_grid_charging():
+    clock = MutableClock(datetime(2026, 8, 23, 10, 7, tzinfo=MADRID))
+    manager = _manager(clock)
+    # No grid power in the sample (older callers): nothing is measured.
+    manager.record_runtime_decision(
+        action_mask=ACTION_GRID_CHARGE, charge_power_w=2000, duration_s=60
+    )
+    assert manager.forecast_history_payload()["cells"][40]["actual_grid_to_battery_kwh"] is None
+    # Solar charging with meter ripple is no grid charge.
+    manager.record_runtime_decision(
+        {"grid_power_w": 50.0},
+        action_mask=ACTION_SOLAR_CHARGE, charge_power_w=2000, duration_s=60,
+    )
+    assert manager.forecast_history_payload()["cells"][40]["actual_grid_to_battery_kwh"] is None
+
+
+@pytest.mark.asyncio
+async def test_an_older_store_without_grid_to_battery_energy_loads_as_unknown():
+    clock = MutableClock(datetime(2026, 8, 23, 10, 7, tzinfo=MADRID))
+    store = FakeStore()
+    manager = _manager(clock, store)
+    manager.record_runtime_decision(
+        {"grid_power_w": 2000.0},
+        action_mask=ACTION_GRID_CHARGE, charge_power_w=2000, duration_s=60,
+    )
+    await manager.async_save_all()
+    for cell in store.data["cells"]:
+        cell.pop("actual_grid_to_battery_kwh", None)
+
+    restored = _manager(clock, store)
+    assert await restored.async_load() is True
+    cell = restored.forecast_history_payload()["cells"][40]
+    assert cell["actual_grid_to_battery_kwh"] is None
+    assert cell["actual_charge_to_battery_kwh"] == pytest.approx(2.0 / 60)
+
+
+def test_runtime_decision_reports_grid_power_and_ac_side_charge():
+    # DC-coupled PV: 800 W from the panels, 200 W through the AC side. Only
+    # the AC part can come through the grid meter.
+    mppt = SimpleNamespace(
+        capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
+        data={"ac_power": -200, "mppt1_power": 800},
+    )
+    plain = SimpleNamespace(
+        capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
+        data={"ac_power": -600},
+    )
+    controller = _runtime_controller([mppt, plain], grid_active=True)
+    controller.previous_sensor = 650.0
+
+    decision = ChargeDischargeController._daily_operation_runtime_decision(
+        controller, datetime(2026, 8, 23, 11, 30, tzinfo=MADRID)
+    )
+
+    assert decision["charge_power_w"] == pytest.approx(1600)
+    assert decision["ac_charge_power_w"] == pytest.approx(800)
+    assert decision["grid_power_w"] == pytest.approx(650)
+
+
+def test_unmeasured_runtime_decision_reports_the_commanded_charge_as_ac_side():
+    controller = _runtime_controller([], grid_active=True)
+    controller.previous_power = 1500.0
+    controller.previous_sensor = 1400.0
+
+    decision = ChargeDischargeController._daily_operation_runtime_decision(
+        controller, datetime(2026, 8, 23, 2, 30, tzinfo=MADRID)
+    )
+
+    assert decision["source"] == "runtime_command"
+    assert decision["ac_charge_power_w"] == pytest.approx(1500)
+    assert decision["grid_power_w"] == pytest.approx(1400)
+
+
+@pytest.mark.parametrize(
+    ("capabilities", "data", "expected_ac"),
+    [
+        # Aggregate PV: ac_power is the negated pack power including the PV
+        # (#738). Charging 1.5 kW with 1.0 kW PV takes 0.5 kW on the AC side.
+        ((False, True), {"ac_power": -1500, "solar_power": 1000}, 500.0),
+        # MPPT: 0.5 kW through the AC side plus 1.0 kW from the panels.
+        ((True, True), {"ac_power": -500, "mppt1_power": 1000}, 500.0),
+        # Charging from PV only: nothing comes through the AC side.
+        ((True, True), {"ac_power": 0, "mppt1_power": 1000}, 0.0),
+        ((False, True), {"ac_power": -800, "solar_power": 1000}, 0.0),
+    ],
+)
+def test_ac_side_charge_leaves_out_the_direct_pv(capabilities, data, expected_ac):
+    has_mppt, has_solar = capabilities
+    coordinator = SimpleNamespace(
+        capabilities=SimpleNamespace(has_mppt_pv=has_mppt, has_solar_telemetry=has_solar),
+        data=data,
+    )
+    controller = _runtime_controller([coordinator], grid_active=True)
+    controller.previous_sensor = 300.0
+
+    decision = ChargeDischargeController._daily_operation_runtime_decision(
+        controller, datetime(2026, 8, 23, 12, 30, tzinfo=MADRID)
+    )
+
+    assert decision["ac_charge_power_w"] == pytest.approx(expected_ac)
