@@ -3367,6 +3367,18 @@ class PricingManager:
         if snapshot:
             self._controller._last_chronological_diagnostics = snapshot
 
+    def _sale_enabled(self) -> bool:
+        """Whether High-Price Sale's "surplus + arbitrage" trigger is on."""
+        manager = getattr(self._controller, "_high_price_discharge_mgr", None)
+        try:
+            return bool(
+                manager is not None
+                and manager.feature_enabled()
+                and getattr(self._controller, "high_price_discharge_enabled", False)
+            )
+        except Exception:  # noqa: BLE001
+            return False
+
     def _surplus_hold_enabled(self) -> bool:
         """Whether the surplus price hold may export solar for later cheap hours."""
         manager = getattr(self._controller, "_surplus_hold_mgr", None)
@@ -3617,6 +3629,7 @@ class PricingManager:
         controller._dp_plan_holds = None
         controller._dp_plan_exports = None
         controller._dp_export_decision = None
+        controller._dp_plan_sales = None
 
     def _publish_plan_holds(self, plan, decision_data: Mapping[str, Any]) -> None:
         """Step 5: with the Discharge Reserve on, the optimizer's holds replace
@@ -3638,6 +3651,13 @@ class PricingManager:
             and request_allowed
             else None
         )
+        # Step 7: the sales replace High-Price Sale's own plan.
+        self._controller._dp_plan_sales = (
+            dict(getattr(plan, "sales", None) or ())
+            if decision_data.get("planner") == "optimizer"
+            and getattr(plan, "sell_allowed", False)
+            else None
+        )
         if decision_data.get("planner") == "optimizer":
             # The SOC-drop trigger needs the projection even when nothing is
             # charged (no schedule): without it the rule fell back to a 30-point
@@ -3653,10 +3673,12 @@ class PricingManager:
         )
 
     def _optimizer_export_prices(
-        self, slots: Sequence[PriceSlot], horizon_end: datetime
+        self, slots: Sequence[PriceSlot], horizon_end: datetime, *, solar_bonus: bool = True
     ) -> dict[datetime, float] | None:
         """Export price per import slot start, from the export sensor (lowest
-        overlapping price); without a sensor solar exports at 0 (design §3)."""
+        overlapping price); without a sensor solar exports at 0 (design §3).
+        ``solar_bonus=False`` for battery energy (Zonneplan pays the bonus on
+        solar production only)."""
         if not getattr(self._controller, "export_price_sensor", None) or not slots:
             return None
         local_end = (
@@ -3665,7 +3687,7 @@ class PricingManager:
             else horizon_end.astimezone(self._now().tzinfo).replace(tzinfo=None)
         )
         try:
-            exports = self.get_future_export_price_slots(local_end)
+            exports = self.get_future_export_price_slots(local_end, solar_bonus=solar_bonus)
         except Exception:  # noqa: BLE001 - a flaky export sensor exports at 0
             return None
         prices: dict[datetime, float] = {}
@@ -4279,6 +4301,11 @@ class PricingManager:
                 if value_deadlines and not diagnostic_only
                 else None
             )
+            battery_export_prices = (
+                self._optimizer_export_prices(slots, horizon_end, solar_bonus=False)
+                if export_prices and self._sale_enabled()
+                else None
+            )
             evaluation = yield (
                 ChronologicalEvaluationRequest(
                     now=now,
@@ -4318,6 +4345,12 @@ class PricingManager:
                     export_choice_min_saving=max(0.0, float(
                         getattr(self._controller, "surplus_hold_min_saving", 0.0) or 0.0
                     )),
+                    # The optimizer sells ("surplus + arbitrage", step 7).
+                    sell_allowed=bool(value_deadlines and battery_export_prices),
+                    sell_power_kw=max(0.0, float(
+                        getattr(self._controller, "high_price_discharge_max_power_w", 0.0) or 0.0
+                    )) / 1000.0,
+                    battery_export_prices=battery_export_prices,
                     # A weekly full charge fills the gap to 100%; the load
                     # the grid carries meanwhile does not shrink that gap.
                     # A held Time Slot window already left its load out.
@@ -5913,15 +5946,15 @@ class PricingManager:
         )
         controller._dp_eval_projection_capacity_kwh = self._fleet_capacity_kwh()
 
-    def projected_soc_now(self) -> float | None:
-        """Fleet SOC the published plan projects for now (the SOC at the last
-        evaluation plus the projected change), or None without a projection."""
+    def projected_soc_now(self, at: datetime | None = None) -> float | None:
+        """Fleet SOC the published plan projects for now (or ``at``): the SOC at
+        the last evaluation plus the projected change; None without a projection."""
         ref = self._controller._dp_last_eval_soc
         projection = getattr(self._controller, "_dp_eval_projection", None)
         capacity = getattr(self._controller, "_dp_eval_projection_capacity_kwh", 0.0)
         if ref is None or not projection or not capacity or capacity <= 0:
             return None
-        now = self._now()
+        now = at or self._now()
         if now.tzinfo != projection[0][0].tzinfo:
             now = now.replace(tzinfo=projection[0][0].tzinfo)
         delta = projection[-1][1]

@@ -254,6 +254,8 @@ class Outcome:
     holds: frozenset = frozenset()
     # Slots whose solar surplus the optimizer exports (Surplus Price Hold on).
     exported: frozenset = frozenset()
+    # {slot: kW} the optimizer sells at (High-Price Sale on), None otherwise.
+    sales: dict | None = None
 
     def describe(self) -> str:
         request = self.request
@@ -609,6 +611,7 @@ def _run_engine(scenario: Scenario, monkeypatch, *, executor: bool = False) -> O
         ),
         frozenset(getattr(controller, "_dp_plan_holds", None) or ()),
         frozenset(getattr(controller, "_dp_plan_exports", None) or ()),
+        getattr(controller, "_dp_plan_sales", None),
     )
 
 
