@@ -3601,6 +3601,17 @@ class PricingManager:
             price_curve=price_curve,
         )
 
+    def _publish_plan_holds(self, plan, decision_data: Mapping[str, Any]) -> None:
+        """Step 5: with the Discharge Reserve on, the optimizer's holds replace
+        the reserve module's level. Kept apart from the schedule, which does not
+        exist when nothing is charged. None: the reserve module decides."""
+        self._controller._dp_plan_holds = (
+            frozenset(getattr(plan, "holds", None) or ())
+            if decision_data.get("planner") == "optimizer"
+            and self._discharge_reserve_holds()
+            else None
+        )
+
     async def _async_build_dp_plan(self, **kwargs) -> ChronologicalPlan | None:
         """Dynamic Pricing's control plan, evaluated in an executor by
         ``evaluate_dynamic_pricing_plan`` (the optimizer)."""
@@ -4256,6 +4267,11 @@ class PricingManager:
                         margin if value_deadlines else 0.0
                     ),
                     reserve_holds=value_deadlines and self._discharge_reserve_holds(),
+                    # The optimizer holds instead of the reserve module (step 5).
+                    hold_allowed=value_deadlines and self._discharge_reserve_holds(),
+                    hold_min_saving=max(0.0, float(
+                        getattr(self._controller, "discharge_reserve_min_saving", 0.0) or 0.0
+                    )),
                     # A weekly full charge fills the gap to 100%; the load
                     # the grid carries meanwhile does not shrink that gap.
                     # A held Time Slot window already left its load out.
@@ -5022,6 +5038,7 @@ class PricingManager:
             slot_ceilings=slot_ceilings,
             planning_end=planning_end,
         )
+        self._publish_plan_holds(chronological_plan, decision_data)
         if planning_end:
             full_plan = chronological_plan
             chronological_plan = self._plan_within(full_plan, slots)
@@ -5281,6 +5298,7 @@ class PricingManager:
                         slot_ceilings=slot_ceilings,
                         planning_end=planning_end,
                     )
+                    self._publish_plan_holds(chronological_plan, decision_data)
                     if planning_end:
                         full_plan = chronological_plan
                         chronological_plan = self._plan_within(full_plan, slots)

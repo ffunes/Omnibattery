@@ -4431,6 +4431,27 @@ class ChargeDischargeController:
         pre-discharge budget by the reserve. As an economic blocker it stops PD
         from discharging without moving any planner's idea of the battery.
         """
+        holds = getattr(self, "_dp_plan_holds", None)
+        manager = getattr(self, "_discharge_reserve_mgr", None)
+        if holds is not None and manager is not None and manager.feature_enabled():
+            # The 2.0.0 optimizer decided the holds (step 5): the battery is
+            # held for the whole of a held slot, through the same blocker.
+            self._price_reserve_soc_pct = 0.0
+            now = _pricing_clock_now(self)
+            held = any(slot.start <= now < slot.end for slot in holds)
+            for coordinator in self.coordinators:
+                if held and not ChargeDischargeController._is_battery_manual_owned(
+                    coordinator
+                ):
+                    self.set_discharge_block(
+                        "price_reserve",
+                        "price_reserve",
+                        {"battery": coordinator.name, "origin": "plan"},
+                        coordinator=coordinator,
+                    )
+                else:
+                    self.remove_discharge_block("price_reserve", coordinator=coordinator)
+            return
         reserve_pct = self._price_discharge_reserve_pct()
         manager = getattr(self, "_discharge_reserve_mgr", None)
         battery_reserve = getattr(manager, "battery_reserve_soc_pct", None)
