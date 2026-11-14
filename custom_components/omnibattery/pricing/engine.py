@@ -3609,6 +3609,15 @@ class PricingManager:
             price_curve=price_curve,
         )
 
+    def _clear_plan_orders(self) -> None:
+        """Drop the optimizer's holds and exports: the modules decide until the
+        next plan. Every evaluation starts here, so one that ends early leaves
+        no order of a plan it replaced."""
+        controller = self._controller
+        controller._dp_plan_holds = None
+        controller._dp_plan_exports = None
+        controller._dp_export_decision = None
+
     def _publish_plan_holds(self, plan, decision_data: Mapping[str, Any]) -> None:
         """Step 5: with the Discharge Reserve on, the optimizer's holds replace
         the reserve module's level. Kept apart from the schedule, which does not
@@ -3619,11 +3628,14 @@ class PricingManager:
             and self._discharge_reserve_holds()
             else None
         )
-        # Step 6: likewise the exports replace the surplus price hold's own plan.
+        # Step 6: likewise the exports replace the surplus price hold's own plan,
+        # when the plan could choose them (export prices known).
+        request_allowed = bool(getattr(plan, "export_choice_allowed", False))
         self._controller._dp_plan_exports = (
             frozenset(getattr(plan, "exports", None) or ())
             if decision_data.get("planner") == "optimizer"
             and self._surplus_hold_enabled()
+            and request_allowed
             else None
         )
         if decision_data.get("planner") == "optimizer":
@@ -4262,6 +4274,11 @@ class PricingManager:
             capacity_sum = sum(
                 float(c.data.get("battery_total_energy", 0) or 0) for c in eligible
             )
+            export_prices = (
+                self._optimizer_export_prices(slots, horizon_end)
+                if value_deadlines and not diagnostic_only
+                else None
+            )
             evaluation = yield (
                 ChronologicalEvaluationRequest(
                     now=now,
@@ -4293,7 +4310,11 @@ class PricingManager:
                         getattr(self._controller, "discharge_reserve_min_saving", 0.0) or 0.0
                     )),
                     # The optimizer chooses which surplus to export (step 6).
-                    export_choice_allowed=value_deadlines and self._surplus_hold_enabled(),
+                    # Only with export prices: valued at 0 the plan never
+                    # exports and the module (import curve) must keep deciding.
+                    export_choice_allowed=bool(
+                        value_deadlines and export_prices and self._surplus_hold_enabled()
+                    ),
                     export_choice_min_saving=max(0.0, float(
                         getattr(self._controller, "surplus_hold_min_saving", 0.0) or 0.0
                     )),
@@ -4320,11 +4341,7 @@ class PricingManager:
                     discharge_kw=(
                         None if discharge_limit_w is None else discharge_limit_w / 1000.0
                     ),
-                    export_prices=(
-                        self._optimizer_export_prices(slots, horizon_end)
-                        if value_deadlines and not diagnostic_only
-                        else None
-                    ),
+                    export_prices=export_prices,
                     negative_price_charging=self._negative_price_feature_enabled(),
                     floor_kwh=floor_kwh,
                     floor_until=floor_until if floor_kwh > 0 else None,
@@ -4792,6 +4809,7 @@ class PricingManager:
 
         # Marked before the branches below: whichever path this evaluation takes,
         # the absorption plan was derived from the inputs it is about to replace.
+        self._clear_plan_orders()
         self._mark_surplus_hold_stale(f"dp_evaluation_{horizon.value}")
         self._mark_discharge_reserve_stale(f"dp_evaluation_{horizon.value}")
 
@@ -7355,6 +7373,7 @@ class PricingManager:
                 self._controller._dp_arbitrage_ceiling = None
                 self._controller._dp_evening_reevaluated_date = None
                 self._controller._dp_last_eval_soc = None
+                self._clear_plan_orders()
                 self._controller._dp_eval_projection = None
                 self._controller._dp_last_eval_excluded_claim_kwh = None
                 self._controller._dp_excluded_demand_reeval_at = None
