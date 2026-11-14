@@ -480,3 +480,21 @@ def test_solar_delay_does_not_delay_on_a_day_that_needs_the_grid():
     light = _request([0.20] * 20, house=[0.05] * 12 + [0.2] * 8, solar=[0.5] * 12 + [0.0] * 8,
                      usable=0.0, room=2.0, threshold=0.0)
     assert optimize_charge(_with_delay(light)).plan.exports
+
+
+def test_a_day_that_needs_the_grid_at_planning_time_stays_closed():
+    # The balance is short now (a night load the grid carries with the battery
+    # empty) and sufficient from the first sunny slot: like the module, which
+    # decides once and keeps the day unlocked, today exports nothing.
+    req = _request([0.20] * 20, house=[2.0] * 4 + [0.05] * 12 + [0.2] * 4,
+                   solar=[0.0] * 4 + [0.5] * 12 + [0.0] * 4, usable=0.0, room=2.0, threshold=0.0)
+    plan = optimize_charge(_with_delay(req)).plan
+    assert not plan.exports and plan.solar_delay_day_closed
+
+
+def test_a_closed_day_reaches_the_optimizer():
+    import dataclasses
+    base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
+    closed = dataclasses.replace(_with_delay(base), solar_delay_closed_until=T0 + timedelta(days=1))
+    assert optimize_charge(_with_delay(base)).plan.exports
+    assert not optimize_charge(closed).plan.exports

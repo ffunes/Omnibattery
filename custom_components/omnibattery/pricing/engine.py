@@ -3662,6 +3662,10 @@ class PricingManager:
             getattr(plan, "solar_delay", False)
         )
         self._controller._dp_plan_solar_delay = solar_delay
+        if solar_delay and getattr(plan, "solar_delay_day_closed", False):
+            # Kept until the date changes (not by the next evaluation's clear):
+            # in memory, a restart evaluates the day again.
+            self._controller._dp_solar_delay_closed_date = self._now().date()
         self._controller._dp_plan_exports = (
             frozenset(getattr(plan, "exports", None) or ())
             if decision_data.get("planner") == "optimizer"
@@ -4383,6 +4387,11 @@ class PricingManager:
                     ),
                     solar_delay_deadband_kwh=float(
                         getattr(self._controller, "_charge_delay_balance_deadband_kwh", 0.5) or 0.0
+                    ),
+                    solar_delay_closed_until=(
+                        (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                        if getattr(self._controller, "_dp_solar_delay_closed_date", None) == now.date()
+                        else None
                     ),
                     # A weekly full charge fills the gap to 100%; the load
                     # the grid carries meanwhile does not shrink that gap.

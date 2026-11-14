@@ -671,3 +671,35 @@ def test_an_evaluation_drops_the_delay_ownership_with_the_plan_orders():
     ctrl = SimpleNamespace(_dp_plan_solar_delay=True)
     PricingManager._clear_plan_orders(SimpleNamespace(_controller=ctrl))
     assert ctrl._dp_plan_solar_delay is False
+
+
+def test_a_closed_delay_day_is_kept_until_midnight(monkeypatch):
+    """Like the module, a day whose balance needs the grid when it is planned
+    stays without delay until midnight, across re-plans."""
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    case = ("1x5k-2500", 15, "evening", "night-cheap", False, "sunny", "00:05")
+    box = {}
+    real_controller = h._controller
+
+    def build(s, closed=None):
+        c = real_controller(s)
+        c.charge_delay_enabled = True
+        c._delay_safety_margin_h = 1.0
+        c._delay_soc_setpoint_enabled = False
+        c._delay_soc_setpoint = 50
+        c._balance_monitor_overrides_delay = lambda: False
+        if closed is not None:
+            c._dp_solar_delay_closed_date = closed
+        box["c"] = c
+        return c
+
+    monkeypatch.setattr(h, "_controller", build)
+    h._run_engine(sw.scenario(case), monkeypatch)
+    assert box["c"]._dp_solar_delay_closed_date == sw.DAY.date()
+    assert box["c"]._dp_plan_solar_delay is True  # the module still stands aside
+    monkeypatch.setattr(h, "_controller", lambda s: build(s, closed=sw.DAY.date()))
+    outcome = h._run_engine(sw.scenario(case, now="10:00"), monkeypatch)
+    assert outcome.request.solar_delay_closed_until.date() == (sw.DAY + timedelta(days=1)).date()
+    assert outcome.request.solar_delay_closed_until.hour == 0

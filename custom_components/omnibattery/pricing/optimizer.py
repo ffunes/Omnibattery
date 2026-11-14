@@ -315,6 +315,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     plan.export_choice_allowed = request.export_choice_allowed
     plan.sell_allowed = request.sell_allowed
     plan.solar_delay = delay is not None
+    plan.solar_delay_day_closed = delay is not None and delay.day_closed
     return ChronologicalEvaluationResult(
         plan=plan,
         diagnostics=ChronologicalDiagnostics(
@@ -343,9 +344,12 @@ class _SolarDelay:
     linearly to 0 there, so that at equal cost the sun is stored late.
     """
 
-    def __init__(self, deadlines, firsts, storable, setpoint_e, cap, quarters, deadband):
+    def __init__(self, deadlines, firsts, storable, setpoint_e, cap, quarters, deadband,
+                 closed_until):
         self._deadlines, self._firsts, self._cap = deadlines, firsts, cap
         self._quarters, self._deadband = quarters, deadband  # [(start, end, solar, house)]
+        self._closed_until = closed_until
+        self.day_closed = False
         self._storable, self._setpoint = storable, setpoint_e
         self._w = DELAY_TIE_EUR / max(cap, 1.0)
 
@@ -359,7 +363,7 @@ class _SolarDelay:
     def allows(self, e, slot_start, slot_end):
         e = np.asarray(e, dtype=float)
         d = self._deadline(slot_end)
-        if d is None or slot_end > d:
+        if d is None or slot_end > d or (self._closed_until is not None and slot_start < self._closed_until):
             return np.zeros(e.shape, dtype=bool)
         future = sum(v for end, v in self._storable if slot_end < end <= d)
         day = slot_start.date()
@@ -407,8 +411,23 @@ def _solar_delay(request, groups, model, fleet):
         for q, end in zip(qs, ends):
             start = quarters[-1][1] if quarters and quarters[-1][1] < end else request.now
             quarters.append((start, end, q.solar_kwh, q.house_kwh))
-    return _SolarDelay(deadlines, firsts, storable, setpoint_e, model.cap, quarters,
-                       max(0.0, float(request.solar_delay_deadband_kwh or 0.0)))
+    deadband = max(0.0, float(request.solar_delay_deadband_kwh or 0.0))
+    closed_until = request.solar_delay_closed_until
+    # The module's daily latch: today's balance, once, at planning time. Short
+    # (and with sun to wait for: a zero forecast is transient, #457) = no
+    # delay export today.
+    today = [(sun, house) for start, _end, sun, house in quarters if start.date() == request.now.date()]
+    sun_today = sum(x for x, _h in today)
+    closed = sun_today > _TOL and (
+        request.usable_initial_kwh + sun_today < sum(h for _x, h in today) - deadband
+    )
+    if closed:
+        midnight = (request.now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        closed_until = max(closed_until or midnight, midnight)
+    delay = _SolarDelay(deadlines, firsts, storable, setpoint_e, model.cap, quarters, deadband,
+                        closed_until)
+    delay.day_closed = closed
+    return delay
 
 
 def _published_quota(model, soc_step, e, target, stored):
