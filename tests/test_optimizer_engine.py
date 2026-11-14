@@ -492,7 +492,7 @@ def test_an_evaluation_that_ends_early_drops_the_previous_plan_s_orders():
     assert ctrl._dp_export_decision is None
 
 
-def _sale_manager(sales, now, *, on_track=True, soc=60.0, end_soc=50.0, guard=None):
+def _sale_manager(sales, now, *, soc=60.0, end_soc=50.0, start_soc=None, guard=None):
     from types import SimpleNamespace
 
     from custom_components.omnibattery.control.high_price_discharge import HighPriceDischargeManager
@@ -502,9 +502,8 @@ def _sale_manager(sales, now, *, on_track=True, soc=60.0, end_soc=50.0, guard=No
     ctrl = SimpleNamespace(
         coordinators=[FakeCoordinator(name="b1", data={"battery_soc": soc, "battery_total_energy": 10.0})],
         _dp_plan_sales=sales,
-        _dp_sale_decision=None,
-        _pricing_mgr=SimpleNamespace(projected_soc_now=lambda at=None: end_soc),
-        _on_plan_track=lambda: on_track,
+        _pricing_mgr=SimpleNamespace(projected_soc_now=lambda at=None: (
+            start_soc if start_soc is not None and at == now else end_soc)),
         set_setpoint_override=lambda src, value, priority=0: overrides.__setitem__(src, value),
         remove_setpoint_override=lambda src: overrides.pop(src, None),
     )
@@ -519,13 +518,51 @@ def test_a_planned_sale_runs_on_the_plan_s_track_until_the_slot_s_projected_ener
     manager, ctrl, overrides = _sale_manager({a: 2.5}, a.start)
     manager._refresh_plan_sale(ctrl._dp_plan_sales)
     assert list(overrides.values()) == [-2500.0]
-    ctrl.coordinators[0].data["battery_soc"] = 50.0  # reached the slot end's projection
+    ctrl.coordinators[0].data["battery_soc"] = 50.0  # the reading of the projection: still on
+    manager._refresh_plan_sale(ctrl._dp_plan_sales)
+    assert list(overrides.values()) == [-2500.0]
+    ctrl.coordinators[0].data["battery_soc"] = 49.0  # below it
     manager._refresh_plan_sale(ctrl._dp_plan_sales)
     assert overrides == {}
 
 
-@pytest.mark.parametrize("kwargs", [dict(on_track=False), dict(guard="charge_order"), dict(end_soc=None)],
-                         ids=["behind_the_plan", "guard", "no_projection"])
+def test_a_planned_sale_stops_under_the_whole_percent_of_the_projection():
+    """The reading truncates: stopping as soon as it reached the projection
+    (50.4 -> reading 50) left each run of sales about a point short of the plan.
+    It sells down to the projection's whole percent: at most one reading step."""
+    a, _b = _slots(_at(19, 0), [0.40, 0.40])
+    manager, ctrl, overrides = _sale_manager({a: 2.5}, a.start, soc=50.0, end_soc=50.4)
+    manager._refresh_plan_sale(ctrl._dp_plan_sales)
+    assert list(overrides.values()) == [-2500.0]
+
+
+@pytest.mark.parametrize("start_soc, end_soc", [(10.0, 10.0), (10.0, 12.0)],
+                         ids=["at_the_floor", "solar_beyond_the_sale_charges"])
+def test_a_planned_sale_whose_projection_does_not_fall_still_runs(start_soc, end_soc):
+    """A sale with the battery at its floor exports the sun; one whose extra sun
+    charges the battery projects a rise. Neither has energy to stop at: they
+    used to be skipped (9 of 40 planned quarters in one night)."""
+    a, _b = _slots(_at(19, 0), [0.40, 0.40])
+    manager, ctrl, overrides = _sale_manager({a: 2.5}, a.start, soc=10.0, start_soc=start_soc, end_soc=end_soc)
+    manager._refresh_plan_sale(ctrl._dp_plan_sales)
+    assert list(overrides.values()) == [-2500.0]
+
+
+def test_a_planned_sale_behind_the_plan_still_sells_down_to_the_slot_s_projection():
+    """No all-or-nothing "on the plan's track" check: a 5 kW quarter is 12 points
+    of a 10 kWh fleet, and skipping it on a 2-point margin dropped its whole
+    margin. Behind the plan it sells less: it stops at the slot end's projection."""
+    a, _b = _slots(_at(19, 0), [0.40, 0.40])
+    manager, ctrl, overrides = _sale_manager({a: 2.5}, a.start, soc=55.0)  # behind a plan at 60
+    manager._refresh_plan_sale(ctrl._dp_plan_sales)
+    assert list(overrides.values()) == [-2500.0]
+    ctrl.coordinators[0].data["battery_soc"] = 49.0
+    manager._refresh_plan_sale(ctrl._dp_plan_sales)
+    assert overrides == {}
+
+
+@pytest.mark.parametrize("kwargs", [dict(soc=49.0), dict(guard="charge_order"), dict(end_soc=None)],
+                         ids=["under_the_slot_end_projection", "guard", "no_projection"])
 def test_a_planned_sale_is_released(kwargs):
     a, _b = _slots(_at(19, 0), [0.40, 0.40])
     manager, ctrl, overrides = _sale_manager({a: 2.5}, a.start, **kwargs)

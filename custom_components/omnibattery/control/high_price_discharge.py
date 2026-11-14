@@ -241,10 +241,15 @@ class HighPriceDischargeManager:
 
     def _refresh_plan_sale(self, sales: dict) -> None:
         """Run the 2.0.0 optimizer's sale (step 7) through this override and
-        all its guards. Decided once per slot: only while the fleet is on the
-        plan's track (whole-percent reading within 2 points of the projection);
-        it stops once the reading reaches what the plan projects for the end of
-        the slot, so it never sells more than planned."""
+        all its guards. It sells while the reading is at least the whole
+        percent of the lower end of the slot's projection: on the plan it runs
+        the whole slot (planned = executed, measured), behind the plan it sells
+        less, and it never goes more than one reading step past the plan. The
+        lower end because a sale at the floor exports the sun and one whose
+        extra sun charges the battery projects a rise: neither has energy to
+        stop at. No all-or-nothing "on the plan's track" check: a 5 kW quarter
+        is 12 points of a 10 kWh fleet and a 2-point margin skipped whole
+        planned quarters."""
         controller = self._controller
         now = self._now()
         pricing = getattr(controller, "_pricing_mgr", None)
@@ -256,12 +261,8 @@ class HighPriceDischargeManager:
         if guard is not None:
             self._release(STATE_BLOCKED, guard)
             return
-        decided = getattr(controller, "_dp_sale_decision", None)
-        if decided is None or decided[0] != slot.start:
-            on_track = getattr(controller, "_on_plan_track", None)
-            decided = (slot.start, bool(callable(on_track) and on_track()))
-            controller._dp_sale_decision = decided
-        end_soc = pricing.projected_soc_now(slot.end)
+        ends = (pricing.projected_soc_now(slot.start), pricing.projected_soc_now(slot.end))
+        stop_soc = None if None in ends else math.floor(min(ends) + 1e-9)
         coords = [
             c for c in controller.coordinators
             if c.data and not getattr(c, "battery_manual_mode_enabled", False)
@@ -270,7 +271,7 @@ class HighPriceDischargeManager:
             sum(float(c.data.get("battery_soc", 0) or 0) for c in coords) / len(coords)
             if coords else None
         )
-        if not decided[1] or end_soc is None or current is None or current <= end_soc:
+        if stop_soc is None or current is None or current < stop_soc:
             self._release(STATE_WAITING, REASON_NO_ALLOCATION)
             return
         power_w = float(sales[slot]) * 1000.0
