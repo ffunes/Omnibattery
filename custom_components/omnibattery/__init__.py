@@ -4624,15 +4624,15 @@ class ChargeDischargeController:
         exports = getattr(self, "_dp_plan_exports", None)
         if exports is not None and manager.feature_enabled():
             # The 2.0.0 optimizer chose the exports (step 6), through the same
-            # blocker and the module's own guards (not its selected-slot one:
-            # the plan never exports where it charges). Decided once per slot:
+            # blocker and the module's own guards (not its selected-slot and
+            # at-floor ones: the plan weighed both). Decided once per slot:
             # only while the battery is on the plan's own track (whole-percent
             # reading within 2 points of the projection, which it truncates);
             # behind it, or without a projection, the surplus is stored.
             now = _pricing_clock_now(self)
             slot = next((s for s in exports if s.start <= now < s.end), None)
             export = False
-            if slot is not None and manager._release_guard(plan_slots=False) is None:
+            if slot is not None and manager._release_guard(for_plan=True) is None:
                 decided = getattr(self, "_dp_export_decision", None)
                 if decided is None or decided[0] != slot.start:
                     decided = (slot.start, ChargeDischargeController._on_plan_track(self))

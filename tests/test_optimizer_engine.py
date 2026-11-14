@@ -391,7 +391,7 @@ def _export_controller(exports, now, *, guard=None, projected=50.0, soc=50.0):
         _pricing_mgr=SimpleNamespace(_now=lambda: clock["t"], projected_soc_now=lambda: projected),
         _surplus_hold_mgr=SimpleNamespace(
             feature_enabled=lambda: True,
-            _release_guard=lambda plan_slots=True: guard,
+            _release_guard=lambda for_plan=False: guard,
             is_hold_active=lambda: (_ for _ in ()).throw(AssertionError("module asked")),
         ),
         set_charge_block=lambda source, reason, details=None: blocks.__setitem__(source, details),

@@ -62,7 +62,7 @@ def _replay(request, plan, held=(), exported=()):
         h = (i.end - i.start).total_seconds() / 3600
         q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price,
                     (request.export_prices or {}).get(s.start, 0.0), True,
-                    0.0 if s in exported and e >= step else request.effective_power_kw * h,
+                    0.0 if s in exported else request.effective_power_kw * h,
                     0.0 if s in held else request.discharge_kw * h)
         t = None
         if s in quota and s not in done:
@@ -315,9 +315,7 @@ def _replay_export(request, plan):
         s = next(s for s in request.price_slots if s.start <= i.start < s.end)
         prices.append(s.price)
         h = (i.end - i.start).total_seconds() / 3600
-        # On the floor reading the surplus price hold's guard stores anyway.
-        step = request.fleet_capacity_kwh * request.soc_resolution_pct / 100
-        exporting = s in exported and e >= step
+        exporting = s in exported
         q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price, request.export_prices.get(s.start, 0.0),
                     True, 0.0 if exporting else request.effective_power_kw * h,
                     request.discharge_kw * h)
@@ -329,15 +327,14 @@ def _replay_export(request, plan):
 
 def test_morning_surplus_exports_while_the_midday_fills_the_battery():
     # Morning surplus sells at 0.18, midday at 0.02: the midday sun alone fills
-    # the battery, so the morning surplus is worth exporting; not the first
-    # quarter, which starts on the floor (the module's guard stores then).
+    # the battery, so the morning surplus is worth exporting.
     prices = [0.20] * 8
     exports = [0.18] * 4 + [0.02] * 4
     solar = [0.3] * 4 + [1.0] * 4
     request = _with_export(_request(prices, house=0.05, solar=solar, usable=0.0, room=2.0,
                                     threshold=0.0), exports)
     plan = optimize_charge(request).plan
-    assert {s.start for s in plan.exports} == {s.start for s in request.price_slots[1:4]}
+    assert {s.start for s in plan.exports} == {s.start for s in request.price_slots[:4]}
     assert _replay_export(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
 
 
