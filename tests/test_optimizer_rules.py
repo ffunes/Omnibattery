@@ -94,3 +94,27 @@ def test_the_guaranteed_floor_goes_to_the_optimizer_until_the_sun(monkeypatch):
     energy = dict(outcome.plan.trajectory)
     after_charge = [e for t, e in energy.items() if t >= datetime(2026, 11, 11, 6) and t <= request.floor_until]
     assert after_charge and min(after_charge) >= request.floor_kwh - 0.05
+
+
+def test_negative_price_slots_come_from_the_optimizer(monkeypatch):
+    """Switch on: the optimizer books the negative-price slots it finds worth it,
+    with their energy; the opportunistic calendar adds none of its own."""
+    from tests import test_predictive_sweep as sw
+
+    monkeypatch.setitem(
+        sw.PRICES, "neg-noon",
+        lambda hr: 0.15 if hr < 7 else (-0.05 if 11 <= hr < 15 else (0.30 if 18 <= hr < 22 else 0.20)),
+    )
+    real = h._controller
+
+    def build(s):
+        controller = real(s)
+        controller.negative_price_charging_enabled = True
+        return controller
+
+    monkeypatch.setattr(h, "_controller", build)
+    r = sw.run(sw.scenario(("1x7k-800", 15, "flat1.2", "neg-noon", False, "dull", "03:05")))
+    assert r.o.planner == "optimizer"
+    assert not r.o.to_top
+    negative = [k for slot, k in r.o.booked if slot.price < 0]
+    assert negative and sum(negative) > 3.0

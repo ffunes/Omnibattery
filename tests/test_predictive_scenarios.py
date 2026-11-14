@@ -33,7 +33,12 @@ from custom_components.omnibattery.const import (
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PRICE_INTEGRATION_NORDPOOL,
 )
-from custom_components.omnibattery.pricing import PriceSlot, calculations
+from custom_components.omnibattery.pricing import (
+    SLOT_PURPOSE_COMBINED,
+    SLOT_PURPOSE_NEGATIVE_PRICE,
+    PriceSlot,
+    calculations,
+)
 from custom_components.omnibattery.pricing import engine as pricing_engine
 from custom_components.omnibattery.pricing.chronological import (
     ChronologicalEvaluationRequest,
@@ -243,6 +248,8 @@ class Outcome:
     plan: object = None
     to_end: frozenset = frozenset()
     planner: str | None = None
+    # Slots the negative-price module charges to the top (no quota).
+    to_top: frozenset = frozenset()
 
     def describe(self) -> str:
         request = self.request
@@ -591,6 +598,11 @@ def _run_engine(scenario: Scenario, monkeypatch, *, executor: bool = False) -> O
         plans[0],
         frozenset(getattr(schedule, "slot_charge_to_end", ()) or ()),
         decision.get("planner"),
+        frozenset(
+            slot
+            for slot, purpose in (getattr(schedule, "slot_purposes", None) or {}).items()
+            if purpose in (SLOT_PURPOSE_NEGATIVE_PRICE, SLOT_PURPOSE_COMBINED)
+        ),
     )
 
 

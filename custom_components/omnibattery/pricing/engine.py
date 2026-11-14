@@ -5046,6 +5046,12 @@ class PricingManager:
                 slot_ceilings=slot_ceilings,
                 planning_end=planning_end,
             )
+        if decision_data.get("planner") == "optimizer":
+            # The optimizer decides the negative-price charge too (switch on:
+            # what pays; off: a negative price counts as 0, D3). The separate
+            # opportunistic calendar would book slots it did not plan.
+            negative_price_selected = []
+            opportunity_selected = False
         deficit_charging_needed = bool(decision_data.get("should_charge", False))
         if deficit_charging_needed and chronological_plan is not None:
             deficit_kwh = float(
