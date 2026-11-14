@@ -20,6 +20,8 @@
 
 ### Fixed
 
+- **Dynamic Pricing: the planner no longer sells at a negative export price**: in a long negative-price window it could sell the battery and the sun at a loss to make room for charging; exports at a negative price stay with Smart Pre-Discharge.
+- **Dynamic Pricing: a charge with sun in the same quarter is no longer judged dear**: the arbitrage margin, and with Negative Price Charging off the negative price counted as 0, were applied to the solar energy stored during the charge too, so profitable or free top-ups were skipped. They now count only the energy bought from the grid.
 - **Dynamic Pricing: a plan with no grid charge re-plans when the battery falls behind it**: when the new planner booked no charge (only sales or holds, or nothing), its expected battery path was lost and the SOC-drop re-evaluation fell back to the old rule, so a short sun was not caught until the evening.
 - **Dynamic Pricing: an energy balance that looks sufficient no longer vetoes the plan**: the balance nets the day's sun against the night, so on a sunny day it decided "no charge" even when the battery ran empty before sunrise and the plan wanted a cheap top-up at night (0.52 kWh in one case). The plan now always decides.
 - **Dynamic Pricing: a charge limited by the room or by the charger no longer stops short**: the plan takes off the house load the grid carries while a slot charges, as if the slot stopped early. When the room or the slots' power had already capped the charge, that left the battery part empty (3.3 of 4.6 kWh at midnight in one case) for hours where storing still paid, and more house load trimmed more. The trimmed energy is now kept where it fits and those hours repay it.
