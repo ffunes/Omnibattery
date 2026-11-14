@@ -1178,3 +1178,17 @@ def test_the_planned_state_is_translated_everywhere():
     for path in [root / "strings.json", *sorted((root / "translations").glob("*.json"))]:
         states = json.loads(path.read_text(encoding="utf-8"))["entity"]["sensor"]["charge_delay_status"]["state"]
         assert states.get("planned"), path.name
+
+
+def test_planned_clears_the_module_s_last_decision():
+    """While the plan owns the delay the module decides nothing: its last
+    estimate (unlock time, balance figures) must not stay on the sensor."""
+    ctrl = _controller(_dp_plan_solar_delay=True, predictive_charging_enabled=True,
+                       predictive_charging_mode="dynamic_pricing")
+    ctrl._charge_delay_status.update(estimated_unlock_time="11:30", unlock_reason="price_optimal",
+                                     net_solar_kwh=4.2)
+    _make_mgr(ctrl).is_charge_delayed()
+    status = ctrl._charge_delay_status
+    assert status["state"] == "Planned"
+    assert status["estimated_unlock_time"] is None and status["unlock_reason"] is None
+    assert status["net_solar_kwh"] is None

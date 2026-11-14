@@ -349,6 +349,7 @@ class ChargeDelayManager:
         # sun it delays and runs its own grid charge. Not latched: the module
         # decides again as soon as the optimizer stops planning.
         if _plan_owns_delay(ctrl):
+            self._clear_completed_decision_status()  # the module decided nothing
             ctrl._charge_delay_status["state"] = "Planned"
             return False
 
