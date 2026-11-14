@@ -248,7 +248,7 @@ from .const import (
     DEBUG_CONTROL_LOOP_DETAIL,
 )
 from .infra.lifecycle import is_reload_pending
-from .control.charge_delay import ChargeDelayManager
+from .control.charge_delay import ChargeDelayManager, _plan_owns_delay
 from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
 from .control.discharge_reserve import (
@@ -4622,9 +4622,7 @@ class ChargeDischargeController:
         if manager is None:
             return
         exports = getattr(self, "_dp_plan_exports", None)
-        if exports is not None and (
-            manager.feature_enabled() or getattr(self, "_dp_plan_solar_delay", False)
-        ):
+        if exports is not None and (manager.feature_enabled() or _plan_owns_delay(self)):
             # The 2.0.0 optimizer chose the exports (step 6), through the same
             # blocker and the module's own guards (not its selected-slot and
             # at-floor ones: the plan weighed both). Decided once per slot:

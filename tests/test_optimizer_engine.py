@@ -659,6 +659,8 @@ def test_a_delay_export_runs_without_the_surplus_hold():
     ctrl, blocks, _clock = _export_controller({a}, a.start, projected=50.0, soc=50.0)
     ctrl._surplus_hold_mgr.feature_enabled = lambda: False
     ctrl._dp_plan_solar_delay = True
+    ctrl.predictive_charging_enabled = True
+    ctrl.predictive_charging_mode = "dynamic_pricing"
     ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
     assert blocks["surplus_price_hold"]["origin"] == "plan"
 
@@ -703,3 +705,15 @@ def test_a_closed_delay_day_is_kept_until_midnight(monkeypatch):
     outcome = h._run_engine(sw.scenario(case, now="10:00"), monkeypatch)
     assert outcome.request.solar_delay_closed_until.date() == (sw.DAY + timedelta(days=1)).date()
     assert outcome.request.solar_delay_closed_until.hour == 0
+
+
+def test_a_delay_export_of_a_stale_plan_does_not_run_in_another_mode():
+    a, _b = _slots(_at(10, 0), [0.20, 0.20])
+    ctrl, blocks, _clock = _export_controller({a}, a.start, projected=50.0, soc=50.0)
+    ctrl._surplus_hold_mgr.feature_enabled = lambda: False
+    ctrl._surplus_hold_mgr.is_hold_active = lambda: False
+    ctrl._dp_plan_solar_delay = True
+    ctrl.predictive_charging_enabled = True
+    ctrl.predictive_charging_mode = "time_slot"
+    ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
+    assert blocks == {}

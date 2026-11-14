@@ -1131,7 +1131,8 @@ def test_the_delay_does_not_block_while_the_optimizer_plans_it():
     module's global block (which also stopped planned grid charges) stays off,
     and the day is not latched as unlocked (the module takes over again if the
     optimizer stops planning)."""
-    ctrl = _controller(_dp_plan_solar_delay=True)
+    ctrl = _controller(_dp_plan_solar_delay=True, predictive_charging_enabled=True,
+                       predictive_charging_mode="dynamic_pricing")
     mgr = _make_mgr(ctrl)
     mgr._should_delay_charge = lambda target: (_ for _ in ()).throw(AssertionError("module asked"))
     assert mgr.is_charge_delayed() is False
@@ -1140,6 +1141,26 @@ def test_the_delay_does_not_block_while_the_optimizer_plans_it():
 
 def test_the_setpoint_blocks_stay_off_while_the_optimizer_plans_the_delay():
     coords = [_ncoord("a", 80), _ncoord("b", 40)]
-    ctrl = _setpoint_controller(coords, _dp_plan_solar_delay=True)
+    ctrl = _setpoint_controller(coords, _dp_plan_solar_delay=True, predictive_charging_enabled=True,
+                                predictive_charging_mode="dynamic_pricing")
     _mgr_for(ctrl).refresh_setpoint_blocks()
     assert not any(ctrl.blocks.values())  # 80 % >= the 70 % setpoint would block "a"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        dict(predictive_charging_enabled=True, predictive_charging_mode="time_slot"),
+        dict(predictive_charging_enabled=False, predictive_charging_mode="dynamic_pricing"),
+    ],
+    ids=["time_slot", "predictive_off"],
+)
+def test_a_stale_plan_ownership_does_not_silence_the_delay(overrides):
+    """The plan only owns the delay in Dynamic Pricing with predictive charging
+    on: after switching to Time Slot (or turning predictive charging off) the
+    flag of the last plan must not keep the module quiet."""
+    ctrl = _controller(_dp_plan_solar_delay=True, **overrides)
+    mgr = _make_mgr(ctrl)
+    asked = []
+    mgr._should_delay_charge = lambda target: asked.append(target) or True
+    assert mgr.is_charge_delayed() is True and asked
