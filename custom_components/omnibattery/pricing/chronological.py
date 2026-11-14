@@ -213,6 +213,12 @@ class ChronologicalEvaluationRequest:
     # D3: with negative-price charging off, a negative price counts as 0 for
     # the energy the battery buys (the house still sees the real price).
     negative_price_charging: bool = True
+    # Guaranteed Minimum SOC while it is active: stored kWh above the
+    # discharge floor at the floor SOC. Every booked slot charges at least to
+    # it (the controller raises the slot targets), and the plan keeps the
+    # battery at it until ``floor_until`` (the first sun), as close as it can.
+    floor_kwh: float = 0.0
+    floor_until: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

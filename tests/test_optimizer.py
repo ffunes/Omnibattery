@@ -66,6 +66,8 @@ def _replay(request, plan):
             if s not in target:
                 kwh, to_end = quota[s]
                 target[s] = float(m.slot_target(e, kwh + (step if to_end else 0.0)))
+                if request.floor_kwh > 0:  # the controller raises it to the floor
+                    target[s] = max(target[s], min(request.floor_kwh, m.cap))
             t = target[s]
             if t - e <= m.charge_rate(q) + 1e-9:
                 done.add(s)
@@ -187,3 +189,41 @@ def test_the_real_controller_stores_each_slot_s_planned_energy():
             assert stored == pytest.approx(a.planned_battery_kwh, abs=1e-3), (prices, a)
             checked += 1
     assert checked >= 5
+
+
+def _with_floor(request, floor_kwh, until_quarter):
+    import dataclasses
+    return dataclasses.replace(
+        request, floor_kwh=floor_kwh,
+        floor_until=None if until_quarter is None else T0 + until_quarter * Q,
+    )
+
+
+def test_the_guaranteed_floor_holds_until_the_sun_even_when_it_costs():
+    # Dear night, cheap morning after the floor's deadline: without the floor
+    # the plan waits; with it the battery stays at 2 kWh above the discharge
+    # floor through quarter 8, bought at 0.40.
+    prices = [0.40] * 8 + [0.05] * 4 + [0.50] * 4
+    plain = optimize_charge(_request(prices, house=0.3, usable=1.0)).plan
+    assert not [a for a in plain.allocations if a.slot.price > 0.3]
+    request = _with_floor(_request(prices, house=0.3, usable=1.0), 2.0, 8)
+    plan = optimize_charge(request).plan
+    energy = dict(plan.trajectory)
+    # From 1.0 kWh it takes two quarters at 2.5 kW to get there.
+    assert min(energy[T0 + k * Q] for k in range(2, 9)) >= 2.0 - 0.01
+    assert _replay(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+def test_an_impossible_floor_gets_as_close_as_it_can():
+    request = _with_floor(_request([0.40] * 4, house=0.3, usable=0.0, power=0.8), 5.0, 4)
+    plan = optimize_charge(request).plan
+    assert all(a.to_slot_end for a in plan.allocations) and len(plan.allocations) == 4
+
+
+def test_with_the_floor_active_a_slot_charges_at_least_to_the_floor():
+    # The controller raises every booked slot's target to the floor SOC while
+    # the floor is active; the plan's own energies say so.
+    request = _with_floor(_request([0.10, 0.40, 0.40], house=0.4, usable=0.5, power=5.0), 1.5, None)
+    plan = optimize_charge(request).plan
+    assert plan.allocations and plan.trajectory[0][1] >= 1.5 - 0.11
+    assert _replay(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
