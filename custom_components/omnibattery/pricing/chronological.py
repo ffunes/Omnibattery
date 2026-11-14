@@ -219,6 +219,10 @@ class ChronologicalEvaluationRequest:
     # battery at it until ``floor_until`` (the first sun), as close as it can.
     floor_kwh: float = 0.0
     floor_until: datetime | None = None
+    # The whole price feed through the horizon when ``price_slots`` is only the
+    # charge candidates (Smart Pre-Discharge leaves out its risk window): the
+    # optimizer prices every interval with it and charges only in candidates.
+    price_curve: tuple[PriceSlot, ...] | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

@@ -227,3 +227,17 @@ def test_with_the_floor_active_a_slot_charges_at_least_to_the_floor():
     plan = optimize_charge(request).plan
     assert plan.allocations and plan.trajectory[0][1] >= 1.5 - 0.11
     assert _replay(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+def test_slots_left_out_of_the_charge_candidates_still_price_the_plan():
+    """Smart Pre-Discharge rebuilds the plan without the slots of its risk
+    window: they may not charge, but the night goes on after them."""
+    import dataclasses
+
+    full = _request([0.10, 0.10, 0.40, 0.40, 0.40, 0.40], house=0.3, usable=0.0)
+    candidates = tuple(s for i, s in enumerate(full.price_slots) if i != 1)
+    request = dataclasses.replace(full, price_slots=candidates, price_curve=full.price_slots)
+    plan = optimize_charge(request).plan
+    assert plan.trajectory[-1][0] == full.intervals[-1].end
+    assert full.price_slots[1] not in {a.slot for a in plan.allocations}
+    assert plan.allocations  # slot 0 still charges for the dear hours

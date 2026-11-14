@@ -3573,6 +3573,7 @@ class PricingManager:
         planning_end: datetime | None = None,
         horizon_end: datetime | None = None,
         steps_only: bool = False,
+        price_curve: Sequence[PriceSlot] | None = None,
     ) -> ChronologicalPlan | None:
         """Build the controller-owned plan through the energy horizon.
 
@@ -3597,6 +3598,7 @@ class PricingManager:
             persist_diagnostics=True,
             slot_ceilings=slot_ceilings,
             control_extension=planning_end is not None,
+            price_curve=price_curve,
         )
 
     async def _async_build_dp_plan(self, **kwargs) -> ChronologicalPlan | None:
@@ -3812,6 +3814,7 @@ class PricingManager:
         persist_diagnostics: bool,
         slot_ceilings: Mapping[datetime, float] | None = None,
         control_extension: bool = False,
+        price_curve: Sequence[PriceSlot] | None = None,
     ):
         """Adapt live forecasts for a bounded control or display horizon.
 
@@ -4284,6 +4287,7 @@ class PricingManager:
                     negative_price_charging=self._negative_price_feature_enabled(),
                     floor_kwh=floor_kwh,
                     floor_until=floor_until if floor_kwh > 0 else None,
+                    price_curve=None if price_curve is None else tuple(price_curve),
                 )
             )
             plan = evaluation.plan
@@ -5270,6 +5274,8 @@ class PricingManager:
                             if planning_end
                             else safe_slots
                         ),
+                        # The risk window may not charge, but it is still priced.
+                        price_curve=plan_slots,
                         decision_data=decision_data,
                         price_ceiling=ceiling,
                         slot_ceilings=slot_ceilings,
