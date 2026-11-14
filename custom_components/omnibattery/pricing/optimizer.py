@@ -104,8 +104,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         if most <= _TOL:
             return options
         step = max(QUOTA_STEP_KWH, most / MAX_ASKS)
-        asks = list(np.arange(step, most, step)) + [most]
-        return options + [(a, False) for a in asks] + [(most + max(soc_step, QUOTA_STEP_KWH), True)]
+        asks = [(a, False) for a in list(np.arange(step, most, step)) + [most]]
+        asks.append((most + max(soc_step, QUOTA_STEP_KWH), True))
+        # With the hold allowed a charge may also hold: once its target is
+        # reached the battery keeps it instead of covering the rest of the slot.
+        holding = [(a, end, True) for a, end in asks] if request.hold_allowed else []
+        return options + asks + holding
 
     floor = min(max(0.0, float(request.floor_kwh or 0.0)), cap)
     hold_saving = max(0.0, float(request.hold_min_saving or 0.0))
@@ -122,8 +126,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         cost = np.zeros_like(e)
         decide = np.zeros_like(e)
         stored = np.zeros_like(e)
-        hold = option == HOLD
-        target = None if option is None or hold else target_of(e, option[0])
+        hold = option == HOLD or (isinstance(option, tuple) and len(option) > 2)
+        target = None if option is None or option == HOLD else target_of(e, option[0])
         done = np.zeros(e.shape, dtype=bool)
         ends = []
         for q, end in zip(quarters, quarter_ends):
@@ -156,7 +160,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         # battery's top (the controller stops it there; as a plain quota it
         # would round from its own reading and stop short).
         to_end = (~done | (target >= model.cap - 1e-6)) if target is not None else done
-        return e, cost, decide, stored, to_end & ~np.asarray(hold), ends
+        return e, cost, decide, stored, to_end, ends
 
     # Backward pass: values[k] = cost-to-go before group k, on the lattice.
     values = [-end_value * levels]
@@ -186,9 +190,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 chosen = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
                           bool(open_[0]), [float(x[0]) for x in path])
         _v, option, e_end, c, stored, open_, path = chosen
-        if option == HOLD:
+        if option == HOLD or (isinstance(option, tuple) and len(option) > 2):
             holds.append(slot)
-        elif option is not None and stored > _TOL:
+        if option not in (None, HOLD) and stored > _TOL:
             allocations.append(SlotAllocation(
                 slot,
                 _published_quota(model, soc_step, e, None if open_ else float(target_of(e, option[0])),

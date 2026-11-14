@@ -226,3 +226,96 @@ def test_a_held_slot_blocks_the_discharge_through_the_reserve_blocker():
     clock_now["t"] = b.start
     ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
     assert blocks == {}
+
+
+def _hold_controller(holds, now, *, guard=None, discharging=()):
+    from types import SimpleNamespace
+
+    from tests.conftest import FakeCoordinator
+
+    battery = FakeCoordinator(name="b1", data={"battery_soc": 60.0, "battery_total_energy": 10.0})
+    writes = []
+    ctrl = SimpleNamespace(
+        coordinators=[battery],
+        _dp_plan_holds=frozenset(holds),
+        _pricing_mgr=SimpleNamespace(_now=lambda: now),
+        _discharge_reserve_mgr=SimpleNamespace(
+            feature_enabled=lambda: True, _release_guard=lambda: guard
+        ),
+        _battery_discharge_blockers={},
+        _global_discharge_blockers={},
+        _active_charge_batteries=[],
+        _active_discharge_batteries=[battery] if discharging else [],
+        _setpoint_overrides={},
+        _capacity_protection_active=False,
+    )
+
+    async def set_power(c, charge, discharge):
+        writes.append((c.name, charge, discharge))
+
+    ctrl._set_battery_power = set_power
+    ctrl.set_discharge_block = lambda source, reason, details=None, coordinator=None: (
+        ctrl._battery_discharge_blockers.setdefault(coordinator, {}).__setitem__(source, details)
+    )
+    ctrl.remove_discharge_block = lambda source, coordinator=None: (
+        ctrl._battery_discharge_blockers.get(coordinator, {}).pop(source, None)
+    )
+    ctrl.is_charge_blocked = lambda coordinator=None: False
+    ctrl.is_discharge_blocked = lambda coordinator=None, **kw: (
+        ChargeDischargeController.is_discharge_blocked(ctrl, coordinator, **kw)
+    )
+    ctrl._capacity_protection_overrides_curtailment = lambda: False
+    return ctrl, battery, writes
+
+
+def test_a_hold_stops_a_running_discharge_before_the_deadband_returns():
+    """The cycle stops a battery a per-battery block catches mid-discharge
+    (_stop_blocked_active_batteries runs before the deadband and stale-sensor
+    early returns): a held slot that starts while discharging goes to 0 W."""
+    import asyncio
+
+    a, _b = _slots(_at(11, 0), [0.15, 0.30])
+    ctrl, battery, writes = _hold_controller({a}, a.start, discharging=True)
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert asyncio.run(ChargeDischargeController._stop_blocked_active_batteries(ctrl))
+    assert writes == [("b1", 0, 0)]
+    # Peak shaving and the other protections ignore this economic blocker.
+    assert not ChargeDischargeController.is_discharge_blocked(ctrl, battery, ignore_economic=True)
+
+
+def test_the_reserve_guards_release_a_hold():
+    a, _b = _slots(_at(11, 0), [0.15, 0.30])
+    ctrl, battery, _writes = _hold_controller({a}, a.start, guard="capacity_protection")
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert not ChargeDischargeController.is_discharge_blocked(ctrl, battery)
+
+
+def test_the_dashboard_projection_keeps_what_a_held_slot_holds():
+    a, b = _slots(_at(11, 0), [0.15, 0.30])
+    ctrl, _battery, _writes = _hold_controller({a}, a.start)
+    ctrl._pricing_mgr.weekly_refill_hold_fn = lambda: None
+    floor = ChargeDischargeController._daily_operation_reserve_floor(ctrl)
+    assert floor(a.start, 3.0, 2.0) == 3.0
+    assert floor(b.start, 3.0, 2.0) == 0.0
+
+
+def test_export_prices_come_from_the_export_sensor_lowest_overlap():
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing import PriceSlot
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    hour, half = _slots(_at(11, 0), [0.20, 0.20])
+    exports = [
+        PriceSlot(hour.start, hour.start + timedelta(minutes=10), 0.05),
+        PriceSlot(hour.start + timedelta(minutes=10), half.end, 0.08),
+    ]
+    with_sensor = PricingManager(SimpleNamespace(), SimpleNamespace(export_price_sensor="sensor.export"))
+    with_sensor._now = lambda: hour.start
+    with_sensor.get_future_export_price_slots = lambda _end: exports
+    assert with_sensor._optimizer_export_prices([hour, half], half.end) == {
+        hour.start: 0.05,
+        half.start: 0.08,
+    }
+    without = PricingManager(SimpleNamespace(), SimpleNamespace(export_price_sensor=None))
+    assert without._optimizer_export_prices([hour, half], half.end) is None
