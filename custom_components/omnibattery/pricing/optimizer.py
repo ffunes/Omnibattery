@@ -257,6 +257,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         exports=tuple(exports),
     )
     plan.optimizer_cost = total
+    plan.export_choice_allowed = request.export_choice_allowed
     return ChronologicalEvaluationResult(
         plan=plan,
         diagnostics=ChronologicalDiagnostics(

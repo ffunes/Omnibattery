@@ -424,3 +424,69 @@ def test_an_export_is_released_off_the_plan_s_track(kwargs):
     ctrl, blocks, _clock = _export_controller({a}, a.start, **kwargs)
     ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
     assert blocks == {}
+
+
+def _surplus_controller(monkeypatch, *, sensor):
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing import PriceSlot
+    from custom_components.omnibattery.pricing.engine import PricingManager
+    from tests import test_predictive_scenarios as h
+
+    async def _noop(*_a, **_k):
+        return None
+
+    box = {}
+    real_controller = h._controller
+
+    def build(s):
+        c = real_controller(s)
+        c._surplus_hold_mgr = SimpleNamespace(
+            feature_enabled=lambda: True, mark_stale=lambda _r: None, async_rebuild_plan=_noop,
+            clear=lambda _r: None,
+        )
+        c.export_price_sensor = "sensor.export" if sensor else None
+        c._dp_plan_holds = frozenset({"stale"})
+        c._dp_plan_exports = frozenset({"stale"})
+        box["c"] = c
+        return c
+
+    monkeypatch.setattr(h, "_controller", build)
+    monkeypatch.setattr(
+        PricingManager, "get_future_export_price_slots",
+        lambda self, horizon_end=None, **_kw: [
+            PriceSlot(x.start, x.end, x.price - 0.02) for x in self._raw_price_slots(quiet=True)[0]
+        ],
+    )
+    return box
+
+
+def test_without_an_export_sensor_the_surplus_hold_module_decides(monkeypatch):
+    """No export prices: the plan would value export at 0 and never export, so
+    it neither offers the choice nor silences the module (which uses the
+    import curve)."""
+    from tests import test_predictive_scenarios as h
+
+    box = _surplus_controller(monkeypatch, sensor=False)
+    outcome = h._run_engine(h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json"), monkeypatch)
+    assert not outcome.request.export_choice_allowed
+    assert box["c"]._dp_plan_exports is None
+    box = _surplus_controller(monkeypatch, sensor=True)
+    outcome = h._run_engine(h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json"), monkeypatch)
+    assert outcome.request.export_choice_allowed
+    assert box["c"]._dp_plan_exports is not None
+
+
+def test_an_evaluation_that_ends_early_drops_the_previous_plan_s_orders():
+    """No prices: the evaluation returns before any plan; the previous plan's
+    holds and exports must not outlive it (the modules decide)."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    ctrl = SimpleNamespace(_dp_plan_holds=frozenset({"x"}), _dp_plan_exports=frozenset({"x"}),
+                           _dp_export_decision=("x", True))
+    PricingManager._clear_plan_orders(SimpleNamespace(_controller=ctrl))
+    assert ctrl._dp_plan_holds is None and ctrl._dp_plan_exports is None
+    assert ctrl._dp_export_decision is None
