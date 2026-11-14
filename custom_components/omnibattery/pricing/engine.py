@@ -3611,6 +3611,11 @@ class PricingManager:
             and self._discharge_reserve_holds()
             else None
         )
+        if decision_data.get("planner") == "optimizer":
+            # The SOC-drop trigger needs the projection even when nothing is
+            # charged (no schedule): without it the rule fell back to a 30-point
+            # drop. The schedule, when built, stores the same trajectory again.
+            self._store_eval_projection(plan)
 
     async def _async_build_dp_plan(self, **kwargs) -> ChronologicalPlan | None:
         """Dynamic Pricing's control plan, evaluated in an executor by

@@ -361,3 +361,18 @@ def test_the_control_lock_is_held_while_the_optimizer_runs(monkeypatch):
     monkeypatch.setattr(h, "_controller", build)
     h._run_engine(scenario, monkeypatch, executor=True)
     assert seen["worker"] and seen["locked"]
+
+
+def test_a_plan_without_charge_keeps_its_projection_for_the_soc_drop_trigger(monkeypatch):
+    """Without a charge slot there is no schedule; the SOC-drop re-evaluation
+    then fell back to a 30-point drop. The optimizer's trajectory is kept."""
+    from tests import test_predictive_scenarios as h
+
+    box = {}
+    real_controller = h._controller
+    monkeypatch.setattr(h, "_controller", lambda s: box.setdefault("c", real_controller(s)))
+    scenario = h.load_scenario(h.SCENARIO_DIR / "858-hourly-prices-falling-night.json")
+    outcome = h._run_engine(scenario, monkeypatch)
+    assert outcome.planner == "optimizer" and not outcome.booked
+    projection = box["c"]._dp_eval_projection
+    assert projection and projection[-1][1] < 0  # the night drains the battery
