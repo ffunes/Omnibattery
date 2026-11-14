@@ -2463,7 +2463,14 @@ class ChargeDischargeController:
         weekly_fn = None
         manager = getattr(self, "_discharge_reserve_mgr", None)
         projected = getattr(manager, "projected_reserve_fn", None)
-        if callable(projected):
+        holds = getattr(self, "_dp_plan_holds", None)
+        enabled = getattr(manager, "feature_enabled", None)
+        if holds is not None and callable(enabled) and enabled():
+            # The optimizer's holds (step 5): everything stored is kept in a
+            # held slot, nothing elsewhere.
+            def reserve_fn(start, usable_kwh, _free_kwh):
+                return usable_kwh if any(s.start <= start < s.end for s in holds) else 0.0
+        elif callable(projected):
             try:
                 reserve_fn = projected()
             except Exception:  # noqa: BLE001 - dashboard projection is optional
@@ -4438,10 +4445,20 @@ class ChargeDischargeController:
             # held for the whole of a held slot, through the same blocker.
             self._price_reserve_soc_pct = 0.0
             now = _pricing_clock_now(self)
-            held = any(slot.start <= now < slot.end for slot in holds)
+            # The reserve's own guards: manual control, anti-curtailment and
+            # peak shaving spend the battery on purpose.
+            guard = getattr(manager, "_release_guard", None)
+            held = (not callable(guard) or guard() is None) and any(
+                slot.start <= now < slot.end for slot in holds
+            )
+            slot_owned = getattr(self, "_is_manual_slot_owned", None)
             for coordinator in self.coordinators:
-                if held and not ChargeDischargeController._is_battery_manual_owned(
-                    coordinator
+                if (
+                    held
+                    and coordinator.data
+                    and getattr(coordinator, "is_available", True)
+                    and not ChargeDischargeController._is_battery_manual_owned(coordinator)
+                    and not (callable(slot_owned) and slot_owned(coordinator))
                 ):
                     self.set_discharge_block(
                         "price_reserve",
