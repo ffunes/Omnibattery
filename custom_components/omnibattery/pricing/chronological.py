@@ -17,6 +17,8 @@ from . import PriceSlot
 
 ENERGY_TOLERANCE_KWH = 0.05
 _EPSILON = 1e-9
+# A plan within this of the room counts as filling it (allocation rounding).
+_ROOM_BOUND_TOLERANCE_KWH = 0.01
 # value_cap of a deadline past the last published price.
 _UNPRICED = -math.inf
 
@@ -31,6 +33,12 @@ class EnergyInterval:
     # battery can deliver (``cap_battery_drain``). ``consumption_kwh`` is the
     # battery drain; the grid import ceiling must still see the whole load.
     house_load_kwh: float | None = None
+    # The house load and solar the forecast expects, set when
+    # ``consumption_kwh`` and ``solar_kwh`` hold what a held, idle or capped
+    # battery sees instead. The Daily operation timeline shows the forecast;
+    # the planner never reads these two.
+    forecast_consumption_kwh: float | None = None
+    forecast_solar_kwh: float | None = None
 
     def __post_init__(self) -> None:
         if self.end <= self.start:
@@ -39,10 +47,16 @@ class EnergyInterval:
             value = float(getattr(self, name))
             if not math.isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and non-negative")
-        if self.house_load_kwh is not None:
-            value = float(self.house_load_kwh)
+        for name in (
+            "house_load_kwh",
+            "forecast_consumption_kwh",
+            "forecast_solar_kwh",
+        ):
+            if getattr(self, name) is None:
+                continue
+            value = float(getattr(self, name))
             if not math.isfinite(value) or value < 0:
-                raise ValueError("house_load_kwh must be finite and non-negative")
+                raise ValueError(f"{name} must be finite and non-negative")
 
     @property
     def grid_load_kwh(self) -> float:
@@ -51,17 +65,35 @@ class EnergyInterval:
             return self.consumption_kwh
         return max(self.consumption_kwh, self.house_load_kwh)
 
+    @property
+    def expected_consumption_kwh(self) -> float:
+        """House load the forecast expects, whatever part the battery covers."""
+        if self.forecast_consumption_kwh is None:
+            return self.consumption_kwh
+        return self.forecast_consumption_kwh
+
+    @property
+    def expected_solar_kwh(self) -> float:
+        """Solar the forecast expects, including what the house uses directly."""
+        if self.forecast_solar_kwh is None:
+            return self.solar_kwh
+        return self.forecast_solar_kwh
+
     def with_battery_idle(self) -> "EnergyInterval":
         """Interval in which the battery may not discharge.
 
         The grid carries the load the battery would have covered, but the
         household still consumes solar first: only the surplus charges (#616).
+        The forecast itself stays in ``forecast_consumption_kwh`` and
+        ``forecast_solar_kwh``.
         """
         return EnergyInterval(
             self.start,
             self.end,
             0.0,
             max(0.0, self.solar_kwh - self.consumption_kwh),
+            forecast_consumption_kwh=self.expected_consumption_kwh,
+            forecast_solar_kwh=self.expected_solar_kwh,
         )
 
 
@@ -74,7 +106,8 @@ def cap_battery_drain(
     not from the battery. Projecting the whole load as drain sized the night
     charge for energy the battery could never hand out, so it reached sunrise
     half full. Solar still feeds the house first. The uncapped load is kept
-    in ``house_load_kwh`` for the grid import ceiling.
+    in ``house_load_kwh`` for the grid import ceiling, and as the forecast in
+    ``forecast_consumption_kwh``.
     """
     items = list(intervals)
     if discharge_kw is None or not math.isfinite(float(discharge_kw)):
@@ -85,7 +118,13 @@ def cap_battery_drain(
         limit = item.solar_kwh + rate * _duration_hours(item.start, item.end)
         if item.consumption_kwh > limit:
             item = EnergyInterval(
-                item.start, item.end, limit, item.solar_kwh, item.grid_load_kwh
+                item.start,
+                item.end,
+                limit,
+                item.solar_kwh,
+                item.grid_load_kwh,
+                forecast_consumption_kwh=item.expected_consumption_kwh,
+                forecast_solar_kwh=item.forecast_solar_kwh,
             )
         capped.append(item)
     return capped
@@ -188,6 +227,12 @@ class ChronologicalEvaluationRequest:
     # full charge, whose target is the gap to 100%, not a drain. The runtime
     # planner turns this on; the pure evaluator keeps the plain model.
     grid_carries_load_while_charging: bool = False
+    # The energy the battery would still need without the room limit (the
+    # deficit after the load above the discharge power). When it exceeds
+    # ``total_required_kwh`` the plan is bound by the room, and the load the
+    # grid carries while a slot charges only cancels the need beyond it.
+    # None keeps the plain trim (the need is the total).
+    uncapped_required_kwh: float | None = None
     # Grid import ceiling (kW) the controller regulates to while a slot
     # charges. The house load comes out of it, so a slot stores at most
     # ``min(power, ceiling - net load)``. None keeps the flat ``power``.
@@ -582,6 +627,50 @@ def _unclipped_room(
     return max(0.0, capacity - energy if room is None else room)
 
 
+def _last_solar_fill(
+    intervals: Sequence[EnergyInterval],
+    usable_initial_kwh: float,
+    capacity: float,
+    allocations: Mapping[PriceSlot, float],
+    *,
+    now: datetime,
+    rate_kwh_h: float,
+) -> datetime | None:
+    """End of the last interval in which solar tops the battery up to full.
+
+    Projected with the booked slots, each landing when it is stored. Only an
+    interval where solar exceeds the load counts: a battery the slots
+    themselves fill at night is no solar fill.
+    """
+    if not math.isfinite(capacity) or capacity <= 0.0:
+        return None
+    landings = []
+    for slot, amount in allocations.items():
+        start = max(now, slot.start)
+        lands = (
+            min(slot.end, start + timedelta(hours=amount / rate_kwh_h))
+            if rate_kwh_h > _EPSILON
+            else slot.end
+        )
+        landings.append((lands, amount))
+    landings.sort(key=lambda entry: entry[0])
+    energy = min(_finite_non_negative(usable_initial_kwh), capacity)
+    index = 0
+    last: datetime | None = None
+    for interval in intervals:
+        while index < len(landings) and landings[index][0] <= interval.end:
+            energy += landings[index][1]
+            index += 1
+        energy = max(0.0, energy + interval.solar_kwh - interval.consumption_kwh)
+        if (
+            interval.solar_kwh > interval.consumption_kwh
+            and energy >= capacity - _ROOM_BOUND_TOLERANCE_KWH
+        ):
+            last = interval.end
+        energy = min(capacity, energy)
+    return last
+
+
 def allocate_price_slots(
     intervals: Iterable[EnergyInterval],
     deadlines: Iterable[EnergyDeadline],
@@ -604,6 +693,7 @@ def allocate_price_slots(
     reserve_holds: bool = False,
     grid_carries_load_while_charging: bool = False,
     grid_ceiling_kw: float | None = None,
+    uncapped_required_kwh: float | None = None,
 ) -> ChronologicalPlan:
     """Allocate the cheapest feasible slot capacity to energy deadlines.
 
@@ -1311,6 +1401,43 @@ def allocate_price_slots(
         covered = 0.0
         carried_deadline = 0.0
         carried_flexible = 0.0
+        # A plan bound by the room: the battery fills its room whatever the
+        # grid carries meanwhile, because the need goes on after it. The
+        # carried load first cancels that need beyond the room and only the
+        # rest trims the slots, so ``stored = min(room, need - carried)``.
+        # Trimming the room itself bought 3.1 of 5.5 kWh for a 21.6 kWh
+        # night deficit (11 Nov 2026).
+        # Room-bound means the slots fill the room. A plan held below it by
+        # price (only some slots are worth it) keeps the plain trim, however
+        # large the need behind it.
+        booked = sum(allocations.values())
+        room_bound = (
+            uncapped_required_kwh is not None
+            and math.isfinite(headroom)
+            and booked >= headroom - _ROOM_BOUND_TOLERANCE_KWH
+        )
+        beyond_room = (
+            max(0.0, _finite_non_negative(uncapped_required_kwh) - booked)
+            if room_bound
+            else 0.0
+        )
+        # The need beyond the room only keeps a slot's energy while that
+        # energy lasts until then. A solar fill after the slot tops the
+        # battery up to full anyway, so energy kept for later is exported,
+        # not stored: such a slot keeps the plain trim. Two nights with a
+        # sunny day between left 2.3 kWh at sunrise (13 Nov 2026).
+        last_fill = (
+            _last_solar_fill(
+                intervals,
+                usable_initial_kwh,
+                usable_capacity,
+                allocations,
+                now=now,
+                rate_kwh_h=power * efficiency,
+            )
+            if beyond_room > _EPSILON
+            else None
+        )
         for slot in sorted(allocations, key=lambda item: item.start):
             amount = allocations[slot]
             start, end = max(now, slot.start), min(slot.end, horizon_end)
@@ -1336,6 +1463,14 @@ def allocate_price_slots(
                     drained, amount + cover, start, end, power * efficiency
                 ),
             )
+            if (
+                beyond_room > _EPSILON
+                and amount - net > _EPSILON
+                and (last_fill is None or slot.start >= last_fill)
+            ):
+                kept = min(amount - net, beyond_room)
+                beyond_room -= kept
+                net += kept
             if allocation_deadlines.get(slot) is None:
                 carried_flexible += amount - net
             else:
@@ -1460,6 +1595,7 @@ def evaluate_chronological_request(
         reserve_holds=request.reserve_holds,
         grid_carries_load_while_charging=request.grid_carries_load_while_charging,
         grid_ceiling_kw=request.grid_ceiling_kw,
+        uncapped_required_kwh=request.uncapped_required_kwh,
     )
     return ChronologicalEvaluationResult(
         plan=plan,

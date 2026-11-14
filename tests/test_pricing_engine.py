@@ -2412,7 +2412,8 @@ def test_canonical_diagnostics_refresh_writes_no_control_runtime_state():
 # _evaluate_dynamic_pricing (discussion #87: schedule capped by headroom)
 # ----------------------------------------------------------------------
 
-def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
+def _scalar_fallback_schedule(*, deficit_kwh, planned_kwh):
+    """Run the 00:05 evaluation without a consumption profile (scalar path)."""
     import asyncio
 
     async def should_charge():
@@ -2420,8 +2421,8 @@ def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
             "should_charge": True,
             "avg_soc": 19.0,
             "avg_consumption_kwh": 4.552857,
-            "energy_deficit_kwh": 4.552857,
-            "planned_grid_charge_kwh": 1.5808,
+            "energy_deficit_kwh": deficit_kwh,
+            "planned_grid_charge_kwh": planned_kwh,
         }
 
     async def no_op(*_args, **_kwargs):
@@ -2454,13 +2455,44 @@ def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
             horizon=DynamicPricingEvaluationHorizon.DAILY,
         )
     )
+    return ctrl
 
-    # 1.58 kWh planned, less the house load (4.55 kWh/day) the grid carries
-    # while 1.2 kW charges (#785): about 1.33 kWh, so 1.5 h instead of 2 h.
+
+def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
+    # The need (1.58 kWh) fits in the room: the house load the grid carries
+    # while 1.2 kW charges (4.55 kWh/day) comes off it (#785): about 1.33 kWh,
+    # so 1.5 h instead of 2 h.
+    ctrl = _scalar_fallback_schedule(deficit_kwh=1.5808, planned_kwh=1.5808)
+
     assert ctrl._dynamic_pricing_schedule.hours_needed == 1.5
     assert len(ctrl._dynamic_pricing_schedule.selected_slots) == 6
     assert ctrl._last_decision_data["planned_grid_charge_kwh"] == pytest.approx(
         1.5808 * (1.2 * CHARGE_EFFICIENCY) / (1.2 * CHARGE_EFFICIENCY + 4.552857 / 24)
+    )
+
+
+def test_a_room_bound_scalar_plan_still_fills_the_room():
+    # The need (4.55 kWh) is nearly three times the room (1.58 kWh): the
+    # battery runs empty again long before the need is met, so the load the
+    # grid carries while it charges only cancels need beyond the room. The
+    # room is bought whole: 1.58 kWh, 2 h at 1.2 kW.
+    ctrl = _scalar_fallback_schedule(deficit_kwh=4.552857, planned_kwh=1.5808)
+
+    assert ctrl._last_decision_data["planned_grid_charge_kwh"] == pytest.approx(1.5808)
+    assert ctrl._dynamic_pricing_schedule.hours_needed == 2.0
+    assert len(ctrl._dynamic_pricing_schedule.selected_slots) == 8
+
+
+def test_a_need_just_above_the_room_trims_only_what_the_room_cannot_take():
+    # Need 1.70 kWh, room 1.58 kWh: the carried load (about 0.25 kWh) first
+    # cancels the 0.12 kWh beyond the room, the rest trims: 1.70 - 0.25.
+    ctrl = _scalar_fallback_schedule(deficit_kwh=1.70, planned_kwh=1.5808)
+    trimmed = 1.5808 * (1.2 * CHARGE_EFFICIENCY) / (
+        1.2 * CHARGE_EFFICIENCY + 4.552857 / 24
+    )
+
+    assert ctrl._last_decision_data["planned_grid_charge_kwh"] == pytest.approx(
+        1.70 - (1.5808 - trimmed)
     )
 
 

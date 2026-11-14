@@ -387,3 +387,26 @@ def test_a_cached_combined_purpose_cannot_outlive_the_replan():
     assert slot not in schedule.slot_energy_targets_kwh
     assert schedule.deficit_charging_needed is False
     assert manager._controller._dp_pre_evaluated_purposes == {}
+
+
+def test_evening_plan_fills_the_room_when_the_grid_carries_more_than_that():
+    """A heat-pump house (1.2 kW) on an 800 W battery with 3.5 kWh of room: the
+    grid carries 0.4 kW of the load all night (about 6 kWh), more than the
+    room. The deficit is far larger still, so the room must be bought. The
+    evening run published its room-capped deficit, the plan netted the carried
+    load from it and booked nothing (11 Nov 2026)."""
+    manager = _manager(
+        prices=_prices({h: 0.20 for h in (0, 1, 2, 3, 4, 5)}),
+        load_kw=1.2,
+        min_arbitrage_margin=None,
+    )
+    battery = manager._controller.coordinators[0]
+    battery.effective_max_discharge_power = 800.0
+    battery.data["battery_soc"] = 65.0  # 3.5 kWh room, 5.5 kWh usable
+
+    booked = _booked(manager)
+    decision = manager._controller._last_decision_data
+
+    assert booked, "the evening plan booked no slot"
+    assert decision["planned_grid_charge_kwh"] == pytest.approx(3.5, abs=0.05)
+    assert decision["scalar_energy_deficit_kwh"] > decision["planned_grid_charge_kwh"]

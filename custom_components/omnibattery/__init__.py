@@ -1061,6 +1061,8 @@ class ChargeDischargeController:
         # Chronological forecast diagnostics survive later balance-only
         # re-evaluations, which replace _last_decision_data wholesale.
         self._last_chronological_diagnostics = None
+        # Inputs and output of the latest control plan, for the decision log.
+        self._last_plan_trace = None
         self._slot_entry_time = None  # When we first entered the time slot (for 5-min delay)
         self._predictive_charge_target_soc: Optional[dict] = None  # Per-battery grid-only SOC targets {coordinator: target_%}
         self._active_time_slot_quota_kwh: Optional[float] = None
@@ -1192,6 +1194,8 @@ class ChargeDischargeController:
         self._dp_pre_evaluated_slots: dict = {}  # slot.start (datetime) → should_charge (bool)
         self._dp_pre_evaluated_purposes: dict = {}  # slot.start → effective typed purpose
         self._dp_completed_slots: set = set()  # slot.start values completed in this plan
+        # End of the booked slot the battery charged in: it holds until then.
+        self._dp_slot_hold_until: Optional[datetime] = None
         self._predictive_target_decision = None  # decision the live deficit target was sized from
         self._dp_spent_decision = None  # that decision once a slot charged to it (see engine)
         self._active_dynamic_slot_purpose: Optional[str] = None
@@ -1384,6 +1388,8 @@ class ChargeDischargeController:
         self._consumption_tracker = None
         self._daily_operation_timeline = None
         self.daily_operation_timeline = None
+        self._forecast_history = None
+        self._decision_log = None
         self._daily_operation_last_runtime_at: datetime | None = None
         self._daily_operation_grid_energy_date = None
         self._daily_operation_grid_energy_kwh = [0.0] * 96
@@ -1744,6 +1750,9 @@ class ChargeDischargeController:
         )
         total_power = 0.0
         charge_power = 0.0
+        # What the charging batteries take on the AC side. Direct PV never
+        # passes the grid meter, so only this part can come from the grid.
+        ac_charge_power = 0.0
         discharge_power = 0.0
         measured = False
         positive_batteries = 0
@@ -1811,6 +1820,11 @@ class ChargeDischargeController:
             total_power += cell_power
             if cell_power > 10.0:
                 charge_power += cell_power
+                # The cell power less the direct PV: for MPPT devices that is
+                # -ac_power less the off-grid output; for aggregate PV, whose
+                # ac_power is the negated pack power including the PV (#738),
+                # the pack power less the PV.
+                ac_charge_power += max(0.0, cell_power - direct_pv_w)
                 positive_batteries += 1
                 if direct_pv_w > 10.0:
                     direct_solar_charge = True
@@ -1872,6 +1886,8 @@ class ChargeDischargeController:
             )
             if total_power > 10.0:
                 charge_power = total_power
+                # The commanded power is the AC-side setpoint.
+                ac_charge_power = total_power
                 net_grid_energy_kwh = (
                     ChargeDischargeController._daily_operation_accumulate_grid_charge_energy(
                         self,
@@ -1968,6 +1984,10 @@ class ChargeDischargeController:
             "hourly_balance_active": bool(context_mask & CONTEXT_HOURLY_BALANCE),
             "grid_charge_decision": grid_decision,
             "charge_power_w": charge_power,
+            "ac_charge_power_w": ac_charge_power,
+            # Signed grid sample, import positive: the diary counts
+            # min(ac_charge_power_w, import) as grid charge.
+            "grid_power_w": grid_power_w if math.isfinite(grid_power_w) else None,
             "discharge_power_w": discharge_power,
             "soc_pct": system_soc,
             "delay_active": delay_active,
@@ -2465,13 +2485,25 @@ class ChargeDischargeController:
                 weekly_fn = weekly_hold()
             except Exception:  # noqa: BLE001 - dashboard projection is optional
                 weekly_fn = None
-        if weekly_fn is None:
+        # Dynamic Pricing: a booked slot holds the battery once it charged.
+        slot_fn = None
+        slot_hold = getattr(
+            getattr(self, "_pricing_mgr", None), "dynamic_slot_hold_fn", None
+        )
+        if callable(slot_hold):
+            try:
+                slot_fn = slot_hold()
+            except Exception:  # noqa: BLE001 - dashboard projection is optional
+                slot_fn = None
+        holds = [fn for fn in (weekly_fn, slot_fn) if fn is not None]
+        if not holds:
             return reserve_fn
 
         def floor(start, usable_kwh, free_kwh):
-            held = weekly_fn(start, usable_kwh, free_kwh)
-            if held is not None:
-                return held
+            for hold in holds:
+                held = hold(start, usable_kwh, free_kwh)
+                if held is not None:
+                    return held
             return reserve_fn(start, usable_kwh, free_kwh) if reserve_fn else None
 
         return floor
@@ -2652,6 +2684,17 @@ class ChargeDischargeController:
                     stale=projection.get("stale", False),
                     stale_reason=projection.get("stale_reason"),
                 )
+                history = getattr(self, "_forecast_history", None)
+                if history is not None and not projection.get("stale", False):
+                    try:
+                        history.observe(
+                            manager,
+                            # No decision yet (just started) is no plan either.
+                            decision=getattr(self, "_last_decision_data", None) or {},
+                            now=current,
+                        )
+                    except Exception:  # noqa: BLE001 - history is diagnostic only
+                        _LOGGER.debug("Forecast history update failed", exc_info=True)
             else:
                 manager.update_runtime_metadata(
                     setpoint=setpoint,
@@ -3780,6 +3823,7 @@ class ChargeDischargeController:
             "weekly_refill_hold",
             "weekly_full_hold",
             "time_slot_floor_hold",
+            "dp_slot_hold",
         }
         global_blockers = self._global_discharge_blockers
         if ignore_economic:
@@ -8191,6 +8235,7 @@ class ChargeDischargeController:
         self._pricing_mgr.apply_price_discharge_block()
         self._pricing_mgr.apply_weekly_refill_hold()
         self._pricing_mgr.apply_time_slot_floor_hold()
+        self._pricing_mgr.apply_dynamic_slot_hold()
 
     async def _stop_all_batteries_for_block(self, direction: str) -> None:
         """Stop all battery commands after a global operation block becomes active."""
@@ -9914,6 +9959,12 @@ class ChargeDischargeController:
         refresh_timeline = getattr(self, "_refresh_daily_operation_timeline", None)
         if callable(refresh_timeline):
             refresh_timeline(now=now or dt_util.now())
+        decision_log = getattr(self, "_decision_log", None)
+        if decision_log is not None:
+            try:
+                decision_log.tick(now or dt_util.now())
+            except Exception:  # noqa: BLE001 - the log must never gate control
+                _LOGGER.debug("Decision log update failed", exc_info=True)
 
         # === BALANCE MONITOR ===
         # Run before manual mode and PD control checks so readings are never gated
@@ -12039,6 +12090,9 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
     )
     controller._daily_operation_timeline = daily_operation_timeline
     controller.daily_operation_timeline = daily_operation_timeline
+    from .tracking.forecast_history import ForecastHistoryManager
+    forecast_history = ForecastHistoryManager(hass, entry)
+    forecast_history.attach(daily_operation_timeline)
 
     from .infra.external_loads import ExternalLoads
     controller._external_loads = ExternalLoads(hass, entry, controller)
@@ -12101,10 +12155,27 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
 
     # Restore the current-day operation diary only after the profile and charge-delay
     # state are available, then seed the dashboard with the first authoritative view.
+    # The history must be loaded before the diary: loading a diary from a past
+    # day freezes that day into the history.
+    await forecast_history.async_load()
     await daily_operation_timeline.async_load()
+    controller._forecast_history = forecast_history
     controller._refresh_daily_operation_timeline(
         now=startup_now, force_projection=True
     )
+    from .forecast_history_ws import async_register_forecast_history_ws
+    async_register_forecast_history_ws(hass)
+
+    from .tracking.decision_log import DecisionLogger
+    decision_log = DecisionLogger(hass, entry, controller)
+    try:
+        from homeassistant.loader import async_get_integration
+
+        integration_version = (await async_get_integration(hass, DOMAIN)).version
+    except Exception:  # noqa: BLE001 - the version is informative only
+        integration_version = None
+    decision_log.log_start(str(integration_version) if integration_version else None)
+    controller._decision_log = decision_log
 
     # Set up the control safety timer and store unsub callbacks for manual cancellation during unload.
     # Each unsub is registered twice: stored in hass.data so async_unload_entry can cancel
@@ -12257,6 +12328,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
         "coordinators": coordinators,
         "controller": controller,
         "daily_operation_timeline": daily_operation_timeline,
+        "forecast_history": forecast_history,
         "unsub_control": unsub_control,
         "unsub_consumption": unsub_consumption,
         "unsub_consumption_reported": unsub_consumption_reported,
@@ -12558,6 +12630,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             timeline = getattr(controller, "_daily_operation_timeline", None)
             if timeline is not None:
                 await _persist("daily operation timeline", timeline.async_shutdown)
+            history = getattr(controller, "_forecast_history", None)
+            if history is not None:
+                await _persist("forecast history", history.async_shutdown)
+            decision_log = getattr(controller, "_decision_log", None)
+            if decision_log is not None:
+                controller._decision_log = None
+                await _persist("decision log", decision_log.async_flush)
 
         if unload_ok:
             hass.data[DOMAIN].pop(entry.entry_id, None)

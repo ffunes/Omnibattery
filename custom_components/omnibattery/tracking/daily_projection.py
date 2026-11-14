@@ -42,6 +42,20 @@ def _finite(value: Any, default: float = 0.0) -> float:
     return parsed if math.isfinite(parsed) else default
 
 
+def _expected(interval: Any, name: str) -> float:
+    """The forecast's ``consumption_kwh`` or ``solar_kwh`` for ``interval``.
+
+    Where the planner holds, idles or caps the battery it lowers an
+    interval's own values to what the battery sees. ``EnergyInterval`` keeps
+    the forecast next to them as ``expected_consumption_kwh`` and
+    ``expected_solar_kwh``; other interval shapes carry only their own values.
+    """
+    value = getattr(interval, f"expected_{name}", None)
+    if value is None:
+        value = getattr(interval, name, 0.0)
+    return max(0.0, _finite(value))
+
+
 @dataclass(frozen=True)
 class DailyOperationProjectionRequest:
     """Read-only inputs needed to materialize a Daily Operation projection."""
@@ -200,11 +214,21 @@ def build_daily_operation_projection(
 
     full_forecasts = [
         (
-            _finite(getattr(interval, "solar_kwh", 0.0)) * _full_quarter_factor(interval),
-            _finite(getattr(interval, "consumption_kwh", 0.0))
-            * _full_quarter_factor(interval),
+            _expected(interval, "solar_kwh") * _full_quarter_factor(interval),
+            _expected(interval, "consumption_kwh") * _full_quarter_factor(interval),
         )
         for interval, _remaining_start, _remaining_ratio in remaining_intervals
+    ]
+    # The house side of each interval follows the forecast. The simulation
+    # sees what the planner modelled for the battery (nothing where it is
+    # held, at most its discharge power under a higher load), and the grid
+    # carries what solar and the battery leave.
+    house_forecasts = [
+        (
+            _expected(interval, "solar_kwh") * remaining_ratio,
+            _expected(interval, "consumption_kwh") * remaining_ratio,
+        )
+        for interval, _remaining_start, remaining_ratio in remaining_intervals
     ]
     delay_projection = None
     delay_starts_at = (
@@ -359,17 +383,32 @@ def build_daily_operation_projection(
         if flow_end is not None and (item["_end"] is None or flow_end > item["_end"]):
             item["_end"] = flow_end
         for key in (
-            "solar_kwh",
-            "consumption_kwh",
             "solar_to_battery_kwh",
             "grid_to_battery_kwh",
             "battery_to_home_kwh",
-            "grid_to_home_kwh",
-            "solar_to_home_kwh",
             "duration_seconds",
         ):
             target_key = "duration_s" if key == "duration_seconds" else key
             item[target_key] += _finite(getattr(flow, key, 0.0))
+        if flow_index < len(house_forecasts):
+            solar, load = house_forecasts[flow_index]
+            solar_to_home = min(solar, load)
+            # A peak-shaving hold takes its limit off the load before solar,
+            # so the simulation can store solar the house would use. The
+            # house then gets only what the battery leaves.
+            solar_left = solar - _finite(getattr(flow, "solar_to_battery_kwh", 0.0))
+            if solar_to_home > solar_left + 1e-9:
+                solar_to_home = max(0.0, solar_left)
+            # The forecast shown is before the safety margin, so it can hold
+            # more solar than the simulation saw; the battery then covers
+            # part of the load that solar seems to cover. Solar feeds only
+            # what the battery leaves, so the two never exceed the load.
+            battery_to_home = _finite(getattr(flow, "battery_to_home_kwh", 0.0))
+            solar_to_home = min(solar_to_home, max(0.0, load - battery_to_home))
+            item["solar_kwh"] += solar
+            item["consumption_kwh"] += load
+            item["solar_to_home_kwh"] += solar_to_home
+            item["grid_to_home_kwh"] += max(0.0, load - solar_to_home - battery_to_home)
         if flow_index < len(full_forecasts):
             item["solar_forecast_kwh"] += full_forecasts[flow_index][0]
             item["consumption_forecast_kwh"] += full_forecasts[flow_index][1]
