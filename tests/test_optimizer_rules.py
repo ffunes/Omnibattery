@@ -118,3 +118,23 @@ def test_negative_price_slots_come_from_the_optimizer(monkeypatch):
     assert not r.o.to_top
     negative = [k for slot, k in r.o.booked if slot.price < 0]
     assert negative and sum(negative) > 3.0
+
+
+def test_the_import_limit_caps_every_planned_charge(monkeypatch):
+    """Peak shaving's limit is the charge ceiling (the controller's too): each
+    quarter stores at most (limit - house) x sqrt(rte)."""
+    import math
+
+    outcome = _run(monkeypatch, settings={"peak_shaving": {"limit_w": 1500, "soc_threshold": 0}})
+    request = outcome.request
+    assert request.grid_ceiling_kw == pytest.approx(1.5)
+    by_slot = dict(outcome.booked)
+    assert by_slot
+    for slot, kwh in by_slot.items():
+        room = sum(
+            max(0.0, 1.5 * (i.end - i.start).total_seconds() / 3600 - i.grid_load_kwh)
+            * math.sqrt(request.import_value_efficiency)
+            for i in request.intervals
+            if slot.start <= i.start < slot.end
+        )
+        assert kwh <= room + 1e-6, slot
