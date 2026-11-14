@@ -147,6 +147,8 @@ class ChronologicalPlan:
     # efficiency its slot energies are sized with.
     trajectory: tuple[tuple[datetime, float], ...] = ()
     charge_efficiency: float | None = None
+    # Slots in which the plan holds the battery (Discharge Reserve, step 5).
+    holds: tuple[PriceSlot, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -223,6 +225,11 @@ class ChronologicalEvaluationRequest:
     # charge candidates (Smart Pre-Discharge leaves out its risk window): the
     # optimizer prices every interval with it and charges only in candidates.
     price_curve: tuple[PriceSlot, ...] | None = None
+    # Discharge Reserve on (step 5): a slot may hold the battery (it covers
+    # nothing, solar surplus still stores) when a dearer hour needs the energy;
+    # ``hold_min_saving`` per kWh left to the grid must be saved by holding.
+    hold_allowed: bool = False
+    hold_min_saving: float = 0.0
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

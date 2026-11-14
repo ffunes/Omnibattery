@@ -23,6 +23,7 @@ Pure function of the request: it runs in an executor, off the event loop.
 from __future__ import annotations
 
 from bisect import bisect_right
+import dataclasses
 import math
 
 import numpy as np
@@ -48,6 +49,7 @@ MAX_LEVELS = 1000
 QUOTA_STEP_KWH = 0.05
 MAX_ASKS = 24
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
+HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 # Per kWh under the guaranteed floor, per quarter before the sun: above any
 # price, so the floor wins whenever it can be met; never reported.
 FLOOR_PENALTY_EUR = 100.0
@@ -94,16 +96,19 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     levels = levels[(levels >= 0.0) & (levels <= cap + _TOL)]
 
     def menu(slot, quarters):
+        # Normal first: on a tie neither a charge nor a hold is taken.
+        options = [None] + ([HOLD] if request.hold_allowed else [])
         if not quarters[0].grid_charge_allowed:
-            return [None]
+            return options
         most = sum(model.charge_rate(q) for q in quarters)
         if most <= _TOL:
-            return [None]
+            return options
         step = max(QUOTA_STEP_KWH, most / MAX_ASKS)
         asks = list(np.arange(step, most, step)) + [most]
-        return [None] + [(a, False) for a in asks] + [(most + max(soc_step, QUOTA_STEP_KWH), True)]
+        return options + [(a, False) for a in asks] + [(most + max(soc_step, QUOTA_STEP_KWH), True)]
 
     floor = min(max(0.0, float(request.floor_kwh or 0.0)), cap)
+    hold_saving = max(0.0, float(request.hold_min_saving or 0.0))
 
     def target_of(e, ask):
         """The slot's target: the controller raises it to the floor while the
@@ -117,7 +122,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         cost = np.zeros_like(e)
         decide = np.zeros_like(e)
         stored = np.zeros_like(e)
-        target = None if option is None else target_of(e, option[0])
+        hold = option == HOLD
+        target = None if option is None or hold else target_of(e, option[0])
         done = np.zeros(e.shape, dtype=bool)
         ends = []
         for q, end in zip(quarters, quarter_ends):
@@ -131,6 +137,15 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 decide += margin * bought
                 if not request.negative_price_charging and slot_price < 0:
                     decide -= slot_price * bought  # D3: counts as 0
+            if hold:
+                # What the battery would have covered goes to the grid; the
+                # minimum saving is charged on it (decides, never reported).
+                covered = np.minimum(
+                    np.minimum(e * model.eff, max(0.0, q.house_kwh - q.solar_kwh)),
+                    q.discharge_kwh,
+                )
+                decide += hold_saving * covered
+                q = dataclasses.replace(q, discharge_kwh=0.0)
             e, c = model.normal_step(q, e, t)
             cost += c
             decide += c
@@ -141,7 +156,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         # battery's top (the controller stops it there; as a plain quota it
         # would round from its own reading and stop short).
         to_end = (~done | (target >= model.cap - 1e-6)) if target is not None else done
-        return e, cost, decide, stored, to_end, ends
+        return e, cost, decide, stored, to_end & ~np.asarray(hold), ends
 
     # Backward pass: values[k] = cost-to-go before group k, on the lattice.
     values = [-end_value * levels]
@@ -159,6 +174,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     e = e0
     total = 0.0
     allocations: list[SlotAllocation] = []
+    holds: list = []
     trajectory: list = []
     for k, (slot, quarters, ends) in enumerate(groups):
         nxt = values[k + 1]
@@ -170,7 +186,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 chosen = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
                           bool(open_[0]), [float(x[0]) for x in path])
         _v, option, e_end, c, stored, open_, path = chosen
-        if option is not None and stored > _TOL:
+        if option == HOLD:
+            holds.append(slot)
+        elif option is not None and stored > _TOL:
             allocations.append(SlotAllocation(
                 slot,
                 _published_quota(model, soc_step, e, None if open_ else float(target_of(e, option[0])),
@@ -212,6 +230,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         cheaper_to_import_kwh=cheaper if allocated <= _TOL else 0.0,
         trajectory=tuple(trajectory),
         charge_efficiency=model.eff,
+        holds=tuple(holds),
     )
     plan.optimizer_cost = total
     return ChronologicalEvaluationResult(
@@ -314,6 +333,6 @@ def optimizer_fallback_reason(request: ChronologicalEvaluationRequest) -> str | 
         return "guaranteed_floor"
     if not request.grid_carries_load_while_charging:
         return "weekly_full_charge"
-    if request.reserve_holds:
+    if request.reserve_holds and not request.hold_allowed:
         return "discharge_reserve"
     return None

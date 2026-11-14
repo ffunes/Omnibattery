@@ -250,6 +250,8 @@ class Outcome:
     planner: str | None = None
     # Slots the negative-price module charges to the top (no quota).
     to_top: frozenset = frozenset()
+    # Slots the optimizer holds the battery in (Discharge Reserve on).
+    holds: frozenset = frozenset()
 
     def describe(self) -> str:
         request = self.request
@@ -603,6 +605,7 @@ def _run_engine(scenario: Scenario, monkeypatch, *, executor: bool = False) -> O
             for slot, purpose in (getattr(schedule, "slot_purposes", None) or {}).items()
             if purpose in (SLOT_PURPOSE_NEGATIVE_PRICE, SLOT_PURPOSE_COMBINED)
         ),
+        frozenset(getattr(controller, "_dp_plan_holds", None) or ()),
     )
 
 

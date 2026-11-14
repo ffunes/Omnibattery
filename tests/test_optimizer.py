@@ -45,8 +45,9 @@ def _request(prices, *, house=0.1, solar=0.0, cap=10.0, soc=15.0, usable=0.5, ro
     )
 
 
-def _replay(request, plan):
-    """Cost of executing the published plan, as the controller does it."""
+def _replay(request, plan, held=()):
+    """Cost of executing the published plan, as the controller does it. In a
+    ``held`` slot the battery covers nothing (solar surplus still stores)."""
     m = BatteryModel(capacity_kwh=request.fleet_capacity_kwh, round_trip_efficiency=0.85,
                      floor_kwh=request.fleet_capacity_kwh * request.fleet_soc_pct / 100
                      - request.usable_initial_kwh,
@@ -60,7 +61,7 @@ def _replay(request, plan):
         prices.append(s.price)
         h = (i.end - i.start).total_seconds() / 3600
         q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price, 0.0, True,
-                    request.effective_power_kw * h, request.discharge_kw * h)
+                    request.effective_power_kw * h, 0.0 if s in held else request.discharge_kw * h)
         t = None
         if s in quota and s not in done:
             if s not in target:
@@ -241,3 +242,40 @@ def test_slots_left_out_of_the_charge_candidates_still_price_the_plan():
     assert plan.trajectory[-1][0] == full.intervals[-1].end
     assert full.price_slots[1] not in {a.slot for a in plan.allocations}
     assert plan.allocations  # slot 0 still charges for the dear hours
+
+
+def _replay_hold(request, plan):
+    """``_replay`` with the plan's held slots: the battery covers nothing then."""
+    return _replay(request, plan, held=set(plan.holds))
+
+
+def _with_hold(request, min_saving=0.0):
+    import dataclasses
+    return dataclasses.replace(request, hold_allowed=True, hold_min_saving=min_saving)
+
+
+def test_holding_keeps_the_battery_for_the_dearer_hour():
+    # 1 kWh stored, no cheap slot: the 0.40 evening is worth it, the 0.20 now is not.
+    prices = [0.20] * 4 + [0.40] * 4
+    request = _with_hold(_request(prices, house=0.25, usable=0.95, threshold=0.0))
+    plan = optimize_charge(request).plan
+    assert {slot.price for slot in plan.holds} == {0.20}
+    assert _replay_hold(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+    off = optimize_charge(_request(prices, house=0.25, usable=0.95, threshold=0.0)).plan
+    assert plan.optimizer_cost < off.optimizer_cost - 0.03
+
+
+def test_the_minimum_saving_decides_a_hold():
+    prices = [0.20] * 4 + [0.25] * 4
+    keep = optimize_charge(_with_hold(_request(prices, house=0.25, usable=0.95, threshold=0.0))).plan
+    assert keep.holds
+    skip = optimize_charge(
+        _with_hold(_request(prices, house=0.25, usable=0.95, threshold=0.0), min_saving=0.10)
+    ).plan
+    assert not skip.holds
+
+
+def test_no_hold_without_the_permission():
+    prices = [0.20] * 4 + [0.40] * 4
+    plan = optimize_charge(_request(prices, house=0.25, usable=0.95, threshold=0.0)).plan
+    assert not plan.holds

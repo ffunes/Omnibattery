@@ -193,3 +193,36 @@ def test_an_optimizer_failure_falls_back_to_the_previous_planner(monkeypatch):
     )
     plan = PricingManager.evaluate_dynamic_pricing_plan(request).plan
     assert plan.planner == "allocator: optimizer_error"
+
+
+def test_a_held_slot_blocks_the_discharge_through_the_reserve_blocker():
+    """Step 5: the optimizer's hold is executed by the reserve's own blocker,
+    for the whole slot; outside it nothing is blocked and the reserve module's
+    level is not used."""
+    from types import SimpleNamespace
+
+    from tests.conftest import FakeCoordinator
+
+    a, b = _slots(_at(11, 0), [0.15, 0.30])
+    battery = FakeCoordinator(name="b1", data={"battery_soc": 60.0, "battery_total_energy": 10.0})
+    blocks = {}
+    clock_now = {"t": a.start}
+    ctrl = SimpleNamespace(
+        coordinators=[battery],
+        _dp_plan_holds=frozenset({a}),
+        _pricing_mgr=SimpleNamespace(_now=lambda: clock_now["t"]),
+        _is_battery_manual_owned=lambda c: False,
+        _discharge_reserve_mgr=SimpleNamespace(
+            feature_enabled=lambda: True,
+            reserve_soc_pct=lambda: (_ for _ in ()).throw(AssertionError("reserve module asked")),
+        ),
+        set_discharge_block=lambda source, reason, details=None, coordinator=None: blocks.__setitem__(
+            (source, coordinator.name), details
+        ),
+        remove_discharge_block=lambda source, coordinator=None: blocks.pop((source, coordinator.name), None),
+    )
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert blocks[("price_reserve", "b1")]["origin"] == "plan"
+    clock_now["t"] = b.start
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert blocks == {}
