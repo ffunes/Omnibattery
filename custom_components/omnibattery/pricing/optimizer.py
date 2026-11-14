@@ -153,9 +153,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         sell = isinstance(option, tuple) and option[0] == SELL
         hold = option == HOLD or (not sell and isinstance(option, tuple) and len(option) > 2)
         export = option == EXPORT
+        # The delay applies where its mask lets the slot export, judged once at
+        # the slot's start for every option: elsewhere neither its export nor its
+        # tie-break (which steered sales of the sun from an empty battery).
+        delayed = delay.allows(e, slot_start, quarter_ends[-1]) if delay is not None else None
         if export and not request.export_choice_allowed:
-            # The delay alone: only where the later sun still refills (per state).
-            export = delay.allows(e, slot_start, quarter_ends[-1])
+            export = delayed
         target = None if option in (None, HOLD, EXPORT) or sell else target_of(e, option[0])
         done = np.zeros(e.shape, dtype=bool)
         ends = []
@@ -216,7 +219,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             else:
                 e, c = model.normal_step(q, e, t)
             if delay is not None:
-                decide += delay.weight(end) * kept  # stored early costs a hair more (D9)
+                decide += delay.weight(end) * kept * delayed  # stored early costs a hair more (D9)
             cost += c
             decide += c
             if floor > 0 and request.floor_until is not None and end <= request.floor_until:

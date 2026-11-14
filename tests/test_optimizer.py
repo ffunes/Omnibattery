@@ -532,3 +532,17 @@ def test_a_closed_day_carries_no_delay_tie_break():
     closed = _solar_delay(closed_req, _slot_groups(closed_req), m, 10.0)
     assert open_.weight(T0 + Q) > 0
     assert closed.weight(T0 + Q) == 0
+
+
+def test_the_delay_tie_break_does_not_push_sales_where_it_may_not_export():
+    # Flat export prices: selling the morning sun or the afternoon's costs the
+    # same. Under the setpoint the delay may not export, so its tie-break must
+    # not steer the sales either (it sold the morning sun from an empty battery
+    # and missed the re-plans a short sun would have triggered).
+    prices = [0.22] * 16 + [0.32] * 8
+    base = _request(prices, house=[0.05] * 16 + [0.4] * 8, solar=[0.0] * 2 + [1.0] * 12 + [0.0] * 10,
+                    usable=0.0, room=2.0, threshold=0.0)
+    sale = _with_sale(base, [p - 0.02 for p in prices])
+    off = optimize_charge(sale).plan
+    on = optimize_charge(_with_delay(sale, setpoint_pct=90.0)).plan
+    assert sorted(s.start for s, _kw in on.sales) == sorted(s.start for s, _kw in off.sales)
