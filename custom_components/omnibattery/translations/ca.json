@@ -1766,7 +1766,8 @@
           "delayed": "Retardat",
           "charging_allowed": "Càrrega permesa",
           "skipped_full_charge_day": "Omès – Dia de càrrega completa",
-          "charging_to_setpoint": "Carregant fins al setpoint"
+          "charging_to_setpoint": "Carregant fins al setpoint",
+          "planned": "Planificat per l'optimitzador"
         }
       },
       "high_price_discharge_status": {

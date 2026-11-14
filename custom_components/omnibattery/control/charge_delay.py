@@ -93,6 +93,17 @@ _DECISION_STATUS_FIELDS = (
 )
 
 
+def _plan_owns_delay(ctrl) -> bool:
+    """Whether Dynamic Pricing's optimizer plans the delay (step 8). The last
+    plan's flag counts only while predictive charging still runs in Dynamic
+    Pricing: after a switch to another mode the module decides again."""
+    return bool(
+        getattr(ctrl, "_dp_plan_solar_delay", False)
+        and getattr(ctrl, "predictive_charging_enabled", False)
+        and getattr(ctrl, "predictive_charging_mode", None) == PREDICTIVE_MODE_DYNAMIC_PRICING
+    )
+
+
 def _decision_now() -> datetime:
     """Return Home Assistant local time, preserving the legacy test clock hook."""
     now = dt_util.now()
@@ -334,6 +345,14 @@ class ChargeDelayManager:
             ctrl._charge_delay_status["state"] = "Disabled"
             return False
 
+        # Dynamic Pricing's optimizer plans the delay (step 8): it exports the
+        # sun it delays and runs its own grid charge. Not latched: the module
+        # decides again as soon as the optimizer stops planning.
+        if _plan_owns_delay(ctrl):
+            self._clear_completed_decision_status()  # the module decided nothing
+            ctrl._charge_delay_status["state"] = "Planned"
+            return False
+
         # Skip delay entirely on the weekly full charge day when opted in
         if ctrl._balance_monitor_overrides_delay():
             ctrl._charge_delay_status["state"] = "Skipped - Full Charge Day"
@@ -423,6 +442,7 @@ class ChargeDelayManager:
             and not ctrl._charge_delay_unlocked
             and not ctrl._delay_setpoint_reached
             and not ctrl._balance_monitor_overrides_delay()
+            and not _plan_owns_delay(ctrl)
         )
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):

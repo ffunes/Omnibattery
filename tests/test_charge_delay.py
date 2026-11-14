@@ -1120,3 +1120,75 @@ def test_no_excluded_claim_leaves_the_delay_unchanged(monkeypatch, claim):
     mgr = _claim_mgr(monkeypatch, claim)
     assert mgr._should_delay_charge(80) is True
     assert mgr._controller._charge_delay_status["net_solar_kwh"] == pytest.approx(4.54, abs=0.01)
+
+
+# ----------------------------------------------------------------------
+# Step 8 (D9): the 2.0.0 optimizer plans the delay in Dynamic Pricing
+# ----------------------------------------------------------------------
+
+def test_the_delay_does_not_block_while_the_optimizer_plans_it():
+    """The plan exports the sun it delays and runs its own grid charge: the
+    module's global block (which also stopped planned grid charges) stays off,
+    and the day is not latched as unlocked (the module takes over again if the
+    optimizer stops planning)."""
+    ctrl = _controller(_dp_plan_solar_delay=True, predictive_charging_enabled=True,
+                       predictive_charging_mode="dynamic_pricing")
+    mgr = _make_mgr(ctrl)
+    mgr._should_delay_charge = lambda target: (_ for _ in ()).throw(AssertionError("module asked"))
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_unlocked is False and mgr.saves == 0
+
+
+def test_the_setpoint_blocks_stay_off_while_the_optimizer_plans_the_delay():
+    coords = [_ncoord("a", 80), _ncoord("b", 40)]
+    ctrl = _setpoint_controller(coords, _dp_plan_solar_delay=True, predictive_charging_enabled=True,
+                                predictive_charging_mode="dynamic_pricing")
+    _mgr_for(ctrl).refresh_setpoint_blocks()
+    assert not any(ctrl.blocks.values())  # 80 % >= the 70 % setpoint would block "a"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        dict(predictive_charging_enabled=True, predictive_charging_mode="time_slot"),
+        dict(predictive_charging_enabled=False, predictive_charging_mode="dynamic_pricing"),
+    ],
+    ids=["time_slot", "predictive_off"],
+)
+def test_a_stale_plan_ownership_does_not_silence_the_delay(overrides):
+    """The plan only owns the delay in Dynamic Pricing with predictive charging
+    on: after switching to Time Slot (or turning predictive charging off) the
+    flag of the last plan must not keep the module quiet."""
+    ctrl = _controller(_dp_plan_solar_delay=True, **overrides)
+    mgr = _make_mgr(ctrl)
+    asked = []
+    mgr._should_delay_charge = lambda target: asked.append(target) or True
+    assert mgr.is_charge_delayed() is True and asked
+
+
+def test_the_planned_state_is_translated_everywhere():
+    """Step 8: while the optimizer plans the delay its sensor reads "planned";
+    like the other states it needs a name in every language."""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "omnibattery"
+    sensor = SimpleNamespace(_controller=SimpleNamespace(_charge_delay_status={"state": "Planned"}))
+    assert sensor_module.ChargeDelaySensor.native_value.fget(sensor) == "planned"
+    for path in [root / "strings.json", *sorted((root / "translations").glob("*.json"))]:
+        states = json.loads(path.read_text(encoding="utf-8"))["entity"]["sensor"]["charge_delay_status"]["state"]
+        assert states.get("planned"), path.name
+
+
+def test_planned_clears_the_module_s_last_decision():
+    """While the plan owns the delay the module decides nothing: its last
+    estimate (unlock time, balance figures) must not stay on the sensor."""
+    ctrl = _controller(_dp_plan_solar_delay=True, predictive_charging_enabled=True,
+                       predictive_charging_mode="dynamic_pricing")
+    ctrl._charge_delay_status.update(estimated_unlock_time="11:30", unlock_reason="price_optimal",
+                                     net_solar_kwh=4.2)
+    _make_mgr(ctrl).is_charge_delayed()
+    status = ctrl._charge_delay_status
+    assert status["state"] == "Planned"
+    assert status["estimated_unlock_time"] is None and status["unlock_reason"] is None
+    assert status["net_solar_kwh"] is None

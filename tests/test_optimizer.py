@@ -410,3 +410,139 @@ def test_no_sale_when_it_does_not_pay_after_the_margin():
     plan = optimize_charge(_with_sale(_request(prices, house=0.05, usable=4.0, threshold=0.0), exports,
                                       margin=0.05)).plan
     assert not plan.sales
+
+
+# --- Step 8: Solar Charge Delay (D9) -------------------------------------
+
+def _with_delay(request, margin_h=0.0, setpoint_pct=None):
+    import dataclasses
+    return dataclasses.replace(request, solar_delay_margin_h=margin_h, solar_delay_setpoint_pct=setpoint_pct)
+
+
+def _full_at(plan, cap):
+    return next(t for t, e in plan.trajectory if e >= cap - 1e-6)
+
+
+def test_solar_delay_stores_the_sun_as_late_as_it_still_fills():
+    # No export price: storing early or late costs the same. With the delay
+    # the morning surplus is exported and the battery fills at the end of the
+    # sun; without it, as soon as the sun comes.
+    base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
+    off = optimize_charge(base).plan
+    on = optimize_charge(_with_delay(base)).plan
+    assert not off.exports and _full_at(off, 2.0) <= T0 + 6 * Q
+    assert on.exports and _full_at(on, 2.0) >= T0 + 11 * Q
+    assert on.optimizer_cost == pytest.approx(off.optimizer_cost, abs=1e-6)
+
+
+def test_solar_delay_never_exports_what_the_later_sun_cannot_refill():
+    # Strong sun first, weak after: the late surplus alone cannot fill the
+    # battery, so only what it can refill is exported and the battery ends
+    # the sun as full as without the delay.
+    base = _request([0.20] * 8, house=0.05, solar=[0.7] * 4 + [0.2] * 4, usable=0.0, room=2.0,
+                    threshold=0.0)
+    off = optimize_charge(base).plan
+    on = optimize_charge(_with_delay(base)).plan
+    assert on.trajectory[-1][1] >= off.trajectory[-1][1] - 0.1  # one 1 % step of 10 kWh
+
+
+def test_solar_delay_fills_to_the_setpoint_first():
+    base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
+    plan = optimize_charge(_with_delay(base, setpoint_pct=25.0)).plan  # 15 % + 1 kWh of 10
+    first_export = min(s.start for s in plan.exports)
+    reached = next(t for t, e in plan.trajectory if e >= 1.0 - 1e-6)
+    assert first_export >= reached
+
+
+def test_solar_delay_fills_before_the_time_margin():
+    base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
+    plan = optimize_charge(_with_delay(base, margin_h=1.0)).plan  # sun ends at 03:00
+    assert T0 + 7 * Q <= _full_at(plan, 2.0) <= T0 + 8 * Q
+
+
+def test_solar_delay_keeps_a_30_percent_cushion_on_the_later_sun():
+    # The surplus left after the first slot refills the battery 1.15 times
+    # over: enough with an exact forecast, not with the delay's 30 % cushion
+    # (a forecast that comes in short left the battery unfilled).
+    base = _request([0.20] * 6, house=0.05, solar=[0.5] + [0.549] * 5, usable=0.0, room=2.0,
+                    threshold=0.0)
+    plan = optimize_charge(_with_delay(base)).plan
+    assert base.price_slots[0] not in set(plan.exports)
+
+
+def test_solar_delay_does_not_delay_on_a_day_that_needs_the_grid():
+    # The module's daily balance: stored energy + the sun left today short of
+    # the house load left today (minus its 0.5 kWh deadband) means the day
+    # needs the grid anyway; delaying the sun then gains nothing and risks it.
+    sunny = _request([0.20] * 20, house=[0.05] * 12 + [1.0] * 8, solar=[0.5] * 12 + [0.0] * 8,
+                     usable=0.0, room=2.0, threshold=0.0)
+    assert not optimize_charge(_with_delay(sunny)).plan.exports
+    light = _request([0.20] * 20, house=[0.05] * 12 + [0.2] * 8, solar=[0.5] * 12 + [0.0] * 8,
+                     usable=0.0, room=2.0, threshold=0.0)
+    assert optimize_charge(_with_delay(light)).plan.exports
+
+
+def test_a_day_that_needs_the_grid_at_planning_time_stays_closed():
+    # The balance is short now (a night load the grid carries with the battery
+    # empty) and sufficient from the first sunny slot: like the module, which
+    # decides once and keeps the day unlocked, today exports nothing.
+    req = _request([0.20] * 20, house=[2.0] * 4 + [0.05] * 12 + [0.2] * 4,
+                   solar=[0.0] * 4 + [0.5] * 12 + [0.0] * 4, usable=0.0, room=2.0, threshold=0.0)
+    plan = optimize_charge(_with_delay(req)).plan
+    assert not plan.exports and plan.solar_delay_day_closed
+
+
+def test_a_closed_day_reaches_the_optimizer():
+    import dataclasses
+    base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
+    closed = dataclasses.replace(_with_delay(base), solar_delay_closed_until=T0 + timedelta(days=1))
+    assert optimize_charge(_with_delay(base)).plan.exports
+    assert not optimize_charge(closed).plan.exports
+
+
+def test_the_delay_tie_break_never_adds_up_to_more_than_a_tenth_of_a_cent():
+    # Two sunny days and a small battery (it refills many times over): the
+    # tie-break may decide, never cost real money, so its total over the whole
+    # horizon stays within 0.1 c.
+    from custom_components.omnibattery.pricing.battery_model import BatteryModel
+    from custom_components.omnibattery.pricing.optimizer import DELAY_TIE_EUR, _slot_groups, _solar_delay
+
+    n = 192  # two days of quarters
+    solar = [0.5 if 32 <= k % 96 < 72 else 0.0 for k in range(n)]
+    req = _with_delay(_request([0.20] * n, house=0.05, solar=solar, usable=0.0, room=2.0, threshold=0.0))
+    m = BatteryModel(capacity_kwh=10.0, round_trip_efficiency=0.85, floor_kwh=1.5, usable_kwh=2.0)
+    groups = _slot_groups(req)
+    delay = _solar_delay(req, groups, m, 10.0)
+    ends = [end for _s, _qs, es in groups for end in es]
+    storable = [min(max(0.0, sun - 0.05), 2.5 * 0.25) * m.eff for sun in solar]
+    assert sum(delay.weight(end) * v for end, v in zip(ends, storable)) <= DELAY_TIE_EUR + 1e-12
+
+
+def test_a_closed_day_carries_no_delay_tie_break():
+    # No delay on a closed day, the tie-break included: with stress it moved
+    # sales and fills on a day the module would not have delayed.
+    import dataclasses
+    from custom_components.omnibattery.pricing.battery_model import BatteryModel
+    from custom_components.omnibattery.pricing.optimizer import _slot_groups, _solar_delay
+
+    req = _with_delay(_request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0))
+    m = BatteryModel(capacity_kwh=10.0, round_trip_efficiency=0.85, floor_kwh=1.5, usable_kwh=2.0)
+    open_ = _solar_delay(req, _slot_groups(req), m, 10.0)
+    closed_req = dataclasses.replace(req, solar_delay_closed_until=T0 + timedelta(days=1))
+    closed = _solar_delay(closed_req, _slot_groups(closed_req), m, 10.0)
+    assert open_.weight(T0 + Q) > 0
+    assert closed.weight(T0 + Q) == 0
+
+
+def test_the_delay_tie_break_does_not_push_sales_where_it_may_not_export():
+    # Flat export prices: selling the morning sun or the afternoon's costs the
+    # same. Under the setpoint the delay may not export, so its tie-break must
+    # not steer the sales either (it sold the morning sun from an empty battery
+    # and missed the re-plans a short sun would have triggered).
+    prices = [0.22] * 16 + [0.32] * 8
+    base = _request(prices, house=[0.05] * 16 + [0.4] * 8, solar=[0.0] * 2 + [1.0] * 12 + [0.0] * 10,
+                    usable=0.0, room=2.0, threshold=0.0)
+    sale = _with_sale(base, [p - 0.02 for p in prices])
+    off = optimize_charge(sale).plan
+    on = optimize_charge(_with_delay(sale, setpoint_pct=90.0)).plan
+    assert sorted(s.start for s, _kw in on.sales) == sorted(s.start for s, _kw in off.sales)

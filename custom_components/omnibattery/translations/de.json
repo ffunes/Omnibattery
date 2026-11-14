@@ -1766,7 +1766,8 @@
           "delayed": "Verzögert",
           "charging_allowed": "Laden erlaubt",
           "skipped_full_charge_day": "Übersprungen – Vollladetag",
-          "charging_to_setpoint": "Laden bis Sollwert"
+          "charging_to_setpoint": "Laden bis Sollwert",
+          "planned": "Vom Optimierer geplant"
         }
       },
       "high_price_discharge_status": {

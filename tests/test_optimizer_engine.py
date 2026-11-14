@@ -617,3 +617,103 @@ def test_the_soc_drop_projection_is_the_optimizer_trajectory(monkeypatch, case, 
     usable = outcome.plan.projection_inputs[0]
     expected = tuple((end, energy - usable) for end, energy in outcome.plan.trajectory)
     assert expected and box["c"]._dp_eval_projection == expected
+
+
+def _delay_engine(monkeypatch, *, enabled=True, setpoint=None):
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    box = {}
+    real_controller = h._controller
+
+    def build(s):
+        c = real_controller(s)
+        c.charge_delay_enabled = enabled
+        c._delay_safety_margin_h = 1.0
+        c._delay_soc_setpoint_enabled = setpoint is not None
+        c._delay_soc_setpoint = setpoint or 50
+        c._balance_monitor_overrides_delay = lambda: False
+        box["c"] = c
+        return c
+
+    monkeypatch.setattr(h, "_controller", build)
+    case = ("1x7k-800", 60, "flat0.4", "night-cheap", False, "sunny", "07:00")
+    return h._run_engine(sw.scenario(case, soc=17), monkeypatch), box["c"]
+
+
+def test_the_charge_delay_is_planned_by_the_optimizer(monkeypatch):
+    """Step 8 (D9): the delay's margin and setpoint reach the optimizer, which
+    exports the morning sun it delays (no export sensor needed) and owns the
+    delay while its plan stands."""
+    outcome, c = _delay_engine(monkeypatch, setpoint=40)
+    assert outcome.request.solar_delay_margin_h == 1.0
+    assert outcome.request.solar_delay_setpoint_pct == 40
+    assert c._dp_plan_solar_delay is True and c._dp_plan_exports
+    outcome, c = _delay_engine(monkeypatch, enabled=False)
+    assert outcome.request.solar_delay_margin_h is None
+    assert not getattr(c, "_dp_plan_solar_delay", False) and c._dp_plan_exports is None
+
+
+def test_a_delay_export_runs_without_the_surplus_hold():
+    a, _b = _slots(_at(10, 0), [0.20, 0.20])
+    ctrl, blocks, _clock = _export_controller({a}, a.start, projected=50.0, soc=50.0)
+    ctrl._surplus_hold_mgr.feature_enabled = lambda: False
+    ctrl._dp_plan_solar_delay = True
+    ctrl.predictive_charging_enabled = True
+    ctrl.predictive_charging_mode = "dynamic_pricing"
+    ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
+    assert blocks["surplus_price_hold"]["origin"] == "plan"
+
+
+def test_an_evaluation_drops_the_delay_ownership_with_the_plan_orders():
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    ctrl = SimpleNamespace(_dp_plan_solar_delay=True)
+    PricingManager._clear_plan_orders(SimpleNamespace(_controller=ctrl))
+    assert ctrl._dp_plan_solar_delay is False
+
+
+def test_a_closed_delay_day_is_kept_until_midnight(monkeypatch):
+    """Like the module, a day whose balance needs the grid when it is planned
+    stays without delay until midnight, across re-plans."""
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    case = ("1x5k-2500", 15, "evening", "night-cheap", False, "sunny", "00:05")
+    box = {}
+    real_controller = h._controller
+
+    def build(s, closed=None):
+        c = real_controller(s)
+        c.charge_delay_enabled = True
+        c._delay_safety_margin_h = 1.0
+        c._delay_soc_setpoint_enabled = False
+        c._delay_soc_setpoint = 50
+        c._balance_monitor_overrides_delay = lambda: False
+        if closed is not None:
+            c._dp_solar_delay_closed_date = closed
+        box["c"] = c
+        return c
+
+    monkeypatch.setattr(h, "_controller", build)
+    h._run_engine(sw.scenario(case), monkeypatch)
+    assert box["c"]._dp_solar_delay_closed_date == sw.DAY.date()
+    assert box["c"]._dp_plan_solar_delay is True  # the module still stands aside
+    monkeypatch.setattr(h, "_controller", lambda s: build(s, closed=sw.DAY.date()))
+    outcome = h._run_engine(sw.scenario(case, now="10:00"), monkeypatch)
+    assert outcome.request.solar_delay_closed_until.date() == (sw.DAY + timedelta(days=1)).date()
+    assert outcome.request.solar_delay_closed_until.hour == 0
+
+
+def test_a_delay_export_of_a_stale_plan_does_not_run_in_another_mode():
+    a, _b = _slots(_at(10, 0), [0.20, 0.20])
+    ctrl, blocks, _clock = _export_controller({a}, a.start, projected=50.0, soc=50.0)
+    ctrl._surplus_hold_mgr.feature_enabled = lambda: False
+    ctrl._surplus_hold_mgr.is_hold_active = lambda: False
+    ctrl._dp_plan_solar_delay = True
+    ctrl.predictive_charging_enabled = True
+    ctrl.predictive_charging_mode = "time_slot"
+    ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
+    assert blocks == {}

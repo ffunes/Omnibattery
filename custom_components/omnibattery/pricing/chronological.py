@@ -245,6 +245,19 @@ class ChronologicalEvaluationRequest:
     sell_allowed: bool = False
     sell_power_kw: float = 0.0
     battery_export_prices: Mapping[datetime, float] | None = None
+    # Solar Charge Delay on (step 8, D9): None = off. A slot may export its
+    # solar surplus (valued at the export price, 0 without one) as long as the
+    # sun left before each day's sun end minus this margin refills the battery
+    # and it is at the setpoint (% of the fleet, None = no setpoint); at equal
+    # cost the sun is stored as late as possible.
+    solar_delay_margin_h: float | None = None
+    solar_delay_setpoint_pct: float | None = None
+    # The module's daily balance gate: no delay when stored energy + the sun
+    # left today falls short of the house left today minus this deadband.
+    solar_delay_deadband_kwh: float = 0.5
+    # A day closed by an earlier plan (its balance needed the grid): no delay
+    # export before this time (the next midnight), as the module's daily latch.
+    solar_delay_closed_until: datetime | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

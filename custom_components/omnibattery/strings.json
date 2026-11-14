@@ -1761,7 +1761,8 @@
           "delayed": "Delayed",
           "charging_allowed": "Charging allowed",
           "skipped_full_charge_day": "Skipped – Full charge day",
-          "charging_to_setpoint": "Charging to setpoint"
+          "charging_to_setpoint": "Charging to setpoint",
+          "planned": "Planned by the optimizer"
         }
       },
       "high_price_discharge_status": {
