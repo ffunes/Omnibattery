@@ -498,3 +498,21 @@ def test_a_closed_day_reaches_the_optimizer():
     closed = dataclasses.replace(_with_delay(base), solar_delay_closed_until=T0 + timedelta(days=1))
     assert optimize_charge(_with_delay(base)).plan.exports
     assert not optimize_charge(closed).plan.exports
+
+
+def test_the_delay_tie_break_never_adds_up_to_more_than_a_tenth_of_a_cent():
+    # Two sunny days and a small battery (it refills many times over): the
+    # tie-break may decide, never cost real money, so its total over the whole
+    # horizon stays within 0.1 c.
+    from custom_components.omnibattery.pricing.battery_model import BatteryModel
+    from custom_components.omnibattery.pricing.optimizer import DELAY_TIE_EUR, _slot_groups, _solar_delay
+
+    n = 192  # two days of quarters
+    solar = [0.5 if 32 <= k % 96 < 72 else 0.0 for k in range(n)]
+    req = _with_delay(_request([0.20] * n, house=0.05, solar=solar, usable=0.0, room=2.0, threshold=0.0))
+    m = BatteryModel(capacity_kwh=10.0, round_trip_efficiency=0.85, floor_kwh=1.5, usable_kwh=2.0)
+    groups = _slot_groups(req)
+    delay = _solar_delay(req, groups, m, 10.0)
+    ends = [end for _s, _qs, es in groups for end in es]
+    storable = [min(max(0.0, sun - 0.05), 2.5 * 0.25) * m.eff for sun in solar]
+    assert sum(delay.weight(end) * v for end, v in zip(ends, storable)) <= DELAY_TIE_EUR + 1e-12

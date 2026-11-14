@@ -53,8 +53,10 @@ TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
 SELL = "sell"  # menu option ("sell", kW): the grid is held at -kW for the slot
-# Solar Charge Delay (D9): at most this much per day, on the solar surplus
-# stored before the deadline, decreasing to 0 there: a tie-break, never reported.
+# Solar Charge Delay (D9): at most this much over the whole horizon, on the
+# solar surplus stored before each deadline, decreasing to 0 there: a
+# tie-break, never reported (per day it bought delay with real money once the
+# battery refilled several times over the horizon).
 DELAY_TIE_EUR = 0.001
 # The later sun must refill the battery this many times over before the delay
 # exports (the module's DELAY_SAFETY_FACTOR): a short forecast left it unfilled.
@@ -351,7 +353,7 @@ class _SolarDelay:
         self._closed_until = closed_until
         self.day_closed = False
         self._storable, self._setpoint = storable, setpoint_e
-        self._w = DELAY_TIE_EUR / max(cap, 1.0)
+        self._w = DELAY_TIE_EUR / max(cap, sum(v for _e, v in storable), 1e-6)
 
     def _deadline(self, t):
         return self._deadlines.get(t.date())
