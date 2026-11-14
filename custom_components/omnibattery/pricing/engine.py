@@ -507,11 +507,16 @@ class PricingManager:
         """
         reason = optimizer_fallback_reason(request)
         if reason is None:
-            result = optimize_charge(request)
-            result.plan.planner = "optimizer"
-        else:
-            result = cls.evaluate_chronological_projection(request)
-            result.plan.planner = f"allocator: {reason}"
+            try:
+                result = optimize_charge(request)
+            except Exception:  # noqa: BLE001 - a plan from the allocator beats none
+                _LOGGER.exception("Dynamic pricing: optimizer failed, previous planner used")
+                reason = "optimizer_error"
+            else:
+                result.plan.planner = "optimizer"
+                return result
+        result = cls.evaluate_chronological_projection(request)
+        result.plan.planner = f"allocator: {reason}"
         return result
 
     @staticmethod

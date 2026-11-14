@@ -510,12 +510,16 @@ def _controller(scenario: Scenario) -> SimpleNamespace:
     return controller
 
 
-def _run_engine(scenario: Scenario, monkeypatch) -> Outcome:
+def _run_engine(scenario: Scenario, monkeypatch, *, executor: bool = False) -> Outcome:
     controller = _controller(scenario)
     hass = SimpleNamespace(
         config=SimpleNamespace(time_zone=scenario.time_zone),
         states=SimpleNamespace(get=lambda _entity_id: None),
     )
+    if executor:  # Home Assistant's: a worker thread, the loop stays free
+        hass.async_add_executor_job = lambda fn, *args: (
+            asyncio.get_running_loop().run_in_executor(None, fn, *args)
+        )
     controller.hass = hass
     manager = PricingManager(hass, controller)
     controller._pricing_mgr = manager
@@ -568,6 +572,7 @@ def _run_engine(scenario: Scenario, monkeypatch) -> Outcome:
     # Not a ScenarioMismatch: an xfail must never hide a planner fallback.
     assert reason is not None, "the chronological planner did not run"
     assert not str(reason).startswith("fallback"), f"planner fell back: {reason}"
+    assert "optimizer_error" not in str(decision.get("planner")), "the optimizer failed"
     if not requests:
         raise ScenarioError("no chronological request reached the allocator")
     request = requests[0]

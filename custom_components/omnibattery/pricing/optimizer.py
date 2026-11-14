@@ -38,10 +38,16 @@ from .chronological import (
     build_energy_deadlines,
 )
 
-LATTICE_KWH = 0.05  # energy grid of the value function (design §6)
+# Energy grid of the value function: 0.01 kWh (§6 said 0.05; 0.01 closes a
+# 0.32 c miss for +18 % time), at most MAX_LEVELS levels on large fleets.
+LATTICE_KWH = 0.01
+MAX_LEVELS = 1000
+# Quota menu per slot: 0.05 kWh steps, at most MAX_ASKS of them (an hourly
+# slot at 10 kW would offer 184). ponytail: coarser on large fleets (40 kWh /
+# 10 kW / hourly / 36 h: 5.5 s -> 0.6 s on a PC); finer if a fleet needs it.
 QUOTA_STEP_KWH = 0.05
+MAX_ASKS = 24
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
-PUBLISH_MARGIN_KWH = 1e-6  # 1 mWh
 _TOL = 1e-9
 
 
@@ -69,9 +75,10 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     end_value = min((p for p in prices if p > 0), default=0.0) * model.eff
 
     e0 = min(usable, cap)
-    lattice = np.arange(e0 % LATTICE_KWH, cap + _TOL, LATTICE_KWH)
+    grid = max(LATTICE_KWH, cap / MAX_LEVELS)
+    lattice = np.arange(e0 % grid, cap + _TOL, grid)
     extra = [0.0, cap, e0]
-    if soc_step >= LATTICE_KWH / 2:
+    if soc_step >= grid / 2:
         # The value jumps where the whole-percent reading changes (a slot's
         # target rounds from it): a point on each side of every step, so the
         # interpolation never crosses a jump. Finer readings jump too little
@@ -89,7 +96,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         most = sum(model.charge_rate(q) for q in quarters)
         if most <= _TOL:
             return [None]
-        asks = list(np.arange(QUOTA_STEP_KWH, most, QUOTA_STEP_KWH)) + [most]
+        step = max(QUOTA_STEP_KWH, most / MAX_ASKS)
+        asks = list(np.arange(step, most, step)) + [most]
         return [None] + [(a, False) for a in asks] + [(most + max(soc_step, QUOTA_STEP_KWH), True)]
 
     def run(quarters, e, option, slot_price):
@@ -151,10 +159,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         _v, option, e_end, c, stored, open_, path = chosen
         if option is not None and stored > _TOL:
             allocations.append(SlotAllocation(
-                # 1 mWh under: the controller stops at the first reading at or
-                # above its target, so a float hair over a whole percent
-                # (0.30720000000000014 = 6 % of 5.12 kWh) would cost a percent.
-                slot, max(0.0, stored - PUBLISH_MARGIN_KWH), None, "flexible",
+                slot, _published_quota(model, soc_step, e, option, stored, open_),
+                None, "flexible",
                 # Charged to the slot's end or to the top: executing
                 # ``stored`` as a plain quota would stop it early.
                 to_slot_end=open_,
@@ -207,6 +213,26 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             cheaper_to_import_kwh=plan.cheaper_to_import_kwh,
         ),
     )
+
+
+def _published_quota(model, soc_step, e, option, stored, to_end):
+    """The slot energy to publish: what the plan stores, kept inside the
+    quotas that give the controller the same target from the same reading.
+
+    The controller adds the quota to the whole-percent reading and stops at the
+    first reading at or above it. Any quota in (T - R - step, T - R] reaches
+    the plan's target T from reading R; the stored energy T - e lies in it,
+    but at its edges a float hair decides (6 % of 5.12 kWh is
+    0.30720000000000014: one percent more; a battery the house left 0.5 mWh
+    under a whole percent: one percent less). So it keeps a thousandth of a
+    step from both.
+    """
+    if to_end or soc_step <= 0:
+        return stored
+    reading = float(np.floor((model.floor_kwh + e) / soc_step + 1e-6) * soc_step - model.floor_kwh)
+    target = float(model.slot_target(e, option[0]))
+    margin = soc_step * 1e-3
+    return min(max(stored, target - reading - soc_step + margin), target - reading - margin)
 
 
 def _slot_groups(request: ChronologicalEvaluationRequest):

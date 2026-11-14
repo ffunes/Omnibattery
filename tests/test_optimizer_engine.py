@@ -137,3 +137,59 @@ def test_only_the_dynamic_pricing_control_plan_runs_the_optimizer(monkeypatch):
     asyncio.run(manager.async_refresh_chronological_diagnostics(now=scenario.now))
     assert projection.plan is not None
     assert calls == []
+
+
+def test_the_optimizer_runs_off_the_event_loop(monkeypatch):
+    """With Home Assistant's executor the plan is computed in a worker thread
+    while the event loop keeps serving callbacks, and it is the same plan."""
+    import asyncio
+    import threading
+
+    from custom_components.omnibattery.pricing.engine import PricingManager
+    from tests import test_predictive_scenarios as h
+
+    scenario = h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json")
+    inline = h._run_engine(scenario, monkeypatch)
+
+    seen = {}
+    real = PricingManager.evaluate_dynamic_pricing_plan.__func__
+
+    def in_worker(cls, request):
+        seen["thread"] = threading.current_thread()
+        loop_free = threading.Event()
+        seen["loop"].call_soon_threadsafe(loop_free.set)
+        seen["loop_served"] = loop_free.wait(timeout=5)
+        return real(cls, request)
+
+    monkeypatch.setattr(PricingManager, "evaluate_dynamic_pricing_plan", classmethod(in_worker))
+    real_run = asyncio.run
+
+    def run(coro):
+        async def main():
+            seen["loop"] = asyncio.get_running_loop()
+            return await coro
+        return real_run(main())
+
+    monkeypatch.setattr(h.asyncio, "run", run)
+    threaded = h._run_engine(scenario, monkeypatch, executor=True)
+    assert seen["thread"] is not threading.main_thread()
+    assert seen["loop_served"]
+    assert threaded.booked == inline.booked
+
+
+def test_an_optimizer_failure_falls_back_to_the_previous_planner(monkeypatch):
+    from custom_components.omnibattery.pricing import engine as engine_module
+    from custom_components.omnibattery.pricing.engine import PricingManager
+    from tests.test_optimizer import _request
+
+    def broken(_request):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(engine_module, "optimize_charge", broken)
+    import dataclasses
+
+    request = dataclasses.replace(
+        _request([0.10, 0.40], house=0.3), grid_carries_load_while_charging=True
+    )
+    plan = PricingManager.evaluate_dynamic_pricing_plan(request).plan
+    assert plan.planner == "allocator: optimizer_error"
