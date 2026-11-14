@@ -6,7 +6,7 @@
     "date": "2026-11-12",
     "url": null
   },
-  "note": "Healthy baseline, not a report. One 10 kWh battery at 30 % (min 10 %) holds 2 kWh, a flat 0.5 kW house empties it at 02:00, and the sun is up at 08:00. Prices: 0.30 all night except 02:00-05:00 at 0.10. With a 0.03 margin at efficiency 0.85 the 02:00-05:00 load is cheaper to import at 0.10 than to store (it is worth 0.10 x 0.85 - 0.03 = 0.055), so only the 05:00-08:00 load (1.5 kWh, worth 0.225) is charged, in the last cheap hour, which ends where the dear hours begin. Prices stop at sunrise so the horizon stays the control one: with tomorrow's prices and no dated solar periods it would extend, sunless, to tomorrow's solar noon (#834).",
+  "note": "Healthy baseline, not a report. One 10 kWh battery at 30 % (min 10 %) holds 2 kWh, a flat 0.5 kW house empties it at 02:00, and the sun is up at 08:00. Prices: 0.30 all night except 02:00-05:00 at 0.10. With a 0.03 margin at efficiency 0.85 the 02:00-05:00 load is cheaper to import at 0.10 than to store (it is worth 0.10 x 0.85 - 0.03 = 0.055), so only the 05:00-08:00 load (1.5 kWh, worth 0.225) is charged, in the last cheap hour, which ends where the dear hours begin. 2.0.0 optimizer (D2: the battery loses sqrt(0.85) on the way out too): 1.5 kWh of house takes 1.63 kWh stored, rounded up to the whole percent: 1.80 kWh (cost2 oracle: 0.376 vs 0.430 for the previous 1.50 kWh). Prices stop at sunrise so the horizon stays the control one: with tomorrow's prices and no dated solar periods it would extend, sunless, to tomorrow's solar noon (#834).",
   "level": "engine",
   "now": "2026-01-20T22:00:00",
   "time_zone": "Europe/Amsterdam",
@@ -36,9 +36,9 @@
   },
   "expected": {
     "reason": "ok",
-    "total_kwh": {"min_kwh": 1.45, "max_kwh": 1.55},
+    "total_kwh": {"min_kwh": 1.7, "max_kwh": 1.85},
     "windows": [
-      {"start": "2026-01-21T04:00:00", "end": "2026-01-21T05:00:00", "min_kwh": 1.45, "max_kwh": 1.55}
+      {"start": "2026-01-21T04:00:00", "end": "2026-01-21T05:00:00", "min_kwh": 1.7, "max_kwh": 1.85}
     ],
     "no_slot_before": "2026-01-21T02:00:00",
     "no_slot_after": "2026-01-21T05:00:00",

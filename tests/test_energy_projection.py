@@ -131,6 +131,11 @@ def test_projection_matches_the_planners_request(monkeypatch):
         return evaluate(request)
 
     mgr.evaluate_chronological_projection = _recording
+    # Dynamic Pricing's control plan goes through the 2.0.0 optimizer's entry.
+    evaluate_dp = mgr.evaluate_dynamic_pricing_plan
+    mgr.evaluate_dynamic_pricing_plan = lambda request: (
+        requests.append(request) or evaluate_dp(request)
+    )
     asyncio.run(
         mgr._evaluate_dynamic_pricing(horizon=DynamicPricingEvaluationHorizon.REMAINING)
     )

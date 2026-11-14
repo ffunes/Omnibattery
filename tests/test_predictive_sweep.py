@@ -4,7 +4,10 @@ A grid of generic nights (fleet, SOC, house load, price shape, tomorrow's
 prices or not, sun, evaluation time) runs through the scenario bank's engine
 harness, and each run is held to rules that must hold whatever the inputs:
 
-* I1 more load never books less: the same night with 30 % more load.
+* I1 more load never books less: the same night with 30 % more load. For a
+  plan of the 2.0.0 optimizer (D8): with prices >= 0, more load never makes
+  the plan cheaper (it may book less: the load above the discharge power
+  goes to the grid, the contracted power leaves less for the charge).
 * I4 the published planned charge equals what the schedule books plus what
   the extended horizon defers to tomorrow.
 * I5 stable: re-evaluating at the next quarter after one hour, with the SOC
@@ -48,6 +51,7 @@ DAY = datetime(2026, 11, 10)
 SUNRISE, NOON = 8.0, 13.25
 LOAD_SCALE = 1.3
 EPS = 0.05
+COST_EPS = 0.003  # the optimizer's precision against exhaustive search (<= 0.2 c)
 
 FLEETS = {
     "1x5k-2500": [dict(capacity_kwh=5.12, max_charge_w=2500, max_discharge_w=2500)],
@@ -148,7 +152,7 @@ def run(sc: h.Scenario, *, daily=False):
             mp.setattr(h, "DynamicPricingEvaluationHorizon", SimpleNamespace(
                 REMAINING=h.DynamicPricingEvaluationHorizon.DAILY))
         outcome = h._run_engine(sc, mp)
-    plan = h.evaluate_chronological_request(outcome.request).plan
+    plan = outcome.plan
     return SimpleNamespace(o=outcome, d=box["c"]._last_decision_data or {}, plan=plan)
 
 
@@ -157,8 +161,25 @@ def total(r) -> float:
     return sum(k for _s, k in r.o.booked) + float(r.d.get("deferred_grid_charge_kwh") or 0.0)
 
 
+def _energy_at(p, at, start_kwh) -> float:
+    """Usable energy the 2.0.0 optimizer projects at ``at`` (its trajectory)."""
+    energy = start_kwh
+    for end, value in p.trajectory:
+        if end > at:
+            break
+        energy = value
+    return energy
+
+
 def spill(r) -> float:
     q, p = r.o.request, r.plan
+    if getattr(p, "trajectory", None):
+        # The optimizer's own model: a slot books at most the room it has then.
+        cap = q.usable_initial_kwh + q.headroom_kwh
+        return sum(
+            max(0.0, a.planned_battery_kwh - (cap - _energy_at(p, a.slot.start, q.usable_initial_kwh)))
+            for a in p.allocations
+        )
     rate = q.effective_power_kw * CHARGE_EFFICIENCY
     cap = q.usable_initial_kwh + q.headroom_kwh
     energy, lost = q.usable_initial_kwh, 0.0
@@ -181,6 +202,9 @@ def projected_soc(sc, r, at) -> float:
     q, p = r.o.request, r.plan
     cap = q.usable_initial_kwh + q.headroom_kwh
     energy = q.usable_initial_kwh
+    if getattr(p, "trajectory", None):
+        energy = _energy_at(p, at, energy)
+        return min(100.0, sc.fleet[0]["min_soc"] + max(0.0, energy) / sum(b["capacity_kwh"] for b in sc.fleet) * 100.0)
     for i in sorted(q.intervals, key=lambda x: x.start):
         if i.start >= at:
             break
@@ -215,7 +239,13 @@ def evaluate_pair(case, *, daily=False) -> list[tuple[str, str]]:
     findings = []
     runs = {scale: run(scenario(case, scale=scale), daily=daily) for scale in (1.0, LOAD_SCALE)}
     low, high = runs[1.0], runs[LOAD_SCALE]
-    if total(high) + EPS < total(low):
+    costs = [getattr(r.plan, "optimizer_cost", None) for r in (low, high)]
+    if None not in costs:
+        q = low.o.request
+        priced = [s.price for s in q.price_slots if s.end > q.now and s.start < q.horizon_end]
+        if min(priced, default=0.0) >= 0 and costs[1] + COST_EPS < costs[0]:
+            findings.append(("I1", f"x1.0 costs {costs[0]:.4f}, x{LOAD_SCALE} costs {costs[1]:.4f}"))
+    elif total(high) + EPS < total(low):
         findings.append(("I1", f"x1.0 books {total(low):.2f} ({low.o.reason}), x{LOAD_SCALE} books {total(high):.2f} ({high.o.reason})"))
     for scale, r in runs.items():
         published = float(r.d.get("planned_grid_charge_kwh") or 0.0)

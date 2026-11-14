@@ -44,6 +44,11 @@ class DynamicPricingSchedule:
     slot_cost_energy_kwh: dict = field(default_factory=dict)
     slot_deadlines: dict = field(default_factory=dict)
     slot_plan_kinds: dict = field(default_factory=dict)
+    # 2.0.0 optimizer plans: slots that charge until they end (the target asks
+    # one SOC step more than ``slot_energy_targets_kwh``), and the efficiency
+    # the slot energies were sized with. None = the previous allocator.
+    slot_charge_to_end: frozenset = frozenset()
+    plan_charge_efficiency: float | None = None
     chronological_planning_active: bool = False
     chronological_source: str | None = None
     solar_timeline_source: str | None = None

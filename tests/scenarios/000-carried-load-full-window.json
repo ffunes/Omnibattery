@@ -9,7 +9,8 @@
   "note": [
     "Found by the invariant sweep (I1, 2x5k-2500-soc15-flat1.2-falling-night-tomorrow-none-2240).",
     "Two 5.12 kWh batteries at 15 %, a flat 1.2 kW house, no solar, 0.22 from 22:00 to midnight, 0.30 falling 0.01 an hour to 0.23 at 07:00. Every hour to 05:00 repays a 0.22 charge after the losses (0.26 * 0.85 = 0.221), and the house needs more than the 22:40-24:00 window can store, so every slot should charge its whole capacity (about 5.1 kWh).",
-    "BEFORE: 4.02 kWh. The slots were booked full, then the load the grid carries while they charge was taken off them, as if they stopped early; the rest of the need had been left to the grid, so no shortfall kept them whole (#785). The battery was empty at 03:15 instead of about 04:30, and more load trimmed more (x1.3: 3.47)."
+    "BEFORE: 4.02 kWh. The slots were booked full, then the load the grid carries while they charge was taken off them, as if they stopped early; the rest of the need had been left to the grid, so no shortfall kept them whole (#785). The battery was empty at 03:15 instead of about 04:30, and more load trimmed more (x1.3: 3.47).",
+    "2.0.0 optimizer: the slots store at sqrt(0.85) = 0.92 (D2), not 0.85, so the full window is 5.59 kWh (cost2 oracle: 4.033 vs 4.039 for the previous 5.16 kWh)."
   ],
   "level": "engine",
   "now": "2026-11-10T22:40:00",
@@ -178,8 +179,8 @@
       {
         "start": "2026-11-10T22:30:00",
         "end": "2026-11-11T00:00:00",
-        "min_kwh": 5.0,
-        "max_kwh": 5.2
+        "min_kwh": 5.5,
+        "max_kwh": 5.7
       }
     ]
   }

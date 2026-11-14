@@ -105,6 +105,10 @@ class SlotAllocation:
     planned_battery_kwh: float
     deadline: datetime | None
     kind: str
+    # 2.0.0 optimizer: the slot charges until it ends. ``planned_battery_kwh``
+    # stays what the plan expects to store; the controller asks one SOC step
+    # more so the whole-percent target is not reached early (design §2.5).
+    to_slot_end: bool = False
 
 
 @dataclass(frozen=True)
@@ -138,6 +142,11 @@ class ChronologicalPlan:
     # Cheapest slot the price limits rejected, as (start, price, ceiling), so a
     # ``price_threshold`` plan shows by how much it missed.
     cheapest_rejected: tuple[datetime, float, float | None] | None = None
+    # 2.0.0 optimizer only: the usable energy it projects at the end of each
+    # interval (its own battery model, discharge losses included), and the
+    # efficiency its slot energies are sized with.
+    trajectory: tuple[tuple[datetime, float], ...] = ()
+    charge_efficiency: float | None = None
 
 
 @dataclass(frozen=True)
@@ -192,6 +201,18 @@ class ChronologicalEvaluationRequest:
     # charges. The house load comes out of it, so a slot stores at most
     # ``min(power, ceiling - net load)``. None keeps the flat ``power``.
     grid_ceiling_kw: float | None = None
+    # Inputs of the 2.0.0 optimizer (pricing/optimizer.py); the allocator
+    # above ignores them. The fleet's SOC reading and capacity place the
+    # whole-percent steps a slot target rounds to.
+    fleet_capacity_kwh: float | None = None
+    fleet_soc_pct: float | None = None
+    soc_resolution_pct: float = 1.0
+    discharge_kw: float | None = None
+    # Export price per slot start; a slot missing from it exports at 0.
+    export_prices: Mapping[datetime, float] | None = None
+    # D3: with negative-price charging off, a negative price counts as 0 for
+    # the energy the battery buys (the house still sees the real price).
+    negative_price_charging: bool = True
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

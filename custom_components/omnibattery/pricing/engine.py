@@ -111,6 +111,7 @@ from .chronological import (
     evaluate_chronological_request,
     simulate_allocations,
 )
+from .optimizer import optimize_charge, optimizer_fallback_reason
 from .plan_inputs import (  # noqa: F401  (_apply_excluded_demand_claim: re-exported)
     _apply_excluded_demand_claim,
     fleet_plan_state,
@@ -494,6 +495,61 @@ class PricingManager:
         state and explicitly persisting any diagnostics it wants to retain.
         """
         return evaluate_chronological_request(request)
+
+    @classmethod
+    def evaluate_dynamic_pricing_plan(
+        cls, request: ChronologicalEvaluationRequest
+    ) -> ChronologicalEvaluationResult:
+        """Dynamic Pricing's control plan: the 2.0.0 optimizer (step 3, grid
+        charge only), or the previous allocator for what it does not model yet.
+
+        Pure: runs in an executor. The plan says which one built it.
+        """
+        reason = optimizer_fallback_reason(request)
+        if reason is None:
+            try:
+                result = optimize_charge(request)
+            except Exception:  # noqa: BLE001 - a plan from the allocator beats none
+                _LOGGER.exception("Dynamic pricing: optimizer failed, previous planner used")
+                reason = "optimizer_error"
+            else:
+                result.plan.planner = "optimizer"
+                return result
+        result = cls.evaluate_chronological_projection(request)
+        result.plan.planner = f"allocator: {reason}"
+        return result
+
+    @staticmethod
+    def _run_plan_steps(steps, evaluate):
+        """Drive ``_chronological_plan_steps`` with a synchronous evaluator."""
+        try:
+            request = next(steps)
+            try:
+                evaluation = evaluate(request)
+            except Exception as exc:  # noqa: BLE001 - the builder's fallback decides
+                return steps.throw(exc)
+            return steps.send(evaluation)
+        except StopIteration as stop:
+            return stop.value
+
+    async def _async_run_plan_steps(self, steps, evaluate):
+        """Drive ``_chronological_plan_steps`` with ``evaluate`` in an executor:
+        the optimizer takes up to a second on a PC (design §6)."""
+        if not hasattr(steps, "send"):
+            return steps  # a test seam replaced the builder with its result
+        try:
+            request = next(steps)
+            run = getattr(self._hass, "async_add_executor_job", None)
+            try:
+                if callable(run):
+                    evaluation = await run(evaluate, request)
+                else:  # test stand-ins without an executor
+                    evaluation = evaluate(request)
+            except Exception as exc:  # noqa: BLE001 - the builder's fallback decides
+                return steps.throw(exc)
+            return steps.send(evaluation)
+        except StopIteration as stop:
+            return stop.value
 
     def build_extended_chronological_projection(
         self,
@@ -3516,15 +3572,22 @@ class PricingManager:
         slot_ceilings: Mapping[datetime, float] | None = None,
         planning_end: datetime | None = None,
         horizon_end: datetime | None = None,
+        steps_only: bool = False,
     ) -> ChronologicalPlan | None:
         """Build the controller-owned plan through the energy horizon.
 
         ``planning_end`` is the extended horizon of ``planning_horizon_end``
         (#710); the plan is then sized from its deadlines, not the scalar.
         ``horizon_end`` only moves the end (Time Slot's next window, #611).
+        ``steps_only`` returns the builder unevaluated (``_async_build_dp_plan``).
         """
         horizon_end = horizon_end or planning_end or self.energy_horizon_end(now)
-        return self._build_chronological_plan_for_horizon(
+        build = (
+            self._chronological_plan_steps
+            if steps_only
+            else self._build_chronological_plan_for_horizon
+        )
+        return build(
             now=now,
             slots=slots,
             decision_data=decision_data,
@@ -3535,6 +3598,42 @@ class PricingManager:
             slot_ceilings=slot_ceilings,
             control_extension=planning_end is not None,
         )
+
+    async def _async_build_dp_plan(self, **kwargs) -> ChronologicalPlan | None:
+        """Dynamic Pricing's control plan, evaluated in an executor by
+        ``evaluate_dynamic_pricing_plan`` (the optimizer)."""
+        return await self._async_run_plan_steps(
+            self._build_chronological_plan(steps_only=True, **kwargs),
+            self.evaluate_dynamic_pricing_plan,
+        )
+
+    def _optimizer_export_prices(
+        self, slots: Sequence[PriceSlot], horizon_end: datetime
+    ) -> dict[datetime, float] | None:
+        """Export price per import slot start, from the export sensor (lowest
+        overlapping price); without a sensor solar exports at 0 (design §3)."""
+        if not getattr(self._controller, "export_price_sensor", None) or not slots:
+            return None
+        local_end = (
+            horizon_end.replace(tzinfo=None)
+            if horizon_end.tzinfo is None
+            else horizon_end.astimezone(self._now().tzinfo).replace(tzinfo=None)
+        )
+        try:
+            exports = self.get_future_export_price_slots(local_end)
+        except Exception:  # noqa: BLE001 - a flaky export sensor exports at 0
+            return None
+        prices: dict[datetime, float] = {}
+        for slot in slots:
+            overlapping = [
+                float(other.price)
+                for other in exports
+                if other.start < slot.end and slot.start < other.end
+                and math.isfinite(float(other.price))
+            ]
+            if overlapping:
+                prices[slot.start] = min(overlapping)
+        return prices
 
     def _learned_solar_snapshot(
         self,
@@ -3693,7 +3792,15 @@ class PricingManager:
         self._energy_projection_cache = (key, projection)
         return projection
 
-    def _build_chronological_plan_for_horizon(
+    def _build_chronological_plan_for_horizon(self, **kwargs) -> ChronologicalPlan | None:
+        """``_chronological_plan_steps`` evaluated by the allocator (dashboard,
+        diagnostics, Time Slot)."""
+        return self._run_plan_steps(
+            self._chronological_plan_steps(**kwargs),
+            self.evaluate_chronological_projection,
+        )
+
+    def _chronological_plan_steps(
         self,
         *,
         now: datetime,
@@ -3705,8 +3812,11 @@ class PricingManager:
         persist_diagnostics: bool,
         slot_ceilings: Mapping[datetime, float] | None = None,
         control_extension: bool = False,
-    ) -> ChronologicalPlan | None:
+    ):
         """Adapt live forecasts for a bounded control or display horizon.
+
+        A generator: it yields the planner request once and resumes with the
+        evaluation, so the caller chooses the evaluator and where it runs.
 
         A diagnostic-only build simulates the same horizon without claiming
         that an executable chronological charge calendar is active.  This is
@@ -3718,6 +3828,8 @@ class PricingManager:
         profile = getattr(tracker, "consumption_profile", None)
         if profile is None:
             return None
+        if False:  # pragma: no cover - keeps this a generator on every path
+            yield
 
         daily_horizon_end = now.replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -4090,7 +4202,10 @@ class PricingManager:
                 0.0,
                 float(getattr(self._controller, "min_arbitrage_margin", None) or 0.0),
             )
-            evaluation = self.evaluate_chronological_projection(
+            capacity_sum = sum(
+                float(c.data.get("battery_total_energy", 0) or 0) for c in eligible
+            )
+            evaluation = yield (
                 ChronologicalEvaluationRequest(
                     now=now,
                     horizon_end=horizon_end,
@@ -4124,12 +4239,33 @@ class PricingManager:
                     # The runtime regulates import incl. the house load to this
                     # ceiling, so a slot stores less while the house draws.
                     grid_ceiling_kw=self._contracted_charge_ceiling() / 1000.0,
+                    # The 2.0.0 optimizer's inputs (the allocator ignores them).
+                    fleet_capacity_kwh=capacity_sum if capacity_sum > 0 else None,
+                    fleet_soc_pct=(
+                        sum(
+                            float(c.data.get("battery_total_energy", 0) or 0)
+                            * float(c.data.get("battery_soc", 0) or 0)
+                            for c in eligible
+                        ) / capacity_sum
+                        if capacity_sum > 0
+                        else None
+                    ),
+                    discharge_kw=(
+                        None if discharge_limit_w is None else discharge_limit_w / 1000.0
+                    ),
+                    export_prices=(
+                        self._optimizer_export_prices(slots, horizon_end)
+                        if value_deadlines and not diagnostic_only
+                        else None
+                    ),
+                    negative_price_charging=self._negative_price_feature_enabled(),
                 )
             )
             plan = evaluation.plan
             if not diagnostic_only:
                 # What the published projection starts from and is capped at.
                 plan.projection_inputs = (usable, usable + headroom)
+                decision_data["planner"] = getattr(plan, "planner", "allocator")
             if size_from_deadlines and not diagnostic_only:
                 # The scalar balance nets later solar against tonight's gap and
                 # stops at the room now; publish the need the plan actually found so should_charge,
@@ -4849,7 +4985,7 @@ class PricingManager:
         # The plan always decides: the scalar balance nets later solar (today's
         # or tomorrow's) against tonight's gap, so a "sufficient" balance
         # vetoed a plan that books a cheap top-up before the sun.
-        chronological_plan = self._build_chronological_plan(
+        chronological_plan = await self._async_build_dp_plan(
             now=eval_now,
             slots=plan_slots,
             decision_data=decision_data,
@@ -5096,7 +5232,7 @@ class PricingManager:
                     slot_ceilings=slot_ceilings,
                 )
                 if chronological_plan is not None:
-                    chronological_plan = self._build_chronological_plan(
+                    chronological_plan = await self._async_build_dp_plan(
                         now=eval_now,
                         slots=(
                             [slot for slot in plan_slots if _safe(slot)]
@@ -5230,6 +5366,12 @@ class PricingManager:
                 if chronological_plan is not None
                 else {}
             ),
+            slot_charge_to_end=frozenset(
+                allocation.slot
+                for allocation in getattr(chronological_plan, "allocations", None) or ()
+                if getattr(allocation, "to_slot_end", False)
+            ),
+            plan_charge_efficiency=getattr(chronological_plan, "charge_efficiency", None),
             chronological_planning_active=chronological_plan is not None,
             chronological_source=decision_data.get("chronological_source"),
             solar_timeline_source=decision_data.get("solar_timeline_source"),
@@ -5663,7 +5805,9 @@ class PricingManager:
         if inputs is None:
             return
         usable, capacity = inputs
-        trajectory = simulate_allocations(
+        # The optimizer projects with its own battery model (discharge losses,
+        # slot targets); the allocator's plan is simulated here.
+        trajectory = getattr(plan, "trajectory", None) or simulate_allocations(
             plan.intervals, usable, plan.allocations, usable_capacity_kwh=capacity
         ).trajectory
         controller._dp_eval_projection = tuple(
@@ -6793,12 +6937,20 @@ class PricingManager:
             and active_slot in schedule.slot_energy_targets_kwh
         ):
             targets = getattr(controller, "_predictive_deficit_target_soc", None) or {}
+            # 2.0.0 optimizer plans carry only what the plan expected and the
+            # battery did not store: not the step a "to the end" slot asks on
+            # top, and not the last whole percent the truncated reading hides.
+            plan_efficiency = getattr(schedule, "plan_charge_efficiency", None)
+            to_end = active_slot in getattr(schedule, "slot_charge_to_end", ())
             shortfall = 0.0
             for coordinator, target_soc in targets.items():
                 data = getattr(coordinator, "data", None) or {}
                 capacity = max(0.0, float(data.get("battery_total_energy", 0.0) or 0.0))
                 current_soc = float(data.get("battery_soc", 0.0) or 0.0)
-                shortfall += max(0.0, float(target_soc) - current_soc) / 100.0 * capacity
+                missing = max(0.0, float(target_soc) - current_soc)
+                if plan_efficiency is not None:
+                    missing = max(0.0, missing - (1.0 if to_end else 0.0) - 1.0)
+                shortfall += missing / 100.0 * capacity
             if shortfall_kwh is not None:
                 shortfall = max(0.0, float(shortfall_kwh))
             deadline = schedule.slot_deadlines.get(active_slot)
@@ -6819,7 +6971,9 @@ class PricingManager:
                     ):
                         continue
                     hours_left = (slot.end - max(slot.start, now)).total_seconds() / 3600.0
-                    capacity = power_kw * max(0.0, hours_left) * CHARGE_EFFICIENCY
+                    capacity = power_kw * max(0.0, hours_left) * (
+                        plan_efficiency or CHARGE_EFFICIENCY
+                    )
                     current = float(schedule.slot_energy_targets_kwh.get(slot, 0.0) or 0.0)
                     take = min(remaining, max(0.0, capacity - current))
                     if take <= 0:
