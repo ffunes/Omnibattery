@@ -5544,7 +5544,10 @@ class PricingManager:
             ),
         )
         self._controller._dynamic_pricing_schedule = schedule
-        self._store_eval_projection(chronological_plan)
+        if chronological_plan is not None or decision_data.get("planner") != "optimizer":
+            # An optimizer plan that charges nothing builds its calendar with no
+            # plan; its projection is already stored and must survive.
+            self._store_eval_projection(chronological_plan)
         self._controller._dp_pre_evaluated_slots = {}
         self._controller._dp_pre_evaluated_purposes = {}
         self._controller._dp_completed_slots = set()

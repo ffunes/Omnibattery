@@ -588,3 +588,32 @@ def test_battery_sales_are_priced_without_the_solar_bonus():
     manager.get_future_export_price_slots = export_slots
     assert manager._optimizer_export_prices([hour], hour.end, solar_bonus=False) == {hour.start: 0.10}
     assert seen == [False]
+
+
+@pytest.mark.parametrize(
+    ("case", "soc"),
+    [
+        # Nothing to charge (should_charge false): the calendar is built with
+        # no plan, and storing that wiped the projection the plan had stored.
+        (("1x7k-800", 60, "flat0.4", "night-cheap", False, "sunny", "07:00"), 17),
+        (("1x5k-2500", 60, "flat0.4", "night-cheap", False, "sunny", "00:05"), None),
+        # An extended plan trimmed to today's slots (energy deferred to tomorrow).
+        (("1x10k-800", 15, "flat1.2", "night-cheap", True, "dull", "16:00"), None),
+    ],
+    ids=["no-charge", "charge", "trimmed"],
+)
+def test_the_soc_drop_projection_is_the_optimizer_trajectory(monkeypatch, case, soc):
+    """The SOC-drop trigger compares the live SOC with the published plan's
+    trajectory, whatever the plan books (a plan with sales or holds and no
+    charge fell back to the old drop rule)."""
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    box = {}
+    real_controller = h._controller
+    monkeypatch.setattr(h, "_controller", lambda s: box.setdefault("c", real_controller(s)))
+    outcome = h._run_engine(sw.scenario(case, soc=soc), monkeypatch)
+    assert outcome.planner == "optimizer"
+    usable = outcome.plan.projection_inputs[0]
+    expected = tuple((end, energy - usable) for end, energy in outcome.plan.trajectory)
+    assert expected and box["c"]._dp_eval_projection == expected
