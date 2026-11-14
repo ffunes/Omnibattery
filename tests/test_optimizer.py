@@ -558,3 +558,24 @@ def test_the_plan_never_sells_at_a_battery_price_at_or_below_zero():
                               room=2.0), [p - 0.02 for p in prices])
     plan = optimize_charge(req).plan
     assert not [s for s, _kw in plan.sales if req.battery_export_prices[s.start] <= 0]
+
+
+def test_the_arbitrage_margin_counts_only_the_grid_energy_of_a_charge():
+    # Sun in the charge quarter: part of what the slot stores comes from the
+    # sun. The margin is per kWh BOUGHT; counted on the sun too it made a
+    # profitable grid top-up (0.10 + 0.10 margin, worth 0.30 x losses later)
+    # look unprofitable, and the plan charged nothing.
+    prices = [0.10] * 2 + [0.30] * 6
+    req = _request(prices, house=[0.05] * 2 + [0.4] * 6, solar=[0.5] * 2 + [0.0] * 6, usable=0.0,
+                   room=2.0, margin=0.10, power=5.0)
+    assert optimize_charge(req).plan.allocations
+
+
+def test_a_negative_price_charge_counts_only_its_grid_energy_as_zero():
+    # Negative-price charging off (D3): what the battery buys at -0.05 counts
+    # as 0. Counting the sun stored in the charge quarter as bought made a
+    # free top-up for the evening look dear, and the plan charged nothing.
+    prices = [-0.05] * 2 + [0.06] * 6
+    req = _request(prices, house=[0.05] * 2 + [0.4] * 6, solar=[0.8] * 2 + [0.0] * 6, usable=0.0,
+                   room=2.0, negative=False, power=5.0)
+    assert optimize_charge(req).plan.allocations

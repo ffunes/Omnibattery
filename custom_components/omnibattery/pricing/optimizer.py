@@ -171,7 +171,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 t = np.where(done, -np.inf, target)
                 add = np.minimum(np.maximum(t - e, 0.0), model.charge_rate(q))
                 done |= target - e <= model.charge_rate(q) + _TOL
-                bought = add / model.eff
+                # Bought = the GRID energy the charge puts in the battery: the
+                # sun surplus during the charge phase feeds it too, and is not
+                # bought (margin and D3 counted it, making sunny charges dear).
+                rate = model.charge_rate(q)
+                busy = np.where(add > 0, add / rate, 0.0) if rate > 0 else np.zeros_like(add)
+                bought = np.maximum(add / model.eff - max(0.0, q.solar_kwh - q.house_kwh) * busy, 0.0)
                 stored += add
                 decide += margin * bought
                 if not request.negative_price_charging and slot_price < 0:
