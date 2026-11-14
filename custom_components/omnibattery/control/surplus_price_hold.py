@@ -427,10 +427,13 @@ class SurplusPriceHoldManager:
             return 0.0
         return remaining_load_kwh * (end_h - now_h) / (24.0 - now_h)
 
-    def _release_guard(self) -> str | None:
+    def _release_guard(self, *, plan_slots: bool = True) -> str | None:
         """Return the first live reason the hold must not apply, if any.
 
         Ordered so the reason a user sees is the one they would name themselves.
+        ``plan_slots=False`` skips the selected-slot guard: the 2.0.0 optimizer
+        never exports in a slot it charges, and the calendar also lists
+        informational slots that do not charge.
         """
         controller = self._controller
         pricing = getattr(controller, "_pricing_mgr", None)
@@ -446,7 +449,7 @@ class SurplusPriceHoldManager:
                 return GUARD_CHARGE_DELAY
 
         # A scheduled cheap grid-charging slot must not be suppressed.
-        if pricing is not None and pricing.is_in_dynamic_pricing_slot():
+        if plan_slots and pricing is not None and pricing.is_in_dynamic_pricing_slot():
             return GUARD_DYNAMIC_PRICING_SLOT
         if getattr(controller, "_current_price_slot_active", False):
             return GUARD_DYNAMIC_PRICING_SLOT

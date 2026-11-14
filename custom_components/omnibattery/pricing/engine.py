@@ -5895,6 +5895,28 @@ class PricingManager:
         )
         controller._dp_eval_projection_capacity_kwh = self._fleet_capacity_kwh()
 
+    def projected_soc_now(self) -> float | None:
+        """Fleet SOC the published plan projects for now (the SOC at the last
+        evaluation plus the projected change), or None without a projection."""
+        ref = self._controller._dp_last_eval_soc
+        projection = getattr(self._controller, "_dp_eval_projection", None)
+        capacity = getattr(self._controller, "_dp_eval_projection_capacity_kwh", 0.0)
+        if ref is None or not projection or not capacity or capacity <= 0:
+            return None
+        now = self._now()
+        if now.tzinfo != projection[0][0].tzinfo:
+            now = now.replace(tzinfo=projection[0][0].tzinfo)
+        delta = projection[-1][1]
+        for index, (when, value) in enumerate(projection):
+            if now <= when:
+                if index == 0:
+                    delta = 0.0
+                else:
+                    t0, v0 = projection[index - 1]
+                    delta = v0 + (value - v0) * (now - t0) / (when - t0)
+                break
+        return ref + delta / capacity * 100.0
+
     def _is_dp_soc_drop_reeval(self) -> bool:
         """Return True when live SOC has fallen below what the plan projected.
 
@@ -5918,22 +5940,9 @@ class PricingManager:
         if not coords:
             return False
         current = sum(c.data.get("battery_soc", 0) for c in coords) / len(coords)
-        projection = getattr(self._controller, "_dp_eval_projection", None)
-        capacity = getattr(self._controller, "_dp_eval_projection_capacity_kwh", 0.0)
-        if projection and capacity > 0:
-            now = self._now()
-            if now.tzinfo != projection[0][0].tzinfo:
-                now = now.replace(tzinfo=projection[0][0].tzinfo)
-            delta = projection[-1][1]
-            for index, (when, value) in enumerate(projection):
-                if now <= when:
-                    if index == 0:
-                        delta = 0.0
-                    else:
-                        t0, v0 = projection[index - 1]
-                        delta = v0 + (value - v0) * (now - t0) / (when - t0)
-                    break
-            return (ref + delta / capacity * 100.0) - current >= 5.0
+        projected = self.projected_soc_now()
+        if projected is not None:
+            return projected - current >= 5.0
         schedule = getattr(self._controller, "_dynamic_pricing_schedule", None)
         threshold = (
             5.0

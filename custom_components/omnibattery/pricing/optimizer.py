@@ -83,7 +83,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     e0 = min(usable, cap)
     grid = max(LATTICE_KWH, cap / MAX_LEVELS)
     lattice = np.arange(e0 % grid, cap + _TOL, grid)
-    extra = [0.0, cap, e0]
+    # e0, the ends, and both sides of one SOC step above the floor (where an
+    # export stops being possible).
+    extra = [0.0, cap, e0, soc_step, soc_step * (1 - 1e-4)]
     if soc_step >= grid / 2:
         # The value jumps where the whole-percent reading changes (a slot's
         # target rounds from it): a point on each side of every step, so the
@@ -159,14 +161,19 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 q = dataclasses.replace(q, discharge_kwh=0.0)
             if export:
                 # The surplus it would have stored is exported; the minimum
-                # saving is charged on it (decides, never reported).
+                # saving is charged on it (decides, never reported). Not while
+                # the reading sits on the floor: the module's guard stores then.
+                above = e >= max(soc_step, _TOL)
                 kept = np.minimum(
                     min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh),
                     np.maximum(model.cap - e, 0.0) / model.eff,
                 )
-                decide += export_saving * kept
-                q = dataclasses.replace(q, charge_kwh=0.0)
-            e, c = model.normal_step(q, e, t)
+                decide += export_saving * kept * above
+                e_out, c_out = model.normal_step(dataclasses.replace(q, charge_kwh=0.0), e, t)
+                e_in, c_in = model.normal_step(q, e, t)
+                e, c = np.where(above, e_out, e_in), np.where(above, c_out, c_in)
+            else:
+                e, c = model.normal_step(q, e, t)
             cost += c
             decide += c
             if floor > 0 and request.floor_until is not None and end <= request.floor_until:
