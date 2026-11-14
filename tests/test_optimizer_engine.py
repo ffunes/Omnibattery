@@ -319,3 +319,45 @@ def test_export_prices_come_from_the_export_sensor_lowest_overlap():
     }
     without = PricingManager(SimpleNamespace(), SimpleNamespace(export_price_sensor=None))
     assert without._optimizer_export_prices([hour, half], half.end) is None
+
+
+def test_the_control_lock_is_held_while_the_optimizer_runs(monkeypatch):
+    """An evaluation from outside the control cycle holds the control lock
+    across the executor await, so no cycle runs on the half-replaced plan
+    (the decision is published before the plan, the schedule after it)."""
+    import asyncio
+    import threading
+
+    from custom_components.omnibattery.pricing.engine import PricingManager
+    from tests import test_predictive_scenarios as h
+
+    scenario = h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json")
+    seen = {}
+    real_plan = PricingManager.evaluate_dynamic_pricing_plan.__func__
+
+    def in_worker(cls, request):
+        seen["locked"] = seen["lock"].locked()
+        seen["worker"] = threading.current_thread() is not threading.main_thread()
+        return real_plan(cls, request)
+
+    monkeypatch.setattr(PricingManager, "evaluate_dynamic_pricing_plan", classmethod(in_worker))
+    real_eval = PricingManager._evaluate_dynamic_pricing
+
+    async def via_now(self, **kwargs):
+        if getattr(self, "_via_now", False):
+            return await real_eval(self, **kwargs)
+        self._via_now = True
+        seen["lock"] = self._controller._control_lock
+        return await self.evaluate_dynamic_pricing_now(**kwargs)
+
+    monkeypatch.setattr(PricingManager, "_evaluate_dynamic_pricing", via_now)
+    real_controller = h._controller
+
+    def build(s):
+        controller = real_controller(s)
+        controller._control_lock = asyncio.Lock()
+        return controller
+
+    monkeypatch.setattr(h, "_controller", build)
+    h._run_engine(scenario, monkeypatch, executor=True)
+    assert seen["worker"] and seen["locked"]
