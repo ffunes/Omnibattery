@@ -2,6 +2,10 @@
 
 ## [1.6.1b2] - 2026-11-11
 
+### Changed
+
+- **Dynamic Pricing: no discharging in the rest of a slot that charged**: a booked slot stops once it stored its target, and the battery then covered the house again for the rest of the slot, so energy bought in a quarter was spent in the same quarter at the same price, losing the round trip. With quarter-hour prices and an empty battery this repeated every quarter (14 Nov: charging from 2 to 4 % in two minutes, then discharging back to 2 %, from 02:45 to 04:00). The battery now holds until the slot ends and the grid carries the house at the slot's price. Peak shaving can still use the battery, and a slot that charged nothing holds nothing. The Daily operation projection shows the same hold.
+
 ### Fixed
 
 - **Daily operation timeline no longer fills the recorder** (#850): its attributes change on every publish (about once a minute), so each write stored a new attributes row. From Home Assistant 2024.7 the sensor's attributes are no longer recorded; the panel reads the live state, so the Daily operation card is unchanged. The card also updates at once again when an interval closes, instead of up to a minute later. Thanks to @mhjansen79.
