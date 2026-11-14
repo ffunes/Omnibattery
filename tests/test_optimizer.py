@@ -279,3 +279,14 @@ def test_no_hold_without_the_permission():
     prices = [0.20] * 4 + [0.40] * 4
     plan = optimize_charge(_request(prices, house=0.25, usable=0.95, threshold=0.0)).plan
     assert not plan.holds
+
+
+def test_a_slot_may_charge_and_then_hold():
+    """The discharge reserve held the rest of a charging quarter once its quota
+    was reached; the optimizer offers the same: charge, then keep it."""
+    prices = [0.22] * 4 + [0.32] * 4
+    request = _with_hold(_request(prices, house=0.3, usable=0.0, slot_quarters=1, power=5.0))
+    plan = optimize_charge(request).plan
+    both = set(plan.holds) & {a.slot for a in plan.allocations}
+    assert both
+    assert _replay_hold(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
