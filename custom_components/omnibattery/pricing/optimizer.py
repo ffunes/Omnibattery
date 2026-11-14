@@ -153,7 +153,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         export = option == EXPORT
         if export and not request.export_choice_allowed:
             # The delay alone: only where the later sun still refills (per state).
-            export = delay.allows(e, quarter_ends[-1])
+            export = delay.allows(e, slot_start, quarter_ends[-1])
         target = None if option in (None, HOLD, EXPORT) or sell else target_of(e, option[0])
         done = np.zeros(e.shape, dtype=bool)
         ends = []
@@ -262,7 +262,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         elif option == HOLD or (isinstance(option, tuple) and len(option) > 2):
             holds.append(slot)
         if option == EXPORT and (
-            request.export_choice_allowed or bool(delay.allows(np.array([e]), ends[-1])[0])
+            request.export_choice_allowed or bool(delay.allows(np.array([e]), slot.start, ends[-1])[0])
         ):
             exports.append(slot)
         if option not in (None, HOLD, EXPORT) and not selling and stored > _TOL:
@@ -337,12 +337,15 @@ class _SolarDelay:
     Each day's deadline is the forecast sun's end minus the margin. A slot
     ending by it may export its surplus while the battery is at the setpoint
     and the surplus storable after the slot, up to the deadline, refills the
-    gap DELAY_REFILL_FACTOR times over. Storing surplus before the deadline costs a hair, falling
+    gap DELAY_REFILL_FACTOR times over, on a day that does not need the grid
+    anyway (the module's balance: stored energy + the sun left today >= the
+    house left today - its deadband). Storing surplus before the deadline costs a hair, falling
     linearly to 0 there, so that at equal cost the sun is stored late.
     """
 
-    def __init__(self, deadlines, firsts, storable, setpoint_e, cap):
+    def __init__(self, deadlines, firsts, storable, setpoint_e, cap, quarters, deadband):
         self._deadlines, self._firsts, self._cap = deadlines, firsts, cap
+        self._quarters, self._deadband = quarters, deadband  # [(start, end, solar, house)]
         self._storable, self._setpoint = storable, setpoint_e
         self._w = DELAY_TIE_EUR / max(cap, 1.0)
 
@@ -353,13 +356,22 @@ class _SolarDelay:
         d = self._deadline(slot_end)
         return d is not None and slot_end <= d
 
-    def allows(self, e, slot_end):
+    def allows(self, e, slot_start, slot_end):
         e = np.asarray(e, dtype=float)
         d = self._deadline(slot_end)
         if d is None or slot_end > d:
             return np.zeros(e.shape, dtype=bool)
         future = sum(v for end, v in self._storable if slot_end < end <= d)
-        return (e >= self._setpoint - _TOL) & (future >= DELAY_REFILL_FACTOR * (self._cap - e) - _TOL)
+        day = slot_start.date()
+        today = [(sun, house) for start, _end, sun, house in self._quarters
+                 if start >= slot_start and start.date() == day]
+        sun = sum(x for x, _h in today)
+        house = sum(h for _x, h in today)
+        return (
+            (e >= self._setpoint - _TOL)
+            & (future >= DELAY_REFILL_FACTOR * (self._cap - e) - _TOL)
+            & (e + sun >= house - self._deadband - _TOL)
+        )
 
     def weight(self, end):
         d = self._deadline(end)
@@ -390,7 +402,13 @@ def _solar_delay(request, groups, model, fleet):
         if setpoint is not None and fleet
         else -math.inf
     )
-    return _SolarDelay(deadlines, firsts, storable, setpoint_e, model.cap)
+    quarters = []
+    for _s, qs, ends in groups:
+        for q, end in zip(qs, ends):
+            start = quarters[-1][1] if quarters and quarters[-1][1] < end else request.now
+            quarters.append((start, end, q.solar_kwh, q.house_kwh))
+    return _SolarDelay(deadlines, firsts, storable, setpoint_e, model.cap, quarters,
+                       max(0.0, float(request.solar_delay_deadband_kwh or 0.0)))
 
 
 def _published_quota(model, soc_step, e, target, stored):

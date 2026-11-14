@@ -468,3 +468,15 @@ def test_solar_delay_keeps_a_30_percent_cushion_on_the_later_sun():
                     threshold=0.0)
     plan = optimize_charge(_with_delay(base)).plan
     assert base.price_slots[0] not in set(plan.exports)
+
+
+def test_solar_delay_does_not_delay_on_a_day_that_needs_the_grid():
+    # The module's daily balance: stored energy + the sun left today short of
+    # the house load left today (minus its 0.5 kWh deadband) means the day
+    # needs the grid anyway; delaying the sun then gains nothing and risks it.
+    sunny = _request([0.20] * 20, house=[0.05] * 12 + [1.0] * 8, solar=[0.5] * 12 + [0.0] * 8,
+                     usable=0.0, room=2.0, threshold=0.0)
+    assert not optimize_charge(_with_delay(sunny)).plan.exports
+    light = _request([0.20] * 20, house=[0.05] * 12 + [0.2] * 8, solar=[0.5] * 12 + [0.0] * 8,
+                     usable=0.0, room=2.0, threshold=0.0)
+    assert optimize_charge(_with_delay(light)).plan.exports

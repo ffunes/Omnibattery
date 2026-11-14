@@ -4381,6 +4381,9 @@ class PricingManager:
                         and getattr(self._controller, "_delay_soc_setpoint_enabled", False)
                         else None
                     ),
+                    solar_delay_deadband_kwh=float(
+                        getattr(self._controller, "_charge_delay_balance_deadband_kwh", 0.5) or 0.0
+                    ),
                     # A weekly full charge fills the gap to 100%; the load
                     # the grid carries meanwhile does not shrink that gap.
                     # A held Time Slot window already left its load out.

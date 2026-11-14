@@ -252,6 +252,9 @@ class ChronologicalEvaluationRequest:
     # cost the sun is stored as late as possible.
     solar_delay_margin_h: float | None = None
     solar_delay_setpoint_pct: float | None = None
+    # The module's daily balance gate: no delay when stored energy + the sun
+    # left today falls short of the house left today minus this deadband.
+    solar_delay_deadband_kwh: float = 0.5
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
