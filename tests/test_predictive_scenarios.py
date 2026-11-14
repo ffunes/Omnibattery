@@ -252,6 +252,8 @@ class Outcome:
     to_top: frozenset = frozenset()
     # Slots the optimizer holds the battery in (Discharge Reserve on).
     holds: frozenset = frozenset()
+    # Slots whose solar surplus the optimizer exports (Surplus Price Hold on).
+    exported: frozenset = frozenset()
 
     def describe(self) -> str:
         request = self.request
@@ -606,6 +608,7 @@ def _run_engine(scenario: Scenario, monkeypatch, *, executor: bool = False) -> O
             if purpose in (SLOT_PURPOSE_NEGATIVE_PRICE, SLOT_PURPOSE_COMBINED)
         ),
         frozenset(getattr(controller, "_dp_plan_holds", None) or ()),
+        frozenset(getattr(controller, "_dp_plan_exports", None) or ()),
     )
 
 

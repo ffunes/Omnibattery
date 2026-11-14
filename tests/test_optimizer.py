@@ -45,7 +45,7 @@ def _request(prices, *, house=0.1, solar=0.0, cap=10.0, soc=15.0, usable=0.5, ro
     )
 
 
-def _replay(request, plan, held=()):
+def _replay(request, plan, held=(), exported=()):
     """Cost of executing the published plan, as the controller does it. In a
     ``held`` slot the battery covers nothing (solar surplus still stores)."""
     m = BatteryModel(capacity_kwh=request.fleet_capacity_kwh, round_trip_efficiency=0.85,
@@ -60,8 +60,10 @@ def _replay(request, plan, held=()):
         s = next(s for s in request.price_slots if s.start <= i.start < s.end)
         prices.append(s.price)
         h = (i.end - i.start).total_seconds() / 3600
-        q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price, 0.0, True,
-                    request.effective_power_kw * h, 0.0 if s in held else request.discharge_kw * h)
+        q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price,
+                    (request.export_prices or {}).get(s.start, 0.0), True,
+                    0.0 if s in exported else request.effective_power_kw * h,
+                    0.0 if s in held else request.discharge_kw * h)
         t = None
         if s in quota and s not in done:
             if s not in target:
@@ -290,3 +292,60 @@ def test_a_slot_may_charge_and_then_hold():
     both = set(plan.holds) & {a.slot for a in plan.allocations}
     assert both
     assert _replay_hold(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+def _with_export(request, export_prices, min_saving=0.0):
+    import dataclasses
+    prices = {s.start: p for s, p in zip(request.price_slots, export_prices)}
+    return dataclasses.replace(request, export_prices=prices, export_choice_allowed=True,
+                               export_choice_min_saving=min_saving)
+
+
+def _replay_export(request, plan):
+    """``_replay`` where the plan exports the surplus of some slots (the
+    battery stores none of it then)."""
+    import dataclasses
+    exported = set(plan.exports)
+    m = BatteryModel(capacity_kwh=request.fleet_capacity_kwh, round_trip_efficiency=0.85,
+                     floor_kwh=request.fleet_capacity_kwh * request.fleet_soc_pct / 100
+                     - request.usable_initial_kwh,
+                     usable_kwh=request.usable_initial_kwh + request.headroom_kwh)
+    e, total, prices = request.usable_initial_kwh, 0.0, []
+    for i in request.intervals:
+        s = next(s for s in request.price_slots if s.start <= i.start < s.end)
+        prices.append(s.price)
+        h = (i.end - i.start).total_seconds() / 3600
+        q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price, request.export_prices.get(s.start, 0.0),
+                    True, 0.0 if s in exported else request.effective_power_kw * h,
+                    request.discharge_kw * h)
+        e1, c = m.normal_step(q, e, None)
+        total += float(c)
+        e = float(e1)
+    return total - min((p for p in prices if p > 0), default=0.0) * m.eff * e
+
+
+def test_morning_surplus_exports_while_the_midday_fills_the_battery():
+    # Morning surplus sells at 0.18, midday at 0.02: the midday sun alone fills
+    # the battery, so the morning surplus is worth exporting.
+    prices = [0.20] * 8
+    exports = [0.18] * 4 + [0.02] * 4
+    solar = [0.3] * 4 + [1.0] * 4
+    request = _with_export(_request(prices, house=0.05, solar=solar, usable=0.0, room=2.0,
+                                    threshold=0.0), exports)
+    plan = optimize_charge(request).plan
+    assert {s.start for s in plan.exports} == {s.start for s in request.price_slots[:4]}
+    assert _replay_export(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+def test_on_a_tie_the_surplus_is_stored():
+    prices = [0.20] * 8
+    request = _with_export(_request(prices, house=0.05, solar=[0.3] * 4 + [1.0] * 4, usable=0.0,
+                                    room=2.0, threshold=0.0), [0.02] * 8)
+    assert not optimize_charge(request).plan.exports
+
+
+def test_the_minimum_saving_decides_an_export():
+    prices = [0.20] * 8
+    base = _request(prices, house=0.05, solar=[0.3] * 4 + [1.0] * 4, usable=0.0, room=2.0, threshold=0.0)
+    request = _with_export(base, [0.18] * 4 + [0.02] * 4, min_saving=0.20)
+    assert not optimize_charge(request).plan.exports

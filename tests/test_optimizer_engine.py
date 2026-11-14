@@ -376,3 +376,42 @@ def test_a_plan_without_charge_keeps_its_projection_for_the_soc_drop_trigger(mon
     assert outcome.planner == "optimizer" and not outcome.booked
     projection = box["c"]._dp_eval_projection
     assert projection and projection[-1][1] < 0  # the night drains the battery
+
+
+def _export_controller(exports, now, *, guard=None, remaining=5.0, target=1.0):
+    from types import SimpleNamespace
+
+    blocks = {}
+    plan = SimpleNamespace(remaining_absorbable_kwh=lambda _now: remaining)
+    ctrl = SimpleNamespace(
+        _dp_plan_exports=frozenset(exports),
+        _pricing_mgr=SimpleNamespace(_now=lambda: now),
+        _surplus_hold_mgr=SimpleNamespace(
+            feature_enabled=lambda: True,
+            _release_guard=lambda: guard,
+            plan=plan,
+            _live_target_kwh=target,
+            is_hold_active=lambda: (_ for _ in ()).throw(AssertionError("module asked")),
+        ),
+        set_charge_block=lambda source, reason, details=None: blocks.__setitem__(source, details),
+        remove_charge_block=lambda source: blocks.pop(source, None),
+    )
+    return ctrl, blocks
+
+
+def test_an_exported_slot_blocks_the_charge_through_the_surplus_hold_blocker():
+    a, b = _slots(_at(10, 0), [0.20, 0.20])
+    ctrl, blocks = _export_controller({a}, a.start)
+    ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
+    assert blocks["surplus_price_hold"]["origin"] == "plan"
+    ctrl._pricing_mgr._now = lambda: b.start
+    ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
+    assert blocks == {}
+
+
+@pytest.mark.parametrize("kwargs", [dict(guard="charge_delay"), dict(remaining=0.5, target=1.0)])
+def test_the_module_s_guards_and_live_check_release_an_export(kwargs):
+    a, _b = _slots(_at(10, 0), [0.20, 0.20])
+    ctrl, blocks = _export_controller({a}, a.start, **kwargs)
+    ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
+    assert blocks == {}

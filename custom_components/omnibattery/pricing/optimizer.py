@@ -50,6 +50,7 @@ QUOTA_STEP_KWH = 0.05
 MAX_ASKS = 24
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
+EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
 # Per kWh under the guaranteed floor, per quarter before the sun: above any
 # price, so the floor wins whenever it can be met; never reported.
 FLOOR_PENALTY_EUR = 100.0
@@ -98,6 +99,10 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     def menu(slot, quarters):
         # Normal first: on a tie neither a charge nor a hold is taken.
         options = [None] + ([HOLD] if request.hold_allowed else [])
+        # Store first: on a tie the surplus is stored. Never with a charge: the
+        # surplus price hold's blocker stops all charging.
+        if request.export_choice_allowed and any(q.solar_kwh > q.house_kwh for q in quarters):
+            options.append(EXPORT)
         if not quarters[0].grid_charge_allowed:
             return options
         most = sum(model.charge_rate(q) for q in quarters)
@@ -113,6 +118,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
 
     floor = min(max(0.0, float(request.floor_kwh or 0.0)), cap)
     hold_saving = max(0.0, float(request.hold_min_saving or 0.0))
+    export_saving = max(0.0, float(request.export_choice_min_saving or 0.0))
 
     def target_of(e, ask):
         """The slot's target: the controller raises it to the floor while the
@@ -127,7 +133,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         decide = np.zeros_like(e)
         stored = np.zeros_like(e)
         hold = option == HOLD or (isinstance(option, tuple) and len(option) > 2)
-        target = None if option is None or option == HOLD else target_of(e, option[0])
+        export = option == EXPORT
+        target = None if option in (None, HOLD, EXPORT) else target_of(e, option[0])
         done = np.zeros(e.shape, dtype=bool)
         ends = []
         for q, end in zip(quarters, quarter_ends):
@@ -150,6 +157,15 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 )
                 decide += hold_saving * covered
                 q = dataclasses.replace(q, discharge_kwh=0.0)
+            if export:
+                # The surplus it would have stored is exported; the minimum
+                # saving is charged on it (decides, never reported).
+                kept = np.minimum(
+                    min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh),
+                    np.maximum(model.cap - e, 0.0) / model.eff,
+                )
+                decide += export_saving * kept
+                q = dataclasses.replace(q, charge_kwh=0.0)
             e, c = model.normal_step(q, e, t)
             cost += c
             decide += c
@@ -179,6 +195,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     total = 0.0
     allocations: list[SlotAllocation] = []
     holds: list = []
+    exports: list = []
     trajectory: list = []
     for k, (slot, quarters, ends) in enumerate(groups):
         nxt = values[k + 1]
@@ -192,7 +209,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         _v, option, e_end, c, stored, open_, path = chosen
         if option == HOLD or (isinstance(option, tuple) and len(option) > 2):
             holds.append(slot)
-        if option not in (None, HOLD) and stored > _TOL:
+        if option == EXPORT:
+            exports.append(slot)
+        if option not in (None, HOLD, EXPORT) and stored > _TOL:
             allocations.append(SlotAllocation(
                 slot,
                 _published_quota(model, soc_step, e, None if open_ else float(target_of(e, option[0])),
@@ -235,6 +254,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         trajectory=tuple(trajectory),
         charge_efficiency=model.eff,
         holds=tuple(holds),
+        exports=tuple(exports),
     )
     plan.optimizer_cost = total
     return ChronologicalEvaluationResult(

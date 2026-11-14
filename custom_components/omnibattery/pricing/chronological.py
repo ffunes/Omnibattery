@@ -149,6 +149,8 @@ class ChronologicalPlan:
     charge_efficiency: float | None = None
     # Slots in which the plan holds the battery (Discharge Reserve, step 5).
     holds: tuple[PriceSlot, ...] = ()
+    # Slots whose solar surplus the plan exports instead of storing (step 6).
+    exports: tuple[PriceSlot, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -230,6 +232,10 @@ class ChronologicalEvaluationRequest:
     # ``hold_min_saving`` per kWh left to the grid must be saved by holding.
     hold_allowed: bool = False
     hold_min_saving: float = 0.0
+    # Surplus price hold on (step 6): a slot may export its solar surplus
+    # instead of storing it; ``export_choice_min_saving`` per kWh exported.
+    export_choice_allowed: bool = False
+    export_choice_min_saving: float = 0.0
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

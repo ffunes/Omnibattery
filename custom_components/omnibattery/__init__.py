@@ -4621,6 +4621,30 @@ class ChargeDischargeController:
         manager = getattr(self, "_surplus_hold_mgr", None)
         if manager is None:
             return
+        exports = getattr(self, "_dp_plan_exports", None)
+        if exports is not None and manager.feature_enabled():
+            # The 2.0.0 optimizer chose the exports (step 6), through the same
+            # blocker and the module's own guards; its live check still releases
+            # when the sun left today can no longer fill what is needed.
+            now = _pricing_clock_now(self)
+            plan = getattr(manager, "plan", None)
+            target = getattr(manager, "_live_target_kwh", None)
+            export = (
+                manager._release_guard() is None
+                and any(slot.start <= now < slot.end for slot in exports)
+                and not (
+                    plan is not None
+                    and target is not None
+                    and plan.remaining_absorbable_kwh(now) + 1e-9 < float(target)
+                )
+            )
+            if export:
+                self.set_charge_block(
+                    "surplus_price_hold", "surplus_price_hold", {"origin": "plan"}
+                )
+            else:
+                self.remove_charge_block("surplus_price_hold")
+            return
         if manager.is_hold_active():
             status = manager.get_status()
             self.set_charge_block(
