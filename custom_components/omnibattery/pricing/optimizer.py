@@ -355,6 +355,7 @@ class _SolarDelay:
         self._quarters, self._deadband = quarters, deadband  # [(start, end, solar, house)]
         self._closed_until = closed_until
         self.day_closed = False
+        self._sums = {}  # (slot start, end) -> (later storable sun, sun left, house left)
         self._storable, self._setpoint = storable, setpoint_e
         self._w = DELAY_TIE_EUR / max(cap, sum(v for _e, v in storable), 1e-6)
 
@@ -370,12 +371,17 @@ class _SolarDelay:
         d = self._deadline(slot_end)
         if d is None or slot_end > d or (self._closed_until is not None and slot_start < self._closed_until):
             return np.zeros(e.shape, dtype=bool)
-        future = sum(v for end, v in self._storable if slot_end < end <= d)
-        day = slot_start.date()
-        today = [(sun, house) for start, _end, sun, house in self._quarters
-                 if start >= slot_start and start.date() == day]
-        sun = sum(x for x, _h in today)
-        house = sum(h for _x, h in today)
+        key = (slot_start, slot_end)
+        if key not in self._sums:  # the same slot is asked for every option and state
+            day = slot_start.date()
+            today = [(sun, house) for start, _end, sun, house in self._quarters
+                     if start >= slot_start and start.date() == day]
+            self._sums[key] = (
+                sum(v for end, v in self._storable if slot_end < end <= d),
+                sum(x for x, _h in today),
+                sum(h for _x, h in today),
+            )
+        future, sun, house = self._sums[key]
         return (
             (e >= self._setpoint - _TOL)
             & (future >= DELAY_REFILL_FACTOR * (self._cap - e) - _TOL)
