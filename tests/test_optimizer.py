@@ -516,3 +516,19 @@ def test_the_delay_tie_break_never_adds_up_to_more_than_a_tenth_of_a_cent():
     ends = [end for _s, _qs, es in groups for end in es]
     storable = [min(max(0.0, sun - 0.05), 2.5 * 0.25) * m.eff for sun in solar]
     assert sum(delay.weight(end) * v for end, v in zip(ends, storable)) <= DELAY_TIE_EUR + 1e-12
+
+
+def test_a_closed_day_carries_no_delay_tie_break():
+    # No delay on a closed day, the tie-break included: with stress it moved
+    # sales and fills on a day the module would not have delayed.
+    import dataclasses
+    from custom_components.omnibattery.pricing.battery_model import BatteryModel
+    from custom_components.omnibattery.pricing.optimizer import _slot_groups, _solar_delay
+
+    req = _with_delay(_request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0))
+    m = BatteryModel(capacity_kwh=10.0, round_trip_efficiency=0.85, floor_kwh=1.5, usable_kwh=2.0)
+    open_ = _solar_delay(req, _slot_groups(req), m, 10.0)
+    closed_req = dataclasses.replace(req, solar_delay_closed_until=T0 + timedelta(days=1))
+    closed = _solar_delay(closed_req, _slot_groups(closed_req), m, 10.0)
+    assert open_.weight(T0 + Q) > 0
+    assert closed.weight(T0 + Q) == 0

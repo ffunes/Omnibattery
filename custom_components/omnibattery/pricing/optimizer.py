@@ -381,8 +381,8 @@ class _SolarDelay:
 
     def weight(self, end):
         d = self._deadline(end)
-        if d is None or end >= d:
-            return 0.0
+        if d is None or end >= d or (self._closed_until is not None and end <= self._closed_until):
+            return 0.0  # past the deadline, or a closed day: no delay, no tie-break
         span = (d - self._firsts[end.date()]).total_seconds()
         return self._w * (min(1.0, (d - end).total_seconds() / span) if span > 0 else 1.0)
 
