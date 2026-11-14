@@ -1194,6 +1194,8 @@ class ChargeDischargeController:
         self._dp_pre_evaluated_slots: dict = {}  # slot.start (datetime) → should_charge (bool)
         self._dp_pre_evaluated_purposes: dict = {}  # slot.start → effective typed purpose
         self._dp_completed_slots: set = set()  # slot.start values completed in this plan
+        # End of the booked slot the battery charged in: it holds until then.
+        self._dp_slot_hold_until: Optional[datetime] = None
         self._predictive_target_decision = None  # decision the live deficit target was sized from
         self._dp_spent_decision = None  # that decision once a slot charged to it (see engine)
         self._active_dynamic_slot_purpose: Optional[str] = None
@@ -2483,13 +2485,25 @@ class ChargeDischargeController:
                 weekly_fn = weekly_hold()
             except Exception:  # noqa: BLE001 - dashboard projection is optional
                 weekly_fn = None
-        if weekly_fn is None:
+        # Dynamic Pricing: a booked slot holds the battery once it charged.
+        slot_fn = None
+        slot_hold = getattr(
+            getattr(self, "_pricing_mgr", None), "dynamic_slot_hold_fn", None
+        )
+        if callable(slot_hold):
+            try:
+                slot_fn = slot_hold()
+            except Exception:  # noqa: BLE001 - dashboard projection is optional
+                slot_fn = None
+        holds = [fn for fn in (weekly_fn, slot_fn) if fn is not None]
+        if not holds:
             return reserve_fn
 
         def floor(start, usable_kwh, free_kwh):
-            held = weekly_fn(start, usable_kwh, free_kwh)
-            if held is not None:
-                return held
+            for hold in holds:
+                held = hold(start, usable_kwh, free_kwh)
+                if held is not None:
+                    return held
             return reserve_fn(start, usable_kwh, free_kwh) if reserve_fn else None
 
         return floor
@@ -3809,6 +3823,7 @@ class ChargeDischargeController:
             "weekly_refill_hold",
             "weekly_full_hold",
             "time_slot_floor_hold",
+            "dp_slot_hold",
         }
         global_blockers = self._global_discharge_blockers
         if ignore_economic:
@@ -8220,6 +8235,7 @@ class ChargeDischargeController:
         self._pricing_mgr.apply_price_discharge_block()
         self._pricing_mgr.apply_weekly_refill_hold()
         self._pricing_mgr.apply_time_slot_floor_hold()
+        self._pricing_mgr.apply_dynamic_slot_hold()
 
     async def _stop_all_batteries_for_block(self, direction: str) -> None:
         """Stop all battery commands after a global operation block becomes active."""

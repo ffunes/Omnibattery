@@ -6962,6 +6962,8 @@ class PricingManager:
         if purpose is None:
             await self._stop_dynamic_price_slot("next_slot_not_needed", write_idle=False)
             return
+        if purpose in (SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED):
+            controller._dp_slot_hold_until = slot.end
         _LOGGER.info(
             "Dynamic pricing: continuing into %s slot %s",
             purpose,
@@ -7540,6 +7542,13 @@ class PricingManager:
                         self._controller._grid_charging_initialized = False
                         self._controller._active_dynamic_price_slot = current_slot
                         self._controller.grid_charging_active = True
+                        if effective_purpose in (
+                            SLOT_PURPOSE_DEFICIT,
+                            SLOT_PURPOSE_COMBINED,
+                        ):
+                            # Once the slot stored its target the battery
+                            # holds until the slot ends (apply_dynamic_slot_hold).
+                            self._controller._dp_slot_hold_until = current_slot.end
                         if current_slot:
                             await self._send_dynamic_pricing_slot_start_notification(current_slot)
                         _LOGGER.info(
@@ -8428,6 +8437,104 @@ class PricingManager:
             "time_slot_floor",
             {"floor_kwh": round(floor, 2), "stored_kwh": round(stored, 2)},
         )
+
+    def _held_dynamic_slot(self, now: datetime) -> PriceSlot | None:
+        """The booked slot the battery charged in and still sits in, or None.
+
+        Marked when a deficit slot is entered (``_dp_slot_hold_until``). A
+        re-plan that withdrew the slot releases it.
+        """
+        ctrl = self._controller
+        until = getattr(ctrl, "_dp_slot_hold_until", None)
+        schedule = getattr(ctrl, "_dynamic_pricing_schedule", None)
+        if (
+            until is None
+            or schedule is None
+            or getattr(ctrl, "predictive_charging_mode", None)
+            != PREDICTIVE_MODE_DYNAMIC_PRICING
+            or not getattr(ctrl, "predictive_charging_enabled", False)
+            or getattr(ctrl, "predictive_charging_overridden", False)
+        ):
+            return None
+        for slot in getattr(schedule, "selected_slots", ()) or ():
+            if slot.start <= now < slot.end and slot.end == until:
+                return slot
+        return None
+
+    def apply_dynamic_slot_hold(self) -> None:
+        """Dynamic Pricing: no discharge for the rest of a slot that charged.
+
+        A slot stops once it stored its target, and the battery used to cover
+        the house again for the rest of the slot: energy bought in a quarter
+        was spent in the same quarter at the same price, losing the round
+        trip. With an empty battery and quarter-hour prices that repeated every
+        quarter (14 Nov 2026, 02:45-04:00: charge 2 -> 4 % in two minutes, then
+        discharge back to 2 %). The grid carries the house until the slot ends,
+        at the price the slot was booked for. Called every control cycle.
+        """
+        ctrl = self._controller
+        slot = self._held_dynamic_slot(datetime.now())
+        if slot is None or getattr(ctrl, "grid_charging_active", False):
+            ctrl.remove_discharge_block("dp_slot_hold")
+            return
+        ctrl.set_discharge_block(
+            "dp_slot_hold",
+            "dp_slot",
+            {"slot_end": slot.end.strftime("%H:%M")},
+        )
+
+    def dynamic_slot_hold_fn(self):
+        """The same hold for the projection, as a reserve floor, or None.
+
+        Returns ``hold(start, usable_kwh, free_kwh)``: all usable energy inside
+        a booked deficit slot that still has energy to store (it will be
+        entered and charge), and inside the slot held now; None elsewhere.
+        Side-effect free.
+        """
+        from homeassistant.util import dt as dt_util
+
+        ctrl = self._controller
+        schedule = getattr(ctrl, "_dynamic_pricing_schedule", None)
+        if (
+            schedule is None
+            or getattr(ctrl, "predictive_charging_mode", None)
+            != PREDICTIVE_MODE_DYNAMIC_PRICING
+            or not getattr(ctrl, "predictive_charging_enabled", False)
+            or getattr(ctrl, "predictive_charging_overridden", False)
+        ):
+            return None
+        now = datetime.now()
+        targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
+        purpose_for = getattr(schedule, "purpose_for", None)
+        held = self._held_dynamic_slot(now)
+        windows = [
+            (slot.start, slot.end)
+            for slot in getattr(schedule, "selected_slots", ()) or ()
+            if slot.end > now
+            and (
+                slot == held
+                or (
+                    slot.start > now
+                    and float(targets.get(slot, 0.0) or 0.0) > 0.01
+                    and (
+                        not callable(purpose_for)
+                        or purpose_for(slot)
+                        in (SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED)
+                    )
+                )
+            )
+        ]
+        if not windows:
+            return None
+
+        def hold(start: datetime, usable_kwh: float, free_kwh: float) -> float | None:
+            if start.tzinfo is not None:
+                start = dt_util.as_local(start).replace(tzinfo=None)
+            if any(begin <= start < end for begin, end in windows):
+                return usable_kwh
+            return None
+
+        return hold
 
     def weekly_refill_hold_fn(self):
         """The same hold for the projection, as a reserve floor, or None.
