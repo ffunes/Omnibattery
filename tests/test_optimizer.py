@@ -546,3 +546,15 @@ def test_the_delay_tie_break_does_not_push_sales_where_it_may_not_export():
     off = optimize_charge(sale).plan
     on = optimize_charge(_with_delay(sale, setpoint_pct=90.0)).plan
     assert sorted(s.start for s, _kw in on.sales) == sorted(s.start for s, _kw in off.sales)
+
+
+def test_the_plan_never_sells_at_a_battery_price_at_or_below_zero():
+    # A long negative-price window with sun and an evening peak: selling there
+    # paid to export (it made room for the paid-to-charge hours). Negative
+    # export prices belong to Smart Pre-Discharge (its own switch and reserve
+    # SOC, design §3), not to High-Price Sale's permission.
+    prices = [0.20] * 4 + [-0.05] * 12 + [0.30] * 8
+    req = _with_sale(_request(prices, house=0.1, solar=[0.2] * 4 + [0.4] * 12 + [0.0] * 8, usable=0.3,
+                              room=2.0), [p - 0.02 for p in prices])
+    plan = optimize_charge(req).plan
+    assert not [s for s, _kw in plan.sales if req.battery_export_prices[s.start] <= 0]

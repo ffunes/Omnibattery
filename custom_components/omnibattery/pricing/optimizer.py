@@ -118,7 +118,10 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         ):
             options.append(EXPORT)
         # Sell last: on a tie it does not sell. Two powers, exclusive with the rest.
-        if request.sell_allowed and request.sell_power_kw > 0 and slot.start in sell_prices:
+        # Never at a battery price <= 0: paid exports are Smart Pre-Discharge's
+        # (its own switch and reserve SOC, design §3), not High-Price Sale's.
+        if (request.sell_allowed and request.sell_power_kw > 0 and slot.start in sell_prices
+                and sell_prices[slot.start] > 0):
             options += [(SELL, request.sell_power_kw), (SELL, request.sell_power_kw / 2)]
         if not quarters[0].grid_charge_allowed:
             return options
