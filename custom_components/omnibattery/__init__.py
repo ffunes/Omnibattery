@@ -4622,7 +4622,9 @@ class ChargeDischargeController:
         if manager is None:
             return
         exports = getattr(self, "_dp_plan_exports", None)
-        if exports is not None and manager.feature_enabled():
+        if exports is not None and (
+            manager.feature_enabled() or getattr(self, "_dp_plan_solar_delay", False)
+        ):
             # The 2.0.0 optimizer chose the exports (step 6), through the same
             # blocker and the module's own guards (not its selected-slot and
             # at-floor ones: the plan weighed both). Decided once per slot:

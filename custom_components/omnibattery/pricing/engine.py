@@ -3379,6 +3379,17 @@ class PricingManager:
         except Exception:  # noqa: BLE001
             return False
 
+    def _solar_delay_planned(self) -> bool:
+        """Whether Solar Charge Delay is on and not skipped (weekly full charge day)."""
+        controller = self._controller
+        if not getattr(controller, "charge_delay_enabled", False):
+            return False
+        overrides = getattr(controller, "_balance_monitor_overrides_delay", None)
+        try:
+            return not (callable(overrides) and overrides())
+        except Exception:  # noqa: BLE001
+            return False
+
     def _surplus_hold_enabled(self) -> bool:
         """Whether the surplus price hold may export solar for later cheap hours."""
         manager = getattr(self._controller, "_surplus_hold_mgr", None)
@@ -3630,6 +3641,7 @@ class PricingManager:
         controller._dp_plan_exports = None
         controller._dp_export_decision = None
         controller._dp_plan_sales = None
+        controller._dp_plan_solar_delay = False
 
     def _publish_plan_holds(self, plan, decision_data: Mapping[str, Any]) -> None:
         """Step 5: with the Discharge Reserve on, the optimizer's holds replace
@@ -3644,11 +3656,16 @@ class PricingManager:
         # Step 6: likewise the exports replace the surplus price hold's own plan,
         # when the plan could choose them (export prices known).
         request_allowed = bool(getattr(plan, "export_choice_allowed", False))
+        # Step 8: with Solar Charge Delay on the plan delays the sun itself
+        # (its exports, even without export prices) and the module stands aside.
+        solar_delay = decision_data.get("planner") == "optimizer" and bool(
+            getattr(plan, "solar_delay", False)
+        )
+        self._controller._dp_plan_solar_delay = solar_delay
         self._controller._dp_plan_exports = (
             frozenset(getattr(plan, "exports", None) or ())
             if decision_data.get("planner") == "optimizer"
-            and self._surplus_hold_enabled()
-            and request_allowed
+            and ((self._surplus_hold_enabled() and request_allowed) or solar_delay)
             else None
         )
         # Step 7: the sales replace High-Price Sale's own plan.
@@ -4351,6 +4368,19 @@ class PricingManager:
                         getattr(self._controller, "high_price_discharge_max_power_w", 0.0) or 0.0
                     )) / 1000.0,
                     battery_export_prices=battery_export_prices,
+                    # Solar Charge Delay (step 8, D9): the plan delays the sun.
+                    solar_delay_margin_h=(
+                        float(getattr(self._controller, "_delay_safety_margin_h", 0.0) or 0.0)
+                        if value_deadlines and self._solar_delay_planned()
+                        else None
+                    ),
+                    solar_delay_setpoint_pct=(
+                        float(self._controller._delay_soc_setpoint)
+                        if value_deadlines
+                        and self._solar_delay_planned()
+                        and getattr(self._controller, "_delay_soc_setpoint_enabled", False)
+                        else None
+                    ),
                     # A weekly full charge fills the gap to 100%; the load
                     # the grid carries meanwhile does not shrink that gap.
                     # A held Time Slot window already left its load out.

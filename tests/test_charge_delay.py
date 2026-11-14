@@ -1120,3 +1120,26 @@ def test_no_excluded_claim_leaves_the_delay_unchanged(monkeypatch, claim):
     mgr = _claim_mgr(monkeypatch, claim)
     assert mgr._should_delay_charge(80) is True
     assert mgr._controller._charge_delay_status["net_solar_kwh"] == pytest.approx(4.54, abs=0.01)
+
+
+# ----------------------------------------------------------------------
+# Step 8 (D9): the 2.0.0 optimizer plans the delay in Dynamic Pricing
+# ----------------------------------------------------------------------
+
+def test_the_delay_does_not_block_while_the_optimizer_plans_it():
+    """The plan exports the sun it delays and runs its own grid charge: the
+    module's global block (which also stopped planned grid charges) stays off,
+    and the day is not latched as unlocked (the module takes over again if the
+    optimizer stops planning)."""
+    ctrl = _controller(_dp_plan_solar_delay=True)
+    mgr = _make_mgr(ctrl)
+    mgr._should_delay_charge = lambda target: (_ for _ in ()).throw(AssertionError("module asked"))
+    assert mgr.is_charge_delayed() is False
+    assert ctrl._charge_delay_unlocked is False and mgr.saves == 0
+
+
+def test_the_setpoint_blocks_stay_off_while_the_optimizer_plans_the_delay():
+    coords = [_ncoord("a", 80), _ncoord("b", 40)]
+    ctrl = _setpoint_controller(coords, _dp_plan_solar_delay=True)
+    _mgr_for(ctrl).refresh_setpoint_blocks()
+    assert not any(ctrl.blocks.values())  # 80 % >= the 70 % setpoint would block "a"

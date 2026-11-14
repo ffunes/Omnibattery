@@ -334,6 +334,13 @@ class ChargeDelayManager:
             ctrl._charge_delay_status["state"] = "Disabled"
             return False
 
+        # Dynamic Pricing's optimizer plans the delay (step 8): it exports the
+        # sun it delays and runs its own grid charge. Not latched: the module
+        # decides again as soon as the optimizer stops planning.
+        if getattr(ctrl, "_dp_plan_solar_delay", False):
+            ctrl._charge_delay_status["state"] = "Planned"
+            return False
+
         # Skip delay entirely on the weekly full charge day when opted in
         if ctrl._balance_monitor_overrides_delay():
             ctrl._charge_delay_status["state"] = "Skipped - Full Charge Day"
@@ -423,6 +430,7 @@ class ChargeDelayManager:
             and not ctrl._charge_delay_unlocked
             and not ctrl._delay_setpoint_reached
             and not ctrl._balance_monitor_overrides_delay()
+            and not getattr(ctrl, "_dp_plan_solar_delay", False)
         )
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):

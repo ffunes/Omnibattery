@@ -245,6 +245,13 @@ class ChronologicalEvaluationRequest:
     sell_allowed: bool = False
     sell_power_kw: float = 0.0
     battery_export_prices: Mapping[datetime, float] | None = None
+    # Solar Charge Delay on (step 8, D9): None = off. A slot may export its
+    # solar surplus (valued at the export price, 0 without one) as long as the
+    # sun left before each day's sun end minus this margin refills the battery
+    # and it is at the setpoint (% of the fleet, None = no setpoint); at equal
+    # cost the sun is stored as late as possible.
+    solar_delay_margin_h: float | None = None
+    solar_delay_setpoint_pct: float | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

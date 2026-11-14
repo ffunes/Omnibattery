@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from bisect import bisect_right
 import dataclasses
+from datetime import timedelta
 import math
 
 import numpy as np
@@ -52,6 +53,9 @@ TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
 SELL = "sell"  # menu option ("sell", kW): the grid is held at -kW for the slot
+# Solar Charge Delay (D9): at most this much per day, on the solar surplus
+# stored before the deadline, decreasing to 0 there: a tie-break, never reported.
+DELAY_TIE_EUR = 0.001
 # Per kWh under the guaranteed floor, per quarter before the sun: above any
 # price, so the floor wins whenever it can be met; never reported.
 FLOOR_PENALTY_EUR = 100.0
@@ -97,12 +101,16 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     levels = np.unique(np.round(np.concatenate([lattice, extra]), 9))
     levels = levels[(levels >= 0.0) & (levels <= cap + _TOL)]
 
-    def menu(slot, quarters):
+    delay = _solar_delay(request, groups, model, fleet)
+
+    def menu(slot, quarters, slot_end):
         # Normal first: on a tie neither a charge nor a hold is taken.
         options = [None] + ([HOLD] if request.hold_allowed else [])
         # Store first: on a tie the surplus is stored. Never with a charge: the
         # surplus price hold's blocker stops all charging.
-        if request.export_choice_allowed and any(q.solar_kwh > q.house_kwh for q in quarters):
+        if (request.export_choice_allowed or (delay is not None and delay.offers(slot_end))) and any(
+            q.solar_kwh > q.house_kwh for q in quarters
+        ):
             options.append(EXPORT)
         # Sell last: on a tie it does not sell. Two powers, exclusive with the rest.
         if request.sell_allowed and request.sell_power_kw > 0 and slot.start in sell_prices:
@@ -140,6 +148,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         sell = isinstance(option, tuple) and option[0] == SELL
         hold = option == HOLD or (not sell and isinstance(option, tuple) and len(option) > 2)
         export = option == EXPORT
+        if export and not request.export_choice_allowed:
+            # The delay alone: only where the later sun still refills (per state).
+            export = delay.allows(e, quarter_ends[-1])
         target = None if option in (None, HOLD, EXPORT) or sell else target_of(e, option[0])
         done = np.zeros(e.shape, dtype=bool)
         ends = []
@@ -180,16 +191,27 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                     decide += FLOOR_PENALTY_EUR * np.maximum(floor - e, 0.0)
                 ends.append(e)
                 continue
-            if export:
+            kept = np.minimum(
+                min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh),
+                np.maximum(model.cap - e, 0.0) / model.eff,
+            )
+            if export is not False and np.any(export):
                 # The surplus it would have stored is exported; the minimum
                 # saving is charged on it (decides, never reported).
-                kept = np.minimum(
-                    min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh),
-                    np.maximum(model.cap - e, 0.0) / model.eff,
-                )
-                decide += export_saving * kept
-                q = dataclasses.replace(q, charge_kwh=0.0)
-            e, c = model.normal_step(q, e, t)
+                if request.export_choice_allowed:
+                    decide += export_saving * kept
+                e_x, c = model.normal_step(dataclasses.replace(q, charge_kwh=0.0), e, t)
+                if export is not True and not np.all(export):
+                    e_n, c_n = model.normal_step(q, e, t)
+                    e_x, c = np.where(export, e_x, e_n), np.where(export, c, c_n)
+                    kept = np.where(export, 0.0, kept)
+                else:
+                    kept = np.zeros_like(e)
+                e = e_x
+            else:
+                e, c = model.normal_step(q, e, t)
+            if delay is not None:
+                decide += delay.weight(end) * kept  # stored early costs a hair more (D9)
             cost += c
             decide += c
             if floor > 0 and request.floor_until is not None and end <= request.floor_until:
@@ -206,7 +228,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     for slot, quarters, slot_ends in reversed(groups):
         nxt = values[-1]
         best = None
-        for option in menu(slot, quarters):
+        for option in menu(slot, quarters, slot_ends[-1]):
             e1, _c, decide, *_ = run(quarters, levels, option, slot.price, slot_ends, slot.start)
             v = decide + np.interp(e1, levels, nxt)
             best = v if best is None else np.minimum(best, v)
@@ -224,7 +246,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     for k, (slot, quarters, ends) in enumerate(groups):
         nxt = values[k + 1]
         chosen = None
-        for option in menu(slot, quarters):
+        for option in menu(slot, quarters, ends[-1]):
             e1, c, decide, stored, open_, path = run(quarters, [e], option, slot.price, ends, slot.start)
             v = float(decide[0] + np.interp(e1[0], levels, nxt))
             if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
@@ -236,7 +258,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             sales.append((slot, float(option[1])))
         elif option == HOLD or (isinstance(option, tuple) and len(option) > 2):
             holds.append(slot)
-        if option == EXPORT:
+        if option == EXPORT and (
+            request.export_choice_allowed or bool(delay.allows(np.array([e]), ends[-1])[0])
+        ):
             exports.append(slot)
         if option not in (None, HOLD, EXPORT) and not selling and stored > _TOL:
             allocations.append(SlotAllocation(
@@ -287,6 +311,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     plan.optimizer_cost = total
     plan.export_choice_allowed = request.export_choice_allowed
     plan.sell_allowed = request.sell_allowed
+    plan.solar_delay = delay is not None
     return ChronologicalEvaluationResult(
         plan=plan,
         diagnostics=ChronologicalDiagnostics(
@@ -301,6 +326,68 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             cheaper_to_import_kwh=plan.cheaper_to_import_kwh,
         ),
     )
+
+
+class _SolarDelay:
+    """Solar Charge Delay in the optimizer (step 8, D9).
+
+    Each day's deadline is the forecast sun's end minus the margin. A slot
+    ending by it may export its surplus while the battery is at the setpoint
+    and the surplus storable after the slot, up to the deadline, refills the
+    gap (factor 1). Storing surplus before the deadline costs a hair, falling
+    linearly to 0 there, so that at equal cost the sun is stored late.
+    """
+
+    def __init__(self, deadlines, firsts, storable, setpoint_e, cap):
+        self._deadlines, self._firsts, self._cap = deadlines, firsts, cap
+        self._storable, self._setpoint = storable, setpoint_e
+        self._w = DELAY_TIE_EUR / max(cap, 1.0)
+
+    def _deadline(self, t):
+        return self._deadlines.get(t.date())
+
+    def offers(self, slot_end):
+        d = self._deadline(slot_end)
+        return d is not None and slot_end <= d
+
+    def allows(self, e, slot_end):
+        e = np.asarray(e, dtype=float)
+        d = self._deadline(slot_end)
+        if d is None or slot_end > d:
+            return np.zeros(e.shape, dtype=bool)
+        future = sum(v for end, v in self._storable if slot_end < end <= d)
+        return (e >= self._setpoint - _TOL) & (future >= self._cap - e - _TOL)
+
+    def weight(self, end):
+        d = self._deadline(end)
+        if d is None or end >= d:
+            return 0.0
+        span = (d - self._firsts[end.date()]).total_seconds()
+        return self._w * (min(1.0, (d - end).total_seconds() / span) if span > 0 else 1.0)
+
+
+def _solar_delay(request, groups, model, fleet):
+    """The delay's deadlines and refill test, or None when it is off."""
+    if request.solar_delay_margin_h is None:
+        return None
+    margin = timedelta(hours=max(0.0, float(request.solar_delay_margin_h)))
+    sunny = [(end, q) for _s, qs, ends in groups for q, end in zip(qs, ends) if q.solar_kwh > _TOL]
+    last, firsts = {}, {}
+    for end, _q in sunny:
+        last[end.date()] = max(last.get(end.date(), end), end)
+        firsts[end.date()] = min(firsts.get(end.date(), end), end)
+    deadlines = {d: t - margin for d, t in last.items()}
+    storable = [
+        (end, min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh) * model.eff)
+        for end, q in sunny
+    ]
+    setpoint = request.solar_delay_setpoint_pct
+    setpoint_e = (
+        fleet * float(setpoint) / 100.0 - model.floor_kwh
+        if setpoint is not None and fleet
+        else -math.inf
+    )
+    return _SolarDelay(deadlines, firsts, storable, setpoint_e, model.cap)
 
 
 def _published_quota(model, soc_step, e, target, stored):

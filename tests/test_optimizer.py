@@ -410,3 +410,51 @@ def test_no_sale_when_it_does_not_pay_after_the_margin():
     plan = optimize_charge(_with_sale(_request(prices, house=0.05, usable=4.0, threshold=0.0), exports,
                                       margin=0.05)).plan
     assert not plan.sales
+
+
+# --- Step 8: Solar Charge Delay (D9) -------------------------------------
+
+def _with_delay(request, margin_h=0.0, setpoint_pct=None):
+    import dataclasses
+    return dataclasses.replace(request, solar_delay_margin_h=margin_h, solar_delay_setpoint_pct=setpoint_pct)
+
+
+def _full_at(plan, cap):
+    return next(t for t, e in plan.trajectory if e >= cap - 1e-6)
+
+
+def test_solar_delay_stores_the_sun_as_late_as_it_still_fills():
+    # No export price: storing early or late costs the same. With the delay
+    # the morning surplus is exported and the battery fills at the end of the
+    # sun; without it, as soon as the sun comes.
+    base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
+    off = optimize_charge(base).plan
+    on = optimize_charge(_with_delay(base)).plan
+    assert not off.exports and _full_at(off, 2.0) <= T0 + 6 * Q
+    assert on.exports and _full_at(on, 2.0) >= T0 + 11 * Q
+    assert on.optimizer_cost == pytest.approx(off.optimizer_cost, abs=1e-6)
+
+
+def test_solar_delay_never_exports_what_the_later_sun_cannot_refill():
+    # Strong sun first, weak after: the late surplus alone cannot fill the
+    # battery, so only what it can refill is exported and the battery ends
+    # the sun as full as without the delay.
+    base = _request([0.20] * 8, house=0.05, solar=[0.7] * 4 + [0.2] * 4, usable=0.0, room=2.0,
+                    threshold=0.0)
+    off = optimize_charge(base).plan
+    on = optimize_charge(_with_delay(base)).plan
+    assert on.trajectory[-1][1] >= off.trajectory[-1][1] - 0.1  # one 1 % step of 10 kWh
+
+
+def test_solar_delay_fills_to_the_setpoint_first():
+    base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
+    plan = optimize_charge(_with_delay(base, setpoint_pct=25.0)).plan  # 15 % + 1 kWh of 10
+    first_export = min(s.start for s in plan.exports)
+    reached = next(t for t, e in plan.trajectory if e >= 1.0 - 1e-6)
+    assert first_export >= reached
+
+
+def test_solar_delay_fills_before_the_time_margin():
+    base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
+    plan = optimize_charge(_with_delay(base, margin_h=1.0)).plan  # sun ends at 03:00
+    assert T0 + 7 * Q <= _full_at(plan, 2.0) <= T0 + 8 * Q
