@@ -88,3 +88,23 @@ def test_a_dynamic_pricing_evaluation_stores_the_plan_projection(monkeypatch):
     assert min(deltas) < deltas[0]
     assert all(isinstance(t, datetime) for t, _d in projection)
     assert [t for t, _d in projection] == sorted(t for t, _d in projection)
+
+
+# Step 10: the limit is 3 points below the projected line (5 before).
+def test_four_points_below_the_projected_line_replans_two_do_not():
+    assert _trigger(ref=100.0, soc=66.0, now=_at(21), projection=_DISCHARGE)
+    assert not _trigger(ref=100.0, soc=68.0, now=_at(21), projection=_DISCHARGE)
+
+
+def test_a_fast_planned_discharge_right_after_the_evaluation_does_not_replan():
+    # Evaluated at 20:00; the plan drains 8 points by 20:15 (a sale, a big
+    # load). At 20:08 the battery is exactly on that path (100 - 8 x 8/15).
+    projection = ((_at(20, 15), -0.8), (_at(20, 30), -0.8))
+    assert not _trigger(ref=100.0, soc=95.7, now=_at(20, 8), projection=projection)
+
+
+def test_reaching_the_quarter_s_planned_level_early_does_not_replan():
+    # The quarter projects 16 % -> 10 % (the tail of a sale); the battery is
+    # already at 10 % mid-quarter: on the plan, just early.
+    projection = ((_at(20), 0.0), (_at(20, 15), -0.6), (_at(20, 30), -0.6))
+    assert not _trigger(ref=16.0, soc=10.0, now=_at(20, 7), projection=projection)

@@ -259,6 +259,11 @@ class DynamicPricingEvaluationHorizon(Enum):
     REMAINING = "remaining"
 
 
+# Points of fleet SOC below the plan's projected line that re-plan (step 10,
+# measured: 3 recovers 87 % of what a consumption-deviation rule did, 5 less).
+SOC_DROP_BELOW_PROJECTION = 3.0
+
+
 class PricingManager:
     """Dynamic-pricing / real-time-price engine for one config entry."""
 
@@ -6038,7 +6043,27 @@ class PricingManager:
         current = sum(c.data.get("battery_soc", 0) for c in coords) / len(coords)
         projected = self.projected_soc_now()
         if projected is not None:
-            return projected - current >= 5.0
+            # While the plan descends in the current quarter, compare with its
+            # value at the quarter's end: a battery on the plan, only early (a
+            # sale's tail; the first quarter after an evaluation, where the line
+            # stays at the reference), must not re-plan.
+            projection = self._controller._dp_eval_projection
+            now = self._now()
+            if now.tzinfo != projection[0][0].tzinfo:
+                now = now.replace(tzinfo=projection[0][0].tzinfo)
+            quarter_end = now.replace(second=0, microsecond=0) + timedelta(
+                minutes=-(now.minute % 15) + 15
+            ) if (now.minute % 15 or now.second or now.microsecond) else now
+            nxt = next((when for when, _v in projection if when >= now), None)
+            end = quarter_end if nxt is None else min(nxt, quarter_end)
+            at_point = next((value for when, value in projection if when == end), None)
+            projected = min(
+                projected,
+                self.projected_soc_now(end) if at_point is None
+                else self._controller._dp_last_eval_soc
+                + at_point / self._controller._dp_eval_projection_capacity_kwh * 100.0,
+            )
+            return projected - current >= SOC_DROP_BELOW_PROJECTION
         schedule = getattr(self._controller, "_dynamic_pricing_schedule", None)
         threshold = (
             5.0
