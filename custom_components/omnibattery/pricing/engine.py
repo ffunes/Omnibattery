@@ -3367,6 +3367,14 @@ class PricingManager:
         if snapshot:
             self._controller._last_chronological_diagnostics = snapshot
 
+    def _surplus_hold_enabled(self) -> bool:
+        """Whether the surplus price hold may export solar for later cheap hours."""
+        manager = getattr(self._controller, "_surplus_hold_mgr", None)
+        try:
+            return bool(manager is not None and manager.feature_enabled())
+        except Exception:  # noqa: BLE001
+            return False
+
     def _discharge_reserve_holds(self) -> bool:
         """Whether the discharge reserve keeps stored energy for dearer hours."""
         manager = getattr(self._controller, "_discharge_reserve_mgr", None)
@@ -3609,6 +3617,13 @@ class PricingManager:
             frozenset(getattr(plan, "holds", None) or ())
             if decision_data.get("planner") == "optimizer"
             and self._discharge_reserve_holds()
+            else None
+        )
+        # Step 6: likewise the exports replace the surplus price hold's own plan.
+        self._controller._dp_plan_exports = (
+            frozenset(getattr(plan, "exports", None) or ())
+            if decision_data.get("planner") == "optimizer"
+            and self._surplus_hold_enabled()
             else None
         )
         if decision_data.get("planner") == "optimizer":
@@ -4276,6 +4291,11 @@ class PricingManager:
                     hold_allowed=value_deadlines and self._discharge_reserve_holds(),
                     hold_min_saving=max(0.0, float(
                         getattr(self._controller, "discharge_reserve_min_saving", 0.0) or 0.0
+                    )),
+                    # The optimizer chooses which surplus to export (step 6).
+                    export_choice_allowed=value_deadlines and self._surplus_hold_enabled(),
+                    export_choice_min_saving=max(0.0, float(
+                        getattr(self._controller, "surplus_hold_min_saving", 0.0) or 0.0
                     )),
                     # A weekly full charge fills the gap to 100%; the load
                     # the grid carries meanwhile does not shrink that gap.
