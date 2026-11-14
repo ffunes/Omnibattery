@@ -252,9 +252,13 @@ def _published_quota(model, soc_step, e, target, stored):
 def _slot_groups(request: ChronologicalEvaluationRequest):
     """[(slot, [Quarter], [interval end])] from now to the last published price."""
     slots = sorted(
-        (s for s in request.price_slots if math.isfinite(float(s.price))),
+        (
+            s for s in (request.price_curve or request.price_slots)
+            if math.isfinite(float(s.price))
+        ),
         key=lambda s: s.start,
     )
+    candidates = set(request.price_slots)
     starts = [s.start for s in slots]
     exports = request.export_prices or {}
     discharge = request.discharge_kw
@@ -269,7 +273,8 @@ def _slot_groups(request: ChronologicalEvaluationRequest):
             break  # end of the published prices
         h = (i.end - i.start).total_seconds() / 3600.0
         allowed = (
-            s.end > request.now
+            s in candidates
+            and s.end > request.now
             and s.start < request.horizon_end
             and (request.max_price_threshold is None or s.price <= request.max_price_threshold)
         )
