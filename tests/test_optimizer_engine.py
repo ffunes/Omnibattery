@@ -297,3 +297,25 @@ def test_the_dashboard_projection_keeps_what_a_held_slot_holds():
     floor = ChargeDischargeController._daily_operation_reserve_floor(ctrl)
     assert floor(a.start, 3.0, 2.0) == 3.0
     assert floor(b.start, 3.0, 2.0) == 0.0
+
+
+def test_export_prices_come_from_the_export_sensor_lowest_overlap():
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing import PriceSlot
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    hour, half = _slots(_at(11, 0), [0.20, 0.20])
+    exports = [
+        PriceSlot(hour.start, hour.start + timedelta(minutes=10), 0.05),
+        PriceSlot(hour.start + timedelta(minutes=10), half.end, 0.08),
+    ]
+    with_sensor = PricingManager(SimpleNamespace(), SimpleNamespace(export_price_sensor="sensor.export"))
+    with_sensor._now = lambda: hour.start
+    with_sensor.get_future_export_price_slots = lambda _end: exports
+    assert with_sensor._optimizer_export_prices([hour, half], half.end) == {
+        hour.start: 0.05,
+        half.start: 0.08,
+    }
+    without = PricingManager(SimpleNamespace(), SimpleNamespace(export_price_sensor=None))
+    assert without._optimizer_export_prices([hour, half], half.end) is None
