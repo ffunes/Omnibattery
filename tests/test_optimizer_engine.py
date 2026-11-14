@@ -312,7 +312,7 @@ def test_export_prices_come_from_the_export_sensor_lowest_overlap():
     ]
     with_sensor = PricingManager(SimpleNamespace(), SimpleNamespace(export_price_sensor="sensor.export"))
     with_sensor._now = lambda: hour.start
-    with_sensor.get_future_export_price_slots = lambda _end: exports
+    with_sensor.get_future_export_price_slots = lambda _end, solar_bonus=True: exports
     assert with_sensor._optimizer_export_prices([hour, half], half.end) == {
         hour.start: 0.05,
         half.start: 0.08,
@@ -490,3 +490,64 @@ def test_an_evaluation_that_ends_early_drops_the_previous_plan_s_orders():
     PricingManager._clear_plan_orders(SimpleNamespace(_controller=ctrl))
     assert ctrl._dp_plan_holds is None and ctrl._dp_plan_exports is None
     assert ctrl._dp_export_decision is None
+
+
+def _sale_manager(sales, now, *, on_track=True, soc=60.0, end_soc=50.0, guard=None):
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.control.high_price_discharge import HighPriceDischargeManager
+    from tests.conftest import FakeCoordinator
+
+    overrides = {}
+    ctrl = SimpleNamespace(
+        coordinators=[FakeCoordinator(name="b1", data={"battery_soc": soc, "battery_total_energy": 10.0})],
+        _dp_plan_sales=sales,
+        _dp_sale_decision=None,
+        _pricing_mgr=SimpleNamespace(projected_soc_now=lambda at=None: end_soc),
+        _on_plan_track=lambda: on_track,
+        set_setpoint_override=lambda src, value, priority=0: overrides.__setitem__(src, value),
+        remove_setpoint_override=lambda src: overrides.pop(src, None),
+    )
+    manager = HighPriceDischargeManager(SimpleNamespace(), ctrl)
+    manager._now = lambda: now
+    manager._block_guard = lambda: guard
+    return manager, ctrl, overrides
+
+
+def test_a_planned_sale_runs_on_the_plan_s_track_until_the_slot_s_projected_energy():
+    a, b = _slots(_at(19, 0), [0.40, 0.40])
+    manager, ctrl, overrides = _sale_manager({a: 2.5}, a.start)
+    manager._refresh_plan_sale(ctrl._dp_plan_sales)
+    assert list(overrides.values()) == [-2500.0]
+    ctrl.coordinators[0].data["battery_soc"] = 50.0  # reached the slot end's projection
+    manager._refresh_plan_sale(ctrl._dp_plan_sales)
+    assert overrides == {}
+
+
+@pytest.mark.parametrize("kwargs", [dict(on_track=False), dict(guard="charge_order"), dict(end_soc=None)],
+                         ids=["behind_the_plan", "guard", "no_projection"])
+def test_a_planned_sale_is_released(kwargs):
+    a, _b = _slots(_at(19, 0), [0.40, 0.40])
+    manager, ctrl, overrides = _sale_manager({a: 2.5}, a.start, **kwargs)
+    manager._refresh_plan_sale(ctrl._dp_plan_sales)
+    assert overrides == {}
+
+
+def test_battery_sales_are_priced_without_the_solar_bonus():
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing import PriceSlot
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    hour, _half = _slots(_at(10, 0), [0.20, 0.20])
+    seen = []
+    manager = PricingManager(SimpleNamespace(), SimpleNamespace(export_price_sensor="sensor.export"))
+    manager._now = lambda: hour.start
+
+    def export_slots(_end, solar_bonus=True):
+        seen.append(solar_bonus)
+        return [PriceSlot(hour.start, hour.end, 0.30 if solar_bonus else 0.10)]
+
+    manager.get_future_export_price_slots = export_slots
+    assert manager._optimizer_export_prices([hour], hour.end, solar_bonus=False) == {hour.start: 0.10}
+    assert seen == [False]

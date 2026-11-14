@@ -350,3 +350,63 @@ def test_the_minimum_saving_decides_an_export():
     base = _request(prices, house=0.05, solar=[0.3] * 4 + [1.0] * 4, usable=0.0, room=2.0, threshold=0.0)
     request = _with_export(base, [0.18] * 4 + [0.02] * 4, min_saving=0.20)
     assert not optimize_charge(request).plan.exports
+
+
+def _with_sale(request, export_prices, power_kw=2.5, margin=0.0):
+    import dataclasses
+    prices = {s.start: p for s, p in zip(request.price_slots, export_prices)}
+    return dataclasses.replace(request, export_prices=prices, battery_export_prices=prices,
+                               sell_allowed=True, sell_power_kw=power_kw, import_value_margin=margin)
+
+
+def _replay_sale(request, plan):
+    """The controller's sale: grid at -P for the slot (the battery covers the
+    house and exports the rest; solar beyond P charges it)."""
+    sales = dict(plan.sales)
+    m = BatteryModel(capacity_kwh=request.fleet_capacity_kwh, round_trip_efficiency=0.85,
+                     floor_kwh=request.fleet_capacity_kwh * request.fleet_soc_pct / 100
+                     - request.usable_initial_kwh,
+                     usable_kwh=request.usable_initial_kwh + request.headroom_kwh)
+    e, total, prices = request.usable_initial_kwh, 0.0, []
+    for i in request.intervals:
+        s = next(s for s in request.price_slots if s.start <= i.start < s.end)
+        prices.append(s.price)
+        h = (i.end - i.start).total_seconds() / 3600
+        net = i.grid_load_kwh - i.solar_kwh
+        if s in sales:
+            flow = net + sales[s] * h
+            if flow >= 0:
+                out = min(e * m.eff, flow, request.discharge_kw * h)
+                e -= out / m.eff
+                grid = net - out
+            else:
+                st = min(-flow, request.effective_power_kw * h, (m.cap - e) / m.eff)
+                e += st * m.eff
+                grid = net + st
+            total += max(grid, 0) * s.price - max(-grid, 0) * request.battery_export_prices[s.start]
+            continue
+        q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price, request.export_prices.get(s.start, 0.0),
+                    True, request.effective_power_kw * h, request.discharge_kw * h)
+        e1, c = m.normal_step(q, e, None)
+        total += float(c)
+        e = float(e1)
+    return total - min((p for p in prices if p > 0), default=0.0) * m.eff * e
+
+
+def test_a_peak_worth_more_than_refilling_is_sold():
+    # 4 kWh stored; the peak sells at 0.50, refilling tomorrow costs 0.10 (end value).
+    prices = [0.20] * 4 + [0.10] * 4
+    exports = [0.50] * 4 + [0.0] * 4
+    request = _with_sale(_request(prices, house=0.05, usable=4.0, threshold=0.0), exports)
+    plan = optimize_charge(request).plan
+    assert {s.start for s, _p in plan.sales} == {s.start for s in request.price_slots[:4]}
+    assert _replay_sale(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+def test_no_sale_when_it_does_not_pay_after_the_margin():
+    prices = [0.20] * 4 + [0.10] * 4
+    exports = [0.13] * 4 + [0.0] * 4  # worth 0.13 now, refill 0.10 / 0.92 = 0.108
+    assert optimize_charge(_with_sale(_request(prices, house=0.05, usable=4.0, threshold=0.0), exports)).plan.sales
+    plan = optimize_charge(_with_sale(_request(prices, house=0.05, usable=4.0, threshold=0.0), exports,
+                                      margin=0.05)).plan
+    assert not plan.sales

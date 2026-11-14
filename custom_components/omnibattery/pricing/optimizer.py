@@ -51,6 +51,7 @@ MAX_ASKS = 24
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
+SELL = "sell"  # menu option ("sell", kW): the grid is held at -kW for the slot
 # Per kWh under the guaranteed floor, per quarter before the sun: above any
 # price, so the floor wins whenever it can be met; never reported.
 FLOOR_PENALTY_EUR = 100.0
@@ -103,6 +104,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         # surplus price hold's blocker stops all charging.
         if request.export_choice_allowed and any(q.solar_kwh > q.house_kwh for q in quarters):
             options.append(EXPORT)
+        # Sell last: on a tie it does not sell. Two powers, exclusive with the rest.
+        if request.sell_allowed and request.sell_power_kw > 0 and slot.start in sell_prices:
+            options += [(SELL, request.sell_power_kw), (SELL, request.sell_power_kw / 2)]
         if not quarters[0].grid_charge_allowed:
             return options
         most = sum(model.charge_rate(q) for q in quarters)
@@ -119,6 +123,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     floor = min(max(0.0, float(request.floor_kwh or 0.0)), cap)
     hold_saving = max(0.0, float(request.hold_min_saving or 0.0))
     export_saving = max(0.0, float(request.export_choice_min_saving or 0.0))
+    sell_prices = dict(request.battery_export_prices or request.export_prices or {})
 
     def target_of(e, ask):
         """The slot's target: the controller raises it to the floor while the
@@ -126,15 +131,16 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         target = model.slot_target(e, ask)
         return np.maximum(target, floor) if floor > 0 else target
 
-    def run(quarters, e, option, slot_price, quarter_ends):
+    def run(quarters, e, option, slot_price, quarter_ends, slot_start=None):
         """Exact execution of one slot from energies ``e`` (array)."""
         e = np.array(e, dtype=float)
         cost = np.zeros_like(e)
         decide = np.zeros_like(e)
         stored = np.zeros_like(e)
-        hold = option == HOLD or (isinstance(option, tuple) and len(option) > 2)
+        sell = isinstance(option, tuple) and option[0] == SELL
+        hold = option == HOLD or (not sell and isinstance(option, tuple) and len(option) > 2)
         export = option == EXPORT
-        target = None if option in (None, HOLD, EXPORT) else target_of(e, option[0])
+        target = None if option in (None, HOLD, EXPORT) or sell else target_of(e, option[0])
         done = np.zeros(e.shape, dtype=bool)
         ends = []
         for q, end in zip(quarters, quarter_ends):
@@ -157,6 +163,23 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 )
                 decide += hold_saving * covered
                 q = dataclasses.replace(q, discharge_kwh=0.0)
+            if sell:
+                # High-Price Sale's override: the grid at -P; the battery covers
+                # the house and exports the rest, solar beyond P charges it.
+                h_q = q.charge_kwh / max(request.effective_power_kw, _TOL)
+                flow = q.house_kwh - q.solar_kwh + option[1] * h_q
+                out = np.minimum(np.minimum(e * model.eff, max(flow, 0.0)), q.discharge_kwh)
+                inn = np.minimum(min(max(-flow, 0.0), q.charge_kwh), np.maximum(model.cap - e, 0.0) / model.eff)
+                grid = (q.house_kwh - q.solar_kwh) - out + inn
+                e = e - out / model.eff + inn * model.eff
+                c = (np.maximum(grid, 0.0) * q.import_price
+                     - np.maximum(-grid, 0.0) * sell_prices[slot_start])
+                cost += c
+                decide += c + margin * out
+                if floor > 0 and request.floor_until is not None and end <= request.floor_until:
+                    decide += FLOOR_PENALTY_EUR * np.maximum(floor - e, 0.0)
+                ends.append(e)
+                continue
             if export:
                 # The surplus it would have stored is exported; the minimum
                 # saving is charged on it (decides, never reported).
@@ -184,7 +207,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         nxt = values[-1]
         best = None
         for option in menu(slot, quarters):
-            e1, _c, decide, *_ = run(quarters, levels, option, slot.price, slot_ends)
+            e1, _c, decide, *_ = run(quarters, levels, option, slot.price, slot_ends, slot.start)
             v = decide + np.interp(e1, levels, nxt)
             best = v if best is None else np.minimum(best, v)
         values.append(best)
@@ -196,22 +219,26 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     allocations: list[SlotAllocation] = []
     holds: list = []
     exports: list = []
+    sales: list = []
     trajectory: list = []
     for k, (slot, quarters, ends) in enumerate(groups):
         nxt = values[k + 1]
         chosen = None
         for option in menu(slot, quarters):
-            e1, c, decide, stored, open_, path = run(quarters, [e], option, slot.price, ends)
+            e1, c, decide, stored, open_, path = run(quarters, [e], option, slot.price, ends, slot.start)
             v = float(decide[0] + np.interp(e1[0], levels, nxt))
             if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
                 chosen = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
                           bool(open_[0]), [float(x[0]) for x in path])
         _v, option, e_end, c, stored, open_, path = chosen
-        if option == HOLD or (isinstance(option, tuple) and len(option) > 2):
+        selling = isinstance(option, tuple) and option[0] == SELL
+        if selling:
+            sales.append((slot, float(option[1])))
+        elif option == HOLD or (isinstance(option, tuple) and len(option) > 2):
             holds.append(slot)
         if option == EXPORT:
             exports.append(slot)
-        if option not in (None, HOLD, EXPORT) and stored > _TOL:
+        if option not in (None, HOLD, EXPORT) and not selling and stored > _TOL:
             allocations.append(SlotAllocation(
                 slot,
                 _published_quota(model, soc_step, e, None if open_ else float(target_of(e, option[0])),
@@ -255,9 +282,11 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         charge_efficiency=model.eff,
         holds=tuple(holds),
         exports=tuple(exports),
+        sales=tuple(sales),
     )
     plan.optimizer_cost = total
     plan.export_choice_allowed = request.export_choice_allowed
+    plan.sell_allowed = request.sell_allowed
     return ChronologicalEvaluationResult(
         plan=plan,
         diagnostics=ChronologicalDiagnostics(

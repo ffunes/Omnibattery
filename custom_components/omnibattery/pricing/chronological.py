@@ -151,6 +151,8 @@ class ChronologicalPlan:
     holds: tuple[PriceSlot, ...] = ()
     # Slots whose solar surplus the plan exports instead of storing (step 6).
     exports: tuple[PriceSlot, ...] = ()
+    # (slot, net export kW) the plan sells at (step 7).
+    sales: tuple[tuple[PriceSlot, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -236,6 +238,13 @@ class ChronologicalEvaluationRequest:
     # instead of storing it; ``export_choice_min_saving`` per kWh exported.
     export_choice_allowed: bool = False
     export_choice_min_saving: float = 0.0
+    # High-Price Sale "surplus + arbitrage" on (step 7): a slot may sell at a
+    # net grid export of up to ``sell_power_kw``, battery energy priced at
+    # ``battery_export_prices`` (no solar-only bonus); the arbitrage margin per
+    # kWh sold decides.
+    sell_allowed: bool = False
+    sell_power_kw: float = 0.0
+    battery_export_prices: Mapping[datetime, float] | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

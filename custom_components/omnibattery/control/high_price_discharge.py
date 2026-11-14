@@ -202,6 +202,11 @@ class HighPriceDischargeManager:
             self._release(STATE_INVALID_CONFIGURATION, GUARD_NO_MAX_POWER)
             return
 
+        sales = getattr(self._controller, "_dp_plan_sales", None)
+        if sales is not None:
+            self._refresh_plan_sale(sales)
+            return
+
         self._maybe_rebuild(config)
 
         plan = self._plan
@@ -233,6 +238,44 @@ class HighPriceDischargeManager:
             OVERRIDE_SOURCE, -allocation.power_w, priority=OVERRIDE_PRIORITY
         )
         self._set_status(STATE_ACTIVE, REASON_PLANNED, power_w=-allocation.power_w)
+
+    def _refresh_plan_sale(self, sales: dict) -> None:
+        """Run the 2.0.0 optimizer's sale (step 7) through this override and
+        all its guards. Decided once per slot: only while the fleet is on the
+        plan's track (whole-percent reading within 2 points of the projection);
+        it stops once the reading reaches what the plan projects for the end of
+        the slot, so it never sells more than planned."""
+        controller = self._controller
+        now = self._now()
+        pricing = getattr(controller, "_pricing_mgr", None)
+        slot = next((s for s in sales if s.start <= now < s.end), None)
+        if slot is None or pricing is None:
+            self._release(STATE_WAITING, REASON_NO_ALLOCATION)
+            return
+        guard = self._block_guard()
+        if guard is not None:
+            self._release(STATE_BLOCKED, guard)
+            return
+        decided = getattr(controller, "_dp_sale_decision", None)
+        if decided is None or decided[0] != slot.start:
+            on_track = getattr(controller, "_on_plan_track", None)
+            decided = (slot.start, bool(callable(on_track) and on_track()))
+            controller._dp_sale_decision = decided
+        end_soc = pricing.projected_soc_now(slot.end)
+        coords = [
+            c for c in controller.coordinators
+            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+        ]
+        current = (
+            sum(float(c.data.get("battery_soc", 0) or 0) for c in coords) / len(coords)
+            if coords else None
+        )
+        if not decided[1] or end_soc is None or current is None or current <= end_soc:
+            self._release(STATE_WAITING, REASON_NO_ALLOCATION)
+            return
+        power_w = float(sales[slot]) * 1000.0
+        controller.set_setpoint_override(OVERRIDE_SOURCE, -power_w, priority=OVERRIDE_PRIORITY)
+        self._set_status(STATE_ACTIVE, REASON_PLANNED, power_w=-power_w)
 
     # ------------------------------------------------------------------
     # Internals
