@@ -48,6 +48,9 @@ MAX_LEVELS = 1000
 QUOTA_STEP_KWH = 0.05
 MAX_ASKS = 24
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
+# Per kWh under the guaranteed floor, per quarter before the sun: above any
+# price, so the floor wins whenever it can be met; never reported.
+FLOOR_PENALTY_EUR = 100.0
 _TOL = 1e-9
 
 
@@ -100,16 +103,24 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         asks = list(np.arange(step, most, step)) + [most]
         return [None] + [(a, False) for a in asks] + [(most + max(soc_step, QUOTA_STEP_KWH), True)]
 
-    def run(quarters, e, option, slot_price):
+    floor = min(max(0.0, float(request.floor_kwh or 0.0)), cap)
+
+    def target_of(e, ask):
+        """The slot's target: the controller raises it to the floor while the
+        guaranteed floor is active."""
+        target = model.slot_target(e, ask)
+        return np.maximum(target, floor) if floor > 0 else target
+
+    def run(quarters, e, option, slot_price, quarter_ends):
         """Exact execution of one slot from energies ``e`` (array)."""
         e = np.array(e, dtype=float)
         cost = np.zeros_like(e)
         decide = np.zeros_like(e)
         stored = np.zeros_like(e)
-        target = None if option is None else model.slot_target(e, option[0])
+        target = None if option is None else target_of(e, option[0])
         done = np.zeros(e.shape, dtype=bool)
         ends = []
-        for q in quarters:
+        for q, end in zip(quarters, quarter_ends):
             t = None
             if target is not None:
                 t = np.where(done, -np.inf, target)
@@ -123,6 +134,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             e, c = model.normal_step(q, e, t)
             cost += c
             decide += c
+            if floor > 0 and request.floor_until is not None and end <= request.floor_until:
+                decide += FLOOR_PENALTY_EUR * np.maximum(floor - e, 0.0)
             ends.append(e)
         # Published "to the end": a target not reached in the slot, or the
         # battery's top (the controller stops it there; as a plain quota it
@@ -132,11 +145,11 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
 
     # Backward pass: values[k] = cost-to-go before group k, on the lattice.
     values = [-end_value * levels]
-    for slot, quarters, _ends in reversed(groups):
+    for slot, quarters, slot_ends in reversed(groups):
         nxt = values[-1]
         best = None
         for option in menu(slot, quarters):
-            e1, _c, decide, *_ = run(quarters, levels, option, slot.price)
+            e1, _c, decide, *_ = run(quarters, levels, option, slot.price, slot_ends)
             v = decide + np.interp(e1, levels, nxt)
             best = v if best is None else np.minimum(best, v)
         values.append(best)
@@ -151,7 +164,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         nxt = values[k + 1]
         chosen = None
         for option in menu(slot, quarters):
-            e1, c, decide, stored, open_, path = run(quarters, [e], option, slot.price)
+            e1, c, decide, stored, open_, path = run(quarters, [e], option, slot.price, ends)
             v = float(decide[0] + np.interp(e1[0], levels, nxt))
             if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
                 chosen = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
@@ -159,7 +172,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         _v, option, e_end, c, stored, open_, path = chosen
         if option is not None and stored > _TOL:
             allocations.append(SlotAllocation(
-                slot, _published_quota(model, soc_step, e, option, stored, open_),
+                slot,
+                _published_quota(model, soc_step, e, None if open_ else float(target_of(e, option[0])),
+                                 stored),
                 None, "flexible",
                 # Charged to the slot's end or to the top: executing
                 # ``stored`` as a plain quota would stop it early.
@@ -215,7 +230,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     )
 
 
-def _published_quota(model, soc_step, e, option, stored, to_end):
+def _published_quota(model, soc_step, e, target, stored):
     """The slot energy to publish: what the plan stores, kept inside the
     quotas that give the controller the same target from the same reading.
 
@@ -227,10 +242,9 @@ def _published_quota(model, soc_step, e, option, stored, to_end):
     under a whole percent: one percent less). So it keeps a thousandth of a
     step from both.
     """
-    if to_end or soc_step <= 0:
+    if target is None or soc_step <= 0:  # to the end: the step comes on top
         return stored
     reading = float(np.floor((model.floor_kwh + e) / soc_step + 1e-6) * soc_step - model.floor_kwh)
-    target = float(model.slot_target(e, option[0]))
     margin = soc_step * 1e-3
     return min(max(stored, target - reading - soc_step + margin), target - reading - margin)
 
@@ -280,18 +294,18 @@ def _slot_groups(request: ChronologicalEvaluationRequest):
 def optimizer_fallback_reason(request: ChronologicalEvaluationRequest) -> str | None:
     """Why step 3 leaves this request to the previous allocator (None = optimizer).
 
-    Not modelled yet, each moved in by a later step of the design: the
-    guaranteed floor and its premium (step 4), a pending weekly full charge
-    (step 4), the discharge reserve holding energy (step 5); Time Slot prices
-    are synthetic (out of scope).
+    Not modelled yet, each moved in by a later step of the design: a pending
+    weekly full charge (step 4), the discharge reserve holding energy (step 5);
+    a floor request without its ``floor_kwh``; Time Slot prices are synthetic
+    (out of scope).
     """
     if request.import_value_efficiency is None:
         return "time_slot"
     if request.fleet_capacity_kwh is None or request.fleet_soc_pct is None:
         return "no_fleet_data"
-    if request.premium_kwh > _TOL or any(
+    if request.floor_kwh <= _TOL and (request.premium_kwh > _TOL or any(
         d.kind == "guaranteed_floor" for d in request.deadlines
-    ):
+    )):
         return "guaranteed_floor"
     if not request.grid_carries_load_while_charging:
         return "weekly_full_charge"

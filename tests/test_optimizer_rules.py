@@ -82,3 +82,15 @@ def test_the_peak_shaving_hold_keeps_the_battery_until_the_sun(monkeypatch):
     assert _drains(_run(monkeypatch), start, end) > 0.05
     held = _run(monkeypatch, settings={"peak_shaving": {"limit_w": 3000, "soc_threshold": 50}})
     assert _drains(held, start, end) <= 1e-9
+
+
+def test_the_guaranteed_floor_goes_to_the_optimizer_until_the_sun(monkeypatch):
+    # 3 x 5.12 kWh at 35 % with a 40 % floor: under it, so the controller's own
+    # trigger makes it active; the plan keeps it to the next sun.
+    outcome = _run(monkeypatch, settings={"guaranteed_floor_soc": 40.0})
+    request = outcome.request
+    assert request.floor_kwh > 1.0  # above the planning floor, in stored kWh
+    assert request.floor_until is not None and request.floor_until > request.now
+    energy = dict(outcome.plan.trajectory)
+    after_charge = [e for t, e in energy.items() if t >= datetime(2026, 11, 11, 6) and t <= request.floor_until]
+    assert after_charge and min(after_charge) >= request.floor_kwh - 0.05

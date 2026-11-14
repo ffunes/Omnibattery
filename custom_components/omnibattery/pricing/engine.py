@@ -4101,6 +4101,7 @@ class PricingManager:
             # the reactive under-floor gap beyond the ordinary deficit, or the
             # planner's floor requirement beyond ordinary pre-sunrise depletion.
             premium_kwh = 0.0
+            floor_until = None
             if decision_data.get("floor_active", False):
                 premium_kwh = max(
                     0.0,
@@ -4160,6 +4161,28 @@ class PricingManager:
                     decision_data["guaranteed_floor_deadline"] = (
                         result.guaranteed_floor_deadline
                     )
+                    floor_until = solar_start_dt
+            # The optimizer's view of the floor: while it is active the
+            # controller raises every slot target to it (_compute_deficit_target_soc).
+            floor_kwh = 0.0
+            if decision_data.get("floor_active", False) and getattr(
+                self._controller, "_predictive_min_soc_floor_enabled", False
+            ):
+                floor_soc = float(
+                    getattr(self._controller, "_predictive_min_soc_floor", 0.0) or 0.0
+                )
+                floor_kwh = sum(
+                    max(0.0, floor_soc - floor_of(c))
+                    / 100.0
+                    * float(c.data.get("battery_total_energy", 0) or 0)
+                    for c in eligible
+                )
+                if floor_until is None and solar_start_dt is not None:
+                    # Active from the controller's own trigger (under the
+                    # floor after today's sun): kept until the next sun.
+                    floor_until = solar_start_dt
+                    while floor_until <= now:
+                        floor_until += timedelta(days=1)
             power_kw = min(
                 self._contracted_charge_ceiling(),
                 max(0.0, float(self._controller.max_charge_capacity)),
@@ -4259,6 +4282,8 @@ class PricingManager:
                         else None
                     ),
                     negative_price_charging=self._negative_price_feature_enabled(),
+                    floor_kwh=floor_kwh,
+                    floor_until=floor_until if floor_kwh > 0 else None,
                 )
             )
             plan = evaluation.plan
