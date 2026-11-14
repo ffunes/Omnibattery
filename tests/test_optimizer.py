@@ -458,3 +458,13 @@ def test_solar_delay_fills_before_the_time_margin():
     base = _request([0.20] * 12, house=0.05, solar=0.5, usable=0.0, room=2.0, threshold=0.0)
     plan = optimize_charge(_with_delay(base, margin_h=1.0)).plan  # sun ends at 03:00
     assert T0 + 7 * Q <= _full_at(plan, 2.0) <= T0 + 8 * Q
+
+
+def test_solar_delay_keeps_a_30_percent_cushion_on_the_later_sun():
+    # The surplus left after the first slot refills the battery 1.15 times
+    # over: enough with an exact forecast, not with the delay's 30 % cushion
+    # (a forecast that comes in short left the battery unfilled).
+    base = _request([0.20] * 6, house=0.05, solar=[0.5] + [0.549] * 5, usable=0.0, room=2.0,
+                    threshold=0.0)
+    plan = optimize_charge(_with_delay(base)).plan
+    assert base.price_slots[0] not in set(plan.exports)

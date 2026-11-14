@@ -56,6 +56,9 @@ SELL = "sell"  # menu option ("sell", kW): the grid is held at -kW for the slot
 # Solar Charge Delay (D9): at most this much per day, on the solar surplus
 # stored before the deadline, decreasing to 0 there: a tie-break, never reported.
 DELAY_TIE_EUR = 0.001
+# The later sun must refill the battery this many times over before the delay
+# exports (the module's DELAY_SAFETY_FACTOR): a short forecast left it unfilled.
+DELAY_REFILL_FACTOR = 1.3
 # Per kWh under the guaranteed floor, per quarter before the sun: above any
 # price, so the floor wins whenever it can be met; never reported.
 FLOOR_PENALTY_EUR = 100.0
@@ -334,7 +337,7 @@ class _SolarDelay:
     Each day's deadline is the forecast sun's end minus the margin. A slot
     ending by it may export its surplus while the battery is at the setpoint
     and the surplus storable after the slot, up to the deadline, refills the
-    gap (factor 1). Storing surplus before the deadline costs a hair, falling
+    gap DELAY_REFILL_FACTOR times over. Storing surplus before the deadline costs a hair, falling
     linearly to 0 there, so that at equal cost the sun is stored late.
     """
 
@@ -356,7 +359,7 @@ class _SolarDelay:
         if d is None or slot_end > d:
             return np.zeros(e.shape, dtype=bool)
         future = sum(v for end, v in self._storable if slot_end < end <= d)
-        return (e >= self._setpoint - _TOL) & (future >= self._cap - e - _TOL)
+        return (e >= self._setpoint - _TOL) & (future >= DELAY_REFILL_FACTOR * (self._cap - e) - _TOL)
 
     def weight(self, end):
         d = self._deadline(end)
