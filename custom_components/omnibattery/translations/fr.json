@@ -1766,7 +1766,8 @@
           "delayed": "Retardé",
           "charging_allowed": "Charge autorisée",
           "skipped_full_charge_day": "Ignoré – Jour de charge complète",
-          "charging_to_setpoint": "Charge jusqu'au seuil"
+          "charging_to_setpoint": "Charge jusqu'au seuil",
+          "planned": "Planifié par l'optimiseur"
         }
       },
       "high_price_discharge_status": {

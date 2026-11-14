@@ -1164,3 +1164,17 @@ def test_a_stale_plan_ownership_does_not_silence_the_delay(overrides):
     asked = []
     mgr._should_delay_charge = lambda target: asked.append(target) or True
     assert mgr.is_charge_delayed() is True and asked
+
+
+def test_the_planned_state_is_translated_everywhere():
+    """Step 8: while the optimizer plans the delay its sensor reads "planned";
+    like the other states it needs a name in every language."""
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "custom_components" / "omnibattery"
+    sensor = SimpleNamespace(_controller=SimpleNamespace(_charge_delay_status={"state": "Planned"}))
+    assert sensor_module.ChargeDelaySensor.native_value.fget(sensor) == "planned"
+    for path in [root / "strings.json", *sorted((root / "translations").glob("*.json"))]:
+        states = json.loads(path.read_text(encoding="utf-8"))["entity"]["sensor"]["charge_delay_status"]["state"]
+        assert states.get("planned"), path.name

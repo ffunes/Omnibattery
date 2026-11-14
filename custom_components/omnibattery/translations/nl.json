@@ -1766,7 +1766,8 @@
           "delayed": "Vertraagd",
           "charging_allowed": "Laden toegestaan",
           "skipped_full_charge_day": "Overgeslagen – Vollaaddag",
-          "charging_to_setpoint": "Laden tot setpoint"
+          "charging_to_setpoint": "Laden tot setpoint",
+          "planned": "Gepland door de optimalisatie"
         }
       },
       "high_price_discharge_status": {
