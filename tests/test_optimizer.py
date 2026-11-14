@@ -315,8 +315,9 @@ def _replay_export(request, plan):
         s = next(s for s in request.price_slots if s.start <= i.start < s.end)
         prices.append(s.price)
         h = (i.end - i.start).total_seconds() / 3600
+        exporting = s in exported
         q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price, request.export_prices.get(s.start, 0.0),
-                    True, 0.0 if s in exported else request.effective_power_kw * h,
+                    True, 0.0 if exporting else request.effective_power_kw * h,
                     request.discharge_kw * h)
         e1, c = m.normal_step(q, e, None)
         total += float(c)

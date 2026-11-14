@@ -378,40 +378,49 @@ def test_a_plan_without_charge_keeps_its_projection_for_the_soc_drop_trigger(mon
     assert projection and projection[-1][1] < 0  # the night drains the battery
 
 
-def _export_controller(exports, now, *, guard=None, remaining=5.0, target=1.0):
+def _export_controller(exports, now, *, guard=None, projected=50.0, soc=50.0):
     from types import SimpleNamespace
 
+    from tests.conftest import FakeCoordinator
+
     blocks = {}
-    plan = SimpleNamespace(remaining_absorbable_kwh=lambda _now: remaining)
+    clock = {"t": now}
     ctrl = SimpleNamespace(
+        coordinators=[FakeCoordinator(name="b1", data={"battery_soc": soc, "battery_total_energy": 10.0})],
         _dp_plan_exports=frozenset(exports),
-        _pricing_mgr=SimpleNamespace(_now=lambda: now),
+        _pricing_mgr=SimpleNamespace(_now=lambda: clock["t"], projected_soc_now=lambda: projected),
         _surplus_hold_mgr=SimpleNamespace(
             feature_enabled=lambda: True,
-            _release_guard=lambda: guard,
-            plan=plan,
-            _live_target_kwh=target,
+            _release_guard=lambda for_plan=False: guard,
             is_hold_active=lambda: (_ for _ in ()).throw(AssertionError("module asked")),
         ),
         set_charge_block=lambda source, reason, details=None: blocks.__setitem__(source, details),
         remove_charge_block=lambda source: blocks.pop(source, None),
     )
-    return ctrl, blocks
+    return ctrl, blocks, clock
 
 
-def test_an_exported_slot_blocks_the_charge_through_the_surplus_hold_blocker():
+def test_an_exported_slot_on_the_plan_s_track_blocks_the_charge():
     a, b = _slots(_at(10, 0), [0.20, 0.20])
-    ctrl, blocks = _export_controller({a}, a.start)
+    ctrl, blocks, clock = _export_controller({a}, a.start, projected=51.5, soc=50.0)
     ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
     assert blocks["surplus_price_hold"]["origin"] == "plan"
-    ctrl._pricing_mgr._now = lambda: b.start
+    # Decided once per slot: a later reading behind the track keeps it.
+    ctrl.coordinators[0].data["battery_soc"] = 40.0
+    ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
+    assert "surplus_price_hold" in blocks
+    clock["t"] = b.start
     ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
     assert blocks == {}
 
 
-@pytest.mark.parametrize("kwargs", [dict(guard="charge_delay"), dict(remaining=0.5, target=1.0)])
-def test_the_module_s_guards_and_live_check_release_an_export(kwargs):
+@pytest.mark.parametrize(
+    "kwargs",
+    [dict(guard="charge_delay"), dict(projected=53.0, soc=50.0), dict(projected=None)],
+    ids=["guard", "behind_the_plan", "no_projection"],
+)
+def test_an_export_is_released_off_the_plan_s_track(kwargs):
     a, _b = _slots(_at(10, 0), [0.20, 0.20])
-    ctrl, blocks = _export_controller({a}, a.start, **kwargs)
+    ctrl, blocks, _clock = _export_controller({a}, a.start, **kwargs)
     ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
     assert blocks == {}

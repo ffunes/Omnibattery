@@ -4624,20 +4624,20 @@ class ChargeDischargeController:
         exports = getattr(self, "_dp_plan_exports", None)
         if exports is not None and manager.feature_enabled():
             # The 2.0.0 optimizer chose the exports (step 6), through the same
-            # blocker and the module's own guards; its live check still releases
-            # when the sun left today can no longer fill what is needed.
+            # blocker and the module's own guards (not its selected-slot and
+            # at-floor ones: the plan weighed both). Decided once per slot:
+            # only while the battery is on the plan's own track (whole-percent
+            # reading within 2 points of the projection, which it truncates);
+            # behind it, or without a projection, the surplus is stored.
             now = _pricing_clock_now(self)
-            plan = getattr(manager, "plan", None)
-            target = getattr(manager, "_live_target_kwh", None)
-            export = (
-                manager._release_guard() is None
-                and any(slot.start <= now < slot.end for slot in exports)
-                and not (
-                    plan is not None
-                    and target is not None
-                    and plan.remaining_absorbable_kwh(now) + 1e-9 < float(target)
-                )
-            )
+            slot = next((s for s in exports if s.start <= now < s.end), None)
+            export = False
+            if slot is not None and manager._release_guard(for_plan=True) is None:
+                decided = getattr(self, "_dp_export_decision", None)
+                if decided is None or decided[0] != slot.start:
+                    decided = (slot.start, ChargeDischargeController._on_plan_track(self))
+                    self._dp_export_decision = decided
+                export = decided[1]
             if export:
                 self.set_charge_block(
                     "surplus_price_hold", "surplus_price_hold", {"origin": "plan"}
@@ -4658,6 +4658,20 @@ class ChargeDischargeController:
             )
         else:
             self.remove_charge_block("surplus_price_hold")
+
+    def _on_plan_track(self) -> bool:
+        """Whether the fleet SOC reading is within 2 points of the plan's projection."""
+        pricing = getattr(self, "_pricing_mgr", None)
+        projected = getattr(pricing, "projected_soc_now", None)
+        projected = projected() if callable(projected) else None
+        coords = [
+            c for c in self.coordinators
+            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+        ]
+        if projected is None or not coords:
+            return False
+        current = sum(float(c.data.get("battery_soc", 0) or 0) for c in coords) / len(coords)
+        return current >= projected - 2.0
 
     def _is_operation_allowed(self, is_charging: bool) -> bool:
         """Return True if the refreshed blocker registry allows this operation."""
