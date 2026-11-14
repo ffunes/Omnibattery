@@ -3630,7 +3630,6 @@ class PricingManager:
         controller._dp_plan_exports = None
         controller._dp_export_decision = None
         controller._dp_plan_sales = None
-        controller._dp_sale_decision = None
 
     def _publish_plan_holds(self, plan, decision_data: Mapping[str, Any]) -> None:
         """Step 5: with the Discharge Reserve on, the optimizer's holds replace

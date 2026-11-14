@@ -241,10 +241,11 @@ class HighPriceDischargeManager:
 
     def _refresh_plan_sale(self, sales: dict) -> None:
         """Run the 2.0.0 optimizer's sale (step 7) through this override and
-        all its guards. Decided once per slot: only while the fleet is on the
-        plan's track (whole-percent reading within 2 points of the projection);
-        it stops once the reading reaches what the plan projects for the end of
-        the slot, so it never sells more than planned."""
+        all its guards. It sells until the reading reaches what the plan
+        projects for the end of the slot, so it never sells more than planned
+        and, behind the plan, sells less. No all-or-nothing "on the plan's
+        track" check: a 5 kW quarter is 12 points of a 10 kWh fleet, and a
+        2-point margin skipped whole planned quarters (measured: never cheaper)."""
         controller = self._controller
         now = self._now()
         pricing = getattr(controller, "_pricing_mgr", None)
@@ -256,11 +257,6 @@ class HighPriceDischargeManager:
         if guard is not None:
             self._release(STATE_BLOCKED, guard)
             return
-        decided = getattr(controller, "_dp_sale_decision", None)
-        if decided is None or decided[0] != slot.start:
-            on_track = getattr(controller, "_on_plan_track", None)
-            decided = (slot.start, bool(callable(on_track) and on_track()))
-            controller._dp_sale_decision = decided
         end_soc = pricing.projected_soc_now(slot.end)
         coords = [
             c for c in controller.coordinators
@@ -270,7 +266,7 @@ class HighPriceDischargeManager:
             sum(float(c.data.get("battery_soc", 0) or 0) for c in coords) / len(coords)
             if coords else None
         )
-        if not decided[1] or end_soc is None or current is None or current <= end_soc:
+        if end_soc is None or current is None or current <= end_soc:
             self._release(STATE_WAITING, REASON_NO_ALLOCATION)
             return
         power_w = float(sales[slot]) * 1000.0
