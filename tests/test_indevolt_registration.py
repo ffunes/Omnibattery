@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.config_entries import SOURCE_RECONFIGURE
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from custom_components.omnibattery import drivers
@@ -269,6 +270,7 @@ async def test_reconfigure_routes_indevolt_to_its_form(monkeypatch):
                              "port": 8080, "min_soc": 20}]},
     )
     flow = MarstekVenusConfigFlow()
+    flow.context = {"source": SOURCE_RECONFIGURE}
     flow.battery_index = 0
     flow._reconfigure_batteries = []
     flow._get_reconfigure_entry = lambda: entry
@@ -297,6 +299,7 @@ async def test_reconfigure_shows_and_keeps_the_request_speed(monkeypatch):
                "port": 8080, "indevolt_request_speed": "fast"}
     entry = SimpleNamespace(entry_id="test-entry", data={"batteries": [battery]})
     flow = MarstekVenusConfigFlow()
+    flow.context = {"source": SOURCE_RECONFIGURE}
     flow.battery_index = 0
     flow._reconfigure_batteries = []
     flow._get_reconfigure_entry = lambda: entry

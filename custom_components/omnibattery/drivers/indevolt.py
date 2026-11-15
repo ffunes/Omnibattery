@@ -66,6 +66,7 @@ from .indevolt_client import (
     pacing_levels,
     slot_for_request_speed,
 )
+from .indevolt_flow import INDEVOLT_SETUP
 from .indevolt_notify import IndevoltNotifier
 from ..infra.mac_tracking import normalise_mac
 from .indevolt_settings import BY_KEY as SETTING_BY_KEY
@@ -568,6 +569,7 @@ class IndevoltDriver(BatteryDriver):
     """Monitor and control one Indevolt battery through its local HTTP API."""
 
     BRAND = "indevolt"
+    SETUP = INDEVOLT_SETUP
     TRAITS = DriverTraits(
         supports_voltage_taper=False, ip_addressed=True, min_soc_range=(5, 50, 20)
     )
