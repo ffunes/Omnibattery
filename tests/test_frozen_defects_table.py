@@ -14,7 +14,6 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-from custom_components.omnibattery import _migrate_missing_battery_version
 from custom_components.omnibattery import config_flow
 from custom_components.omnibattery.drivers import registry
 from custom_components.omnibattery.tracking import solar_profile
@@ -122,33 +121,19 @@ def _row(brand, version, serial):
     }
 
 
-def _migration_row(brand):
-    cfg = _base_config(brand)
-    cfg.pop("battery_version", None)
-    entry = SimpleNamespace(data={"batteries": [cfg]})
-    _migrate_missing_battery_version(entry)
-    stored = entry.data["batteries"][0]
-    return {
-        "battery_version_added": "battery_version" in stored,
-        "battery_version": stored.get("battery_version"),
-    }
-
-
 def _build_table():
     rows = {}
     for brand in BRANDS:
         for version in VERSIONS:
             for serial in SERIAL_PORTS:
                 rows[f"{brand}|version={version}|serial={serial}"] = _row(brand, version, serial)
-    return {
-        "rows": rows,
-        "migration": {brand: _safe(lambda b=brand: _migration_row(b)) for brand in BRANDS},
-    }
+    # fixed: plan section 8 #20: the battery_version migration is gone, so no "migration" section.
+    return {"rows": rows}
 
 
 def _diff(expected, actual):
     lines = []
-    for section in ("rows", "migration"):
+    for section in ("rows",):
         exp, act = expected.get(section, {}), actual.get(section, {})
         for row in sorted(set(exp) | set(act)):
             e, a = exp.get(row), act.get(row)

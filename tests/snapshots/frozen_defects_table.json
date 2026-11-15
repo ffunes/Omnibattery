@@ -1,46 +1,4 @@
 {
- "migration": {
-  "<missing>": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "acme": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "anker": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "esphome": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "hoymiles": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "huawei": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "indevolt": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "marstek": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "sessy": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  },
-  "zendure": {
-   "battery_version": "v2",
-   "battery_version_added": true
-  }
- },
  "rows": {
   "<missing>|version=<absent>|serial=/dev/ttyUSB0": {
    "coordinator_battery_version": "v2",
