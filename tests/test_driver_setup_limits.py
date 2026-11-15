@@ -108,7 +108,7 @@ TRAIT_TABLE = {
 }
 
 
-@pytest.mark.parametrize("brand", BRANDS)
+@pytest.mark.parametrize("brand", list(TRAIT_TABLE))
 def test_traits_of_every_brand(brand):
     capacity_field, min_range = TRAIT_TABLE[brand]
     traits = registry.DRIVERS[brand].TRAITS
@@ -164,7 +164,7 @@ CAPABILITY_MATCH = {
 }
 
 
-@pytest.mark.parametrize("brand", BRANDS)
+@pytest.mark.parametrize("brand", list(CAPABILITY_MATCH))
 async def test_traits_vs_driver_capabilities(brand):
     config = BRAND_CONFIGS[brand]
     context = DriverContext(

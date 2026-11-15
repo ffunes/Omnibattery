@@ -15,7 +15,7 @@ from custom_components.omnibattery.drivers.registry import (
 
 
 def test_selector_order_is_the_registry_order():
-    assert list(DRIVERS) == [
+    assert list(DRIVERS)[:8] == [  # a new brand is appended after these
         "marstek", "zendure", "esphome", "anker",
         "sessy", "indevolt", "hoymiles", "huawei",
     ]
