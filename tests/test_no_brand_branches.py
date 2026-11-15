@@ -60,12 +60,11 @@ from __future__ import annotations
 import ast
 import os
 import re
-from collections import Counter
-from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parents[1] / "custom_components" / "omnibattery"
-ALLOWLIST_FILE = Path(__file__).resolve().parent / "guard_allowlists" / "no_brand_branches.txt"
-UPDATE_ENV = "OMNIBATTERY_UPDATE_ALLOWLIST"
+from tests import _guard_common
+from tests._guard_common import PACKAGE, UPDATE_ENV, diff_against_allowlist, shared_python_files
+
+ALLOWLIST_FILE = _guard_common.ALLOWLIST_DIR / "no_brand_branches.txt"
 
 BRANDS = ("marstek", "zendure", "esphome", "anker", "sessy", "indevolt", "huawei", "hoymiles")
 BRAND_RE = re.compile("|".join(BRANDS), re.IGNORECASE)
@@ -369,10 +368,7 @@ def scan_js_source(source: str, relpath: str) -> list[str]:
 
 def scan_package() -> list[str]:
     found: list[str] = []
-    for path in sorted(PACKAGE.rglob("*.py")):
-        rel = path.relative_to(PACKAGE).as_posix()
-        if rel.split("/")[0] == "drivers" or "__pycache__" in rel:
-            continue
+    for rel, path in shared_python_files():
         found += scan_python_source(path.read_text(encoding="utf-8"), rel)
     for path in sorted((PACKAGE / "frontend").glob("*.js")):
         rel = path.relative_to(PACKAGE).as_posix()
@@ -381,14 +377,7 @@ def scan_package() -> list[str]:
 
 
 def read_allowlist() -> list[str]:
-    if not ALLOWLIST_FILE.exists():
-        return []
-    lines = []
-    for raw in ALLOWLIST_FILE.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if line and not line.startswith("#"):
-            lines.append(line)
-    return lines
+    return _guard_common.read_allowlist(ALLOWLIST_FILE)
 
 
 _HEADER = (
@@ -400,14 +389,7 @@ _HEADER = (
 
 
 def write_allowlist(found: list[str]) -> None:
-    ALLOWLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ALLOWLIST_FILE.write_text(_HEADER + "\n".join(sorted(found)) + "\n", encoding="utf-8", newline="\n")
-
-
-def diff_against_allowlist(found: list[str], allowed: list[str]) -> tuple[list[str], list[str]]:
-    """(new findings not allowed, obsolete allowlist entries), as exact lines."""
-    f, a = Counter(found), Counter(allowed)
-    return sorted((f - a).elements()), sorted((a - f).elements())
+    _guard_common.write_allowlist(ALLOWLIST_FILE, _HEADER, found)
 
 
 def test_no_new_brand_branches():

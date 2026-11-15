@@ -1,0 +1,48 @@
+# Native-key allowlist (tests/test_no_native_keys.py). One line per
+# occurrence, format path:symbol:kind:detail. It may only SHRINK: delete lines
+# as the refactor removes the code that produces them. Regenerate with
+# OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
+__init__.py:ChargeDischargeController._check_non_delivery:state_code:int(inv_state) == NORMAL_BALANCE_RECAL_INVERTER_STANDBY
+__init__.py:ChargeDischargeController._daily_operation_runtime_decision:state_code:data.get('inverter_state') == 4
+__init__.py:ChargeDischargeController._is_battery_calibrating:key:soc_status
+__init__.py:_backup_switch_enabled:backup_code:value == 0
+__init__.py:_backup_switch_enabled:backup_code:value in ('Off-grid', 'Ready')
+__init__.py:_inverter_in_ac_bypass:state_code:value == INVERTER_STATE_AC_BYPASS
+const/registers_common.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
+const/registers_common.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
+const/registers_v2.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
+const/registers_v2.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
+const/registers_v2.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
+const/registers_v2.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
+const/registers_v2.py:<module>:key:alarm_status
+const/registers_v2.py:<module>:key:fault_status
+control/max_soc_charge.py:MaxSocChargeManager._bms_cut_signature:state_code:int(inv) == NORMAL_BALANCE_RECAL_INVERTER_STANDBY
+control/weekly_full_charge.py:WeeklyFullChargeManager._original_max_soc:key:soc_set
+control/weekly_full_charge.py:WeeklyFullChargeManager.tick_bms_cutoff:state_code:inv_state == _INVERTER_STATE_STANDBY
+infra/alarm_notifier.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
+infra/alarm_notifier.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
+infra/alarm_notifier.py:AlarmNotifier._send:alarm_table:ALARM_BIT_DESCRIPTIONS
+infra/alarm_notifier.py:AlarmNotifier._send:alarm_table:ALARM_BIT_DESCRIPTIONS
+infra/alarm_notifier.py:AlarmNotifier._send:alarm_table:ALARM_BIT_DESCRIPTIONS
+infra/alarm_notifier.py:AlarmNotifier._send:alarm_table:FAULT_BIT_DESCRIPTIONS
+infra/alarm_notifier.py:AlarmNotifier._send:alarm_table:FAULT_BIT_DESCRIPTIONS
+infra/alarm_notifier.py:AlarmNotifier._send:alarm_table:FAULT_BIT_DESCRIPTIONS
+infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:data_key:'min_soc' in self.data
+infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:data_key:self.data['min_soc']
+infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:key:alarm_status
+infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:key:fault_status
+infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:key:soc_set
+infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:key:soc_set
+infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_zendure_inverse_max_power:key:inverse_max_power
+infra/coordinator.py:MarstekVenusDataUpdateCoordinator.needs_software_max_discharge:key:inverse_max_power
+number.py:MarstekVenusNumber.async_set_native_value:key:inverse_max_power
+sensors/aggregate_sensors.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
+sensors/aggregate_sensors.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
+sensors/aggregate_sensors.py:MarstekVenusAggregateSensor._calculate_battery_cell_power:state_code:data.get('inverter_state') == 4
+sensors/aggregate_sensors.py:SystemAlarmSensor.__init__:key:alarm_status
+sensors/aggregate_sensors.py:SystemAlarmSensor.extra_state_attributes:alarm_table:ALARM_BIT_DESCRIPTIONS
+sensors/aggregate_sensors.py:SystemAlarmSensor.extra_state_attributes:alarm_table:FAULT_BIT_DESCRIPTIONS
+sensors/aggregate_sensors.py:SystemAlarmSensor.extra_state_attributes:key:alarm_status
+sensors/aggregate_sensors.py:SystemAlarmSensor.extra_state_attributes:key:fault_status
+sensors/aggregate_sensors.py:SystemAlarmSensor.native_value:key:alarm_status
+sensors/aggregate_sensors.py:SystemAlarmSensor.native_value:key:fault_status
