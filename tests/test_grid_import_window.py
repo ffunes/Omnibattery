@@ -359,3 +359,55 @@ async def test_the_switch_writes_the_entry_and_the_controller():
     await switch.async_turn_on()
     assert ctrl.grid_import_window_enabled is True and switch.is_on
     assert updates[-1]["grid_import_window_15min"] is True
+
+
+# --- A spent budget on the charge side ---------------------------------------------------
+
+def _spent_tracker():
+    t = _tracker()
+    t.update_grid_window(Q0 + timedelta(seconds=600), CAP * 900 / 3.6e6, 2.0)
+    return t
+
+
+def test_a_spent_budget_leaves_no_manual_grid_charge():
+    ctrl = _ctrl(_spent_tracker())
+    ctrl.offgrid_mode_enabled = False
+    ctrl.primary_consumption_sensor = "sensor.grid"
+    ctrl.hass = SimpleNamespace(states=SimpleNamespace(get=lambda _e: 1500.0))
+    ctrl._apply_meter_transform = lambda state: state
+    battery = SimpleNamespace(data={}, manual_force_mode="Charge", manual_set_charge_power=2000,
+                              commanded_charge_power=0, commanded_discharge_power=0)
+    ctrl._coordinator_delivered_power = lambda _c: 0.0
+    assert ctrl._manual_charge_allowance([battery]) == 0.0
+
+
+def test_a_spent_budget_stops_the_automatic_grid_charge():
+    import asyncio
+
+    from tests.test_control_sample_scheduling import _main_controller, _state
+
+    first = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    controller = _main_controller({"state": _state(1500, first)}, [])
+    controller._compute_pd_new_power = lambda *_a: 1000.0
+    controller.previous_power = 0.0
+    controller.last_output_sign = 0
+    controller.max_contracted_power = CAP
+    controller.grid_import_window_enabled = True
+    spent = _spent_tracker()
+
+    async def _no_accumulate(*_a, **_k):
+        return None
+
+    controller._consumption_tracker = SimpleNamespace(
+        window_valid=spent.window_valid, window_quarter=spent.window_quarter,
+        window_sample_at=spent.window_sample_at, window_import_kwh=spent.window_import_kwh,
+        handle_accumulator_daily_reset=lambda: None,
+        accumulate_household_consumption=_no_accumulate,
+        handle_daily_energy_reset=lambda: None,
+        accumulate_daily_solar_energy=_no_accumulate,
+        accumulate_daily_home_energy=_no_accumulate,
+        accumulate_daily_grid_energy=_no_accumulate,
+        maybe_save_accumulators=lambda: None,
+    )
+    asyncio.run(controller._run_control_cycle(now=first + timedelta(seconds=1)))
+    assert controller.previous_power == 0.0
