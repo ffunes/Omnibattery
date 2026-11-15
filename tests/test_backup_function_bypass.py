@@ -172,6 +172,7 @@ def _polling_coordinator(read_groups, read_telemetry):
             critical_control_keys=_FakeMarstekDriver().critical_control_keys,
             inverter_status=_FakeMarstekDriver().inverter_status,
             backup_enabled=_FakeMarstekDriver().backup_enabled,
+            active_alarms=_FakeMarstekDriver().active_alarms,
         ),
         _def_by_key={k: {"key": k} for k in keys},
         _get_entity_type=lambda definition, fallback_key=None: "sensor",

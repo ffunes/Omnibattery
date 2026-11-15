@@ -44,10 +44,12 @@ from ..const import (
     max_power_for_battery_version,
 )
 from ..infra.modbus_helpers import decode_registers
+from .marstek_alarms import decode_alarms, with_alarm_registers
 from .marstek_client import BLOCK_REFUSED, MarstekModbusClient
 from .marstek_flow import MARSTEK_SETUP
 from .base import (
     BatteryDriver,
+    DriverAlarm,
     DriverCapabilities,
     DriverContext,
     DriverReconciliation,
@@ -175,7 +177,7 @@ def _load_definitions(version: str) -> dict[str, list[dict]]:
         binary_sensor = BINARY_SENSOR_DEFINITIONS_V3
         button = BUTTON_DEFINITIONS_V3
     else:  # v2 (default)
-        sensor = SENSOR_DEFINITIONS
+        sensor = with_alarm_registers(SENSOR_DEFINITIONS)
         number = NUMBER_DEFINITIONS
         select = SELECT_DEFINITIONS
         switch = SWITCH_DEFINITIONS
@@ -656,6 +658,9 @@ class MarstekModbusDriver(BatteryDriver):
     @property
     def capabilities(self) -> DriverCapabilities:
         return self._capabilities
+
+    def active_alarms(self, data: dict) -> list[DriverAlarm]:
+        return decode_alarms(data)
 
     _MODEL_LABELS: dict[str, str] = {
         "v2": "Venus E v2",

@@ -15,8 +15,6 @@ _LOGGER = logging.getLogger(__name__)
 
 from ..const import (
     DOMAIN,
-    ALARM_BIT_DESCRIPTIONS,
-    FAULT_BIT_DESCRIPTIONS,
     DEBUG_POLL_SENSOR_VALUES,
     CONF_SOLAR_PRODUCTION_SENSOR,
     CONF_METER_INVERTED,
@@ -795,10 +793,6 @@ class SystemAlarmSensor(SensorEntity):
             return
         self.async_write_ha_state()
 
-    @staticmethod
-    def _active_labels(value: int, descriptions: dict) -> list[str]:
-        return [descriptions[b] for b in range(32) if (value & (1 << b)) and b in descriptions]
-
     @property
     def native_value(self) -> str:
         """Return overall alarm state across all batteries."""
@@ -807,10 +801,11 @@ class SystemAlarmSensor(SensorEntity):
         for coordinator in self.coordinators:
             if not coordinator.data:
                 continue
-            if coordinator.data.get("fault_status") or 0:
-                any_fault = True
-            if coordinator.data.get("alarm_status") or 0:
-                any_alarm = True
+            for alarm in coordinator.driver.active_alarms(coordinator.data):
+                if alarm.kind == "fault":
+                    any_fault = True
+                else:
+                    any_alarm = True
         if any_fault:
             return "Fault"
         if any_alarm:
@@ -824,13 +819,11 @@ class SystemAlarmSensor(SensorEntity):
         for coordinator in self.coordinators:
             if not coordinator.data:
                 continue
-            fault_val: int = coordinator.data.get("fault_status") or 0
-            alarm_val: int = coordinator.data.get("alarm_status") or 0
-            active: list[str] = []
-            if fault_val:
-                active += [f"[Fault] {label}" for label in self._active_labels(fault_val, FAULT_BIT_DESCRIPTIONS)]
-            if alarm_val:
-                active += [f"[Alarm] {label}" for label in self._active_labels(alarm_val, ALARM_BIT_DESCRIPTIONS)]
+            active: list[str] = [
+                f"[{alarm.kind.capitalize()}] {alarm.description}"
+                for alarm in coordinator.driver.active_alarms(coordinator.data)
+                if alarm.description
+            ]
             if active:
                 attrs[coordinator.name] = active
         return attrs

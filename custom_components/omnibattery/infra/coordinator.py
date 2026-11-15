@@ -1469,10 +1469,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             self.data["battery_total_energy"] = self.battery_capacity_kwh
 
         # Detect new alarm/fault bits and send HA notifications
-        await self._alarm_notifier.check(
-            self.data.get("alarm_status") or 0,
-            self.data.get("fault_status") or 0,
-        )
+        await self._alarm_notifier.check(self.driver.active_alarms(self.data))
 
         # Sync control attributes from polled register values so that changes made
         # via the UI (number entities) survive HA restarts. The hardware register is

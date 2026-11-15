@@ -32,6 +32,7 @@ def _coordinator(
         read_telemetry=read_telemetry,
         control_dependency_keys=set(),
         critical_control_keys=CRITICAL_CONTROL_KEYS,
+        active_alarms=lambda data: [],
     )
     registry = SimpleNamespace(
         async_get_entity_id=lambda *args: None,
@@ -158,6 +159,7 @@ def _power_limit_coordinator(
         read_telemetry=read_telemetry,
         control_dependency_keys=set(),
         critical_control_keys=CRITICAL_CONTROL_KEYS,
+        active_alarms=lambda data: [],
     )
     registry = SimpleNamespace(
         async_get_entity_id=lambda *args: None,
@@ -251,6 +253,7 @@ async def test_lifetime_energy_totals_are_dependencies_for_derived_daily_energy(
         read_telemetry=AsyncMock(return_value={"total_charging_energy": 49100}),
         control_dependency_keys=set(),
         critical_control_keys=CRITICAL_CONTROL_KEYS,
+        active_alarms=lambda data: [],
     )
     disabled_entry = SimpleNamespace(disabled=True, disabled_by="user")
     registry = SimpleNamespace(

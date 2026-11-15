@@ -132,6 +132,22 @@ class InverterStatus(enum.Enum):
 
 
 @dataclass(frozen=True)
+class DriverAlarm:
+    """One active alarm or fault, already decoded by the driver.
+
+    ``kind`` is ``"fault"`` or ``"alarm"``; ``code`` identifies the condition
+    within its kind (stable across reads: the notifier tells new conditions from
+    standing ones by ``(kind, code)``). ``description`` is the human text, or
+    ``None`` for a condition the driver cannot name: it still counts as active
+    but adds no label.
+    """
+
+    kind: Literal["fault", "alarm"]
+    code: int
+    description: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class DriverContext:
     """What the coordinator hands a driver's ``from_config`` besides the stored config.
 
@@ -1037,6 +1053,15 @@ class BatteryDriver(ABC):
         if value is None:
             return None
         return value == 0
+
+    def active_alarms(self, data: dict) -> list[DriverAlarm]:
+        """The alarms and faults currently active, decoded from ``data``.
+
+        Faults first, then alarms, each in ascending ``code`` order: the order the
+        system alarm sensor lists them and the notifier prints them. Defaults to
+        none; a driver whose telemetry carries alarm or fault status overrides it.
+        """
+        return []
 
     def is_self_managed(self, data: dict) -> bool:
         """Whether the device is running its own routine and ignores setpoints.

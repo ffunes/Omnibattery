@@ -131,6 +131,7 @@ class _FakeMarstekDriver:
     inverter_status = BatteryDriver.inverter_status
     backup_enabled = BatteryDriver.backup_enabled
     is_self_managed = BatteryDriver.is_self_managed
+    active_alarms = BatteryDriver.active_alarms
     device_max_soc = BatteryDriver.device_max_soc
     ac_contribution_w = BatteryDriver.ac_contribution_w
     critical_control_keys = BatteryDriver.critical_control_keys
