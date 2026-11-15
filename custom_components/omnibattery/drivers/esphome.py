@@ -40,6 +40,7 @@ from .base import (
     TelemetrySnapshot,
 )
 from .esphome_flow import ESPHOME_SETUP
+from .marstek import slot_power_ceiling_by_version
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -404,6 +405,11 @@ class EsphomeEntityDriver(BatteryDriver):
     LABEL = "Marstek via LilyGo RS485 (ESPHome)"
     MANUFACTURER = "Marstek"
     DEFAULT_MODEL = "Venus"
+
+    @classmethod
+    def slot_power_ceiling(cls, battery_config) -> Optional[int]:
+        # A Venus behind the bridge keeps the stored Marstek version table.
+        return slot_power_ceiling_by_version(battery_config)
 
     @classmethod
     def from_config(cls, battery_config, context: DriverContext) -> "EsphomeEntityDriver":

@@ -92,6 +92,14 @@ def max_power_for_battery_version(
     )
 
 
+def slot_power_ceiling_by_version(battery_config) -> Optional[int]:
+    """Time-slot power ceiling of a stored Marstek version (None = unknown version)."""
+    version = battery_config.get(CONF_BATTERY_VERSION)
+    if version in MAX_POWER_BY_VERSION:
+        return max_power_for_battery_version(version, battery_config.get("ems_version"))
+    return None
+
+
 # Firmware families that share the v3 quirks: single TCP slot, int16 power, no
 # hardware SOC cut-off registers, packet correction.
 _V3_FAMILY = ("v3", "vA", "vD")
@@ -405,6 +413,10 @@ class MarstekModbusDriver(BatteryDriver):
                 max_soc_low=int(DriverCapabilities.charge_cutoff_range[0]),
             )
         return traits
+
+    @classmethod
+    def slot_power_ceiling(cls, battery_config) -> Optional[int]:
+        return slot_power_ceiling_by_version(battery_config)
 
     @classmethod
     def link_key(cls, battery_config) -> tuple:

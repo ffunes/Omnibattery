@@ -1,8 +1,3 @@
 # Brand/version knowledge frozen in the shared modules of drivers/ (see
 # tests/test_driver_shared_modules_frozen.py). Every line names the plan section 8
 # row it keeps; it goes when that defect is fixed. May only shrink.
-#
-# Time-slot ceiling by the stored Marstek version for any brand (row #51; moved
-# here from config_flow._battery_hardware_max, where it was not detected).
-drivers/base.py:BatteryDriver.slot_power_ceiling:version:config_key ems_version  # §8 #51 por versión (deriva OF)
-drivers/base.py:BatteryDriver.slot_power_ceiling:version:import drivers.marstek  # §8 #51 tabla de versiones Marstek (T8.1 la sacó de const)

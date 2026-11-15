@@ -883,8 +883,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -915,8 +915,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -947,8 +947,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -979,8 +979,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -1011,8 +1011,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -1043,8 +1043,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -1075,8 +1075,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -1107,8 +1107,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -1651,8 +1651,8 @@
     0,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -1683,8 +1683,8 @@
     0,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -1715,8 +1715,8 @@
     0,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -1747,8 +1747,8 @@
     0,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -1779,8 +1779,8 @@
     0,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -1811,8 +1811,8 @@
     0,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -1843,8 +1843,8 @@
     0,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -1875,8 +1875,8 @@
     0,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -2035,8 +2035,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 5000,
+   "slot_ceiling_discharge": 5000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2067,8 +2067,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 5000,
+   "slot_ceiling_discharge": 5000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2099,8 +2099,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 5000,
+   "slot_ceiling_discharge": 5000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2131,8 +2131,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 5000,
+   "slot_ceiling_discharge": 5000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2163,8 +2163,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 5000,
+   "slot_ceiling_discharge": 5000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2195,8 +2195,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 5000,
+   "slot_ceiling_discharge": 5000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2227,8 +2227,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 5000,
+   "slot_ceiling_discharge": 5000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2259,8 +2259,8 @@
     502,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 5000,
+   "slot_ceiling_discharge": 5000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2419,8 +2419,8 @@
     8080,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2451,8 +2451,8 @@
     8080,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2483,8 +2483,8 @@
     8080,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2515,8 +2515,8 @@
     8080,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2547,8 +2547,8 @@
     8080,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2579,8 +2579,8 @@
     8080,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2611,8 +2611,8 @@
     8080,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -2643,8 +2643,8 @@
     8080,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "none",
@@ -3187,8 +3187,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 1700,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "required",
@@ -3219,8 +3219,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 1700,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "required",
@@ -3251,8 +3251,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 1700,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "required",
@@ -3283,8 +3283,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 1700,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "required",
@@ -3315,8 +3315,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 1700,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "required",
@@ -3347,8 +3347,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 1700,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "required",
@@ -3380,7 +3380,7 @@
     null
    ],
    "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_discharge": 1700,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "required",
@@ -3412,7 +3412,7 @@
     null
    ],
    "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_discharge": 1700,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "required",
@@ -3571,8 +3571,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -3603,8 +3603,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -3635,8 +3635,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -3667,8 +3667,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2500,
-   "slot_ceiling_discharge": 2500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -3699,8 +3699,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -3731,8 +3731,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 1500,
-   "slot_ceiling_discharge": 1500,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -3763,8 +3763,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
@@ -3795,8 +3795,8 @@
     80,
     null
    ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
+   "slot_ceiling_charge": 2000,
+   "slot_ceiling_discharge": 2000,
    "traits": {
     "bms_owns_top_cutoff": false,
     "capacity_field": "optional",

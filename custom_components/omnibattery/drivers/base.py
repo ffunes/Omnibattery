@@ -32,11 +32,6 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Sequence
 
-from ..const import (
-    CONF_BATTERY_VERSION,
-    MAX_POWER_BY_VERSION,
-)
-
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
@@ -708,17 +703,7 @@ class BatteryDriver(ABC):
 
     @classmethod
     def slot_power_ceiling(cls, battery_config: Mapping) -> Optional[int]:
-        """Hardware power ceiling of the time-slot forms; None = the configured max.
-
-        Follows the stored Marstek ``battery_version`` table for any brand, as the
-        config flow always has: it freezes the stale key a brand change in the
-        options flow leaves behind (plan section 8, row #51).
-        """
-        version = battery_config.get(CONF_BATTERY_VERSION)
-        if version in MAX_POWER_BY_VERSION:
-            from .marstek import max_power_for_battery_version
-
-            return max_power_for_battery_version(version, battery_config.get("ems_version"))
+        """Hardware power ceiling of the time-slot forms; None = the configured max."""
         return None
 
     def coordinator_attributes(self) -> dict[str, Any]:
