@@ -46,7 +46,7 @@ The timeline depends on the [consumption estimate](consumption-estimate.md), [So
 
 | Symptom | Likely cause | What to check |
 |---|---|---|
-| Future cells are empty | A forecast is unavailable or stale, or Real-Time Price mode has no future schedule by design | Profile sources, plan status, and selected predictive mode |
+| Future cells are empty | A forecast is unavailable or stale; Real-Time Price mode has no future schedule by design, or, with Dynamic Pricing, the cells after midnight wait for tomorrow's prices (the plan stops at its last known price) | Profile sources, plan status, and selected predictive mode |
 | Past cells are empty after opening the panel | Recorder has no usable history or current-day telemetry is missing | Recorder, grid/solar entities, and integration availability |
 | A yellow cell did not become green | Solar charging was projected but no energy entered the battery | Battery limits, SOC, and the interval tooltip |
 | A cell shows more than one action | Flows occurred simultaneously | The diagonal pattern and accessible tooltip text |

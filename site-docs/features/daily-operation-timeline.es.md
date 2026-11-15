@@ -46,7 +46,7 @@ La cronología depende de la [estimación de consumo](consumption-estimate.md), 
 
 | Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| Las celdas futuras están vacías | Una previsión no está disponible o está obsoleta, o el modo Precio en tiempo real no tiene programación futura por diseño | Fuentes de perfiles, estado del plan y modo predictivo seleccionado |
+| Las celdas futuras están vacías | Una previsión no está disponible o está obsoleta; el modo Precio en tiempo real no tiene programación futura por diseño, o, con Precio dinámico, las celdas tras medianoche esperan a los precios de mañana (el plan acaba en su último precio conocido) | Fuentes de perfiles, estado del plan y modo predictivo seleccionado |
 | Las celdas pasadas están vacías tras abrir el panel | Recorder no tiene historial utilizable o falta telemetría del día actual | Recorder, entidades de red/solar y disponibilidad de la integración |
 | Una celda amarilla no se volvió verde | Se proyectó carga solar pero no entró energía en la batería | Límites de batería, SOC y la información emergente del intervalo |
 | Una celda muestra más de una acción | Los flujos sucedieron simultáneamente | El patrón diagonal y el texto accesible de la información emergente |

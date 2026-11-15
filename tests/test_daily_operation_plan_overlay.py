@@ -74,7 +74,7 @@ def _controller(**kw):
     from custom_components.omnibattery.const import PREDICTIVE_MODE_DYNAMIC_PRICING
 
     base = dict(
-        _dp_eval_rows=ROWS, _dp_last_eval_soc=50.0, _dp_eval_projection_capacity_kwh=10.0,
+        _dp_eval_rows=ROWS, _dp_eval_anchor=(5.0, 10.0),
         _dp_eval_efficiency=0.8, predictive_charging_enabled=True,
         predictive_charging_mode=PREDICTIVE_MODE_DYNAMIC_PRICING,
         _last_decision_data={"planner": "optimizer"},
@@ -87,7 +87,7 @@ def _controller(**kw):
     {"predictive_charging_enabled": False},
     {"_last_decision_data": {"planner": "allocator"}},
     {"_dp_eval_rows": None},
-    {"_dp_last_eval_soc": None},
+    {"_dp_eval_anchor": None},
 ])
 def test_old_projection_unless_the_optimizer_plan_owns_the_control(change):
     from custom_components.omnibattery import ChargeDischargeController as CDC

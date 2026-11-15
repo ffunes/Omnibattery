@@ -4126,6 +4126,19 @@ class PricingManager:
             total_capacity = fleet.total_capacity_kwh
             weighted_min_soc = fleet.weighted_min_soc
             usable = fleet.usable_kwh
+            # The panel's convention, read with the plan's own inputs: every
+            # battery's stored energy over every capacity (a manual battery
+            # counts and stays idle; the plan's change excludes it).
+            panel_batteries = [
+                (float(c.data.get("battery_total_energy", 0) or 0),
+                 min(100.0, max(0.0, float(c.data.get("battery_soc", 0) or 0))))
+                for c in self._controller.coordinators
+                if c.data and float(c.data.get("battery_total_energy", 0) or 0) > 0
+            ]
+            panel_anchor = (
+                sum(cap * soc / 100.0 for cap, soc in panel_batteries),
+                sum(cap for cap, _soc in panel_batteries),
+            )
             room_kwh = fleet.room_kwh
             headroom = fleet.headroom_kwh
             weekly_pending = getattr(
@@ -4432,6 +4445,7 @@ class PricingManager:
             if not diagnostic_only:
                 # What the published projection starts from and is capped at.
                 plan.projection_inputs = (usable, usable + headroom)
+                plan.panel_anchor = panel_anchor
                 decision_data["planner"] = getattr(plan, "planner", "allocator")
             if size_from_deadlines and not diagnostic_only:
                 # The scalar balance nets later solar against tonight's gap and
@@ -4719,6 +4733,7 @@ class PricingManager:
             return plan
         trimmed = replace(plan, allocations=kept)
         trimmed.projection_inputs = getattr(plan, "projection_inputs", None)
+        trimmed.panel_anchor = getattr(plan, "panel_anchor", None)
         return trimmed
 
     def _apply_time_slot_chronological_plan(
@@ -4960,6 +4975,7 @@ class PricingManager:
         # and a ceiling from a previous evaluation must not be reported as today's.
         self._controller._dp_arbitrage_ceiling = None
         self._controller._dp_eval_projection = None
+        self._controller._dp_eval_rows = None  # the panel draws them
         # A failed or interrupted reevaluation must never leave yesterday's
         # negative setpoint/block active.  The new plan is rebuilt below.
         if self._smart_predischarge_enabled():
@@ -6008,6 +6024,7 @@ class PricingManager:
             else None
         )
         controller._dp_eval_efficiency = getattr(plan, "charge_efficiency", None)
+        controller._dp_eval_anchor = getattr(plan, "panel_anchor", None)
 
     def projected_soc_now(self, at: datetime | None = None) -> float | None:
         """Fleet SOC the published plan projects for now (or ``at``): the SOC at

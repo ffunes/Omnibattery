@@ -2355,13 +2355,11 @@ class ChargeDischargeController:
         from .tracking.daily_projection import overlay_plan_rows
 
         rows = getattr(self, "_dp_eval_rows", None)
-        ref = getattr(self, "_dp_last_eval_soc", None)
-        capacity = getattr(self, "_dp_eval_projection_capacity_kwh", 0.0) or 0.0
+        start_kwh, capacity = getattr(self, "_dp_eval_anchor", None) or (0.0, 0.0)
         if (
             not dto
             or not dto.get("intervals")
             or not rows
-            or ref is None
             or capacity <= 0.0
             or not getattr(self, "predictive_charging_enabled", False)
             or getattr(self, "predictive_charging_mode", None)
@@ -2382,7 +2380,7 @@ class ChargeDischargeController:
             drawn = overlay_plan_rows(
                 plain,
                 rows,
-                start_kwh=float(ref) / 100.0 * capacity,
+                start_kwh=start_kwh,
                 capacity_kwh=capacity,
                 efficiency=float(getattr(self, "_dp_eval_efficiency", None) or 1.0),
                 now=aligned(now),
@@ -2405,7 +2403,9 @@ class ChargeDischargeController:
         At least the next morning, at most the whole next day: the latest of
         the predictive planner's energy horizon, the discharge reserve's
         horizon and, with dynamic pricing, the last published price slot,
-        rounded up to the full hour.
+        rounded up to the full hour. With the optimizer planning Dynamic
+        Pricing the drawn cells stop at the plan's last price, so before
+        tomorrow's prices are out the part after midnight stays empty.
         """
         from .tracking.daily_timeline import (
             EXTENDED_HORIZON_HOURS,
