@@ -639,17 +639,20 @@ def _replay_room(request, plan):
         net = i.grid_load_kwh - i.solar_kwh
         if s in rooms:
             kw, level = rooms[s]
-            flow = net + kw * h
+            # Under the level the order is off: the sun surplus is stored up to it.
+            fill = min(max(0.0, -net), request.effective_power_kw * h, max(0.0, level - e) / m.eff)
+            e += fill * m.eff
+            flow = net + fill + kw * h
             if flow >= 0:
                 out = min(max(0.0, e - level) * m.eff, flow, request.discharge_kw * h)
                 e -= out / m.eff
                 extra = min(max(0.0, net - out), e * m.eff, request.discharge_kw * h - out)
                 e -= extra / m.eff
-                grid = net - out - extra
+                grid = net + fill - out - extra
             else:
-                st = min(-flow, request.effective_power_kw * h, (m.cap - e) / m.eff)
+                st = min(-flow, request.effective_power_kw * h - fill, (m.cap - e) / m.eff)
                 e += st * m.eff
-                grid = net + st
+                grid = net + fill + st
             total += max(grid, 0) * s.price - max(-grid, 0) * request.room_export_prices[s.start]
             sold += max(-grid, 0)
             path.append(e)
@@ -932,3 +935,14 @@ def test_the_room_is_the_best_a_search_finds():
         got = _replay_room(req, plan)[0]
         assert got == pytest.approx(plan.optimizer_cost, abs=1e-4)
         assert got <= best + 0.0007
+
+
+def test_under_its_level_a_room_slot_stores_the_sun_as_the_controller_does():
+    # Battery under the room level with a morning surplus: the order is off
+    # there (the reading is under its stop), so the surplus is stored up to
+    # the level; the plan exported it and cost less than what ran.
+    req = _room_day(usable=1.0, house_morning=0.1, solar_morning=0.6, morning=(0.30, 0.25), risk_sun=2.0)
+    plan = optimize_charge(req).plan
+    assert plan.room_sales
+    cost, _sold, _path = _replay_room(req, plan)
+    assert cost == pytest.approx(plan.optimizer_cost, abs=1e-4)

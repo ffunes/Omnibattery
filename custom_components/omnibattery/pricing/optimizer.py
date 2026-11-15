@@ -212,21 +212,28 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             if sell:
                 # High-Price Sale's override: the grid at -P; the battery covers
                 # the house and exports the rest, solar beyond P charges it.
-                # Making room stops at the slot's level, then the battery covers
-                # the house as normal.
+                # Making room runs only while the battery is at or above the
+                # slot's level: below it the battery is normal (it stores the
+                # sun surplus up to the level, it covers the house).
                 h_q = q.charge_kwh / max(request.effective_power_kw, _TOL)
                 net = q.house_kwh - q.solar_kwh
-                flow = net + option[1] * h_q
-                above = np.maximum(e - room_levels[slot_start], 0.0) if room else e
-                out = np.minimum(np.minimum(above * model.eff, max(flow, 0.0)), q.discharge_kwh)
-                inn = np.minimum(min(max(-flow, 0.0), q.charge_kwh), np.maximum(model.cap - e, 0.0) / model.eff)
+                fill = 0.0
+                if room:
+                    level = room_levels[slot_start]
+                    fill = np.minimum(min(max(-net, 0.0), q.charge_kwh), np.maximum(level - e, 0.0) / model.eff)
+                    e = e + fill * model.eff
+                flow = net + fill + option[1] * h_q
+                above = np.maximum(e - level, 0.0) if room else e
+                out = np.minimum(np.minimum(above * model.eff, np.maximum(flow, 0.0)), q.discharge_kwh)
+                inn = np.minimum(np.minimum(np.maximum(-flow, 0.0), q.charge_kwh - fill),
+                                 np.maximum(model.cap - e, 0.0) / model.eff)
                 e = e - out / model.eff + inn * model.eff
                 if room:
                     extra = np.minimum(np.minimum(np.maximum(net - out, 0.0), e * model.eff),
                                        q.discharge_kwh - out)
                     e = e - extra / model.eff
                     out = out + extra
-                grid = net - out + inn
+                grid = net + fill - out + inn
                 c = (np.maximum(grid, 0.0) * q.import_price
                      - np.maximum(-grid, 0.0) * (room_prices if room else sell_prices)[slot_start])
                 cost += c

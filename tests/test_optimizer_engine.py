@@ -897,6 +897,27 @@ def test_room_prices_leave_out_slots_where_the_battery_may_not_discharge(monkeyp
     assert all(prices[t] > 0.15 for t in req.room_export_prices)
 
 
+def test_room_prices_leave_out_a_no_discharge_window(monkeypatch):
+    from tests import test_predictive_scenarios as h
+
+    real_controller = h._controller
+
+    def build(s):
+        c = real_controller(s)
+        c.config_entry.data["no_discharge_time_slots"] = [
+            {"start_time": "07:00:00", "end_time": "09:00:00", "days": [], "enabled": True,
+             "allow_discharge": False}
+        ]
+        return c
+
+    monkeypatch.setattr(h, "_controller", build)
+    outcome, _c = _room_engine(monkeypatch)
+    req = outcome.request
+    assert req.room_export_prices
+    assert not [t for t in req.room_export_prices if 7 <= t.hour < 9]
+    assert [t for t in req.export_prices if 7 <= t.hour < 9]
+
+
 def test_an_evaluation_drops_the_room_orders_with_the_plan_orders():
     from types import SimpleNamespace
 
@@ -905,3 +926,51 @@ def test_an_evaluation_drops_the_room_orders_with_the_plan_orders():
     ctrl = SimpleNamespace(_dp_plan_room="stale")
     PricingManager._clear_plan_orders(SimpleNamespace(_controller=ctrl))
     assert ctrl._dp_plan_room is None
+
+
+def test_a_real_room_order_runs_stops_at_its_level_and_does_not_re_plan(monkeypatch):
+    """The whole chain with an order the plan made: the module exports at the
+    plan's power on the plan's line, stops at the whole percent of the plan's
+    level (in the request's own SOC terms), and the SOC-drop trigger sees the
+    planned discharge as on the line."""
+    from custom_components.omnibattery.pricing.curtailment import BatterySnapshot
+
+    outcome, c = _room_engine(monkeypatch, case=("1x5k-2500", 90, "flat0.4", "neg-noon", False, "sunny", "00:05"))
+    room = c._dp_plan_room
+    assert room.orders
+    first = min(room.orders, key=lambda s: s.start)
+    kw, level = room.orders[first]
+    req = outcome.request
+    level_soc = req.fleet_soc_pct + level / req.fleet_capacity_kwh * 100.0
+    assert level_soc == pytest.approx(round(level_soc), abs=1e-6)  # on the whole percent
+
+    overrides = {}
+    c._setpoint_overrides = overrides
+    c.set_setpoint_override = lambda source, value, priority=0: overrides.__setitem__(source, (priority, value))
+    c.remove_setpoint_override = lambda source: overrides.pop(source, None)
+    c.set_discharge_block = lambda *a, **k: None
+    c.remove_discharge_block = lambda *a, **k: None
+    battery = c.coordinators[0]
+    manager = c._pricing_mgr
+    manager._curtailment_battery_snapshots = lambda: [
+        BatterySnapshot("b", battery.data["battery_soc"], 5.12, 100.0, 20.0, 2500.0)
+    ]
+
+    def at(moment, soc):
+        manager._now = lambda: moment
+        battery.data["battery_soc"] = soc
+        manager._refresh_plan_room(room, None)
+        return c._curtailment_runtime_status
+
+    start = first.start + timedelta(minutes=1)
+    assert at(start, manager.projected_soc_now(start)) == "predischarging"
+    assert overrides["curtailment_predischarge"] == (5, -kw * 1000.0)
+    assert at(start, round(level_soc)) == "predischarging"  # the reading at the level still runs
+    assert at(start, round(level_soc) - 1) == "target_reached"
+    assert "curtailment_predischarge" not in overrides
+    # Executed as planned to the slot's end: on the line, no re-plan.
+    manager._now = lambda: first.end
+    battery.data["battery_soc"] = manager.projected_soc_now(first.end)
+    assert manager._is_dp_soc_drop_reeval() is False
+    battery.data["battery_soc"] -= 3.0
+    assert manager._is_dp_soc_drop_reeval() is True

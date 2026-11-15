@@ -695,3 +695,26 @@ def test_after_the_target_day_s_sun_the_gap_is_reserved_from_now(since_target_da
     ).isoformat()
     # 4 kWh to 100 % plus what the house draws until sunrise.
     assert decision["weekly_reserve_kwh"] >= 4.0
+
+
+def test_weekly_slots_survive_a_risk_window_when_the_plan_decides_pre_discharge(monkeypatch):
+    """B5 with the optimizer deciding Smart Pre-Discharge: a plan that charges
+    nothing, then a weekly reservation; the risk re-selection keeps the weekly
+    slots (it used to read the absent plan's allocations)."""
+    from custom_components.omnibattery.pricing.chronological import ChronologicalPlan
+
+    now = datetime(2026, 9, 21, 0, 5)
+    pre_dawn, midday, weekly = _risk_day(now)
+
+    def plan(decision):
+        decision.update(planner="optimizer")
+        built = ChronologicalPlan(risk_slots=(midday,))
+        built.room_allowed = True
+        built.projection_inputs = (5.0, 10.0)
+        return built
+
+    ctrl = _evaluate_with_weekly_reserve(
+        monkeypatch, now, [pre_dawn, midday, *weekly], plan, risk_slots=[midday],
+    )
+    assert ctrl._dp_plan_room is not None
+    assert ctrl._dynamic_pricing_schedule.selected_slots == weekly

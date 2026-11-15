@@ -2507,6 +2507,11 @@ class PricingManager:
             for slot in (room.risk if room is not None else getattr(plan, "risk_slots", []))
             if slot.end > now
         ]
+        if room is not None and risk_slots:
+            # Only the next risk day, as the plan's cap: tomorrow's risk gets
+            # tomorrow's room, it must not stop today's negative-price charge.
+            day = min(slot.start for slot in risk_slots).date()
+            risk_slots = [slot for slot in risk_slots if slot.start.date() == day]
         # With the plan deciding, its own per-slot reserve (the cap's measure,
         # no solar margin, no measured scaling: the plan re-plans on those).
         forecast_reserves = (
@@ -5594,7 +5599,10 @@ class PricingManager:
                     safe_slots, deficit_hours_needed, ceiling, now=eval_now,
                     slot_ceilings=slot_ceilings,
                 )
-                if getattr(self._controller, "_dp_plan_room", None) is not None:
+                if (
+                    chronological_plan is not None
+                    and getattr(self._controller, "_dp_plan_room", None) is not None
+                ):
                     # The plan decided the risk itself (its risk slots do not
                     # charge): no second evaluation without them.
                     deficit_selected = [

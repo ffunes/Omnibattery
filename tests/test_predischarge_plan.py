@@ -196,3 +196,17 @@ def test_a_planned_room_discharge_does_not_trigger_the_soc_drop_re_plan():
         manager = PricingManager(SimpleNamespace(), ctrl)
         manager._now = lambda: start + timedelta(minutes=45)
         assert manager._is_dp_soc_drop_reeval() is expected
+
+
+def test_the_limiter_protects_only_the_next_risk_day():
+    """Tomorrow's risk is protected by tomorrow's room, not by refusing
+    today's negative-price charge (the optimizer's cap counts the next risk
+    day only, too)."""
+    tomorrow = PriceSlot(RISK.start + timedelta(days=1), RISK.end + timedelta(days=1), -0.05)
+    module = CurtailmentPlan(status="planned", reason="x")
+    room = _room(risk=(RISK, tomorrow), reserve={RISK: 1.5, tomorrow: 3.0})
+    manager, _ctrl, _o, _b = _manager(module_plan=module, room=room)
+    reserve, space = manager._update_curtailment_opportunistic_diagnostics(
+        module, manager._curtailment_battery_snapshots(), NOW)
+    assert reserve == pytest.approx(1.5)
+    assert space == pytest.approx(0.5)
