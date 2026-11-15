@@ -466,7 +466,7 @@ def _controller(scenario: Scenario) -> SimpleNamespace:
         max_price_threshold=settings["max_price_threshold"],
         min_arbitrage_margin=settings["min_arbitrage_margin"],
         round_trip_efficiency=settings["round_trip_efficiency"],
-        # A scenario's peak limit is what the v17 migration makes of it (#506):
+        # A scenario's peak_shaving.limit_w is what the v17 migration makes of it (#506):
         # the one grid import cap is the lower of the two numbers.
         max_contracted_power=(
             min(settings["contracted_power_w"], peak["limit_w"])

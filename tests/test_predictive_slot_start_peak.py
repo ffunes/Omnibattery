@@ -1,6 +1,7 @@
 """Issue #683: a predictive slot must not raise the import peak it regulates.
 
-Trace of 2026-11-10: peak limit 4400 W, contracted power 5000 W, charge floor
+Trace of 2026-11-10: peak shaving at 4400 W, contracted power 5000 W (one 4400 W
+grid import cap since #506), charge floor
 140 W. A slot started at the full ceiling on top of a 3.1 kW house, the next PD
 step raised it to the 5000 W battery maximum (8 kW import), and for the rest of
 the slot the charge sat on its positive floor while the house alone was above

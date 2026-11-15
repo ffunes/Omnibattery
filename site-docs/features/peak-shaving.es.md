@@ -20,7 +20,7 @@ El **Máximo de importación de red** funciona sin peak shaving y siempre está 
 
 Un único ajuste (`number.<prefijo>_max_contracted_power`, siempre presente; `500–20,000 W`) es el techo de la importación de red. Se aplica todo el día, con cualquier SOC, con o sin peak shaving:
 
-- La carga desde red se mantiene por debajo, también en modo manual: una carga manual desde red se reduce y una descarga manual nunca se fuerza.
+- La carga desde red se mantiene por debajo. En modo manual esto vale para las baterías cuya potencia manual envía Omnibattery (Zendure, Anker y otros drivers sin registros de potencia de carga): su carga manual se reduce y una descarga manual nunca se fuerza. Una Marstek en modo manual sigue sus propios registros y no se limita.
 - Cuando algo llevaría el contador por encima, la batería cubre el exceso.
 - Es un techo, no un objetivo: si la batería ya cubre toda la casa, no cambia nada.
 

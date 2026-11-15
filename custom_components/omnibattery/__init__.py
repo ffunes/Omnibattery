@@ -7376,44 +7376,35 @@ class ChargeDischargeController:
         once, and reasserting would force Anker Third-Party Control every cycle
         — fighting Solix app modes the user may select while paused.
 
-        A manual charge is still held under the grid import cap (#506): the
-        allowed power is worked out again every cycle from the stored setpoint,
-        which itself is never lowered. Manual discharge is never forced.
+        A software manual charge is still held under the grid import cap
+        (#506): the allowed power is worked out again every cycle from the
+        stored setpoint, which itself is never lowered. Manual discharge is
+        never forced. ponytail: register batteries (Marstek) are driven by the
+        user's own register writes, which the integration does not hold a copy
+        of, so their manual charge is not clamped.
         """
         manual = [
             coordinator for coordinator in self.coordinators
             if global_mode
             or getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
         ]
-        allowance = ChargeDischargeController._manual_charge_allowance(self, manual)
+        allowance = ChargeDischargeController._manual_charge_allowance(
+            self, [c for c in manual if c.needs_software_manual_control]
+        )
         for coordinator in manual:
             # Raw flag: a calibrating battery is manual-owned but has no manual
             # setpoint to assert.
             individual_mode = bool(
                 getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
             )
+            if not coordinator.needs_software_manual_control:
+                await self._reassert_register_manual_intent(coordinator)
+                continue
             mode = coordinator.manual_force_mode
             charge_w = coordinator.manual_set_charge_power
             if mode == "Charge" and allowance is not None:
                 charge_w = min(charge_w, allowance)
                 allowance -= charge_w
-            if not coordinator.needs_software_manual_control:
-                clamped = mode == "Charge" and charge_w < coordinator.manual_set_charge_power
-                last = getattr(coordinator, "_manual_cap_clamp_w", None)
-                if clamped:
-                    # ponytail: 100 W step keeps register writes off the v3
-                    # single TCP slot while the house moves a little.
-                    if last is None or abs(charge_w - last) >= 100:
-                        coordinator._manual_cap_clamp_w = charge_w
-                        await coordinator.apply_power(int(charge_w))
-                    continue
-                if last is not None:
-                    coordinator._manual_cap_clamp_w = None
-                    if mode == "Charge":
-                        await coordinator.apply_power(int(coordinator.manual_set_charge_power))
-                        continue
-                await self._reassert_register_manual_intent(coordinator)
-                continue
             owner = "battery_manual" if individual_mode else "automatic"
             if mode == "Charge":
                 kwargs = {"bypass_blockers": True}
@@ -7430,11 +7421,11 @@ class ChargeDischargeController:
             # Idle: leave device alone (no 0 W reassert / no mode force).
 
     def _manual_charge_allowance(self, manual: list) -> float | None:
-        """Grid charge the manual batteries may draw under the import cap.
+        """Grid charge the given manual batteries may draw under the import cap.
 
         Marginal model, like the automatic charge clamp: the meter minus what
-        the manual batteries charge now is the rest of the house. None when
-        there is no cap or no meter reading (nothing to clamp against).
+        these batteries charge now is the rest of the house (other manual
+        batteries included). None when there is no cap or no meter reading.
         """
         cap = ChargeDischargeController._grid_import_cap_w(self)
         if cap <= 0 or not manual:

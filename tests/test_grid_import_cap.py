@@ -173,7 +173,6 @@ def test_reserve_shaving_holds_through_the_band_without_grid_charging():
 
 def test_predictive_slot_ceiling_is_the_grid_import_cap():
     ctrl = _ctrl(cap=4500, soc=15)
-    ctrl.capacity_protection_limit = 2500  # legacy second number, gone in v17
     assert ctrl._predictive_charge_ceiling() == 4500
 
 
@@ -273,17 +272,3 @@ async def test_manual_charge_is_clamped_to_the_cap_software_driver():
     await ctrl._apply_software_manual_setpoints()
     assert ctrl.writes == [("b1", 1750, 0)]
     assert battery.manual_set_charge_power == 2000  # the user's setpoint stays
-
-
-async def test_manual_charge_is_clamped_and_restored_register_driver():
-    ctrl = _manual_ctrl(grid_w=6000)
-    battery = _manual_battery(software=False, charging_w=2000)
-    ctrl.coordinators = [battery]
-    ctrl._coordinator_delivered_power = _delivered
-    await ctrl._apply_software_manual_setpoints()
-    assert battery.applied == [1750]
-    # The house drops: the user's 2000 W comes back.
-    battery.charging_w = 1750
-    ctrl.hass = SimpleNamespace(states=SimpleNamespace(get=lambda _e: 3000))
-    await ctrl._apply_software_manual_setpoints()
-    assert battery.applied == [1750, 2000]

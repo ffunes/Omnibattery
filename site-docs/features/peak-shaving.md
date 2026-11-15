@@ -20,7 +20,7 @@ Peak shaving (capacity protection) turns the battery into a reserve: below a bat
 
 One setting (`number.<prefix>_max_contracted_power`, always present; `500–20,000 W`) is the ceiling for grid import. It applies all day, at any SOC, with or without peak shaving:
 
-- Grid charging stays under it, also in manual mode: a manual grid charge is reduced, and a manual discharge is never forced.
+- Grid charging stays under it. In manual mode this covers the batteries whose manual power Omnibattery sends (Zendure, Anker and other drivers without charge-power registers): their manual charge is reduced, and a manual discharge is never forced. A Marstek in manual mode follows its own registers and is not limited.
 - When something would take the meter over it, the battery covers the excess.
 - It is a ceiling, not a target: when the battery already covers the whole house, nothing changes.
 
