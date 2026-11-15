@@ -111,7 +111,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     levels = levels[(levels >= 0.0) & (levels <= cap + _TOL)]
 
     delay = _solar_delay(request, groups, model, fleet)
-    risk, room_levels, charge_caps = _room(request, groups, model, soc_step)
+    risk, room_levels, charge_caps, risk_reserve = _room(request, groups, model, soc_step)
     room_prices = request.room_export_prices or {}
 
     def menu(slot, quarters, slot_end):
@@ -360,6 +360,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     plan.optimizer_cost = total
     # The plan decided Smart Pre-Discharge (with export prices, design §2.6 A).
     plan.room_allowed = request.room_threshold is not None and bool(request.export_prices)
+    # Per risk slot, the stored kWh its sun can add: the solar reserve the
+    # negative-price limiter protects (the cap's own measure, stage-0 decision 4).
+    plan.risk_reserve = {s: risk_reserve[s.start] for s in plan.risk_slots}
     plan.export_choice_allowed = request.export_choice_allowed
     plan.sell_allowed = request.sell_allowed
     plan.solar_delay = delay is not None
@@ -512,7 +515,8 @@ def risk_quarters(request: ChronologicalEvaluationRequest) -> frozenset:
 
 
 def _room(request, groups, model, soc_step):
-    """(risk slot starts, {slot start: room level}, {slot start: charge cap}).
+    """(risk slot starts, {slot start: room level}, {slot start: charge cap},
+    {risk slot start: the stored kWh its sun can add}).
 
     Risk slots (any quarter at risk) do not charge from the grid, except for
     the guaranteed floor. Before a risk, the room option stops at
@@ -525,17 +529,22 @@ def _room(request, groups, model, soc_step):
     """
     threshold = request.room_threshold
     if threshold is None:
-        return frozenset(), {}, {}
+        return frozenset(), {}, {}, {}
     at_risk = risk_quarters(request)
     flat = [i for i in sorted(request.intervals, key=lambda x: x.start) if i.start >= request.now]
-    risk_slots = set()
+
+    def storable(q):
+        return min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh) * model.eff
+
+    reserve_by_slot = {}  # risk slot start -> stored kWh its sun can add
     marks = []  # (interval start, Quarter, at risk), in the groups' order
     for slot, quarters, _ends in groups:
         for q in quarters:
             start = flat[len(marks)].start
             marks.append((start, q, start in at_risk))
             if start in at_risk:
-                risk_slots.add(slot.start)
+                reserve_by_slot[slot.start] = reserve_by_slot.get(slot.start, 0.0) + storable(q)
+    risk_slots = set(reserve_by_slot)
     if request.floor_kwh <= _TOL:
         for slot, quarters, _ends in groups:
             if slot.start in risk_slots:
@@ -560,15 +569,12 @@ def _room(request, groups, model, soc_step):
         if first is None:
             continue
         day = marks[first][0].date()
-        storable = sum(
-            min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh) * model.eff
-            for start, q, risky in marks[first:] if risky and start.date() == day
-        )
+        sun = sum(storable(q) for start, q, risky in marks[first:] if risky and start.date() == day)
         drain = sum(
             min(max(0.0, q.house_kwh - q.solar_kwh), q.discharge_kwh) / model.eff
             for _start, q, _r in marks[index:first]
         )
-        levels[slot.start] = (slot, min(cap, max(reserve, cap - storable + drain)))
+        levels[slot.start] = (slot, min(cap, max(reserve, cap - sun + drain)))
     room_prices = request.room_export_prices or {}
     room = {
         start: on_grid(level, True)
@@ -580,7 +586,7 @@ def _room(request, groups, model, soc_step):
         for start, (slot, level) in levels.items()
         if room and not (request.negative_price_charging and slot.price < 0)
     }
-    return frozenset(risk_slots), room, caps
+    return frozenset(risk_slots), room, caps, reserve_by_slot
 
 
 def _published_quota(model, soc_step, e, target, stored):

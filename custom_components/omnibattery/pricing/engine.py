@@ -152,6 +152,21 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+
+@dataclass(frozen=True)
+class PlanRoom:
+    """Smart Pre-Discharge as the optimizer planned it (``_dp_plan_room``;
+    None = the module decides)."""
+
+    # slot -> (net export kW, usable kWh it stops at, relative to the plan's start)
+    orders: Mapping[PriceSlot, tuple[float, float]]
+    # Slots with a risk quarter: the grid is held at 0 W there.
+    risk: frozenset
+    # Risk slot -> the stored kWh its sun can add (the reserve the
+    # negative-price limiter protects).
+    reserve: Mapping[PriceSlot, float]
+
+
 # Seconds a settings change must stand before it re-plans (see the dirty flag).
 CONFIG_REPLAN_SETTLE_S = 3.0
 
@@ -3647,6 +3662,7 @@ class PricingManager:
         controller._dp_export_decision = None
         controller._dp_plan_sales = None
         controller._dp_plan_solar_delay = False
+        controller._dp_plan_room = None
 
     def _publish_plan_holds(self, plan, decision_data: Mapping[str, Any]) -> None:
         """Step 5: with the Discharge Reserve on, the optimizer's holds replace
@@ -3682,6 +3698,20 @@ class PricingManager:
             dict(getattr(plan, "sales", None) or ())
             if decision_data.get("planner") == "optimizer"
             and getattr(plan, "sell_allowed", False)
+            else None
+        )
+        # Smart Pre-Discharge: with export prices the plan decides the room and
+        # the risk; the module executes them with its guards (design §2.6 A).
+        inputs = getattr(plan, "projection_inputs", None)
+        self._controller._dp_plan_room = (
+            PlanRoom(
+                orders={s: (kw, level - inputs[0]) for s, kw, level in plan.room_sales},
+                risk=frozenset(plan.risk_slots),
+                reserve=dict(getattr(plan, "risk_reserve", None) or {}),
+            )
+            if decision_data.get("planner") == "optimizer"
+            and getattr(plan, "room_allowed", False)
+            and inputs is not None
             else None
         )
         if decision_data.get("planner") == "optimizer":
@@ -4345,6 +4375,42 @@ class PricingManager:
                 if export_prices and self._sale_enabled()
                 else None
             )
+            # Smart Pre-Discharge in the plan: only with export prices (without
+            # them the module keeps deciding, design §2.6 A).
+            room_on = bool(value_deadlines and export_prices and self._smart_predischarge_enabled())
+            room_kw = room_floor = 0.0
+            room_prices = None
+            if room_on:
+                mode, limit_w = self._curtailment_export_settings()
+                fleet_w = discharge_limit_w or 0.0
+                room_kw = (
+                    fleet_w if mode == EXPORT_MODE_AUTOMATIC
+                    else min(limit_w, fleet_w) if mode == EXPORT_MODE_CUSTOM
+                    else 0.0
+                ) / 1000.0
+                # The Pre-discharge Reserve SOC, or the guaranteed floor when higher.
+                reserve_soc = max(
+                    float(getattr(self._controller, "predischarge_reserve_soc", 0.0) or 0.0),
+                    float(getattr(self._controller, "_predictive_min_soc_floor", 0.0) or 0.0)
+                    if getattr(self._controller, "_predictive_min_soc_floor_enabled", False)
+                    else 0.0,
+                )
+                room_floor = sum(
+                    max(0.0, reserve_soc - floor_of(c)) / 100.0
+                    * float(c.data.get("battery_total_energy", 0) or 0)
+                    for c in eligible
+                )
+                # Battery energy (no solar bonus), only where the battery may
+                # discharge: no no-discharge window, above the discharge price
+                # threshold when that control is on (D4 stays in real time).
+                room_prices = self._optimizer_export_prices(slots, horizon_end, solar_bonus=False) or {}
+                blocked = {s.start for s in self._curtailment_operation_blocked_slots(list(slots))}
+                floor_price = self._dp_price_discharge_threshold()
+                by_start = {s.start: s.price for s in (price_curve or slots)}
+                room_prices = {
+                    t: p for t, p in room_prices.items()
+                    if t not in blocked and (floor_price is None or by_start.get(t, math.inf) > floor_price)
+                }
             evaluation = yield (
                 ChronologicalEvaluationRequest(
                     now=now,
@@ -4439,6 +4505,14 @@ class PricingManager:
                     floor_kwh=floor_kwh,
                     floor_until=floor_until if floor_kwh > 0 else None,
                     price_curve=None if price_curve is None else tuple(price_curve),
+                    room_threshold=(
+                        float(getattr(self._controller, "negative_injection_threshold", 0.0) or 0.0)
+                        if room_on
+                        else None
+                    ),
+                    room_power_kw=room_kw,
+                    room_floor_kwh=room_floor,
+                    room_export_prices=room_prices,
                 )
             )
             plan = evaluation.plan
@@ -5422,7 +5496,13 @@ class PricingManager:
                     safe_slots, deficit_hours_needed, ceiling, now=eval_now,
                     slot_ceilings=slot_ceilings,
                 )
-                if chronological_plan is not None:
+                if getattr(self._controller, "_dp_plan_room", None) is not None:
+                    # The plan decided the risk itself (its risk slots do not
+                    # charge): no second evaluation without them.
+                    deficit_selected = [
+                        allocation.slot for allocation in chronological_plan.allocations
+                    ]
+                elif chronological_plan is not None:
                     chronological_plan = await self._async_build_dp_plan(
                         now=eval_now,
                         slots=(
