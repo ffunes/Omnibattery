@@ -36,7 +36,7 @@ The first local day is divided into quarter-hour cells. Solid curves are measure
 | Soft yellow | Solar surplus could charge the battery | An opportunity; it remains yellow until charging is observed |
 | Clock marker | Solar Charge Delay is active | The tooltip includes the estimated release time |
 
-Closed intervals show observed data. The open interval combines energy measured so far with a projected remainder, while future cells are informational projections from the active consumption and solar profiles, battery state, and selected plan. The tooltip labels observed and projected values and shows energy that entered or left the battery.
+Closed intervals show observed data. The open interval combines energy measured so far with a projected remainder, while future cells are informational projections from the active consumption and solar profiles, battery state, and selected plan. With Dynamic Pricing they are the published plan's own quarters, up to its last known price. The tooltip labels observed and projected values and shows energy that entered or left the battery.
 
 On narrow screens, scroll horizontally by hour. The initial view stays on the current local day; use the right arrow to reveal the additional `12 hours` through the next local noon. Keyboard arrows, touch, and mouse expose the same interval details.
 
@@ -46,7 +46,7 @@ The timeline depends on the [consumption estimate](consumption-estimate.md), [So
 
 | Symptom | Likely cause | What to check |
 |---|---|---|
-| Future cells are empty | A forecast is unavailable or stale, or Real-Time Price mode has no future schedule by design | Profile sources, plan status, and selected predictive mode |
+| Future cells are empty | A forecast is unavailable or stale; Real-Time Price mode has no future schedule by design, or, with Dynamic Pricing, the cells after midnight wait for tomorrow's prices (the plan stops at its last known price) | Profile sources, plan status, and selected predictive mode |
 | Past cells are empty after opening the panel | Recorder has no usable history or current-day telemetry is missing | Recorder, grid/solar entities, and integration availability |
 | A yellow cell did not become green | Solar charging was projected but no energy entered the battery | Battery limits, SOC, and the interval tooltip |
 | A cell shows more than one action | Flows occurred simultaneously | The diagonal pattern and accessible tooltip text |

@@ -1219,6 +1219,7 @@ class ChargeDischargeController:
         self._dp_last_eval_soc = None  # avg SOC at last DP (re)eval; SOC-drop reeval reference (#411)
         self._dp_eval_projection = None  # ((time, delta_kwh), ...) the published plan projects from the last eval
         self._dp_eval_projection_capacity_kwh = 0.0  # fleet kWh converting that projection to SOC points
+        self._dp_eval_rows = None  # ((start, end, solar, house, delta_kwh), ...) the optimizer plan's quarters, for the panel
         self._dp_last_eval_excluded_claim_kwh = None  # excluded-device solar claim at last DP (re)eval (#341)
         self._dp_excluded_demand_reeval_at = None  # last claim-driven re-evaluation (cooldown)
         self._dp_excluded_demand_reeval_count = 0  # claim-driven re-evaluations today (daily cap)
@@ -2295,7 +2296,7 @@ class ChargeDischargeController:
             if schedule is not None and mode == "dynamic_pricing"
             else now
         )
-        return build_daily_operation_projection(
+        dto = build_daily_operation_projection(
             DailyOperationProjectionRequest(
                 now=now,
                 plan_intervals=tuple(getattr(plan, "intervals", ()) or ()),
@@ -2340,6 +2341,61 @@ class ChargeDischargeController:
                 ),
             )
         )
+        return ChargeDischargeController._daily_operation_plan_overlay(self, dto, now)
+
+    def _daily_operation_plan_overlay(
+        self, dto: dict[str, Any] | None, now: datetime
+    ) -> dict[str, Any] | None:
+        """With the optimizer planning, the panel draws the published plan.
+
+        Only while it still owns the control (predictive charging on, Dynamic
+        Pricing, last plan from the optimizer): a stale plan never draws after
+        a mode switch. Anything missing or failing keeps the projection.
+        """
+        from .tracking.daily_projection import overlay_plan_rows
+
+        rows = getattr(self, "_dp_eval_rows", None)
+        start_kwh, capacity = getattr(self, "_dp_eval_anchor", None) or (0.0, 0.0)
+        if (
+            not dto
+            or not dto.get("intervals")
+            or not rows
+            or capacity <= 0.0
+            or not getattr(self, "predictive_charging_enabled", False)
+            or getattr(self, "predictive_charging_mode", None)
+            != PREDICTIVE_MODE_DYNAMIC_PRICING
+            or (getattr(self, "_last_decision_data", None) or {}).get("planner")
+            != "optimizer"
+        ):
+            return dto
+        tz = rows[0][1].tzinfo
+        aligned = (lambda value: value.replace(tzinfo=None)) if tz is None else (
+            lambda value: value.astimezone(tz) if value.tzinfo else value.replace(tzinfo=tz)
+        )
+        try:
+            plain = {
+                key: [dict(item, end=aligned(item["end"])) for item in dto.get(key) or ()]
+                for key in ("intervals", "extended_intervals")
+            }
+            drawn = overlay_plan_rows(
+                plain,
+                rows,
+                start_kwh=start_kwh,
+                capacity_kwh=capacity,
+                efficiency=float(getattr(self, "_dp_eval_efficiency", None) or 1.0),
+                now=aligned(now),
+            )
+        except Exception as exc:  # noqa: BLE001 - dashboard projection is optional
+            _LOGGER.debug("Daily operation plan overlay failed: %s", exc)
+            return dto
+        if not drawn["intervals"] and not drawn["extended_intervals"]:
+            return dto
+        # Back on the dashboard clock.
+        for key in ("intervals", "extended_intervals"):
+            originals = {aligned(item["end"]): item["end"] for item in dto.get(key) or ()}
+            for item in drawn[key]:
+                item["end"] = originals[item["end"]]
+        return dict(dto, **drawn)
 
     def _daily_operation_extension_hours(self, now: datetime) -> int:
         """Hours after midnight the timeline shows: as far as the plan reaches.
@@ -2347,7 +2403,9 @@ class ChargeDischargeController:
         At least the next morning, at most the whole next day: the latest of
         the predictive planner's energy horizon, the discharge reserve's
         horizon and, with dynamic pricing, the last published price slot,
-        rounded up to the full hour.
+        rounded up to the full hour. With the optimizer planning Dynamic
+        Pricing the drawn cells stop at the plan's last price, so before
+        tomorrow's prices are out the part after midnight stays empty.
         """
         from .tracking.daily_timeline import (
             EXTENDED_HORIZON_HOURS,

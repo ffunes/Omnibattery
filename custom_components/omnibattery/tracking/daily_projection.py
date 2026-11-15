@@ -25,6 +25,7 @@ from ..pricing.daily_timeline import (
     GRID_CHARGE_SCHEDULED,
     BatteryProjectionInput,
     ProjectionIntervalInput,
+    compose_action_mask,
     project_charge_delay,
     simulate_battery_projection,
 )
@@ -467,3 +468,77 @@ def build_daily_operation_projection(
             delay_projection.to_dict() if delay_projection is not None else None
         ),
     }
+
+
+def overlay_plan_rows(
+    dto: dict[str, Any],
+    rows: Sequence[tuple[datetime, datetime, float, float, float]],
+    *,
+    start_kwh: float,
+    capacity_kwh: float,
+    efficiency: float,
+    now: datetime,
+) -> dict[str, Any]:
+    """Draw the published optimizer plan's own quarters over the projection.
+
+    ``rows`` are the plan's ``(start, end, solar, house, delta_kwh)`` with the
+    stored-energy change since the evaluation at each quarter's end; the SOC
+    is the plan's, not shifted to the live reading. Context masks stay the
+    projection's; quarters past the plan's last point are dropped (the plan
+    does not know them).
+    """
+    # ponytail: flows are net per quarter, from the energy change: a rise is
+    # bought from the solar surplus first and the grid for the rest, a fall
+    # covers the house first. A sale's or a delay export's energy has no field,
+    # so the SOC falls (or stays) without a drawn flow.
+    by_end = {row[1]: row for row in rows}
+    prev = {row[1]: (rows[i - 1][4] if i else 0.0) for i, row in enumerate(rows)}
+    eff = max(efficiency, 1e-9)
+
+    def redraw(item: dict[str, Any]) -> bool:
+        row = by_end.get(item.get("end"))
+        if row is None:
+            return False
+        start, end, solar, house, delta = row
+        length = (end - start).total_seconds()
+        left = (end - max(start, now)).total_seconds()
+        ratio = max(0.0, min(1.0, left / length)) if length > 0.0 else 0.0
+        change = delta - prev[end]
+        inn = max(0.0, change) / eff
+        out = max(0.0, -change) * eff
+        solar_home = min(solar, house)
+        solar_battery = min(inn, solar - solar_home)
+        battery_home = min(out, house - solar_home)
+        flows = {
+            "solar_kwh": solar,
+            "consumption_kwh": house,
+            "solar_to_home_kwh": solar_home,
+            "solar_to_battery_kwh": solar_battery,
+            "grid_to_battery_kwh": inn - solar_battery,
+            "battery_to_home_kwh": battery_home,
+            "grid_to_home_kwh": house - solar_home - battery_home,
+        }
+        for key, value in flows.items():
+            item[key] = value * ratio
+        full = _QUARTER_S / length if 0.0 < length < _QUARTER_S else 1.0
+        item["solar_forecast_kwh"] = solar * full
+        item["consumption_forecast_kwh"] = house * full
+        item["charge_to_battery_kwh"] = inn * ratio
+        item["discharge_from_battery_kwh"] = battery_home * ratio
+        hours = left / 3600.0
+        item["charge_power_w"] = inn * ratio / hours * 1000.0 if hours > 0.0 else 0.0
+        item["discharge_power_w"] = battery_home * ratio / hours * 1000.0 if hours > 0.0 else 0.0
+        item["stored_energy_end_kwh"] = start_kwh + delta
+        item["soc_end_pct"] = item["stored_energy_end_kwh"] / capacity_kwh * 100.0
+        item["action_mask"] = compose_action_mask(
+            solar_charge=solar_battery > 1e-6,
+            grid_charge=inn - solar_battery > 1e-6,
+            discharge=battery_home > 1e-6,
+        )
+        if inn - solar_battery > 1e-6:
+            item["grid_charge_decision"] = GRID_CHARGE_SCHEDULED
+        return True
+
+    for key in ("intervals", "extended_intervals"):
+        dto[key] = [item for item in dto.get(key) or () if redraw(item)]
+    return dto

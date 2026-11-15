@@ -617,6 +617,8 @@ def test_the_soc_drop_projection_is_the_optimizer_trajectory(monkeypatch, case, 
     usable = outcome.plan.projection_inputs[0]
     expected = tuple((end, energy - usable) for end, energy in outcome.plan.trajectory)
     assert expected and box["c"]._dp_eval_projection == expected
+    # The panel draws the same rows from the same anchor (a trimmed plan is a copy).
+    assert len(box["c"]._dp_eval_rows) == len(expected) and box["c"]._dp_eval_anchor is not None
 
 
 def _delay_engine(monkeypatch, *, enabled=True, setpoint=None):
@@ -717,3 +719,57 @@ def test_a_delay_export_of_a_stale_plan_does_not_run_in_another_mode():
     ctrl.predictive_charging_mode = "time_slot"
     ChargeDischargeController._refresh_surplus_price_hold_block(ctrl)
     assert blocks == {}
+
+
+def test_an_aborted_evaluation_drops_the_rows_the_panel_draws(monkeypatch):
+    """The panel draws the stored plan rows; an evaluation that stops after
+    clearing the projection must not leave the previous plan's rows drawn."""
+    import asyncio
+
+    from custom_components.omnibattery.pricing.engine import DynamicPricingEvaluationHorizon
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    box = {}
+    real_controller = h._controller
+    monkeypatch.setattr(h, "_controller", lambda s: box.setdefault("c", real_controller(s)))
+    case = ("1x5k-2500", 60, "flat0.4", "night-cheap", False, "sunny", "00:05")
+    assert h._run_engine(sw.scenario(case), monkeypatch).planner == "optimizer"
+    c = box["c"]
+    assert c._dp_eval_rows and len(c._dp_eval_rows) == len(c._dp_eval_projection)
+
+    async def boom(**_kw):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(c._pricing_mgr, "_maybe_refresh_service_prices", boom)
+    with pytest.raises(RuntimeError):
+        asyncio.run(c._pricing_mgr._evaluate_dynamic_pricing_unlocked(
+            horizon=DynamicPricingEvaluationHorizon.REMAINING))
+    assert c._dp_eval_projection is None and c._dp_eval_rows is None
+
+
+@pytest.mark.parametrize("manual", [False, True], ids=["mixed", "one-manual"])
+def test_the_panel_anchor_is_the_fleet_energy_over_every_capacity(monkeypatch, manual):
+    """The trigger's reference is a plain SOC mean over the planned batteries;
+    the panel draws every battery's energy over every capacity. On 5.12 kWh at
+    80 % + 2.5 kWh at 20 % the mean is 10 points off (21 with one in manual)."""
+    import dataclasses
+
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    box = {}
+    real_controller = h._controller
+
+    def build(s):
+        c = real_controller(s)
+        if manual:
+            c.coordinators[1].battery_manual_mode_enabled = True
+        return box.setdefault("c", c)
+
+    monkeypatch.setattr(h, "_controller", build)
+    sc = sw.scenario(("2x5k-2500", 60, "evening", "night-cheap", False, "sunny", "16:00"))
+    sc = dataclasses.replace(sc, fleet=(dict(sc.fleet[0], soc=80.0), dict(sc.fleet[1], capacity_kwh=2.5, soc=20.0)))
+    assert h._run_engine(sc, monkeypatch).planner == "optimizer"
+    start, capacity = box["c"]._dp_eval_anchor
+    assert start == pytest.approx(5.12 * 0.8 + 2.5 * 0.2) and capacity == pytest.approx(7.62)

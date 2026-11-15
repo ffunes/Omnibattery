@@ -36,7 +36,7 @@ El primer día local se divide en celdas de quince minutos. Las curvas continuas
 | Amarillo suave | El excedente solar podría cargar la batería | Una oportunidad; permanece amarillo hasta que se observe la carga |
 | Marcador de reloj | Está activo Solar Charge Delay | La información emergente incluye la hora estimada de liberación |
 
-Los intervalos cerrados muestran datos observados. El intervalo abierto combina la energía medida hasta ahora con un resto proyectado, mientras que las celdas futuras son proyecciones informativas de los perfiles activos de consumo y solar, el estado de batería y el plan seleccionado. La información emergente etiqueta los valores observados y proyectados y muestra la energía que entró o salió de la batería.
+Los intervalos cerrados muestran datos observados. El intervalo abierto combina la energía medida hasta ahora con un resto proyectado, mientras que las celdas futuras son proyecciones informativas de los perfiles activos de consumo y solar, el estado de batería y el plan seleccionado. Con Precio dinámico son los propios cuartos del plan publicado, hasta su último precio conocido. La información emergente etiqueta los valores observados y proyectados y muestra la energía que entró o salió de la batería.
 
 En pantallas estrechas, desplázate horizontalmente por hora. La vista inicial se mantiene en el día local actual; usa la flecha derecha para revelar las `12 hours` adicionales hasta el mediodía local siguiente. Las flechas del teclado, el toque y el ratón muestran los mismos detalles de intervalo.
 
@@ -46,7 +46,7 @@ La cronología depende de la [estimación de consumo](consumption-estimate.md), 
 
 | Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| Las celdas futuras están vacías | Una previsión no está disponible o está obsoleta, o el modo Precio en tiempo real no tiene programación futura por diseño | Fuentes de perfiles, estado del plan y modo predictivo seleccionado |
+| Las celdas futuras están vacías | Una previsión no está disponible o está obsoleta; el modo Precio en tiempo real no tiene programación futura por diseño, o, con Precio dinámico, las celdas tras medianoche esperan a los precios de mañana (el plan acaba en su último precio conocido) | Fuentes de perfiles, estado del plan y modo predictivo seleccionado |
 | Las celdas pasadas están vacías tras abrir el panel | Recorder no tiene historial utilizable o falta telemetría del día actual | Recorder, entidades de red/solar y disponibilidad de la integración |
 | Una celda amarilla no se volvió verde | Se proyectó carga solar pero no entró energía en la batería | Límites de batería, SOC y la información emergente del intervalo |
 | Una celda muestra más de una acción | Los flujos sucedieron simultáneamente | El patrón diagonal y el texto accesible de la información emergente |
