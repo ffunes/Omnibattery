@@ -378,6 +378,13 @@ def _plan_order_lines(orders) -> str:
             "💶 Selling to the grid: "
             + ", ".join(f"{_span(a, b)} at {kw:.1f} kW" for a, b, kw, _k in spans)
         )
+    room = orders.get("room") or {}
+    if room:
+        spans = _blocks((s.start, s.end, round(float(kw), 1), None) for s, kw in room.items())
+        lines.append(
+            "🔋 Making room for the sun: "
+            + ", ".join(f"{_span(a, b)} at {kw:.1f} kW" for a, b, kw, _k in spans)
+        )
     if orders.get("solar_delay"):
         lines.append("⏳ Solar charge delayed by the plan")
     return "".join(line + "\n" for line in lines)

@@ -46,6 +46,28 @@ def test_curtailment_signal_is_unknown_without_safe_plan():
     assert attrs["inverter_curtailment_required"] is None
 
 
+def test_with_the_plan_deciding_the_windows_and_slots_are_the_plan_s():
+    from datetime import datetime, timedelta
+
+    from custom_components.omnibattery.pricing import PriceSlot
+    from custom_components.omnibattery.pricing.engine import PlanRoom
+
+    t = datetime.now() + timedelta(hours=1)
+    order = PriceSlot(t, t + timedelta(minutes=15), 0.30)
+    risk = PriceSlot(t + timedelta(hours=2), t + timedelta(hours=2, minutes=15), -0.05)
+    module = CurtailmentPlan(status="no_risk", reason="no_negative_injection_window")
+    sensor = _sensor(runtime_status="planned", plan=module)
+    room = PlanRoom({order: (2.5, -1.0)}, frozenset({risk}), {risk: 1.0})
+    sensor.controller._pricing_mgr = SimpleNamespace(_plan_room=lambda: room)
+    attrs = sensor.extra_state_attributes
+    assert attrs["decided_by"] == "plan"
+    assert attrs["next_window"] == risk.start.isoformat()
+    assert [x["start"] for x in attrs["risk_slots"]] == [risk.start.isoformat()]
+    assert attrs["selected_discharge_slots"] == [
+        {"start": order.start.isoformat(), "end": order.end.isoformat(), "price": 0.30, "power_w": 2500}
+    ]
+
+
 def test_predictive_attributes_omit_redundant_fields():
     controller = SimpleNamespace(
         _daily_consumption_history=[(date(2026, 8, 16), 7.5)],

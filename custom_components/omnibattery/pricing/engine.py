@@ -5817,6 +5817,9 @@ class PricingManager:
             "exports": getattr(controller, "_dp_plan_exports", None),
             "sales": getattr(controller, "_dp_plan_sales", None),
             "solar_delay": bool(getattr(controller, "_dp_plan_solar_delay", False)),
+            "room": {
+                slot: kw for slot, (kw, _level) in getattr(self._plan_room(), "orders", {}).items()
+            },
         }
         title, message = notifications.format_dynamic_pricing_notification(
             decision_data,
@@ -5843,6 +5846,7 @@ class PricingManager:
             tuple(sorted(s.start for s in orders["exports"] or ())),
             tuple(sorted((s.start, round(float(kw), 1)) for s, kw in (orders["sales"] or {}).items())),
             orders["solar_delay"],
+            tuple(sorted((s.start, round(float(kw), 1)) for s, kw in orders["room"].items())),
         )
         key = (title, plan, shown)
         if key == self._last_dp_notification_key:

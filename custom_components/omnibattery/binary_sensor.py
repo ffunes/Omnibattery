@@ -422,7 +422,7 @@ class CurtailmentStatusSensor(BinarySensorEntity):
             "inverter_curtailment_required": None,
         }
         if plan is None:
-            return attrs
+            return self._plan_room_attrs(attrs)
         now = datetime.now()
         next_window = next(
             (slot.start.isoformat() for slot in plan.risk_slots if slot.end > now),
@@ -484,6 +484,34 @@ class CurtailmentStatusSensor(BinarySensorEntity):
             attrs["inverter_curtailment_required"] = (
                 runtime_status == "protected_window" and headroom_deficit > 1e-6
             )
+        return self._plan_room_attrs(attrs)
+
+    def _plan_room_attrs(self, attrs: dict) -> dict:
+        """With the optimizer deciding, its risk windows and room slots replace
+        the module's (whose plan stays for the headroom diagnostics)."""
+        pricing = getattr(self.controller, "_pricing_mgr", None)
+        room = pricing._plan_room() if pricing is not None else None
+        if room is None:
+            return attrs
+        now = datetime.now()
+        risk = sorted(room.risk, key=lambda slot: slot.start)
+        attrs.update({
+            "decided_by": "plan",
+            "next_window": next((slot.start.isoformat() for slot in risk if slot.end > now), None),
+            "risk_slots": [
+                {"start": slot.start.isoformat(), "end": slot.end.isoformat(), "price": slot.price}
+                for slot in risk
+            ],
+            "selected_discharge_slots": [
+                {
+                    "start": slot.start.isoformat(),
+                    "end": slot.end.isoformat(),
+                    "price": slot.price,
+                    "power_w": round(power_kw * 1000.0),
+                }
+                for slot, (power_kw, _level) in sorted(room.orders.items(), key=lambda x: x[0].start)
+            ],
+        })
         return attrs
 
     @property

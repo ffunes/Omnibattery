@@ -114,3 +114,13 @@ def test_aware_panel_clock_over_naive_plan_times():
     assert drawn is not dto
     assert [x["soc_end_pct"] for x in drawn["intervals"]] == pytest.approx([47.5, 56.5])
     assert all(x["end"].tzinfo is zone for x in drawn["intervals"] + drawn["extended_intervals"])
+
+
+def test_a_room_discharge_draws_its_drop_and_only_the_house_flow():
+    """Smart Pre-Discharge in the plan: the line falls by the room the plan
+    makes; the battery covers the house, the exported rest has no field."""
+    rows = ((T0, datetime(2026, 11, 10, 0, 15), 0.0, 0.1, -0.6),) + ROWS[1:]
+    dto = overlay_plan_rows(_dto(), rows, start_kwh=5.0, capacity_kwh=10.0, efficiency=0.8, now=T0)
+    a = dto["intervals"][0]
+    assert a["soc_end_pct"] == pytest.approx(44.0)
+    assert a["battery_to_home_kwh"] == pytest.approx(0.1) and a["grid_to_home_kwh"] == 0.0

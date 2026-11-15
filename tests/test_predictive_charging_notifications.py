@@ -351,3 +351,21 @@ def test_changed_plan_orders_notify_again(monkeypatch):
     asyncio.run(_run())
     assert len(_creates(calls)) == 2
 
+
+
+def test_changed_room_orders_notify_again(monkeypatch):
+    """Smart Pre-Discharge's room orders are part of the plan, too."""
+    from custom_components.omnibattery.pricing.engine import PlanRoom
+
+    manager, calls = _dedupe_manager(monkeypatch)
+    controller = manager._controller
+    controller.predictive_charging_enabled = True
+    controller.predictive_charging_mode = "dynamic_pricing"
+
+    async def _run():
+        for kw in (2.5, 2.5, 1.25):
+            controller._dp_plan_room = PlanRoom({_Slot(7, 8): (kw, -1.0)}, frozenset(), {})
+            await manager._send_dynamic_pricing_notification({}, None)
+
+    asyncio.run(_run())
+    assert len(_creates(calls)) == 2
