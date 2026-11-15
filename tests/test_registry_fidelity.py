@@ -42,3 +42,24 @@ def test_a_stored_serial_port_is_its_own_setup_link_for_every_brand(brand):
     cls = DRIVERS[brand]
     base = {**ZENDURE, "brand": brand}
     assert cls.link_key(base) != cls.link_key({**base, "serial_port": "/dev/ttyUSB0"})
+
+
+async def test_sessy_weekly_hours_still_book_a_taper_tail():
+    """Why D3 was not applied (plan header and section 8): a Sessy coordinator
+    keeps its stored taper flag (True by default), and the weekly planner reads
+    it without checking for cell voltages, so it books the last 5 % at 200 W.
+    Same numbers as test_the_voltage_taper_charges_the_last_percent_at_200_w."""
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing.engine import PricingManager
+    from tests.test_driver_construction_characterization import SESSY
+
+    config = {k: v for k, v in SESSY.items() if k != "full_charge_voltage_taper_enabled"}
+    coordinator = _build_coordinator(config)
+    assert coordinator.full_charge_voltage_taper_enabled is True
+    coordinator.max_charge_power = 2400.0
+    coordinator.battery_manual_mode_enabled = False
+    coordinator.data = {"battery_soc": 90.0, "battery_total_energy": 5.12}
+    ctrl = SimpleNamespace(coordinators=[coordinator], max_contracted_power=20000,
+                           max_charge_capacity=2400.0)
+    assert PricingManager(SimpleNamespace(), ctrl)._weekly_charge_hours_needed(0.512) == 2.5
