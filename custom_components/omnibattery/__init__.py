@@ -5388,11 +5388,6 @@ class ChargeDischargeController:
                 # rather than acting on SOC it cannot influence.
                 avg_soc = 100
             reserve_holding = avg_soc < self.capacity_protection_soc_threshold
-        # A fleet that may not discharge only because of policy (price, time
-        # slot, EV) is held back too: above the cap the cap overrides it.
-        policy_held = ChargeDischargeController._discharge_held_by_policy(self)
-        held = reserve_holding or policy_held
-
         # Decide on the target without this feature's own override, or a
         # previous cycle's hold would read as the normal target.
         active_target = self.compute_active_target_excluding("capacity_protection")
@@ -5412,6 +5407,13 @@ class ChargeDischargeController:
         # Physical house load: excluded devices are on the meter too.
         estimated_house_load = sensor_actual + hidden - battery_power
         over_cap = cap > 0 and estimated_house_load > cap
+        # A battery that may not discharge only because of policy (price, time
+        # slot, EV) is held back too, once the batteries that are free cannot
+        # keep the real meter under the cap on their own (#506).
+        policy_held = cap > 0 and ChargeDischargeController._discharge_held_by_policy(
+            self, estimated_house_load - cap
+        )
+        held = reserve_holding or policy_held
         status["excluded_peak_excess"] = 0
         action = "idle" if self.capacity_protection_enabled else "disabled"
         active = False
@@ -5525,19 +5527,51 @@ class ChargeDischargeController:
         })
         return active_target, sensor_actual
 
-    def _discharge_held_by_policy(self) -> bool:
-        """True when policy blockers keep the whole fleet from discharging."""
-        if POLICY_DISCHARGE_BLOCKERS.intersection(
-            getattr(self, "_global_discharge_blockers", {}) or {}
-        ):
-            return True
+    def _release_grid_import_cap(self) -> None:
+        """Drop the cap's engagement on a cycle that never evaluates it.
+
+        Manual mode, a charging predictive slot, a dead meter and the max-SOC
+        measurement return before _apply_capacity_protection; without this the
+        policy override (and its status) would stay latched. A single
+        unreadable sample keeps it: releasing would stop a covering battery
+        while the meter is blind.
+        """
+        self._cap_overrides_policy = False
+        self._cap_shave_engaged = False
+        self._cap_release_samples = 0
+        status = getattr(self, "_capacity_protection_status", None)
+        if isinstance(status, dict):
+            status.update(
+                {"grid_import_cap_active": False, "cap_requested_w": 0, "cap_delivered_w": 0}
+            )
+
+    def _discharge_held_by_policy(self, excess_w: float) -> bool:
+        """True when a battery blocked only by policy is needed for ``excess_w``.
+
+        Needed means the batteries with no blocker at all cannot cover the
+        load above the cap on their own. Once engaged it holds through the
+        exit hysteresis, so a mixed fleet may share the excess instead of
+        leaving it to the free battery until the house drops.
+        """
+        global_blockers = set(getattr(self, "_global_discharge_blockers", {}) or {})
         per_battery = getattr(self, "_battery_discharge_blockers", {}) or {}
-        if not per_battery:
+        if not global_blockers and not per_battery:
             return False
-        pool = self._capacity_protection_coordinators()
-        return bool(pool) and all(
-            POLICY_DISCHARGE_BLOCKERS.intersection(per_battery.get(c, {})) for c in pool
-        )
+        policy_only, free = False, []
+        for coordinator in self._capacity_protection_coordinators():
+            blockers = global_blockers | set(
+                per_battery.get(coordinator, {}) if per_battery else {}
+            )
+            if not blockers:
+                free.append(coordinator)
+            elif blockers <= POLICY_DISCHARGE_BLOCKERS:
+                policy_only = True
+        if not policy_only:
+            return False
+        if getattr(self, "_cap_overrides_policy", False):
+            return True
+        free_w = self._effective_system_capacity(free, False) if free else 0.0
+        return excess_w > free_w
 
     def _is_capacity_protection_soc_limited(self) -> bool:
         """Return True when peak shaving should be active based on current SOC."""
@@ -10138,6 +10172,7 @@ class ChargeDischargeController:
             # Do not set batteries to 0 - preserve user's manual settings
             # Do not update PD state - freeze controller state
             self._phase_safety_pending = False
+            ChargeDischargeController._release_grid_import_cap(self)
             return
 
         # Individual manual batteries remain under their own software setpoints
@@ -10177,6 +10212,7 @@ class ChargeDischargeController:
             await self._apply_phase_safety_review()
 
         if await self._max_soc_mgr.handle_measurement():
+            ChargeDischargeController._release_grid_import_cap(self)
             self.previous_power = 0
             self.previous_sensor = None
             self.previous_error = 0
@@ -10189,6 +10225,7 @@ class ChargeDischargeController:
         # A dead meter stops automatic control before predictive dispatch, so a
         # grid charge cannot keep importing against a ceiling nobody is reading.
         if await self._apply_dead_meter_fallback():
+            ChargeDischargeController._release_grid_import_cap(self)
             return
 
         # === Predictive Grid Charging Logic (mode dispatch) ===
@@ -10216,6 +10253,7 @@ class ChargeDischargeController:
             else:
                 self._predictive_dispatch_errors = 0
             if self.grid_charging_active:
+                ChargeDischargeController._release_grid_import_cap(self)
                 return
 
         # === Operation blockers: enforce BEFORE deadband / stale early-returns ===

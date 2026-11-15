@@ -57,6 +57,7 @@ def _ctrl(*, soc=60, reserve=False):
     ctrl._global_discharge_blockers = {}
     ctrl._battery_discharge_blockers = {}
     ctrl.deadband = 50
+    ctrl._effective_system_capacity = lambda batteries, is_charging: 2500.0 * len(batteries)
     return ctrl
 
 
@@ -155,13 +156,14 @@ def test_the_block_returns_once_the_house_is_back_under_the_cap():
 
 
 def test_blockers_shown_and_enforced_while_the_cap_is_engaged():
-    ctrl = _ctrl()
+    ctrl, a, b = _two()
     _block(ctrl, "price_discharge")
-    _block(ctrl, "min_soc", per_battery=True)
-    _settle(ctrl, house=6000)
-    blockers = ctrl.get_discharge_blockers(ctrl.battery)
-    assert "min_soc" in blockers
-    assert "price_discharge" not in blockers
+    ctrl._battery_discharge_blockers[b] = {"min_soc": {"reason": "min_soc", "details": None, "since": None}}
+    _settle_two(ctrl, house=6000)
+    assert ctrl._cap_overrides_policy is True
+    assert "price_discharge" not in ctrl.get_discharge_blockers(a)
+    assert "min_soc" in ctrl.get_discharge_blockers(b)
+    assert ctrl.is_discharge_blocked(b) is True
 
 
 # --- Observability (D3) ---------------------------------------------------------
@@ -242,7 +244,7 @@ def _cycle(**overrides):
     for key, value in overrides.items():
         setattr(controller, key, value)
     asyncio.run(controller._run_control_cycle(now=first + timedelta(seconds=1)))
-    return controller.previous_power
+    return controller
 
 
 GATES = {
@@ -267,8 +269,8 @@ GATES["ev_charging"] = _ev(False, True)
 
 @pytest.mark.parametrize("gate", list(GATES))
 def test_the_cycle_lets_the_cap_discharge_through_policy_gates(gate):
-    assert _cycle(**GATES[gate]) == 0  # the gate holds on its own
-    assert _cycle(**GATES[gate], _cap_overrides_policy=True) < 0
+    assert _cycle(**GATES[gate]).previous_power == 0  # the gate holds on its own
+    assert _cycle(**GATES[gate], _cap_overrides_policy=True).previous_power < 0
 
 
 def test_the_binary_sensor_publishes_the_cap_attributes():
@@ -284,3 +286,108 @@ def test_the_binary_sensor_publishes_the_cap_attributes():
     assert attrs["grid_import_cap_active"] is True
     assert attrs["cap_requested_w"] == 1500
     assert attrs["cap_delivered_w"] == pytest.approx(1500, abs=TOL)
+
+
+# --- Mixed fleet: one battery held by policy, another by physics -----------------
+
+def _two(soc=60):
+    ctrl = _ctrl(soc=soc)
+    a, b = ctrl.battery, _Battery(soc)
+    b.name = "b2"
+    ctrl.coordinators = [a, b]
+    return ctrl, a, b
+
+
+def _settle_two(ctrl, *, house, max_w=2500.0, steps=150):
+    a, b = ctrl.coordinators
+    da = db = 0.0
+    for _ in range(steps):
+        grid = house - da - db
+        ctrl.previous_power = -(da + db)
+        t, s = ctrl._apply_capacity_protection(grid, 0.0)
+        step = 0.5 * (s - t)
+        free = [c for c in (a, b) if not ctrl.is_discharge_blocked(c)]
+        share = step / len(free) if free else 0.0
+        da = max(0.0, min(max_w, da + share)) if a in free else 0.0
+        db = max(0.0, min(max_w, db + share)) if b in free else 0.0
+    return house - da - db, da, db
+
+
+def test_mixed_fleet_the_policy_held_battery_covers_the_excess():
+    ctrl, a, b = _two()
+    _block(ctrl, "time_slot_discharge", per_battery=True)  # on a
+    ctrl._battery_discharge_blockers[b] = {"min_soc": {"reason": "min_soc", "details": None, "since": None}}
+    grid, da, db = _settle_two(ctrl, house=6000)
+    assert db == 0.0
+    assert grid == pytest.approx(CAP, abs=TOL)
+
+
+def test_mixed_fleet_a_free_battery_that_holds_the_cap_leaves_the_policy_alone():
+    # b is free and keeps the meter under the cap on its own: a stays blocked.
+    ctrl, a, b = _two()
+    _block(ctrl, "time_slot_discharge", per_battery=True)  # on a
+    grid, da, db = _settle_two(ctrl, house=6000)
+    assert da == 0.0
+    assert db == pytest.approx(2500, abs=TOL)
+    assert grid == pytest.approx(3500, abs=TOL)
+
+
+def test_mixed_fleet_a_free_battery_too_small_gets_help():
+    ctrl, a, b = _two()
+    _block(ctrl, "time_slot_discharge", per_battery=True)  # on a
+    grid, da, db = _settle_two(ctrl, house=8000)
+    assert grid == pytest.approx(CAP, abs=TOL)
+    assert da > 0
+
+
+# --- A cycle that never evaluates the cap releases it ----------------------------
+
+async def _true(*_a, **_k):
+    return True
+
+
+async def _noop(*_a, **_k):
+    return None
+
+
+def _exit_overrides(exit_name):
+    from types import SimpleNamespace
+
+    if exit_name == "manual_mode":
+        return {
+            "manual_mode_enabled": True,
+            "_pricing_mgr": SimpleNamespace(
+                maybe_check_price_data_health=lambda: None,
+                clear_curtailment_runtime=lambda _reason: None,
+            ),
+            "_surplus_hold_mgr": None,
+            "_discharge_reserve_mgr": None,
+            "_apply_software_manual_setpoints": _noop,
+        }
+    if exit_name == "dead_meter":
+        return {"_apply_dead_meter_fallback": _true}
+    return {"_max_soc_mgr": SimpleNamespace(handle_measurement=_true)}
+
+
+@pytest.mark.parametrize("exit_name", ["manual_mode", "dead_meter", "max_soc_measurement"])
+def test_a_cycle_that_skips_the_cap_releases_its_override(exit_name):
+    controller = _cycle(
+        **_exit_overrides(exit_name),
+        _cap_overrides_policy=True,
+        _cap_shave_engaged=True,
+        _capacity_protection_status={"grid_import_cap_active": True, "cap_requested_w": 900},
+    )
+    assert controller._cap_overrides_policy is False
+    assert controller._cap_shave_engaged is False
+    assert controller._capacity_protection_status["grid_import_cap_active"] is False
+
+
+def test_release_helper_clears_flags_and_status():
+    ctrl = _ctrl()
+    _block(ctrl, "price_discharge")
+    _settle(ctrl, house=6000)
+    assert ctrl._cap_overrides_policy is True
+    ctrl._release_grid_import_cap()
+    assert ctrl._cap_overrides_policy is False
+    assert ctrl.is_discharge_blocked() is True
+    assert ctrl._capacity_protection_status["grid_import_cap_active"] is False
