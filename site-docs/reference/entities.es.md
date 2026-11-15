@@ -65,7 +65,7 @@ Estas entidades pertenecen a **Omnibattery System**, no a una batería.
 
     - Control PD: `pd_controller_kp`, `pd_controller_kd`, `pd_controller_deadband`, `pd_controller_max_power_change`, `pd_controller_direction_hysteresis`, `pd_min_charge_power`, `pd_min_discharge_power`, `pd_relay_cooldown`, `pd_min_cycle_interval`, `pd_target_grid_power`, `no_pd_command_delay`
     - Límites de flota: `system_max_charge_power`, `system_max_discharge_power`
-    - Máximo de importación de red: `max_contracted_power` (siempre presente; 500–20,000 W)
+    - Máximo de importación de red: `max_contracted_power` (siempre presente; 500–20,000 W; su modo de facturación de 15 minutos es el interruptor `grid_import_window_15min` de abajo)
     - Protección de capacidad: `capacity_protection_soc_threshold`
     - Retraso de carga: `delay_safety_margin_min`, `charge_delay_balance_deadband_kwh`, `delay_soc_setpoint`
     - Temperatura: `temp_charge_limit_c`, `temp_charge_limit_band_c`, `temp_charge_limit_floor_pct`
@@ -76,7 +76,7 @@ Estas entidades pertenecen a **Omnibattery System**, no a una batería.
 
 ??? "Interruptores del sistema"
 
-    - Opciones de controlador siempre disponibles: `manual_mode`, `no_pd_mode`, `three_phase_protection`, `weekly_full_charge_enabled`, `vacation_mode`
+    - Opciones de controlador siempre disponibles: `manual_mode`, `no_pd_mode`, `three_phase_protection`, `weekly_full_charge_enabled`, `vacation_mode`, `grid_import_window_15min` (Ventana de 15 min de Importación de Red, ver [Peak shaving](../features/peak-shaving.es.md#ventana-de-15-minutos))
     - Funciones condicionales: `offgrid_mode`, `primary_feedforward`, `system_power_limits`, `predictive_charging`, `predictive_charging_notifications`, `min_soc_floor_enabled`, `charge_delay`, `delay_soc_setpoint_enabled`, `weekly_full_charge_delay`, `temp_charge_limit`, `temp_charge_limit_discharge`, `capacity_protection`, `capacity_protection_excluded_devices`, `hourly_balance`
     - Controles de precios: `price_discharge_control`, `smart_predischarge`, `negative_price_charging`, `surplus_price_hold`, `discharge_reserve`
     - Controles generados: `time_slot` para cada franja horaria configurada; `excluded_device_enabled`, `excluded_device_solar_surplus`, `excluded_device_dynamic_power_control` y `excluded_device_cover_home` para cada dispositivo excluido aplicable

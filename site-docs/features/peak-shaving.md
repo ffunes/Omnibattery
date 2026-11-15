@@ -27,6 +27,32 @@ One setting (`number.<prefix>_max_contracted_power`, always present; `500–20,0
 
 This is best effort, not a guarantee. If the house draws 8 kW, the cap is 5.75 kW and the battery delivers 2.5 kW, the meter still goes over. When that happens, **Peak Shaving Active** shows it in its attributes (`grid_import_cap_active`, `cap_requested_w`: what the battery had to deliver, `cap_delivered_w`: what it delivered) and the log gets one warning per episode once the meter stays above the cap for 30 seconds.
 
+## 15-minute window
+
+Some capacity tariffs bill the average import of each quarter hour, not every instant. The switch **Grid Import 15-min Window** (`switch.<prefix>_grid_import_window_15min`, always present) makes the Maximum grid import work that way.
+
+- **Off** (instantaneous): the cap limits every instant. Use this when the cap protects a breaker; in Spain, going over the contracted power trips the ICP. It is the default everywhere except Belgium.
+- **On**: the cap limits the average grid import of each quarter of the local clock (:00, :15, :30, :45). It is on by default in Belgium when you never set it; the default comes from Home Assistant's country setting.
+
+Omnibattery measures the quarter itself from the grid sensor it already reads, so that sensor must be the billing meter (P1/DSMR). Only import counts; export does not discount it.
+
+In practice:
+
+- A kettle right at the start of a quarter is shaved as in the instantaneous mode.
+- A kettle after several quiet minutes is left alone, because the quarter still has budget.
+- After a big spike the battery could not cover, import is pulled down for the rest of the quarter to compensate.
+
+It never lets a spike through early betting that the load will drop later.
+
+Safeguards:
+
+- Within 30 seconds of a quarter boundary the cap never goes above the configured value, because the meter's clock may be a few seconds off.
+- After a restart or reload, a gap in the grid sensor, or a sample that straddles a boundary for more than 30 seconds, the quarter is not trusted: the instantaneous cap applies until the next quarter starts.
+- Grid charging never goes above the Maximum grid import, whatever budget the quarter has left. The predictive charging planner always plans with the configured value.
+- When a quarter's budget is spent, the battery covers the whole house (if nothing physical stops it) and grid charging stops until the quarter ends. One warning is logged per quarter whose budget is exceeded.
+
+**Peak Shaving Active** gains three attributes: `window_valid` (the quarter is trusted), `window_import_kwh` (import so far this quarter) and `window_cap_w` (import allowed for the rest of the quarter).
+
 ## How to enable it
 
 1. Open the Omnibattery sidebar panel and select **Control**.

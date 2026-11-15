@@ -123,12 +123,48 @@ def home_balance_is_suspicious(
     return balance_w < HOME_CONSUMPTION_MIN_BALANCE_W
 
 
+# 15-minute billing window (#506 step 4).
+_WINDOW_S = 900.0
+_WINDOW_GUARD_S = 30.0  # meter clock drift tolerated at a quarter boundary
+
+
+def grid_import_window_default(country: str | None) -> bool:
+    """Default of the window switch: on where the bill is a 15-min mean (BE)."""
+    return country == "BE"
+
+
+def grid_window_cap_w(
+    cap_w: float, quarter_start: datetime, sample_at: datetime, import_kwh: float
+) -> float:
+    """Import allowed for the rest of the quarter so its mean stays <= ``cap_w``.
+
+    Within the guard band at either end it never exceeds ``cap_w``: the
+    meter's own quarter may be a few seconds off ours. Past the quarter end
+    (a stale sample) the configured value holds.
+    """
+    elapsed = (sample_at - quarter_start).total_seconds()
+    remaining = _WINDOW_S - elapsed
+    if remaining <= 0:
+        return cap_w
+    allowed = max(0.0, (cap_w * _WINDOW_S - import_kwh * 3.6e6) / remaining)
+    if elapsed < _WINDOW_GUARD_S or remaining < _WINDOW_GUARD_S:
+        allowed = min(allowed, cap_w)
+    return allowed
+
+
 class ConsumptionTracker:
     """Manages consumption history, accumulators and solar timing."""
 
     # Re-entrancy guard for ``_vacation_baseline_kw``; see the note there.
     # Class-level so instances built without ``__init__`` still have it.
     _vacation_baseline_running = False
+
+    # Grid import of the current local quarter (#506). Not persisted: after a
+    # restart the quarter is untrusted until the next boundary.
+    window_quarter: datetime | None = None
+    window_import_kwh: float = 0.0
+    window_sample_at: datetime | None = None
+    window_valid: bool = False
 
     def __init__(
         self,
@@ -1210,14 +1246,16 @@ class ConsumptionTracker:
         self._daily_home_last_time = now
         self._daily_home_last_power_kw = power_kw
 
-    async def accumulate_daily_grid_energy(self) -> None:
+    async def accumulate_daily_grid_energy(self, now: datetime | None = None) -> None:
         """Integrate the net grid meter → exact daily import/export kWh.
 
         Sign convention of the consumption sensor: positive = importing from the
         grid, negative = exporting to it. Each half integrates separately so the
-        panel can show both totals.
+        panel can show both totals. The import half also feeds the 15-min
+        window (``update_grid_window``); export never discounts it.
         """
         ctrl = self._controller
+        local_now = now or dt_util.now()
         # Use the same meter transform as the PD loop so a user-inverted meter
         # (meter_inverted) keeps the +import / -export convention; otherwise the
         # import and export totals would be swapped.
@@ -1225,15 +1263,19 @@ class ConsumptionTracker:
         if grid_w is None:
             self._daily_grid_last_time = None
             self._daily_grid_last_power_kw = None
+            self.update_grid_window(local_now, None, None)
             return
         power_kw = grid_w / 1000.0
         now = monotonic()
+        imported_kwh = 0.0
+        interval_s = None
         # Trapezoidal rule with zero-crossing split: when the meter sign flips
         # between samples (import↔export), the interval is split at the crossing so
         # each half is booked to the correct side instead of misclassifying the
         # whole interval by the start sample's sign.
         if self._daily_grid_last_time is not None and self._daily_grid_last_power_kw is not None:
             dt_hours = (now - self._daily_grid_last_time) / 3600.0
+            interval_s = dt_hours * 3600.0
             if dt_hours > 0:
                 prev_kw = self._daily_grid_last_power_kw
                 curr_kw = power_kw
@@ -1241,6 +1283,7 @@ class ConsumptionTracker:
                     kwh = (prev_kw + curr_kw) / 2.0 * dt_hours
                     if kwh >= 0:
                         ctrl._daily_grid_import_energy_kwh += kwh
+                        imported_kwh += kwh
                     else:
                         ctrl._daily_grid_export_energy_kwh += -kwh
                 else:
@@ -1251,14 +1294,46 @@ class ConsumptionTracker:
                     kwh_second = curr_kw / 2.0 * dt_second
                     if kwh_first >= 0:
                         ctrl._daily_grid_import_energy_kwh += kwh_first
+                        imported_kwh += kwh_first
                     else:
                         ctrl._daily_grid_export_energy_kwh += -kwh_first
                     if kwh_second >= 0:
                         ctrl._daily_grid_import_energy_kwh += kwh_second
+                        imported_kwh += kwh_second
                     else:
                         ctrl._daily_grid_export_energy_kwh += -kwh_second
         self._daily_grid_last_time = now
         self._daily_grid_last_power_kw = power_kw
+        self.update_grid_window(local_now, imported_kwh, interval_s)
+
+    def update_grid_window(
+        self, now: datetime, import_kwh: float | None, interval_s: float | None
+    ) -> None:
+        """Add one meter interval to the current local quarter's import.
+
+        ``import_kwh`` None is a missing meter reading; ``interval_s`` None is
+        a sample with no live previous one (start, reload, after a gap). An
+        interval that crosses a boundary counts whole for the new quarter (one
+        sample of error, inside the guard band); the new quarter is trusted
+        only when that interval was live and no longer than the guard band.
+        """
+        if import_kwh is None:
+            self.window_valid = False
+            return
+        quarter = now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0)
+        if quarter != self.window_quarter:
+            self.window_valid = (
+                self.window_quarter is not None
+                and interval_s is not None
+                and interval_s <= _WINDOW_GUARD_S
+            )
+            self.window_quarter = quarter
+            self.window_import_kwh = 0.0
+        elif interval_s is None:
+            # Restarted mid-quarter: what came before this sample is unknown.
+            self.window_valid = False
+        self.window_import_kwh += import_kwh
+        self.window_sample_at = now
 
     # ------------------------------------------------------------------
     # Consumption history queries

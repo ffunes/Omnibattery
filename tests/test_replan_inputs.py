@@ -67,6 +67,9 @@ LIVE = {
     "_weekly_full_charge_skip_delay",
     "capacity_protection_excluded_devices",
     "capacity_protection_soc_threshold",
+    # The 15-min window moves only the real-time cap; planners read the
+    # configured value (#506).
+    "grid_import_window_enabled",
     "charge_priority",
     "deadband",
     "direction_hysteresis",

@@ -1582,6 +1582,9 @@
       "capacity_protection": {
         "name": "Reducció de Pics"
       },
+      "grid_import_window_15min": {
+        "name": "Finestra de 15 min d'Importació de Xarxa"
+      },
       "capacity_protection_excluded_devices": {
         "name": "Reducció de Pics per a Dispositius Exclosos"
       },

@@ -1594,6 +1594,9 @@
       "capacity_protection": {
         "name": "Peak Shaving"
       },
+      "grid_import_window_15min": {
+        "name": "Grid Import 15-min Window"
+      },
       "capacity_protection_excluded_devices": {
         "name": "Peak Shaving for Excluded Devices"
       },

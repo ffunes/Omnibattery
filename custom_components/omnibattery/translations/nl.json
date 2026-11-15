@@ -1582,6 +1582,9 @@
       "capacity_protection": {
         "name": "Piekbegrenzing"
       },
+      "grid_import_window_15min": {
+        "name": "15-minutenvenster Netafname"
+      },
       "capacity_protection_excluded_devices": {
         "name": "Piekbegrenzing voor Uitgesloten Apparaten"
       },

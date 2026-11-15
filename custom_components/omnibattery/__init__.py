@@ -137,6 +137,7 @@ from .const import (
     DEFAULT_SYSTEM_MAX_CHARGE_POWER,
     DEFAULT_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_CAPACITY_PROTECTION_ENABLED,
+    CONF_GRID_IMPORT_WINDOW_15MIN,
     CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
     CONF_CAPACITY_PROTECTION_SOC_THRESHOLD,
     DEFAULT_CAPACITY_PROTECTION_SOC,
@@ -1267,6 +1268,9 @@ class ChargeDischargeController:
         self._rate_limiter_last_logged_change: float | None = None
 
         # Capacity Protection Mode state
+        self.grid_import_window_enabled = ChargeDischargeController._grid_import_window_setting(
+            self, config_entry.data
+        )
         self.capacity_protection_enabled = config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
         self.capacity_protection_excluded_devices = config_entry.data.get(
             CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False
@@ -3514,6 +3518,9 @@ class ChargeDischargeController:
         ):
             if self._discharge_reserve_mgr is not None:
                 self._discharge_reserve_mgr.clear("mode_or_configuration_changed")
+        self.grid_import_window_enabled = ChargeDischargeController._grid_import_window_setting(
+            self, self.config_entry.data
+        )
         self.capacity_protection_enabled = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
         self.capacity_protection_excluded_devices = self.config_entry.data.get(
             CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False
@@ -5348,14 +5355,46 @@ class ChargeDischargeController:
             eligible.append(coordinator)
         return eligible
 
-    def _grid_import_cap_w(self) -> float:
-        """Grid import ceiling for real-time control (#506); <= 0 disables it.
+    def _grid_import_window_setting(self, data) -> bool:
+        """The window switch's stored value, or the country default (#506)."""
+        from .tracking.consumption_tracker import grid_import_window_default
 
-        Real-time readers only (charge clamp, peak shaving, predictive slot).
-        Planners read ``max_contracted_power`` directly: in the 15-min window
-        mode this value moves within the quarter.
+        if CONF_GRID_IMPORT_WINDOW_15MIN in data:
+            return bool(data[CONF_GRID_IMPORT_WINDOW_15MIN])
+        config = getattr(getattr(self, "hass", None), "config", None)
+        return grid_import_window_default(getattr(config, "country", None))
+
+    def _grid_import_cap_w(self) -> float:
+        """Grid import ceiling for real-time discharge decisions (#506).
+
+        The configured ``max_contracted_power``; with the 15-min window on and
+        the quarter trusted, the import the rest of the quarter may still draw
+        (it can be 0 or well above the configured value). Whether the cap is on
+        at all is the configured value > 0, never this one. Planners read
+        ``max_contracted_power`` directly; grid charging uses
+        ``_grid_charge_cap_w``.
         """
-        return float(getattr(self, "max_contracted_power", 0) or 0)
+        cap = float(getattr(self, "max_contracted_power", 0) or 0)
+        tracker = getattr(self, "_consumption_tracker", None)
+        if (
+            cap <= 0
+            or not getattr(self, "grid_import_window_enabled", False)
+            or not getattr(tracker, "window_valid", False)
+        ):
+            return cap
+        from .tracking.consumption_tracker import grid_window_cap_w
+
+        return grid_window_cap_w(
+            cap, tracker.window_quarter, tracker.window_sample_at, tracker.window_import_kwh
+        )
+
+    def _grid_charge_cap_w(self) -> float:
+        """Grid import ceiling for grid charging: never above the configured
+        value, whatever budget the quarter has left (planners expect it)."""
+        return min(
+            ChargeDischargeController._grid_import_cap_w(self),
+            float(getattr(self, "max_contracted_power", 0) or 0),
+        )
 
     def _apply_capacity_protection(
         self, sensor_actual: float, active_target: float
@@ -5370,6 +5409,7 @@ class ChargeDischargeController:
         covers only the load above the cap.
         """
         cap = ChargeDischargeController._grid_import_cap_w(self)
+        configured = float(getattr(self, "max_contracted_power", 0) or 0)
         status = self._capacity_protection_status
         reserve_holding = False
         avg_soc = None
@@ -5406,11 +5446,11 @@ class ChargeDischargeController:
         hidden = max(0.0, self._excluded_included_adjustment)
         # Physical house load: excluded devices are on the meter too.
         estimated_house_load = sensor_actual + hidden - battery_power
-        over_cap = cap > 0 and estimated_house_load > cap
+        over_cap = configured > 0 and estimated_house_load > cap
         # A battery that may not discharge only because of policy (price, time
         # slot, EV) is held back too, once the batteries that are free cannot
         # keep the real meter under the cap on their own (#506).
-        policy_held = cap > 0 and ChargeDischargeController._discharge_held_by_policy(
+        policy_held = configured > 0 and ChargeDischargeController._discharge_held_by_policy(
             self, estimated_house_load - cap
         )
         held = reserve_holding or policy_held
@@ -5492,10 +5532,29 @@ class ChargeDischargeController:
         # under the cap, what it delivers, and one warning per episode the
         # meter stays above it. Best effort: a peak bigger than the battery,
         # or a battery a physical limit or the user holds back, goes through.
-        requested = max(0.0, estimated_house_load - cap) if cap > 0 else 0.0
+        requested = max(0.0, estimated_house_load - cap) if configured > 0 else 0.0
         delivered = max(0.0, -battery_power)
         shortfall = requested - delivered  # physical import above the cap
-        if shortfall > max(100.0, float(getattr(self, "deadband", 0) or 0)):
+        tracker = getattr(self, "_consumption_tracker", None)
+        window = (
+            configured > 0
+            and getattr(self, "grid_import_window_enabled", False)
+            and getattr(tracker, "window_valid", False)
+        )
+        if window:
+            # The bill is the quarter's mean: one warning per quarter whose
+            # budget is spent, not per instant above a moving cap.
+            if (
+                tracker.window_import_kwh * 3.6e6 > configured * 900.0
+                and getattr(self, "_cap_warned_quarter", None) != tracker.window_quarter
+            ):
+                self._cap_warned_quarter = tracker.window_quarter
+                _LOGGER.warning(
+                    "Grid import cap: the 15-min budget of %.0fW is spent "
+                    "(%.3f kWh imported this quarter)",
+                    configured, tracker.window_import_kwh,
+                )
+        elif shortfall > max(100.0, float(getattr(self, "deadband", 0) or 0)):
             since = getattr(self, "_cap_shortfall_since", None)
             now = time.monotonic()
             if since is None:
@@ -5516,6 +5575,9 @@ class ChargeDischargeController:
             "grid_import_cap_active": action == "shaving",
             "cap_requested_w": round(requested),
             "cap_delivered_w": round(delivered),
+            "window_valid": bool(window),
+            "window_import_kwh": round(tracker.window_import_kwh, 3) if window else None,
+            "window_cap_w": round(cap) if window else None,
             "active": active,
             "avg_soc": round(avg_soc, 1) if avg_soc is not None else None,
             "estimated_house_load": round(estimated_house_load) if active else None,
@@ -6636,7 +6698,7 @@ class ChargeDischargeController:
 
     def _predictive_charge_ceiling(self) -> float:
         """Return the import ceiling used while a predictive slot is active."""
-        return ChargeDischargeController._grid_import_cap_w(self)
+        return ChargeDischargeController._grid_charge_cap_w(self)
 
     def _predictive_min_charge_power(
         self, available_batteries: list, max_battery_charge: float
@@ -7536,8 +7598,8 @@ class ChargeDischargeController:
         these batteries charge now is the rest of the house (other manual
         batteries included). None when there is no cap or no meter reading.
         """
-        cap = ChargeDischargeController._grid_import_cap_w(self)
-        if cap <= 0 or not manual:
+        cap = ChargeDischargeController._grid_charge_cap_w(self)
+        if float(getattr(self, "max_contracted_power", 0) or 0) <= 0 or not manual:
             return None
         grid = self._apply_meter_transform(self.hass.states.get(self.consumption_sensor))
         if grid is None:
@@ -10850,8 +10912,8 @@ class ChargeDischargeController:
         # breaker sees total grid flow. Marginal model: shifting battery power by
         # (new_power - previous_power) shifts grid by the same amount (more charge =
         # more import). Only limits charging; never forces a discharge.
-        import_cap = ChargeDischargeController._grid_import_cap_w(self)
-        if import_cap > 0 and new_power > 0:
+        import_cap = ChargeDischargeController._grid_charge_cap_w(self)
+        if float(getattr(self, "max_contracted_power", 0) or 0) > 0 and new_power > 0:
             charge_import_cap = import_cap - sensor_filtered + self.previous_power
             if new_power > charge_import_cap:
                 clamped = max(0.0, charge_import_cap)

@@ -1582,6 +1582,9 @@
       "capacity_protection": {
         "name": "Spitzenlastkappung"
       },
+      "grid_import_window_15min": {
+        "name": "15-Minuten-Fenster Netzbezug"
+      },
       "capacity_protection_excluded_devices": {
         "name": "Spitzenlastkappung für Ausgeschlossene Geräte"
       },

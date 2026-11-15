@@ -626,6 +626,8 @@ WEEKDAY_MAP = {
 CONF_CAPACITY_PROTECTION_ENABLED = "capacity_protection_enabled"
 CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES = "capacity_protection_excluded_devices"
 CONF_CAPACITY_PROTECTION_SOC_THRESHOLD = "capacity_protection_soc_threshold"
+# 15-min billing window for the grid import cap (#506); absent = country default.
+CONF_GRID_IMPORT_WINDOW_15MIN = "grid_import_window_15min"
 
 DEFAULT_CAPACITY_PROTECTION_SOC = 30
 
