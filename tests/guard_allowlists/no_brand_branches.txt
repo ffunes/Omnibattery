@@ -789,15 +789,9 @@ frontend/marstek-panel.js:<js>:js:anker
 frontend/marstek-panel.js:<js>:js:anker
 frontend/marstek-panel.js:<js>:js:anker
 frontend/marstek-panel.js:<js>:js:anker
-frontend/marstek-panel.js:<js>:js:marstek
-frontend/marstek-panel.js:<js>:js:marstek
-frontend/marstek-panel.js:<js>:js:marstek
-frontend/marstek-panel.js:<js>:js:marstek
 frontend/marstek-panel.js:<js>:js:solarbank
 frontend/marstek-panel.js:<js>:js:solarbank
 frontend/marstek-panel.js:<js>:js:solarbank
-frontend/marstek-panel.js:<js>:js:venus
-frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus

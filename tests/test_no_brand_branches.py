@@ -356,6 +356,10 @@ def _strip_js_comments(src: str) -> str:
 def scan_js_source(source: str, relpath: str) -> list[str]:
     """Brand/model tokens in a JS file, comments stripped."""
     text = _strip_js_comments(source)
+    # Same stable identifiers as in Python: panel element/file names, the
+    # marstek_venus_* entity ids and MarstekVenus* class names.
+    text = STABLE_ID_RE.sub(" ", text)
+    text = re.sub(STABLE_NAME_PREFIX + r"\w*", " ", text)
     return [f"{relpath}:<js>:js:{m.group(0).lower()}" for m in TOKEN_RE.finditer(text)]
 
 
