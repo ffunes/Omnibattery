@@ -522,31 +522,3 @@ REGISTER_BLOCKS_V2 = [
     },
 ]
 
-# Definitions for efficiency sensors
-EFFICIENCY_SENSOR_DEFINITIONS = [
-    {
-        "name": "Round-Trip Efficiency Total",
-        "key": "round_trip_efficiency_total",
-        "unit": "%",
-        "state_class": "measurement",
-        "dependency_keys": {
-            "charge": "total_charging_energy",
-            "discharge": "total_discharging_energy"
-        },
-    }
-]
-
-# Definitions for stored energy sensors
-STORED_ENERGY_SENSOR_DEFINITIONS = [
-    {
-        "name": "Stored Energy",
-        "key": "stored_energy",
-        "unit": "kWh",
-        "device_class": "energy",
-        "state_class": "total",
-        "dependency_keys": {
-            "soc": "battery_soc",
-            "capacity": "battery_total_energy"
-        },
-    }
-]

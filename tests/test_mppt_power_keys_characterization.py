@@ -31,7 +31,7 @@ from unittest.mock import patch
 import pytest
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from custom_components.omnibattery.const.registers_v2 import (
+from custom_components.omnibattery.const.registers_common import (
     EFFICIENCY_SENSOR_DEFINITIONS,
 )
 from custom_components.omnibattery.sensors.aggregate_sensors import (

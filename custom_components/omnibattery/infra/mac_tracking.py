@@ -108,6 +108,17 @@ def tracking_enabled(battery: dict) -> bool:
     return normalise_mac(battery.get(CONF_MAC)) is not None
 
 
+def device_key_for(host: Any, port: Any, slave_id: Any) -> str:
+    """Stable per-battery key (entity unique_ids, device identifiers).
+
+    Slave id 1 keeps the historical ``{host}_{port}`` form; other slave ids
+    (Modbus proxy setups sharing one host:port) get a ``_{slave}`` suffix.
+    """
+    if slave_id == 1:
+        return f"{host}_{port}"
+    return f"{host}_{port}_{slave_id}"
+
+
 def endpoint_of(battery: dict, host: str | None = None) -> tuple[str, Any, Any]:
     """Return the (host, port, slave) triple that identifies a battery's endpoint.
 

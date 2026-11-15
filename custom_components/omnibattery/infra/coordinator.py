@@ -40,7 +40,7 @@ from ..drivers.registry import DEFAULT_BRAND, driver_class, is_registered, trait
 from ..backup_discharge_store import BackupDischargeEnergyStore
 from ..energy import BackupDischargeAccumulator
 from .alarm_notifier import AlarmNotifier
-from .mac_tracking import normalise_mac
+from .mac_tracking import device_key_for, normalise_mac
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -835,9 +835,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         form so existing installs are untouched. Only non-default slave ids
         (Modbus proxy setups sharing one host:port) get the ``_{slave}`` suffix.
         """
-        if self.slave_id == 1:
-            return f"{self.host}_{self.port}"
-        return f"{self.host}_{self.port}_{self.slave_id}"
+        return device_key_for(self.host, self.port, self.slave_id)
 
     @property
     def battery_device_info(self) -> dict:

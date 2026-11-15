@@ -12705,6 +12705,7 @@ async def async_remove_config_entry_device(
     changed.
     """
     from .const import CONF_SLAVE_ID, DEFAULT_SLAVE_ID
+    from .infra.mac_tracking import device_key_for
 
     active_identifiers: set[tuple[str, str]] = {(DOMAIN, "marstek_venus_system")}
     for battery in config_entry.data.get("batteries", []):
@@ -12714,7 +12715,7 @@ async def async_remove_config_entry_device(
             # Must match MarstekVenusDataUpdateCoordinator.device_key: slave id 1
             # keeps the historical {host}_{port} form, others get a suffix.
             slave_id = battery.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
-            device_key = f"{host}_{port}" if slave_id == 1 else f"{host}_{port}_{slave_id}"
+            device_key = device_key_for(host, port, slave_id)
             active_identifiers.add((DOMAIN, device_key))
 
     return not (device_entry.identifiers & active_identifiers)

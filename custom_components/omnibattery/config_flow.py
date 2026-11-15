@@ -40,6 +40,7 @@ from .infra.mac_tracking import (
     CONF_MAC,
     CONF_TRACK_MAC,
     detect_mac,
+    device_key_for,
     evaluate_lease,
     is_ip_based,
     normalise_mac,
@@ -2145,11 +2146,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         slave 1, `{host}_{port}_{slave}` otherwise); the device identifier is
         `(DOMAIN, device_key)`. Both are rewritten in place.
         """
-        def _device_key(host: str, port: int, slave: int) -> str:
-            return f"{host}_{port}" if slave == 1 else f"{host}_{port}_{slave}"
-
-        old_device_id = _device_key(old_host, old_port, old_slave)
-        new_device_id = _device_key(new_host, new_port, new_slave)
+        old_device_id = device_key_for(old_host, old_port, old_slave)
+        new_device_id = device_key_for(new_host, new_port, new_slave)
         old_prefix = f"{old_device_id}_"
         new_prefix = f"{new_device_id}_"
 
