@@ -1,0 +1,41 @@
+{
+  "battery": {
+    "backup_offgrid_threshold": 50,
+    "battery_capacity_kwh": 1.92,
+    "brand": "zendure",
+    "charge_hysteresis_percent": 5,
+    "dc_pv_connected": false,
+    "enable_charge_hysteresis": true,
+    "full_charge_voltage_taper_enabled": false,
+    "host": "192.0.2.99",
+    "kept_runtime_key": "kept",
+    "mac": "aa:bb:cc:dd:ee:ff",
+    "max_charge_power": 1500,
+    "max_discharge_power": 1500,
+    "max_soc": 95,
+    "min_soc": 15,
+    "name": "Zendure 1",
+    "port": 80,
+    "track_mac": true,
+    "user_max_charge_power": 1500,
+    "zendure_model": "2400ac_pro"
+  },
+  "probe_calls": [
+    [
+      "zendure.probe",
+      "192.0.2.99",
+      80
+    ]
+  ],
+  "reason": "ip_updated",
+  "registry": {
+    "device_identifiers": [
+      [
+        "192.0.2.99_80"
+      ]
+    ],
+    "entity_unique_ids": [
+      "192.0.2.99_80_soc"
+    ]
+  }
+}

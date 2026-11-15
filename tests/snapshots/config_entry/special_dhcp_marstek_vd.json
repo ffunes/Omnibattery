@@ -1,0 +1,46 @@
+{
+  "battery": {
+    "backup_offgrid_threshold": 50,
+    "battery_version": "vD",
+    "brand": "marstek",
+    "charge_hysteresis_percent": 5,
+    "dc_pv_connected": true,
+    "ems_version": 140,
+    "enable_charge_hysteresis": true,
+    "full_charge_voltage_taper_enabled": false,
+    "host": "192.0.2.99",
+    "kept_runtime_key": "kept",
+    "mac": "aa:bb:cc:dd:ee:ff",
+    "max_charge_power": 1500,
+    "max_discharge_power": 1500,
+    "max_soc": 95,
+    "min_soc": 15,
+    "name": "Venus D",
+    "port": 502,
+    "rs485_gateway": false,
+    "serial_port": "",
+    "slave_id": 1,
+    "track_mac": true
+  },
+  "probe_calls": [
+    [
+      "marstek.probe_details",
+      "192.0.2.99",
+      502,
+      "vD",
+      1,
+      null
+    ]
+  ],
+  "reason": "ip_updated",
+  "registry": {
+    "device_identifiers": [
+      [
+        "192.0.2.99_502"
+      ]
+    ],
+    "entity_unique_ids": [
+      "192.0.2.99_502_soc"
+    ]
+  }
+}

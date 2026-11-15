@@ -1,0 +1,18 @@
+{
+  "device_key_of_stored_battery": "192.0.2.12_502",
+  "registry": {
+    "device_identifiers": [
+      [
+        "192.0.2.12_502"
+      ]
+    ],
+    "entity_unique_ids": [
+      "192.0.2.12_502_soc"
+    ]
+  },
+  "stored": {
+    "host": "192.0.2.12",
+    "port": 502,
+    "slave_id": 1
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "device_key_of_stored_battery": "192.0.2.51_80",
+  "registry": {
+    "device_identifiers": [
+      [
+        "192.0.2.50_80"
+      ]
+    ],
+    "entity_unique_ids": [
+      "192.0.2.50_80_soc"
+    ]
+  },
+  "stored_host": "192.0.2.51"
+}

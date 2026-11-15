@@ -1,0 +1,26 @@
+[
+  {
+    "battery_version": "v2",
+    "charge_hysteresis_percent": 3,
+    "enable_charge_hysteresis": false,
+    "host": "192.0.2.5",
+    "max_charge_power": 2500,
+    "max_discharge_power": 2500,
+    "max_soc": 100,
+    "min_soc": 12,
+    "name": "Old Venus",
+    "port": 502,
+    "retired_option": "kept"
+  },
+  {
+    "brand": "zendure",
+    "host": "192.0.2.6",
+    "max_charge_power": 1200,
+    "max_discharge_power": 1200,
+    "max_soc": 100,
+    "min_soc": 10,
+    "name": "Old Zendure",
+    "port": 80,
+    "zendure_model": "2400ac_pro"
+  }
+]

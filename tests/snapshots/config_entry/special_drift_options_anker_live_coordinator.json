@@ -1,0 +1,21 @@
+{
+  "backup_offgrid_threshold": 50,
+  "brand": "anker",
+  "charge_hysteresis_percent": 5,
+  "dc_pv_connected": false,
+  "device_max_charge_power": 2500,
+  "device_max_discharge_power": 2600,
+  "enable_charge_hysteresis": true,
+  "full_charge_voltage_taper_enabled": false,
+  "host": "192.0.2.41",
+  "kept_runtime_key": "kept",
+  "mac": "",
+  "max_charge_power": 2500,
+  "max_discharge_power": 2600,
+  "max_soc": 95,
+  "min_soc": 15,
+  "name": "Anker 1 edited",
+  "port": 502,
+  "slave_id": 1,
+  "track_mac": false
+}

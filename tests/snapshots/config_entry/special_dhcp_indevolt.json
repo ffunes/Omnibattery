@@ -1,0 +1,41 @@
+{
+  "battery": {
+    "backup_offgrid_threshold": 50,
+    "brand": "indevolt",
+    "charge_hysteresis_percent": 5,
+    "dc_pv_connected": false,
+    "device_max_charge_power": 2400,
+    "device_max_discharge_power": 2400,
+    "enable_charge_hysteresis": true,
+    "full_charge_voltage_taper_enabled": false,
+    "host": "192.0.2.99",
+    "indevolt_request_speed": "normal",
+    "kept_runtime_key": "kept",
+    "mac": "aa:bb:cc:dd:ee:ff",
+    "max_charge_power": 1500,
+    "max_discharge_power": 1500,
+    "max_soc": 95,
+    "min_soc": 15,
+    "name": "Indevolt 1",
+    "port": 8080,
+    "track_mac": true
+  },
+  "probe_calls": [
+    [
+      "indevolt.probe",
+      "192.0.2.99",
+      8080
+    ]
+  ],
+  "reason": "ip_updated",
+  "registry": {
+    "device_identifiers": [
+      [
+        "192.0.2.99_8080"
+      ]
+    ],
+    "entity_unique_ids": [
+      "192.0.2.99_8080_soc"
+    ]
+  }
+}
