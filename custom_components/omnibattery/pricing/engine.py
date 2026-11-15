@@ -2886,6 +2886,7 @@ class PricingManager:
         controller.remove_setpoint_override("curtailment_predischarge")
         controller.remove_setpoint_override("curtailment_negative_window")
         controller.remove_discharge_block("curtailment_negative_window")
+        self._room_charge_block(False)
         for coordinator in controller.coordinators:
             controller.remove_discharge_block("curtailment_negative_window", coordinator=coordinator)
             controller.remove_discharge_block("curtailment_floor", coordinator=coordinator)
@@ -2931,6 +2932,7 @@ class PricingManager:
 
     def refresh_curtailment_runtime(self) -> None:
         """Apply or clear the live action, with fail-safe cleanup on errors."""
+        self._room_hold = False
         try:
             self._refresh_curtailment_runtime()
         except Exception as err:  # noqa: BLE001
@@ -2944,6 +2946,17 @@ class PricingManager:
             except Exception:  # noqa: BLE001
                 # Do not let diagnostics compromise the PD loop's safety path.
                 pass
+        # A plan order holding the battery at its level keeps it from charging
+        # this cycle only; every other path drops it (set or dropped once a
+        # cycle, so the blocker's start time stays).
+        self._room_charge_block(self._room_hold)
+
+    def _room_charge_block(self, hold: bool) -> None:
+        controller = self._controller
+        if hold:
+            controller.set_charge_block("curtailment_room", "plan_room_level")
+        elif hasattr(controller, "remove_charge_block"):
+            controller.remove_charge_block("curtailment_room")
 
     def _refresh_curtailment_runtime(self) -> None:
         """Apply or clear the live block/override for the current slot."""
@@ -3088,11 +3101,14 @@ class PricingManager:
         """Execute the plan's risk and room orders with the module's guards.
 
         In a risk slot the grid is held at 0 W (as the module does). In a room
-        slot the grid goes to -kW while the fleet's reading is at least the
-        whole percent of the order's level (the sale's rule: the plan stops
-        there, the reading truncates, so at most one step past it); the
-        reserve's floor blocks, a battery that may not discharge, capacity
-        protection and the global manual mode release it.
+        slot, three bands of the fleet's reading against the whole percent of
+        the order's level: at or above it the grid goes to -kW (the sale's
+        rule: the reading truncates, so at most one step past the level), with
+        the reserve's floor blocks; one point under it the battery holds (a
+        charge block: the sun surplus goes out, the battery still covers the
+        house), as the plan's model does at its level, so a sunny slot does not
+        switch on and off; lower, normal. A battery that may not discharge,
+        capacity protection and the global manual mode release the order.
         """
         controller = self._controller
         now = self._now()
@@ -3117,7 +3133,6 @@ class PricingManager:
         if slot is None:
             self._set_curtailment_runtime("planned", "plan")
             return
-        self._refresh_curtailment_floor_blocks(snapshots)
         power_kw, level = room.orders[slot]
         ref = getattr(controller, "_dp_last_eval_soc", None)
         capacity = getattr(controller, "_dp_eval_projection_capacity_kwh", 0.0) or 0.0
@@ -3131,7 +3146,8 @@ class PricingManager:
         # ponytail: plain mean SOC, like the sale and the SOC-drop trigger
         # (unequal fleets drift; the energy-weighted reading is the upgrade).
         current = sum(float(c.data.get("battery_soc", 0) or 0) for c in coords) / len(coords)
-        if current < math.floor(ref + level / capacity * 100.0 + 1e-6):
+        stop = math.floor(ref + level / capacity * 100.0 + 1e-6)
+        if current < stop - 1:
             self._set_curtailment_runtime("target_reached", "plan_level")
             return
         max_power = sum(
@@ -3146,6 +3162,11 @@ class PricingManager:
         ):
             self._set_curtailment_runtime("shortfall", "no_live_discharge_capacity")
             return
+        if current < stop:
+            self._room_hold = True
+            self._set_curtailment_runtime("predischarging", "plan_room_level")
+            return
+        self._refresh_curtailment_floor_blocks(snapshots)
         target = -min(power_kw * 1000.0, max_power)
         controller.set_setpoint_override("curtailment_predischarge", target, priority=5)
         controller._curtailment_active = True

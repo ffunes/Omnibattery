@@ -935,10 +935,13 @@ def test_a_real_room_order_runs_stops_at_its_level_and_does_not_re_plan(monkeypa
     planned discharge as on the line."""
     from custom_components.omnibattery.pricing.curtailment import BatterySnapshot
 
-    outcome, c = _room_engine(monkeypatch, case=("1x5k-2500", 90, "flat0.4", "neg-noon", False, "sunny", "00:05"))
+    outcome, c = _room_engine(monkeypatch, case=("1x5k-2500", 100, "flat0.4", "neg-noon", False, "sunny", "00:05"))
     room = c._dp_plan_room
     assert room.orders
-    first = min(room.orders, key=lambda s: s.start)
+    manager = c._pricing_mgr
+    # The order whose projection falls the most: a real discharge.
+    first = max(room.orders, key=lambda s: manager.projected_soc_now(s.start) - manager.projected_soc_now(s.end))
+    assert manager.projected_soc_now(first.start) - manager.projected_soc_now(first.end) > 1.0
     kw, level = room.orders[first]
     req = outcome.request
     level_soc = req.fleet_soc_pct + level / req.fleet_capacity_kwh * 100.0
@@ -951,7 +954,6 @@ def test_a_real_room_order_runs_stops_at_its_level_and_does_not_re_plan(monkeypa
     c.set_discharge_block = lambda *a, **k: None
     c.remove_discharge_block = lambda *a, **k: None
     battery = c.coordinators[0]
-    manager = c._pricing_mgr
     manager._curtailment_battery_snapshots = lambda: [
         BatterySnapshot("b", battery.data["battery_soc"], 5.12, 100.0, 20.0, 2500.0)
     ]
@@ -966,8 +968,9 @@ def test_a_real_room_order_runs_stops_at_its_level_and_does_not_re_plan(monkeypa
     assert at(start, manager.projected_soc_now(start)) == "predischarging"
     assert overrides["curtailment_predischarge"] == (5, -kw * 1000.0)
     assert at(start, round(level_soc)) == "predischarging"  # the reading at the level still runs
-    assert at(start, round(level_soc) - 1) == "target_reached"
-    assert "curtailment_predischarge" not in overrides
+    assert at(start, round(level_soc) - 1) == "predischarging"  # held: no export, no charge
+    assert "curtailment_predischarge" not in overrides and manager._room_hold
+    assert at(start, round(level_soc) - 2) == "target_reached"
     # Executed as planned to the slot's end: on the line, no re-plan.
     manager._now = lambda: first.end
     battery.data["battery_soc"] = manager.projected_soc_now(first.end)

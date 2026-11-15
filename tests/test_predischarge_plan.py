@@ -61,6 +61,9 @@ def _manager(*, room="default", module_plan=None, soc=80.0, snapshot=None, price
             (source, getattr(coordinator, "name", None)), reason),
         remove_discharge_block=lambda source, coordinator=None: blocks.pop(
             (source, getattr(coordinator, "name", None)), None),
+        set_charge_block=lambda source, reason, details=None, coordinator=None: blocks.__setitem__(
+            ("charge:" + source, None), reason),
+        remove_charge_block=lambda source, coordinator=None: blocks.pop(("charge:" + source, None), None),
         _apply_meter_transform=lambda _state: meter,
         _curtailment_active=False,
         _curtailment_active_export_target_w=0.0,
@@ -124,14 +127,22 @@ def test_inside_the_plan_s_risk_the_grid_is_held_at_zero_and_the_floor_guarded()
 
 
 def test_an_order_stops_at_its_level_and_guards_the_floor():
-    # Level 70 %: at 70 it still exports (the reading is at the level), under
-    # it the order is released.
-    manager, ctrl, overrides, _b = _manager(soc=70.0)
+    # Level 70 %: at 70 it still exports (the reading is at the level). One
+    # point under it the battery holds its energy: no export, no charge (the
+    # sun surplus goes out, the battery covers the house). Lower: normal.
+    manager, ctrl, overrides, blocks = _manager(soc=70.0)
     manager.refresh_curtailment_runtime()
     assert overrides["curtailment_predischarge"] == (5, -2500.0)
-    manager, ctrl, overrides, _b = _manager(soc=69.0)
+    assert ("charge:curtailment_room", None) not in blocks
+    manager, ctrl, overrides, blocks = _manager(soc=69.0)
     manager.refresh_curtailment_runtime()
     assert "curtailment_predischarge" not in overrides
+    assert ("charge:curtailment_room", None) in blocks
+    assert ctrl._curtailment_runtime_status == "predischarging"
+    manager, ctrl, overrides, blocks = _manager(soc=68.0)
+    manager.refresh_curtailment_runtime()
+    assert "curtailment_predischarge" not in overrides and not blocks
+    assert ctrl._curtailment_runtime_status == "target_reached"
     # At the reserve SOC the module's floor block stops the battery as today.
     manager, _ctrl, _o, blocks = _manager(snapshot=BatterySnapshot("b1", 20.0, 10.0, 100.0, 20.0, 2500.0))
     manager.refresh_curtailment_runtime()
@@ -210,3 +221,58 @@ def test_the_limiter_protects_only_the_next_risk_day():
         module, manager._curtailment_battery_snapshots(), NOW)
     assert reserve == pytest.approx(1.5)
     assert space == pytest.approx(0.5)
+
+
+def test_at_its_level_with_sun_the_order_does_not_switch_on_and_off():
+    """Steps through a slot with a sun surplus, the battery moving as it
+    would: one point per refresh down while exporting, nothing while held,
+    up while normal. One transition, never back on."""
+    manager, ctrl, overrides, blocks = _manager(soc=72.0)
+    battery = ctrl.coordinators[0]
+    states = []
+    for _step in range(8):
+        manager.refresh_curtailment_runtime()
+        exporting = "curtailment_predischarge" in overrides
+        held = ("charge:curtailment_room", None) in blocks
+        states.append("export" if exporting else "held" if held else "normal")
+        battery.data["battery_soc"] += -1.0 if exporting else 0.0 if held else 1.0
+    assert states == ["export"] * 3 + ["held"] * 5
+    assert battery.data["battery_soc"] == 69.0
+
+
+def test_a_held_battery_at_the_reserve_still_covers_the_house():
+    # Level = the reserve (20 %): under it, the floor block would stop the
+    # battery covering the house; the plan's model has it cover the house.
+    room = _room(orders={ORDER: (2.5, -6.0)})
+    manager, _ctrl, overrides, blocks = _manager(
+        room=room, soc=19.0, snapshot=BatterySnapshot("b1", 19.0, 10.0, 100.0, 20.0, 2500.0))
+    manager.refresh_curtailment_runtime()
+    assert "curtailment_predischarge" not in overrides
+    assert not [source for source, _c in blocks if source == "curtailment_floor"]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(room=_room(orders={LATER: (2.5, -1.0)})),  # no order now
+        dict(room=_room(orders={}, risk=(ORDER,))),  # in a risk
+        dict(room=None, module_plan=CurtailmentPlan(status="no_risk", reason="x")),  # plan withdrawn
+        dict(smart_predischarge_enabled=False),
+        dict(meter=None),
+        dict(price=None),
+    ],
+    ids=["no-order", "risk", "plan-withdrawn", "feature-off", "meter", "price"],
+)
+def test_no_exit_leaves_the_room_charge_block_behind(kwargs):
+    manager, ctrl, _o, blocks = _manager(soc=69.0, **kwargs)
+    blocks[("charge:curtailment_room", None)] = "stale"
+    manager.refresh_curtailment_runtime()
+    assert ("charge:curtailment_room", None) not in blocks
+
+
+def test_clearing_the_runtime_drops_the_room_charge_block():
+    manager, ctrl, _o, blocks = _manager(soc=69.0)
+    manager.refresh_curtailment_runtime()
+    assert ("charge:curtailment_room", None) in blocks
+    manager.clear_curtailment_runtime("unload")
+    assert ("charge:curtailment_room", None) not in blocks
