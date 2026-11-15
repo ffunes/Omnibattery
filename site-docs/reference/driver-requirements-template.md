@@ -162,8 +162,45 @@ Implement every abstract member in `drivers/base.py`:
 | `write_control()` | Write a logical entity control or return `False` when unsupported. |
 | `net_power_from_data()` | Reconstruct the echoed signed command or return `None` when incomplete. |
 | `control_dependency_keys` | Name values that control needs even when entities are disabled. |
+| `from_config(battery_config, context)` | Classmethod: build the driver from one battery's stored config and a `DriverContext` (see [Class attributes and construction](#class-attributes-and-construction)). |
 
-`BatteryDriver` also provides optional semantic hooks: `dc_coupled`, `model_label`, `serial`, `balance_dependency_keys`, `supplemental_discharge_dependency_keys`, `supplemental_discharge_power_w()`, and `dynamic_discharge_limit_w()`.
+`BatteryDriver` also provides optional semantic hooks with safe defaults: `dc_coupled`, `allows_aggregate_solar`, `model_label`, `configuration_url`, `software_version(data)`, `serial`, `balance_dependency_keys`, `supplemental_discharge_dependency_keys`, `supplemental_discharge_power_w()`, `dynamic_discharge_limit_w()`, `dynamic_charge_limit_w()`, `pack_field_specs`, and `obsolete_entity_suffixes()`. The telemetry query methods are listed [below](#telemetry-query-methods).
+
+A driver that implements only the abstract members must still start, poll, take a power command, and shut down. `tests/test_minimal_driver_contract.py` pins that, so never rely on a shared module guarding a missing optional member.
+
+### Class attributes and construction
+
+A driver class declares its identity and traits as class attributes. Shared code reads them through `drivers/registry.py`, not from an instance:
+
+| Attribute | Meaning |
+|---|---|
+| `BRAND` | Stable id stored as `brand` in the config entry. |
+| `LABEL` | Label in the config flow's brand selector. |
+| `MANUFACTURER`, `DEFAULT_MODEL` | Device registry manufacturer, and the model shown when `model_label` is `None`. |
+| `REDACT_KEYS` | The brand's config keys to redact from diagnostics. The generic ones (`host`, `serial`, `ip_address`, `mac`) are in the base. |
+| `TRAITS` | A `DriverTraits` object (below). |
+| `SETUP` | The brand's `DriverSetup`, or `None` (see [Config flow setup](#config-flow-setup)). |
+
+`DriverTraits` holds what shared code needs before the driver is connected. It is fixed per brand, and `BatteryDriver.traits_for(battery_config)` returns it for one stored battery (a few traits are derived there from the stored version). Shared code reaches it through `registry.traits_for_brand()`. The fields are:
+
+| Trait | Meaning |
+|---|---|
+| `supports_voltage_taper` | The 100 % charge voltage taper switch exists (it needs per-cell voltages). Keep the default `True` only for a driver that publishes cell voltages. |
+| `keeps_stored_taper_flag` | The coordinator keeps the stored taper flag even without the switch. Only Sessy needs this, to preserve its current weekly-charge planning; do not set it on a new driver. |
+| `fixed_power_envelope` | Legacy configured limits are clamped to the device's own envelope. |
+| `optional_dc_pv_input` | The battery has a DC PV input that can be left unconnected. |
+| `device_owns_initial_config` | The device holds its SOC and power setup, so it is not written at setup. |
+| `ip_addressed` | The battery is addressed by IP and follows DHCP changes. |
+| `bms_owns_top_cutoff`, `sequential_pack_fill`, `soc_decimals`, `cutoff_without_inverter_state`, `hardware_power_cap_choices` | Top-of-charge and SOC-resolution behavior. Set one only when the hardware matches the existing Marstek or Zendure case it describes. |
+| `capacity_field` | Config-flow capacity box: `"required"` (the device cannot report one), `"optional"`, or `"none"`. |
+| `min_soc_range`, `max_soc_low` | Ranges offered by the minimum and maximum SOC controls in the config flow. |
+
+`from_config(battery_config, context)` reads exactly the config keys the brand owns, with their defaults. `DriverContext` carries what the coordinator owns: `hass`, `name`, `device_key`, the already-normalized `max_charge_power_w` and `max_discharge_power_w`, and two callbacks bound to this battery's entry, `persist(key, value)` and `stored(key)`. The keys stored per battery in the config entry must not be renamed or moved.
+
+Two optional methods connect the driver to the coordinator beyond construction:
+
+- `coordinator_attributes()` returns brand-owned config values that the coordinator mirrors as public attributes. It returns `{}` by default.
+- `reconcile(data, *, reason, state)` aligns coordinator-owned state (limits, taper flag, attributes) with what the brand detects. The coordinator calls it with `reason` set to `init`, `connect`, `read_group`, or `poll`. It returns a `DriverReconciliation` describing what to apply or persist, or `None` (the default).
 
 ### Coordinator-called hooks
 
@@ -176,6 +213,8 @@ The coordinator also invokes these methods by convention. They are not currently
 | `set_charge_cutoff(soc_pct)` | Change a hardware cutoff when supported; otherwise return `False`. |
 | `set_rs485_control(enable)` | Toggle the external-control gate when supported; otherwise return `False`. |
 | `get_rs485_control()` | Confirm the gate state for drivers that declare `has_rs485_control=True`. |
+| `dynamic_charge_limit_w(data)` | Live charge ceiling below the static envelope: `0` while the device cannot take a charge command, a taper value near full, or `None` (the default) to keep the static limit. The charge-side counterpart of `dynamic_discharge_limit_w()`. |
+| `async_fix_issue(issue_id)` | Fix a Repairs issue this driver raised when the user submits it; return `True` when fixed. Defaults to `False`. |
 
 Do not claim a capability when its corresponding hook cannot fulfill the contract.
 
@@ -199,13 +238,35 @@ Build `DriverCapabilities` with evidence for every field:
 | `has_nominal_capacity` | Whether nominal capacity is reported by hardware. |
 | `cycles_from_discharge_only` | Whether cycle calculation should use discharged energy only. |
 | `setpoint_confirm_reliable` | Whether immediate command readback is trustworthy. |
+| `delivered_power_reliable` | Whether reported delivered power tracks the real AC output closely enough to anchor control on. When `False`, the PD skips the measured-power anchors. |
+| `independent_power_planes` | Whether the AC port and the cell terminal are measured independently, so their difference is the real conversion loss. `False` when both report the same value; the efficiency sensor then keeps the cumulative counters. |
 | `actuator_latency_s` | Conservative measured physical response time. |
 | `readback_latency_s` | Worst-case time before telemetry settles, or `None` to reuse actuator latency. |
 | `engage_grace_s` | Extra idle-to-active allowance, or `None` for the controller default. |
 | `telemetry_liveness_checked` | Whether a cache read proves that fresh push data resumed. |
 | `charge_cutoff_range`, `discharge_cutoff_range` | Values the hardware write path really accepts. |
+| `cell_voltage_profile` | Per-cell voltage levels for top-of-charge logic, or `None` when the driver publishes no cell voltage or the levels do not fit its chemistry. |
+| `mppt_power_keys` | Telemetry keys of the per-channel PV power, in channel order, or `()`. Shared code sums only the keys listed here. |
+| `balance_baseline` | How the balance monitor judges the cell-voltage spread, or `None` to record without judging. |
 
 Defaults in the dataclass are compatibility behavior for existing drivers. A new driver should set fields intentionally and explain model-dependent values in comments and tests.
+
+### Telemetry query methods
+
+Shared code asks these questions of the driver instead of reading brand-native keys. Each has a base default, so override one only when your telemetry encodes the answer differently:
+
+| Method | Default |
+|---|---|
+| `inverter_status(data)` | Reads `inverter_state` as the numeric codes of `InverterStatus` (sleep, standby, charge, discharge, backup, OTA upgrade, bypass); `None` means "cannot tell", never idle. |
+| `backup_enabled(data)` | Reads `backup_function` as Marstek's switch (`0` is armed); `None` when not published. |
+| `active_alarms(data)` | `[]`. Return `DriverAlarm(kind, code, description)` items, faults first, each group in ascending code order. |
+| `is_self_managed(data)` | `False`. Return `True` while the device runs its own routine (such as an SOC calibration) and ignores setpoints. |
+| `device_max_soc(data)` | `None`: the device keeps no ceiling of its own. |
+| `ac_register_power_w(data)` | `None`: no AC-side reading in +charge / -discharge watts. |
+| `ac_contribution_w(data, order)` | Reads the sources in `order` (`AcSource.REGISTER`, `PORT`, `CELL`); the first that reads something wins. The caller chooses the order. |
+| `manual_control_by_registers` | Follows `capabilities.has_force_mode`. |
+| `critical_control_keys` | The canonical safety-critical set; keys the driver does not publish never match. |
+| `forcible_power_from_data(data)` | Decodes the canonical `force_mode` and set-power keys; `0.0` when not forced. |
 
 ### Define entities beside the decoder
 
@@ -225,55 +286,66 @@ Each definition uses canonical keys and includes the metadata consumed by its Ho
 
 Add visible names and descriptions to `custom_components/omnibattery/strings.json` and every file under `custom_components/omnibattery/translations/`. Reuse an existing canonical key and translation when the meaning and unit are identical.
 
+When an entity's own `key` (which fixes its `unique_id`) differs from the canonical key it stands for, add `canonical_key` to the definition. `canonical_key(definition)` in `drivers/base.py` returns it, or the `key` when absent. Shared code reads the canonical vocabulary only.
+
 ## Files you touch
 
-The target is that a new brand is one driver file plus its tests, translations, and user documentation. The shared control code (`__init__.py`, `control/`, `pricing/`, `tracking/`, `sensors/`, and the entity platforms) should never learn a brand name. If your device behaves differently in a way shared code must know about, add a `DriverCapabilities` field or a semantic hook on `BatteryDriver`. Do not add a `brand ==` branch.
-
-Today the codebase does not fully meet that target. There is no driver registry yet, so a few setup modules still select behavior by brand string. Those modules are listed below as **registration points**. Touch them following the pattern the existing brands already use, and do not add brand branches anywhere else.
+A new brand is its driver and setup module, one registry entry, and translations. The shared code (`__init__.py`, `config_flow.py`, `infra/`, `control/`, `pricing/`, `tracking/`, `sensors/`, and the entity platforms) never learns a brand name or a model version. If your device behaves differently in a way shared code must know about, add a `DriverCapabilities` field, a `DriverTraits` field, or a semantic hook on `BatteryDriver`. Do not add a `brand ==` branch.
 
 ### Files the driver owns
 
 | File | Contents |
 |---|---|
-| `drivers/<brand>.py` | The `BatteryDriver` subclass, capabilities, entity definitions, decoding, command translation, and a `probe()` static method for the config flow. |
-| `infra/<transport>_client.py` | Only when the transport needs its own client and none of the existing ones fits. Reuse the existing Modbus client when possible. |
+| `drivers/<brand>.py` | The `BatteryDriver` subclass, class attributes, capabilities, entity definitions, decoding, command translation, `from_config()`, and the connection check the config flow uses. |
+| `drivers/<brand>_flow.py` | The brand's `DriverSetup` (see [Config flow setup](#config-flow-setup)): its config-flow steps and limits hooks. |
+| `drivers/<brand>_client.py` | Only when the transport needs its own client. Generic Modbus helpers live in `infra/modbus_helpers.py`; reuse the existing Modbus client when possible. |
 | `tests/test_<brand>_driver.py` | Driver tests against a fake transport (see [Test the driver](#test-the-driver)). |
-| `strings.json` and every `translations/*.json` | Entity names, plus config-flow step titles, fields, and errors for the new brand. Reuse existing canonical keys when meaning and unit match. |
+| `strings.json` and every `translations/*.json` | Entity names, plus the titles, fields, and errors of the brand's config-flow step ids. Reuse existing canonical keys when meaning and unit match. |
 | `site-docs/configuration/batteries/<brand>.md` and `.es.md` | User setup page. Also link it from `configuration/batteries/index`, `compatibility`, and the `nav` in `mkdocs.yml`. |
 | `manifest.json` | Only when a new library is required. Pin it, and include its license and maintenance status in the pull request. |
 | `CHANGELOG.md` | One line under the unreleased version. |
 
-### Registration points (current)
+### Config flow setup
 
-| File | Where | What to add |
-|---|---|---|
-| `drivers/__init__.py` | imports and `__all__` | Export the driver class. |
-| `infra/coordinator.py` | `MarstekVenusDataUpdateCoordinator.__init__()`, the `if self.brand == ...` chain | Construct the driver from its config-entry fields. |
-| `infra/coordinator.py` | `device_info` | Manufacturer and fallback model label. |
-| `config_flow.py` | `async_step_battery_brand()` in **both** the config flow and the options flow | Selector option and dispatch to your connection step. |
-| `config_flow.py` | `async_step_battery_connection_<brand>()` in **both** flows | Connection form. Call `<Driver>.probe()` and store only the fields the runtime needs. |
-| `config_flow.py` | `async_step_reconfigure_battery_<brand>()` and its dispatch | Edit the host or credentials of an existing battery. |
-| `config_flow.py` | SOC-range defaults, power-ceiling defaults, the battery-settings schema, and the probe dispatch | Your brand's minimum-SOC range, power envelope, taper opt-out, and a capacity field when the device reports no capacity. |
-| `infra/mac_tracking.py` | `IP_BASED_BRANDS` | Only when the battery is addressed by IP and should follow DHCP changes. |
+A brand's connection steps live in its own `drivers/<brand>_flow.py`, not in `config_flow.py`. The module builds a `DriverSetup` (from `drivers/setup.py`) and the driver class points to it with `SETUP = ...`. `drivers/sessy.py` and `drivers/sessy_flow.py` are a complete small example.
 
-The config flow is duplicated between the initial setup flow and the options flow. A brand added to only one of them can be added but not edited, or the reverse. Check both.
+- `steps` maps step ids to handlers, `entry_step` is the first step from the brand selector, and `reconfigure_entry_step` is the first step when editing an existing battery. `config_flow.py` generates one `async_step_<id>` method per entry on both the setup flow and the options flow, so a brand cannot be added to one and forgotten in the other.
+- A handler receives `(flow, user_input, ctx)`. It returns a form or the next step, or a plain `dict` with the brand's validated battery data; the shared flow then continues to the limits form or the save. `ctx` is a `SetupContext` with the flow kind, the stored battery, the config entry, the live coordinator, and a scratch `work` dict.
+- Four optional hooks adjust the shared limits step: `power_ceilings(battery_data)`, `limits_schema(battery_data, base_fields, ctx)`, `finalize_limits(merged, user_input, battery_data, ctx)`, and `reprobe(hass, battery_config, host)`, which re-checks a stored battery at a new IP and defaults to "not supported".
+- `drivers/setup.py` also offers shared helpers such as `optional_capacity_field()` and `saved_dc_pv_connected()`. A flow module imports only from `drivers/setup.py`, `const`, and Home Assistant, never from `config_flow.py`, because that would create an import cycle.
 
-### Known debt: brand branches that should be capabilities
+Probing the device is not a uniform base-class method. Each brand defines its own connection check on its driver class (for example `probe()` or `probe_details()`, with brand-specific arguments), and its flow steps call it before saving the battery. For a changed IP, shared code reaches the same check through `DriverSetup.reprobe`. Store only the fields the runtime needs, under the same config-entry keys the existing brands use.
 
-These branches in shared setup code encode hardware traits by brand name. Each should become a capability, a driver hook, or a registry entry. Until then, a new driver is added to them by hand. If your driver is the one that has to extend one of these lists, consider converting it into a capability in the same pull request.
+### Registration point
 
-| Branch | Location | What it should become |
-|---|---|---|
-| Driver construction chain | `infra/coordinator.py` `__init__()` | Driver registry: brand → class and config-entry factory. |
-| Manufacturer and model fallback | `infra/coordinator.py` `device_info` | Driver properties (`manufacturer`, a default for `model_label`). |
-| Full-charge voltage taper disabled for `zendure`, `anker`, `hoymiles`, `huawei` (plus `sessy` in the config flow) | `infra/coordinator.py` `__init__()`, `config_flow.py` | A capability such as "cell voltage is reliable for top-of-charge taper". |
-| Fixed-envelope clamp for `sessy` and the EMS ceiling for Marstek `vD` | `infra/coordinator.py` `__init__()` | Driver-owned limits. The driver already reports `max_*_power_w`; coordinator clamping should not depend on the brand. |
-| PV keys dropped for `anker` without independent PV | `infra/coordinator.py` `_sync_driver_definitions()` | A driver hook that prunes keys no longer in its contract. |
-| `configuration_url` for `sessy` | `infra/coordinator.py` `device_info` | An optional driver property. |
-| `needs_software_power_cap` for Marstek `v2`/`v3` | `infra/coordinator.py` | A capability: the hardware cap accepts only fixed choices. |
-| Device owns its initial configuration (`zendure`) | `__init__.py` `_device_owns_initial_config()` | A capability. |
-| Per-brand SOC range, power defaults, capacity field, and probe dispatch | `config_flow.py`, both flows | A driver-declared config schema and `probe()` resolved through the registry. |
-| `IP_BASED_BRANDS` | `infra/mac_tracking.py` | A driver property: addressed by IP. |
+`drivers/registry.py` is the one place a brand is registered. Add the import and one entry to the `DRIVERS` dict. The dict order is the order of the config flow's brand selector:
+
+```python
+from .<brand> import <Brand>Driver
+
+DRIVERS: dict[str, type[BatteryDriver]] = {
+    ...
+    "<brand>": <Brand>Driver,
+}
+```
+
+Everything else shared code needs (constructing the driver, device registry labels, diagnostics redaction, selector entries, config flow steps, IP tracking, taper and limit behavior) is read through that dict from the class attributes, traits, and `SETUP`. A brand that is not in the dict falls back to Marstek, with a warning.
+
+Add the translations for the brand's step ids to `strings.json` and the six `translations/*.json` files. These and the registry entry are the only shared files a new brand edits.
+
+### Guards that keep shared code brand-free
+
+Three tests fail when shared code learns a brand, so a pull request that adds a brand branch cannot pass:
+
+- `tests/test_no_brand_branches.py` scans shared Python and the panel for brand or model names, comparisons with `brand` or `battery_version`, and imports of a brand module.
+- `tests/test_no_native_keys.py` forbids shared code from reading a brand's native keys and codes, such as a vendor-specific SOC key or an inverter-state number.
+- `tests/test_driver_shared_modules_frozen.py` keeps `drivers/base.py` and the other shared driver modules from gaining new brand knowledge.
+
+Their allowlists live in `tests/guard_allowlists/` and may only shrink. What remains are a few permanent exceptions, such as the migration of old stored data. The acceptance check for this design: a dummy driver added through exactly the files above (driver, setup module, registry entry, translations) passed the whole suite with no other file changed.
+
+### Known debt: the dashboard panel
+
+The sidebar panel, `frontend/marstek-panel.js`, is outside this design and still knows Marstek and Venus names. It keeps hand-written lists of brand-specific control keys (for example the Marstek mode and SOC controls), per-brand fields of the battery cards (such as Huawei serial numbers and Marstek versions), the `soc_calibration` control-status value, and "Venus" help text in all six panel languages. A new driver does not edit it. If your device needs a panel change, say so in the pull request instead of adding brand logic elsewhere. Building the panel from driver metadata is future work.
 
 Not every software-control decision is brand-based. `needs_software_manual_control`, `needs_software_max_charge`, and `needs_software_max_discharge` are derived from your entity definitions. If you do not define a writable `force_mode` select, `set_charge_power` number, or `max_charge_power` / `max_discharge_power` number, the integration adds software controls automatically. Declare only the controls the hardware really has.
 

@@ -28,19 +28,23 @@ flowchart TD
     DRIVER --> S[SessyLocalDriver]
     DRIVER --> Y[HoymilesMqttDriver]
     DRIVER --> H[HuaweiSolarDriver]
+    DRIVER --> I[IndevoltDriver]
+    REG[drivers/registry.py] -->|brand to class, from_config| DRIVER
 
     DRIVER -->|read_telemetry| COORD
     COORD --> ENT[Home Assistant entities]
 ```
 
-El controlador y las plataformas de entidades no usan direcciones de registros, rutas HTTP ni temas MQTT. Esos detalles permanecen dentro de `drivers/` y de los clientes de transporte en `infra/`.
+El controlador y las plataformas de entidades no usan direcciones de registros, rutas HTTP ni temas MQTT. Esos detalles permanecen dentro de `drivers/`, incluido el cliente de transporte de cada marca en `drivers/<marca>_client.py`. Los helpers Modbus genéricos que comparten varias marcas están en `infra/modbus_helpers.py`.
 
 ## El límite del controlador
 
 `custom_components/omnibattery/drivers/base.py` define el límite semántico con el hardware:
 
 - `BatteryDriver` representa una batería física y posee su transporte.
-- `DriverCapabilities` describe rasgos estáticos en los que puede basarse el código compartido.
+- `DriverCapabilities` describe rasgos estáticos en los que puede basarse el código compartido, por instancia conectada.
+- `DriverTraits` contiene los rasgos de clase que el código compartido necesita antes de conectar un controlador, y `DriverContext` lleva lo que el coordinador entrega al `from_config()` de un controlador.
+- Los métodos de consulta (`inverter_status()`, `backup_enabled()`, `active_alarms()`, `is_self_managed()`, `device_max_soc()`, `ac_contribution_w()` y otros) responden preguntas de marca en un vocabulario canónico, de modo que el código compartido nunca lee claves nativas de una marca.
 - `ReadGroup` agrupa claves lógicas de telemetría por cadencia de sondeo.
 - `TelemetrySnapshot` es un mapeo plano de claves lógicas a valores decodificados.
 - `SetpointResult` informa de la orden con signo aplicada, el estado de confirmación, la entrega medida, el motivo de fallo y cualquier estado nativo que deba fusionarse en la caché del coordinador.
@@ -59,7 +63,7 @@ El contrato usa potencia neta con signo en todo momento: vatios positivos para c
 | Eco de orden | `net_power_from_data(data)` | Reconstruye la orden actual reflejada para la lógica de omitir si no ha cambiado. |
 | Dependencias | `control_dependency_keys` | Mantiene el sondeo de telemetría crítica para el control aunque su entidad esté deshabilitada. |
 
-La clase base también proporciona ganchos opcionales para acoplamiento en CC, identidad de modelo y serie, dependencias de balance, medida suplementaria de descarga y un techo dinámico de descarga.
+La clase base también proporciona ganchos opcionales para acoplamiento en CC, identidad de modelo y serie, dependencias de balance, medida suplementaria de descarga, techos dinámicos de descarga y de carga, y correcciones desde Reparaciones. Los atributos de clase (`BRAND`, `LABEL`, `MANUFACTURER`, `DEFAULT_MODEL`, `REDACT_KEYS`, `TRAITS`, `SETUP`), `from_config()`, `coordinator_attributes()` y `reconcile()` permiten al coordinador construir el controlador y mantener su propio estado alineado con lo que detecta la marca.
 
 Actualmente, el coordinador llama por convención a estos métodos de controladores concretos aunque no sean miembros abstractos de `BatteryDriver`: `apply_config()`, `set_charge_cutoff()`, `standby()`, `set_rs485_control()` y, para controladores con una compuerta de control externo, `get_rs485_control()`. Un controlador nuevo debe implementar el comportamiento aplicable y devolver `False` de forma controlada en operaciones de escritura no admitidas.
 
@@ -80,6 +84,8 @@ El código compartido lee `coordinator.capabilities`; no debe ramificarse según
 | Telemetría | `push_telemetry` | El controlador lee una caché alimentada por inserciones en lugar de sondear el hardware en vivo. |
 | Telemetría | `telemetry_liveness_checked` | Una lectura de caché de inserción comprueba la actualidad y puede demostrar recuperación. |
 | Telemetría | `setpoint_confirm_reliable` | La lectura inmediata refleja de forma fiable la orden recién escrita. |
+| Telemetría | `delivered_power_reliable` | La potencia entregada que se informa sigue la salida AC real lo bastante bien como para anclar el control en ella. |
+| Telemetría | `independent_power_planes` | El puerto AC y el terminal de celda se miden de forma independiente, así que su diferencia es la pérdida real de conversión. |
 | Solar | `has_mppt_pv` | Hay canales individuales de seguimiento del punto de máxima potencia (MPPT). |
 | Solar | `has_solar_telemetry` | Hay telemetría solar agregada independiente. |
 | Energía | `has_energy_counters` | Hay contadores de energía acumulada nativos. |
@@ -93,7 +99,9 @@ Los valores predeterminados de `DriverCapabilities` conservan el comportamiento 
 
 ## Controladores admitidos
 
-El paquete exporta siete controladores concretos, y `MarstekVenusDataUpdateCoordinator.__init__()` construye los siete según la marca configurada.
+`drivers/registry.py` es el único punto de registro: su dict `DRIVERS` asocia cada id de marca con su clase de controlador, y su orden es el del selector de marca del config flow. El coordinador, el config flow, los diagnósticos y el registro de dispositivos resuelven la marca a través de él, así que el código compartido nunca se ramifica por marca. Una marca es un módulo de controlador, un `drivers/<marca>_flow.py` con sus pasos del config flow (un `DriverSetup` de `drivers/setup.py`), una entrada en el registro y las traducciones.
+
+El registro contiene ocho controladores:
 
 | Archivo | Clase | Hardware y transporte |
 |---|---|---|
@@ -104,8 +112,11 @@ El paquete exporta siete controladores concretos, y `MarstekVenusDataUpdateCoord
 | `drivers/sessy.py` | `SessyLocalDriver` | Sessy mediante su API HTTP local autenticada. |
 | `drivers/hoymiles.py` | `HoymilesMqttDriver` | Hoymiles MS-A2 mediante entidades MQTT de Home Assistant. |
 | `drivers/huawei.py` | `HuaweiSolarDriver` | Huawei SUN2000 con LUNA2000: telemetría Modbus nativa y escrituras de consigna mediante servicio o directas. |
+| `drivers/indevolt.py` | `IndevoltDriver` | Indevolt SolidFlex y PowerFlex mediante la API HTTP local. |
 
 Cada controlador también posee sus listas de definiciones de plataforma: `sensor_definitions`, `number_definitions`, `select_definitions`, `switch_definitions`, `binary_sensor_definitions`, `button_definitions` y `all_definitions`. El coordinador expone estas listas a `sensor.py`, `number.py`, `select.py`, `switch.py`, `binary_sensor.py` y `button.py`. Así se evita que entidades no admitidas entren en el registro y se conservan los metadatos de hardware junto a su decodificador.
+
+Tres tests guardianes (`test_no_brand_branches.py`, `test_no_native_keys.py` y `test_driver_shared_modules_frozen.py`) fallan cuando el código compartido nombra una marca o lee una clave nativa. El panel del dashboard es la única excepción conocida.
 
 Consulta [Añadir un controlador de batería](driver-requirements-template.md) para la lista de implementación y revisión.
 
@@ -113,7 +124,7 @@ Consulta [Añadir un controlador de batería](driver-requirements-template.md) p
 
 `infra/coordinator.py::MarstekVenusDataUpdateCoordinator` es el adaptador por dispositivo entre Home Assistant y un controlador. Este:
 
-1. Construye el controlador concreto seleccionado.
+1. Construye el controlador concreto seleccionado a través del registro y de `from_config()`.
 2. Lo conecta y aplica la configuración de instalación.
 3. Recorre `driver.read_groups`, omite las claves sin dependencia que están deshabilitadas y serializa la E/S con su bloqueo.
 4. Fusiona los valores correctos de `read_telemetry()` en `coordinator.data`.
@@ -181,6 +192,7 @@ Los archivos de plataforma de Home Assistant son consumidores ligeros de los dat
 ## Reglas para cambios arquitectónicos
 
 - Coloca protocolo, registro, punto de acceso, tema, escala y conversión de signo dentro de un controlador concreto o su cliente de transporte.
+- Registra una marca nueva solo en `drivers/registry.py`; no añadas una rama por marca o modelo al código compartido.
 - Expresa las diferencias de hardware compartidas mediante `DriverCapabilities` o ganchos semánticos del controlador.
 - Mantén al coordinador responsable de la planificación, bloqueos, actualizaciones de caché y salud; mantén el ciclo de vida del transporte dentro del controlador.
 - Mantén las decisiones de flota en `ChargeDischargeController` y `control/`; no hagas que un controlador elija la política del sistema.

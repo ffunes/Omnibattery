@@ -28,19 +28,23 @@ flowchart TD
     DRIVER --> S[SessyLocalDriver]
     DRIVER --> Y[HoymilesMqttDriver]
     DRIVER --> H[HuaweiSolarDriver]
+    DRIVER --> I[IndevoltDriver]
+    REG[drivers/registry.py] -->|brand to class, from_config| DRIVER
 
     DRIVER -->|read_telemetry| COORD
     COORD --> ENT[Home Assistant entities]
 ```
 
-The controller and entity platforms do not use register addresses, HTTP paths, or MQTT topics. Those details stay inside `drivers/` and the transport clients in `infra/`.
+The controller and entity platforms do not use register addresses, HTTP paths, or MQTT topics. Those details stay inside `drivers/`, including each brand's transport client in `drivers/<brand>_client.py`. Generic Modbus helpers shared by several brands live in `infra/modbus_helpers.py`.
 
 ## The driver boundary
 
 `custom_components/omnibattery/drivers/base.py` defines the semantic hardware boundary:
 
 - `BatteryDriver` represents one physical battery and owns its transport.
-- `DriverCapabilities` describes static traits that shared code may branch on.
+- `DriverCapabilities` describes static traits that shared code may branch on, per connected instance.
+- `DriverTraits` holds the class-level traits shared code needs before a driver is connected, and `DriverContext` carries what the coordinator hands a driver's `from_config()`.
+- The query methods (`inverter_status()`, `backup_enabled()`, `active_alarms()`, `is_self_managed()`, `device_max_soc()`, `ac_contribution_w()` and others) answer brand questions in a canonical vocabulary, so shared code never reads a brand's native keys.
 - `ReadGroup` groups logical telemetry keys by polling cadence.
 - `TelemetrySnapshot` is a flat mapping of logical keys to decoded values.
 - `SetpointResult` reports the applied signed command, confirmation state, measured delivery, failure reason, and any native state to merge into the coordinator cache.
@@ -59,7 +63,7 @@ The contract uses signed net power throughout: positive watts charge, negative w
 | Command echo | `net_power_from_data(data)` | Reconstruct the currently echoed command for skip-if-unchanged logic. |
 | Dependencies | `control_dependency_keys` | Keep control-critical telemetry polling even when its entity is disabled. |
 
-The base class also provides optional hooks for DC coupling, model and serial identity, balance dependencies, supplemental discharge measurement, and a dynamic discharge ceiling.
+The base class also provides optional hooks for DC coupling, model and serial identity, balance dependencies, supplemental discharge measurement, dynamic discharge and charge ceilings, and Repairs fixes. Class attributes (`BRAND`, `LABEL`, `MANUFACTURER`, `DEFAULT_MODEL`, `REDACT_KEYS`, `TRAITS`, `SETUP`), `from_config()`, `coordinator_attributes()`, and `reconcile()` let the coordinator build the driver and keep its own state aligned with what the brand detects.
 
 The coordinator currently calls these concrete-driver methods by convention even though they are not abstract members of `BatteryDriver`: `apply_config()`, `set_charge_cutoff()`, `standby()`, `set_rs485_control()`, and, for drivers with an external-control gate, `get_rs485_control()`. A new driver must implement the applicable behavior and return a controlled `False` for unsupported write operations.
 
@@ -80,6 +84,8 @@ Shared code reads `coordinator.capabilities`; it should not branch on a brand or
 | Telemetry | `push_telemetry` | The driver reads a push-fed cache rather than polling hardware live. |
 | Telemetry | `telemetry_liveness_checked` | A push-cache read verifies freshness and can prove recovery. |
 | Telemetry | `setpoint_confirm_reliable` | Immediate readback reliably reflects the command just written. |
+| Telemetry | `delivered_power_reliable` | Reported delivered power tracks the real AC output closely enough to anchor control on. |
+| Telemetry | `independent_power_planes` | AC port and cell terminal are measured independently, so their difference is the real conversion loss. |
 | Solar | `has_mppt_pv` | Individual maximum power point tracking (MPPT) channels are available. |
 | Solar | `has_solar_telemetry` | Independent aggregate solar telemetry is available. |
 | Energy | `has_energy_counters` | Native cumulative energy counters are available. |
@@ -93,7 +99,9 @@ The default values in `DriverCapabilities` preserve the older register-backed be
 
 ## Supported drivers
 
-The package exports seven concrete drivers, and `MarstekVenusDataUpdateCoordinator.__init__()` constructs all seven from the configured brand.
+`drivers/registry.py` is the single registration point: its `DRIVERS` dict maps each brand id to its driver class, and its order is the order of the config flow's brand selector. The coordinator, the config flow, diagnostics, and the device registry all resolve a brand through it, so shared code never branches on a brand. A brand is one driver module, one `drivers/<brand>_flow.py` that holds its config-flow steps (a `DriverSetup` from `drivers/setup.py`), one registry entry, and translations.
+
+The registry holds eight drivers:
 
 | File | Class | Hardware and transport |
 |---|---|---|
@@ -104,8 +112,11 @@ The package exports seven concrete drivers, and `MarstekVenusDataUpdateCoordinat
 | `drivers/sessy.py` | `SessyLocalDriver` | Sessy through its authenticated local HTTP API. |
 | `drivers/hoymiles.py` | `HoymilesMqttDriver` | Hoymiles MS-A2 through Home Assistant MQTT entities. |
 | `drivers/huawei.py` | `HuaweiSolarDriver` | Huawei SUN2000 with LUNA2000: native Modbus telemetry and service-based or direct setpoint writes. |
+| `drivers/indevolt.py` | `IndevoltDriver` | Indevolt SolidFlex and PowerFlex through the local HTTP API. |
 
 Each driver also owns its platform definition lists: `sensor_definitions`, `number_definitions`, `select_definitions`, `switch_definitions`, `binary_sensor_definitions`, `button_definitions`, and `all_definitions`. The coordinator exposes these lists to `sensor.py`, `number.py`, `select.py`, `switch.py`, `binary_sensor.py`, and `button.py`. This keeps unsupported entities out of the registry and keeps hardware metadata beside its decoder.
+
+Three guard tests (`test_no_brand_branches.py`, `test_no_native_keys.py`, and `test_driver_shared_modules_frozen.py`) fail when shared code names a brand or reads a native key. The dashboard panel is the one known exception.
 
 See [Add a battery driver](driver-requirements-template.md) for the implementation and review checklist.
 
@@ -113,7 +124,7 @@ See [Add a battery driver](driver-requirements-template.md) for the implementati
 
 `infra/coordinator.py::MarstekVenusDataUpdateCoordinator` is the per-device adapter between Home Assistant and a driver. It:
 
-1. Constructs the selected concrete driver.
+1. Constructs the selected concrete driver through the registry and `from_config()`.
 2. Connects it and applies setup configuration.
 3. Iterates `driver.read_groups`, skips disabled non-dependency keys, and serializes I/O with its lock.
 4. Merges successful `read_telemetry()` values into `coordinator.data`.
@@ -181,6 +192,7 @@ The Home Assistant platform files are thin consumers of coordinator data and dri
 ## Rules for architectural changes
 
 - Put protocol, register, endpoint, topic, scaling, and sign conversion inside a concrete driver or its transport client.
+- Register a new brand only in `drivers/registry.py`; do not add a brand or model branch to shared code.
 - Express shared hardware differences through `DriverCapabilities` or semantic driver hooks.
 - Keep the coordinator responsible for scheduling, locking, cache updates, and health; keep transport lifecycle inside the driver.
 - Keep fleet decisions in `ChargeDischargeController` and `control/`; do not make a driver choose system policy.

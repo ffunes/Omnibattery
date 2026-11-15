@@ -162,8 +162,45 @@ Implementa cada miembro abstracto en `drivers/base.py`:
 | `write_control()` | Escribir un control de entidad lógica o devolver `False` cuando no compatible. |
 | `net_power_from_data()` | Reconstruir el comando firmada ecocado o devolver `None` cuando incompleto. |
 | `control_dependency_keys` | Nombrar valores que las necesidades de control necesitan incluso cuando las entidades están deshabilitadas. |
+| `from_config(battery_config, context)` | Classmethod: construir el driver a partir de la config guardada de una batería y un `DriverContext` (ver [Atributos de clase y construcción](#atributos-de-clase-y-construccion)). |
 
-`BatteryDriver` también proporciona ganchos semánticos opcionales: `dc_coupled`, `model_label`, `serial`, `balance_dependency_keys`, `supplemental_discharge_dependency_keys`, `supplemental_discharge_power_w()`, y `dynamic_discharge_limit_w()`.
+`BatteryDriver` también proporciona ganchos semánticos opcionales con valores por defecto seguros: `dc_coupled`, `allows_aggregate_solar`, `model_label`, `configuration_url`, `software_version(data)`, `serial`, `balance_dependency_keys`, `supplemental_discharge_dependency_keys`, `supplemental_discharge_power_w()`, `dynamic_discharge_limit_w()`, `dynamic_charge_limit_w()`, `pack_field_specs` y `obsolete_entity_suffixes()`. Los métodos de consulta de telemetría se listan [más abajo](#metodos-de-consulta-de-telemetria).
+
+Un driver que implementa solo los miembros abstractos debe arrancar, sondear, aceptar una orden de potencia y apagarse igualmente. `tests/test_minimal_driver_contract.py` lo fija, así que nunca cuentes con que un módulo compartido proteja un miembro opcional ausente.
+
+### Atributos de clase y construcción
+
+Una clase de driver declara su identidad y sus rasgos como atributos de clase. El código compartido los lee a través de `drivers/registry.py`, no de una instancia:
+
+| Atributo | Significado |
+|---|---|
+| `BRAND` | Id estable guardado como `brand` en la config entry. |
+| `LABEL` | Etiqueta en el selector de marca del config flow. |
+| `MANUFACTURER`, `DEFAULT_MODEL` | Fabricante del registro de dispositivos y modelo mostrado cuando `model_label` es `None`. |
+| `REDACT_KEYS` | Claves de config de la marca que se ocultan en los diagnósticos. Las genéricas (`host`, `serial`, `ip_address`, `mac`) están en la base. |
+| `TRAITS` | Un objeto `DriverTraits` (abajo). |
+| `SETUP` | El `DriverSetup` de la marca, o `None` (ver [Configuración del config flow](#configuracion-del-config-flow)). |
+
+`DriverTraits` contiene lo que el código compartido necesita antes de que el driver esté conectado. Es fijo por marca, y `BatteryDriver.traits_for(battery_config)` lo devuelve para una batería guardada (algunos rasgos se derivan ahí de la versión guardada). El código compartido llega a él mediante `registry.traits_for_brand()`. Los campos son:
+
+| Rasgo | Significado |
+|---|---|
+| `supports_voltage_taper` | Existe el interruptor del taper de voltaje de carga al 100 % (necesita voltajes por celda). Deja el valor por defecto `True` solo en un driver que publique voltajes de celda. |
+| `keeps_stored_taper_flag` | El coordinator conserva el flag de taper guardado aunque no exista el interruptor. Solo lo necesita Sessy, para conservar su planificación actual de carga semanal; no lo actives en un driver nuevo. |
+| `fixed_power_envelope` | Los límites configurados heredados se recortan a la envolvente propia del dispositivo. |
+| `optional_dc_pv_input` | La batería tiene una entrada PV en CC que puede quedar sin conectar. |
+| `device_owns_initial_config` | El dispositivo guarda su configuración de SOC y potencia, así que no se escribe al arrancar. |
+| `ip_addressed` | La batería se direcciona por IP y sigue los cambios de DHCP. |
+| `bms_owns_top_cutoff`, `sequential_pack_fill`, `soc_decimals`, `cutoff_without_inverter_state`, `hardware_power_cap_choices` | Comportamiento de final de carga y resolución del SOC. Activa uno solo si el hardware coincide con el caso Marstek o Zendure que describe. |
+| `capacity_field` | Casilla de capacidad del config flow: `"required"` (el dispositivo no puede informarla), `"optional"` o `"none"`. |
+| `min_soc_range`, `max_soc_low` | Rangos que ofrecen en el config flow los controles de SOC mínimo y máximo. |
+
+`from_config(battery_config, context)` lee exactamente las claves de config que son de la marca, con sus valores por defecto. `DriverContext` lleva lo que es del coordinator: `hass`, `name`, `device_key`, `max_charge_power_w` y `max_discharge_power_w` ya normalizados, y dos callbacks ligados a la entrada de esta batería, `persist(key, value)` y `stored(key)`. Las claves que se guardan por batería en la config entry no deben renombrarse ni moverse.
+
+Otros dos métodos opcionales conectan el driver con el coordinator más allá de la construcción:
+
+- `coordinator_attributes()` devuelve valores de config propios de la marca que el coordinator replica como atributos públicos. Por defecto devuelve `{}`.
+- `reconcile(data, *, reason, state)` alinea el estado del coordinator (límites, flag de taper, atributos) con lo que detecta la marca. El coordinator lo llama con `reason` igual a `init`, `connect`, `read_group` o `poll`. Devuelve un `DriverReconciliation` con lo que hay que aplicar o persistir, o `None` (por defecto).
 
 ### Ganchos llamados por el coordinador
 
@@ -176,6 +213,8 @@ El coordinador también invoca estos métodos por convención. No son actualment
 | `set_charge_cutoff(soc_pct)` | Cambiar un cortafuegos de hardware cuando se soporta; de lo contrario devolver `False`. |
 | `set_rs485_control(enable)` | Conmutar la puerta de acceso de control externo cuando se soporta; de lo contrario devolver `False`. |
 | `get_rs485_control()` | Confirmar el estado de la puerta para controladores que declaran `has_rs485_control=True`. |
+| `dynamic_charge_limit_w(data)` | Techo de carga en vivo por debajo de la envolvente estática: `0` mientras el dispositivo no puede aceptar una orden de carga, un valor de taper cerca del final, o `None` (por defecto) para mantener el límite estático. Es la contraparte de carga de `dynamic_discharge_limit_w()`. |
+| `async_fix_issue(issue_id)` | Resolver una incidencia de Reparaciones que levantó este driver cuando el usuario la envía; devolver `True` si la resolvió. Por defecto `False`. |
 
 No afirmar una capacidad cuando su gancho correspondiente no puede cumplir el contrato.
 
@@ -199,13 +238,35 @@ Construye `DriverCapabilities` con evidencia para cada campo:
 | `has_nominal_capacity` | Si la capacidad nominal se reporta por el hardware. |
 | `cycles_from_discharge_only` | Si el cálculo del ciclo debe usar solo energía descargada. |
 | `setpoint_confirm_reliable` | Si la retroalimentación inmediata del comando es confiable. |
+| `delivered_power_reliable` | Si la potencia entregada que se reporta sigue la salida AC real lo bastante bien como para anclar el control en ella. Con `False`, el PD omite los anclajes de potencia medida. |
+| `independent_power_planes` | Si el puerto AC y el terminal de celda se miden de forma independiente, de modo que su diferencia es la pérdida real de conversión. `False` cuando ambos dan el mismo valor; el sensor de eficiencia conserva entonces los contadores acumulados. |
 | `actuator_latency_s` | Tiempo de respuesta física medido conservador. |
 | `readback_latency_s` | Peor tiempo antes de que la telemetría se establezca, o `None` para reutilizar latencia de actuador. |
 | `engage_grace_s` | Permiso extra de reposo-a-activo, o `None` para el valor por defecto del controlador. |
 | `telemetry_liveness_checked` | Si una lectura de caché prueba que la transmisión de datos frescos reanudó. |
 | `charge_cutoff_range`, `discharge_cutoff_range` | Valores que la ruta de escritura de hardware acepta realmente. |
+| `cell_voltage_profile` | Niveles de voltaje por celda para la lógica de final de carga, o `None` si el driver no publica voltaje de celda o los niveles no encajan con su química. |
+| `mppt_power_keys` | Claves de telemetría de la potencia PV por canal, en orden de canal, o `()`. El código compartido suma solo las claves listadas aquí. |
+| `balance_baseline` | Cómo juzga el monitor de balance la dispersión de voltaje de celda, o `None` para registrar sin juzgar. |
 
 Los valores por defecto en la clase de datos son comportamiento de compatibilidad para controladores existentes. Un nuevo controlador debe establecer campos intencionalmente y explicar los valores dependientes del modelo en comentarios y pruebas.
+
+### Métodos de consulta de telemetría
+
+El código compartido pregunta esto al driver en lugar de leer claves propias de una marca. Cada uno tiene un valor por defecto en la base; sobrescríbelo solo si tu telemetría codifica la respuesta de otra forma:
+
+| Método | Por defecto |
+|---|---|
+| `inverter_status(data)` | Lee `inverter_state` como los códigos numéricos de `InverterStatus` (sleep, standby, charge, discharge, backup, OTA upgrade, bypass); `None` significa "no se puede saber", nunca reposo. |
+| `backup_enabled(data)` | Lee `backup_function` como el interruptor de Marstek (`0` es armado); `None` si no se publica. |
+| `active_alarms(data)` | `[]`. Devuelve elementos `DriverAlarm(kind, code, description)`, primero los fallos, cada grupo en orden ascendente de código. |
+| `is_self_managed(data)` | `False`. Devuelve `True` mientras el dispositivo ejecuta su propia rutina (como una calibración de SOC) e ignora consignas. |
+| `device_max_soc(data)` | `None`: el dispositivo no guarda un techo propio. |
+| `ac_register_power_w(data)` | `None`: no hay lectura propia del lado AC en vatios +carga / -descarga. |
+| `ac_contribution_w(data, order)` | Lee las fuentes de `order` (`AcSource.REGISTER`, `PORT`, `CELL`); gana la primera que da una lectura. El orden lo elige quien llama. |
+| `manual_control_by_registers` | Sigue a `capabilities.has_force_mode`. |
+| `critical_control_keys` | El conjunto canónico crítico para la seguridad; las claves que el driver no publica nunca coinciden. |
+| `forcible_power_from_data(data)` | Decodifica las claves canónicas `force_mode` y de potencia fijada; `0.0` si no hay forzado. |
 
 ### Definir entidades junto al decodificador
 
@@ -225,55 +286,66 @@ Cada definición usa claves canónicas e incluye la metadata consumida por su pl
 
 Añade nombres y descripciones visibles a `custom_components/omnibattery/strings.json` y cada archivo bajo `custom_components/omnibattery/translations/`. Reutiliza una clave canónica existente y traducción cuando el significado y unidad sean idénticos.
 
+Cuando la `key` propia de una entidad (que fija su `unique_id`) difiere de la clave canónica que representa, añade `canonical_key` a la definición. `canonical_key(definition)` en `drivers/base.py` la devuelve, o la `key` si falta. El código compartido solo lee el vocabulario canónico.
+
 ## Archivos que se tocan
 
-El objetivo es que una marca nueva sea un archivo de driver más sus tests, traducciones y documentación de usuario. El código de control compartido (`__init__.py`, `control/`, `pricing/`, `tracking/`, `sensors/` y las plataformas de entidades) nunca debería conocer un nombre de marca. Si tu dispositivo se comporta de forma distinta y el código compartido necesita saberlo, añade un campo a `DriverCapabilities` o un hook semántico en `BatteryDriver`. No añadas una rama `brand ==`.
-
-Hoy el código no cumple del todo ese objetivo. Todavía no hay un registro de drivers, así que algunos módulos de configuración siguen eligiendo el comportamiento por el nombre de la marca. Esos módulos aparecen abajo como **puntos de registro**. Tócalos siguiendo el patrón de las marcas existentes y no añadas ramas por marca en ningún otro sitio.
+Una marca nueva es su driver y su módulo de configuración, una entrada en el registro y las traducciones. El código compartido (`__init__.py`, `config_flow.py`, `infra/`, `control/`, `pricing/`, `tracking/`, `sensors/` y las plataformas de entidades) nunca conoce un nombre de marca ni una versión de modelo. Si tu dispositivo se comporta de forma distinta y el código compartido necesita saberlo, añade un campo a `DriverCapabilities`, un campo a `DriverTraits` o un hook semántico en `BatteryDriver`. No añadas una rama `brand ==`.
 
 ### Archivos propios del driver
 
 | Archivo | Contenido |
 |---|---|
-| `drivers/<marca>.py` | La subclase de `BatteryDriver`, capacidades, definiciones de entidades, decodificación, traducción de comandos y un método estático `probe()` para el config flow. |
-| `infra/<transporte>_client.py` | Solo si el transporte necesita su propio cliente y ninguno de los existentes sirve. Reutiliza el cliente Modbus existente cuando sea posible. |
+| `drivers/<marca>.py` | La subclase de `BatteryDriver`, atributos de clase, capacidades, definiciones de entidades, decodificación, traducción de comandos, `from_config()` y la comprobación de conexión que usa el config flow. |
+| `drivers/<marca>_flow.py` | El `DriverSetup` de la marca (ver [Configuración del config flow](#configuracion-del-config-flow)): sus pasos del config flow y los hooks de límites. |
+| `drivers/<marca>_client.py` | Solo si el transporte necesita su propio cliente. Los helpers Modbus genéricos están en `infra/modbus_helpers.py`; reutiliza el cliente Modbus existente cuando sea posible. |
 | `tests/test_<marca>_driver.py` | Tests del driver contra un transporte falso (ver [Probar el controlador](#probar-el-controlador)). |
-| `strings.json` y todos los `translations/*.json` | Nombres de entidades y títulos, campos y errores de los pasos del config flow de la nueva marca. Reutiliza las claves canónicas existentes cuando coincidan significado y unidad. |
+| `strings.json` y todos los `translations/*.json` | Nombres de entidades y títulos, campos y errores de los ids de paso del config flow de la marca. Reutiliza las claves canónicas existentes cuando coincidan significado y unidad. |
 | `site-docs/configuration/batteries/<marca>.md` y `.es.md` | Página de configuración para usuarios. Enlázala también desde `configuration/batteries/index`, `compatibility` y el `nav` de `mkdocs.yml`. |
 | `manifest.json` | Solo si hace falta una biblioteca nueva. Fija la versión e indica su licencia y estado de mantenimiento en el pull request. |
 | `CHANGELOG.md` | Una línea en la versión sin publicar. |
 
-### Puntos de registro (actuales)
+### Configuración del config flow
 
-| Archivo | Dónde | Qué añadir |
-|---|---|---|
-| `drivers/__init__.py` | imports y `__all__` | Exportar la clase del driver. |
-| `infra/coordinator.py` | `MarstekVenusDataUpdateCoordinator.__init__()`, la cadena `if self.brand == ...` | Construir el driver a partir de los campos de la config entry. |
-| `infra/coordinator.py` | `device_info` | Fabricante y etiqueta de modelo por defecto. |
-| `config_flow.py` | `async_step_battery_brand()` en **ambos** flujos, el de configuración y el de opciones | Opción del selector y salto a tu paso de conexión. |
-| `config_flow.py` | `async_step_battery_connection_<marca>()` en **ambos** flujos | Formulario de conexión. Llama a `<Driver>.probe()` y guarda solo los campos que necesita el runtime. |
-| `config_flow.py` | `async_step_reconfigure_battery_<marca>()` y su despacho | Editar el host o las credenciales de una batería existente. |
-| `config_flow.py` | Rangos de SOC por defecto, límites de potencia por defecto, el esquema de ajustes de batería y el despacho de `probe` | Rango de SOC mínimo de tu marca, envolvente de potencia, exclusión del taper y un campo de capacidad cuando el dispositivo no la reporta. |
-| `infra/mac_tracking.py` | `IP_BASED_BRANDS` | Solo si la batería se direcciona por IP y debe seguir los cambios de DHCP. |
+Los pasos de conexión de una marca viven en su propio `drivers/<marca>_flow.py`, no en `config_flow.py`. El módulo construye un `DriverSetup` (de `drivers/setup.py`) y la clase del driver lo enlaza con `SETUP = ...`. `drivers/sessy.py` y `drivers/sessy_flow.py` son un ejemplo pequeño y completo.
 
-El config flow está duplicado entre el flujo de alta inicial y el de opciones. Una marca añadida solo a uno de ellos se puede dar de alta pero no editar, o al revés. Revisa los dos.
+- `steps` asocia ids de paso con manejadores, `entry_step` es el primer paso desde el selector de marca y `reconfigure_entry_step` es el primero al editar una batería existente. `config_flow.py` genera un método `async_step_<id>` por entrada tanto en el flujo de alta como en el de opciones, así que una marca no puede añadirse a uno y olvidarse en el otro.
+- Un manejador recibe `(flow, user_input, ctx)`. Devuelve un formulario o el paso siguiente, o un `dict` simple con los datos validados de la batería de la marca; el flujo compartido continúa entonces al formulario de límites o al guardado. `ctx` es un `SetupContext` con el tipo de flujo, la batería guardada, la config entry, el coordinator vivo y un diccionario de trabajo `work`.
+- Cuatro hooks opcionales ajustan el paso de límites compartido: `power_ceilings(battery_data)`, `limits_schema(battery_data, base_fields, ctx)`, `finalize_limits(merged, user_input, battery_data, ctx)` y `reprobe(hass, battery_config, host)`, que vuelve a comprobar una batería guardada en una IP nueva y por defecto responde "no soportado".
+- `drivers/setup.py` ofrece además helpers compartidos como `optional_capacity_field()` y `saved_dc_pv_connected()`. Un módulo de flujo importa solo de `drivers/setup.py`, `const` y Home Assistant, nunca de `config_flow.py`, porque crearía un ciclo de imports.
 
-### Deuda conocida: ramas por marca que deberían ser capacidades
+Sondear el dispositivo no es un método uniforme de la clase base. Cada marca define su propia comprobación de conexión en su clase de driver (por ejemplo `probe()` o `probe_details()`, con argumentos propios de la marca), y sus pasos del flujo la llaman antes de guardar la batería. Ante un cambio de IP, el código compartido llega a la misma comprobación mediante `DriverSetup.reprobe`. Guarda solo los campos que necesita el runtime, con las mismas claves de config entry que usan las marcas existentes.
 
-Estas ramas del código de configuración compartido codifican rasgos de hardware por nombre de marca. Cada una debería convertirse en una capacidad, un hook del driver o una entrada de registro. Mientras tanto, un driver nuevo se añade a ellas a mano. Si tu driver es el que tiene que ampliar una de estas listas, plantéate convertirla en capacidad en el mismo pull request.
+### Punto de registro
 
-| Rama | Ubicación | Qué debería ser |
-|---|---|---|
-| Cadena de construcción del driver | `infra/coordinator.py` `__init__()` | Registro de drivers: marca → clase y fábrica a partir de la config entry. |
-| Fabricante y modelo por defecto | `infra/coordinator.py` `device_info` | Propiedades del driver (`manufacturer` y un valor por defecto para `model_label`). |
-| Taper de carga completa por voltaje desactivado para `zendure`, `anker`, `hoymiles`, `huawei` (y `sessy` en el config flow) | `infra/coordinator.py` `__init__()`, `config_flow.py` | Una capacidad del tipo "el voltaje de celda es fiable para el taper de final de carga". |
-| Clamp de envolvente fija para `sessy` y techo EMS para Marstek `vD` | `infra/coordinator.py` `__init__()` | Límites propios del driver. El driver ya informa `max_*_power_w`; el clamp del coordinator no debería depender de la marca. |
-| Claves de PV descartadas para `anker` sin PV independiente | `infra/coordinator.py` `_sync_driver_definitions()` | Un hook del driver que elimine las claves que ya no forman parte de su contrato. |
-| `configuration_url` para `sessy` | `infra/coordinator.py` `device_info` | Una propiedad opcional del driver. |
-| `needs_software_power_cap` para Marstek `v2`/`v3` | `infra/coordinator.py` | Una capacidad: el límite hardware solo acepta valores fijos. |
-| El dispositivo conserva su configuración inicial (`zendure`) | `__init__.py` `_device_owns_initial_config()` | Una capacidad. |
-| Rango de SOC, potencias por defecto, campo de capacidad y despacho de `probe` por marca | `config_flow.py`, ambos flujos | Un esquema de configuración declarado por el driver y `probe()` resuelto mediante el registro. |
-| `IP_BASED_BRANDS` | `infra/mac_tracking.py` | Una propiedad del driver: se direcciona por IP. |
+`drivers/registry.py` es el único sitio donde se registra una marca. Añade el import y una entrada en el dict `DRIVERS`. El orden del dict es el orden del selector de marca del config flow:
+
+```python
+from .<marca> import <Marca>Driver
+
+DRIVERS: dict[str, type[BatteryDriver]] = {
+    ...
+    "<marca>": <Marca>Driver,
+}
+```
+
+Todo lo demás que necesita el código compartido (construir el driver, etiquetas del registro de dispositivos, ocultación en diagnósticos, entradas del selector, pasos del config flow, seguimiento de IP, taper y límites) se lee a través de ese dict desde los atributos de clase, los rasgos y `SETUP`. Una marca que no está en el dict cae a Marstek, con un aviso.
+
+Añade las traducciones de los ids de paso de la marca a `strings.json` y a los seis `translations/*.json`. Estos archivos y la entrada del registro son los únicos archivos compartidos que edita una marca nueva.
+
+### Guardianes que mantienen el código compartido libre de marcas
+
+Tres tests fallan cuando el código compartido aprende una marca, así que un pull request que añada una rama por marca no puede pasar:
+
+- `tests/test_no_brand_branches.py` recorre el Python compartido y el panel buscando nombres de marca o modelo, comparaciones con `brand` o `battery_version` e imports de un módulo de marca.
+- `tests/test_no_native_keys.py` impide que el código compartido lea claves y códigos propios de una marca, como una clave de SOC específica de un fabricante o un número de estado del inversor.
+- `tests/test_driver_shared_modules_frozen.py` evita que `drivers/base.py` y los demás módulos compartidos de drivers ganen conocimiento nuevo de marcas.
+
+Sus listas de excepciones están en `tests/guard_allowlists/` y solo pueden menguar. Lo que queda son unas pocas excepciones permanentes, como la migración de datos guardados antiguos. La comprobación de aceptación de este diseño: un driver ficticio añadido exactamente con los archivos anteriores (driver, módulo de configuración, entrada del registro, traducciones) pasó toda la suite sin cambiar ningún otro archivo.
+
+### Deuda conocida: el panel del dashboard
+
+El panel lateral, `frontend/marstek-panel.js`, queda fuera de este diseño y todavía conoce los nombres Marstek y Venus. Mantiene listas escritas a mano de claves de control propias de una marca (por ejemplo los controles de modo y SOC de Marstek), campos por marca de las tarjetas de batería (como los números de serie de Huawei y las versiones de Marstek), el valor `soc_calibration` del estado de control y el texto de ayuda "Venus" en los seis idiomas del panel. Un driver nuevo no lo edita. Si tu dispositivo necesita un cambio en el panel, indícalo en el pull request en lugar de añadir lógica por marca en otro sitio. Construir el panel a partir de metadatos del driver es trabajo futuro.
 
 No todas las decisiones de control por software dependen de la marca. `needs_software_manual_control`, `needs_software_max_charge` y `needs_software_max_discharge` se derivan de tus definiciones de entidades. Si no defines un select `force_mode`, un number `set_charge_power` o un number escribible `max_charge_power` / `max_discharge_power`, la integración añade los controles por software automáticamente. Declara solo los controles que el hardware tiene de verdad.
 
