@@ -318,12 +318,11 @@ BALANCE_NOTIFY_COOLDOWN_DAYS = 7    # min days between cell-imbalance notificati
 # When enabled per battery, slow charging only while the target is 100% and
 # cells enter the top voltage range. This is voltage-only; SOC is intentionally
 # ignored because some batteries report it unreliably near the top.
-NORMAL_BALANCE_TAPER_CELL_VOLTAGE = 3.48
-# Hysteresis: taper latch releases only after cell drops this far below entry.
-# Prevents oscillation: at low taper power the cell can relax below 3.48 V but not
-# to 3.44 V, so the latch stays active until the battery is meaningfully discharged.
-NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE = 3.44
-NORMAL_BALANCE_PAUSE_CELL_VOLTAGE = 3.60
+# The cell-voltage levels (taper entry 3.48 V, latch exit 3.44 V, pause 3.60 V,
+# retry 3.57 V) belong to the driver: see ``drivers.base.CellVoltageProfile`` and
+# ``DriverCapabilities.cell_voltage_profile``. The exit level is a hysteresis: at
+# low taper power the cell can relax below the entry but not to the exit, so the
+# latch stays active until the battery is meaningfully discharged.
 NORMAL_BALANCE_CHARGE_POWER_W = 200
 NORMAL_BALANCE_MEASURE_WAIT_SECONDS = 60
 # Venus A/D can expose several coupled packs through one inverter. Their top
@@ -349,8 +348,7 @@ NORMAL_BALANCE_RECAL_CUTOFF_POWER_W = 10       # W: charge collapsed (BMS termin
 NORMAL_BALANCE_RECAL_CUTOFF_CYCLES = 5         # consecutive cycles to confirm the BMS cutoff
 NORMAL_BALANCE_RECAL_INVERTER_STANDBY = 1      # inverter_state raw value for Standby
 # After a cutoff above the pause voltage, allow one extra 200 W charge when the
-# cell has relaxed to this voltage.  The retry is deliberately one-shot.
-NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE = 3.57
+# cell has relaxed to the profile's retry voltage.  The retry is deliberately one-shot.
 
 # BMS low-SOC discharge cutoff (low-SOC counterpart to NORMAL_BALANCE_RECAL_*).
 # Below this SOC the BMS may refuse to discharge on its own (protective cutoff,

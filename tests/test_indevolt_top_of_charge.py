@@ -120,6 +120,7 @@ async def _cutoff_counts(clock, driver, device, seconds, monkeypatch):
     # A detector that times the cutoff reads ``monotonic``: give it the test clock.
     monkeypatch.setattr(weekly_full_charge, "monotonic", lambda: clock.now, raising=False)
     coord = _Coordinator(name="Indevolt", brand="indevolt", battery_version=None, driver=driver,
+                         capabilities=driver.capabilities,
                          traits=fake_traits("indevolt", None), data={},
                          commanded_charge_power=0, battery_manual_mode_enabled=False)
     mgr = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)

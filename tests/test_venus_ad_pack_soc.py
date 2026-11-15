@@ -31,6 +31,7 @@ from custom_components.omnibattery.control.weekly_full_charge import (
     _BMS_CUTOFF_REQUIRED_CYCLES,
 )
 
+from custom_components.omnibattery.drivers.base import LFP_CELL_VOLTAGE_PROFILE
 from tests.conftest import FakeCoordinator, _FakeMarstekDriver
 
 
@@ -311,6 +312,7 @@ class _PackCoord:
         self.battery_version = "vD"
         self.brand = None
         self.driver = _FakeMarstekDriver()
+        self.capabilities = SimpleNamespace(cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE)
         self.commanded_charge_power = 200
         self.data = {"battery_power": 0, "inverter_state": 1, **data}
 

@@ -208,8 +208,6 @@ from .const import (
     CONF_HOURLY_BALANCE_MAX_OFFSET_W,
     DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
     DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
-    NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
-    NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
     BMS_DISCHARGE_CUTOFF_SOC,
     LOW_SOC_REFUSAL_CONFIRM_S,
     PD_READBACK_EVERY_N_WRITES,
@@ -277,7 +275,7 @@ from .tracking.daily_timeline import (
     GRID_CHARGE_NOT_NEEDED,
     GRID_CHARGE_SCHEDULED,
 )
-from .control.pack_soc import control_vmax, soc_vs_ceiling
+from .control.pack_soc import cell_voltage_profile, control_vmax, soc_vs_ceiling
 from .control.weekly_full_charge import WeeklyFullChargeManager
 from .control.max_soc_charge import MaxSocChargeManager
 from .control.temperature_limit import TemperatureChargeLimitManager
@@ -4246,7 +4244,7 @@ class ChargeDischargeController:
                     {
                         "battery": coordinator.name,
                         "state": "waiting_for_relaxation",
-                        "retry_voltage": NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
+                        "retry_voltage": cell_voltage_profile(coordinator).recal_retry_v,
                         "soc": current_soc,
                     },
                     coordinator=coordinator,
@@ -4324,7 +4322,9 @@ class ChargeDischargeController:
                 if effective_max_soc >= 100:
                     _vmax = control_vmax(coordinator)
                     if _vmax is not None:
-                        taper_at_top_voltage = _vmax >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
+                        taper_at_top_voltage = (
+                            _vmax >= cell_voltage_profile(coordinator).pause_v
+                        )
                 # Clear a stale latch so charge can resume toward the raised
                 # target; a genuine top-of-charge re-arms immediately below.
                 if _charge_hysteresis_latch_is_stale(coordinator):
@@ -4941,7 +4941,10 @@ class ChargeDischargeController:
                         _vmax_hysteresis = control_vmax(coordinator)
                         _taper_at_top = False
                         if effective_max_soc >= 100 and _vmax_hysteresis is not None:
-                            _taper_at_top = _vmax_hysteresis >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
+                            _taper_at_top = (
+                                _vmax_hysteresis
+                                >= cell_voltage_profile(coordinator).pause_v
+                            )
                         # Clear a stale latch so charge resumes toward the
                         # raised target; a genuine top re-arms below.
                         if _charge_hysteresis_latch_is_stale(coordinator):

@@ -34,7 +34,7 @@ import pytest
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from custom_components.omnibattery import ChargeDischargeController
-from custom_components.omnibattery.const import NORMAL_BALANCE_TAPER_CELL_VOLTAGE
+from custom_components.omnibattery.drivers.base import LFP_CELL_VOLTAGE_PROFILE
 from custom_components.omnibattery.control.max_soc_charge import MaxSocChargeManager
 from custom_components.omnibattery.control.weekly_full_charge import (
     WeeklyFullChargeManager,
@@ -55,7 +55,7 @@ from tests.test_driver_construction_characterization import (
 
 ABSENT = object()  # the driver does not publish the key
 MADRID = ZoneInfo("Europe/Madrid")
-_IN_ZONE = NORMAL_BALANCE_TAPER_CELL_VOLTAGE + 0.05
+_IN_ZONE = LFP_CELL_VOLTAGE_PROFILE.taper_entry_v + 0.05
 
 _HUAWEI_TEXTS = [*huawei._STORAGE_STATUS_LABELS.values(), "Charge", "Discharge", "Unknown (9)"]
 
@@ -260,7 +260,8 @@ async def test_bms_cut_signature(brand, value):
 async def test_tick_bms_cutoff(brand, value, bms_cutoff_clock):
     real = _coordinator(brand)
     coord = SimpleNamespace(
-        name="bat", driver=real.driver, traits=real.traits, commanded_charge_power=200,
+        name="bat", driver=real.driver, traits=real.traits, capabilities=real.capabilities,
+        commanded_charge_power=200,
         data=_data(value, battery_soc=99, battery_power=0, max_cell_voltage=_IN_ZONE),
     )
     ctrl = SimpleNamespace(coordinators=[coord], weekly_full_charge_enabled=True)

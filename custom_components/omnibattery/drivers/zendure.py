@@ -51,6 +51,7 @@ from .base import (
     DriverReconciliation,
     DriverTraits,
     DELIVERED_AC_POWER_KEY,
+    LFP_CELL_VOLTAGE_PROFILE,
     ReadGroup,
     ReconcileState,
     SetpointResult,
@@ -541,6 +542,7 @@ class ZendureLocalDriver(BatteryDriver):
             setpoint_confirm_reliable=False,  # HTTP report echoes the previous limit for ~2 s
             independent_power_planes=False,  # AC and cell power read identical (#556)
             actuator_latency_s=3.0,      # HTTP write + ~2-3 s engage/echo latency
+            cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE,  # publishes max_cell_voltage
         )
 
         _excluded = _SOLAR_MPPT_KEYS if model in _AC_COUPLED_MODELS else frozenset()

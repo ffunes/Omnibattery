@@ -137,6 +137,15 @@ def soc_vs_ceiling(coordinator, aggregate):
 _PACK_TOP_SOC = 99
 
 
+def cell_voltage_profile(coordinator):
+    """The per-cell voltage levels this battery's driver declares, or None.
+
+    None means the driver publishes no cell voltage (or none that these levels
+    fit): the top-of-charge logic then applies no voltage threshold to it.
+    """
+    return coordinator.capabilities.cell_voltage_profile
+
+
 def control_vmax(coordinator):
     """Max cell voltage that may decide for the *whole* battery (issue #415).
 
@@ -169,8 +178,11 @@ def control_vmax(coordinator):
 
     Returns None while the packs still disagree, and the plain reading for every
     battery that publishes no per-pack SOC, which is every model except Venus
-    A/D, so their behaviour is unchanged.
+    A/D, so their behaviour is unchanged. Also None for a driver that declares
+    no cell-voltage profile: there are no levels to judge the reading against.
     """
+    if cell_voltage_profile(coordinator) is None:
+        return None
     data = getattr(coordinator, "data", None) or {}
     try:
         vmax = float(data["max_cell_voltage"])

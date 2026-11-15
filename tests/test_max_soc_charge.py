@@ -23,14 +23,16 @@ from homeassistant.util import dt as dt_util
 from custom_components.omnibattery.const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     NORMAL_BALANCE_CHARGE_POWER_W,
-    NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
-    NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
 )
 from custom_components.omnibattery.control.max_soc_charge import (
     MaxSocChargeManager,
 )
+from custom_components.omnibattery.drivers.base import LFP_CELL_VOLTAGE_PROFILE
 from tests.conftest import _FakeMarstekDriver, fake_traits
+
+NORMAL_BALANCE_PAUSE_CELL_VOLTAGE = LFP_CELL_VOLTAGE_PROFILE.pause_v
+NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE = LFP_CELL_VOLTAGE_PROFILE.recal_retry_v
 
 
 # ----------------------------------------------------------------------
@@ -57,6 +59,7 @@ class _Coord:
         self.battery_version = battery_version
         self.traits = fake_traits(None, battery_version)
         self.driver = _FakeMarstekDriver()
+        self.capabilities = SimpleNamespace(cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE)
         self.max_soc = max_soc
         self.max_charge_power = max_charge_power
         self.commanded_charge_power = commanded_charge_power

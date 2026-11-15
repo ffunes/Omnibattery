@@ -17,17 +17,17 @@ from types import SimpleNamespace
 
 import pytest
 
-from custom_components.omnibattery.const import (
-    DISCHARGE_ENGAGE_GRACE_S,
-    NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
-)
+from custom_components.omnibattery.const import DISCHARGE_ENGAGE_GRACE_S
 from custom_components.omnibattery.control.weekly_full_charge import (
     WeeklyFullChargeManager,
     _BMS_CUTOFF_CONFIRM_S,
     _BMS_CUTOFF_REQUIRED_CYCLES,
 )
 from custom_components.omnibattery.control.max_soc_charge import MaxSocChargeManager
+from custom_components.omnibattery.drivers.base import LFP_CELL_VOLTAGE_PROFILE
 from tests.conftest import _FakeMarstekDriver, fake_traits
+
+NORMAL_BALANCE_TAPER_CELL_VOLTAGE = LFP_CELL_VOLTAGE_PROFILE.taper_entry_v
 
 _IN_ZONE = NORMAL_BALANCE_TAPER_CELL_VOLTAGE + 0.05  # cell above taper entry
 _STANDBY = 1
@@ -51,6 +51,7 @@ class _Coord:
         self.brand = brand
         self.traits = fake_traits(brand, battery_version)
         self.driver = _FakeMarstekDriver()
+        self.capabilities = SimpleNamespace(cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE)
         self.commanded_charge_power = commanded
         self.data = {
             "battery_soc": soc,
@@ -235,7 +236,9 @@ def test_cutoff_of_a_charging_battery_is_confirmed_on_time_not_cycles(clock):
 def test_engage_grace_follows_the_driver_capability(clock):
     """A driver that reports a longer engage grace gets all of it."""
     coord = _Coord("bat", soc=99, power=0, commanded=0)
-    coord.capabilities = SimpleNamespace(engage_grace_s=65.0)
+    coord.capabilities = SimpleNamespace(
+        engage_grace_s=65.0, cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE
+    )
     m = _mgr(coord)
     m.tick_bms_cutoff()
 

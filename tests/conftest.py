@@ -22,6 +22,7 @@ import pytest
 
 from custom_components.omnibattery.const import BURST_POLL_WINDOW_S
 from custom_components.omnibattery.drivers import BatteryDriver, DriverCapabilities
+from custom_components.omnibattery.drivers.base import LFP_CELL_VOLTAGE_PROFILE
 from custom_components.omnibattery.drivers.registry import traits_for_brand
 
 
@@ -244,6 +245,7 @@ class FakeCoordinator:
             has_alarm_registers=self.battery_version == "v2",
             has_rs485_control=True,
             actuator_latency_s=0.8 if v3_family else 0.3,
+            cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE,
         )
 
 

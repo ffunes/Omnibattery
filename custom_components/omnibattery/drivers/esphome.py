@@ -34,6 +34,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    LFP_CELL_VOLTAGE_PROFILE,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -459,6 +460,7 @@ class EsphomeEntityDriver(BatteryDriver):
             # Venus E firmware floor, same as the direct Modbus v2 driver.
             min_charge_power_w=800,
             min_discharge_power_w=800,
+            cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE,  # publishes max_cell_voltage
         )
 
         self._definitions: dict[str, list[dict]] = {

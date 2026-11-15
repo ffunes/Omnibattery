@@ -52,6 +52,7 @@ from .base import (
     DriverContext,
     DriverReconciliation,
     DriverTraits,
+    LFP_CELL_VOLTAGE_PROFILE,
     ReadGroup,
     ReconcileState,
     SetpointResult,
@@ -535,6 +536,11 @@ class MarstekModbusDriver(BatteryDriver):
             # v3/vA/vD pace at 150 ms/frame through a single TCP slot, so a setpoint
             # write + the inverter engaging settles slower than v2's 50 ms/frame.
             actuator_latency_s=0.8 if self._is_v3_family else 0.3,
+            cell_voltage_profile=(
+                LFP_CELL_VOLTAGE_PROFILE
+                if "max_cell_voltage" in self._telemetry_index
+                else None
+            ),
         )
 
     def _set_power_definition_ceiling(self, ceiling: int) -> None:

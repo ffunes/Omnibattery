@@ -168,6 +168,37 @@ def resolve_battery_version(battery_config: Mapping, name: str | None = None) ->
 
 
 @dataclass(frozen=True)
+class CellVoltageProfile:
+    """Per-cell voltage levels the top-of-charge logic acts on (a cell chemistry).
+
+    The core compares the highest cell voltage a driver publishes
+    (``max_cell_voltage``) against these levels; a driver that publishes no cell
+    voltage declares no profile (``DriverCapabilities.cell_voltage_profile``
+    is None) and the core applies none.
+    """
+
+    # The charge taper starts at this voltage (cell >= taper_entry_v).
+    taper_entry_v: float
+    # The taper latch releases only below this voltage (hysteresis under entry).
+    taper_exit_v: float
+    # Top-cell point at which charging is paused / the BMS-owned hold begins.
+    pause_v: float
+    # After a first BMS cutoff above pause_v, the cell must relax to this voltage
+    # (cell <= recal_retry_v) before the one-shot retry is allowed.
+    recal_retry_v: float
+
+
+# LiFePO4 per-cell levels. They describe the chemistry, not a brand: any driver
+# whose cells are LFP and that publishes the highest cell voltage may declare it.
+LFP_CELL_VOLTAGE_PROFILE = CellVoltageProfile(
+    taper_entry_v=3.48,
+    taper_exit_v=3.44,
+    pause_v=3.60,
+    recal_retry_v=3.57,
+)
+
+
+@dataclass(frozen=True)
 class DriverTraits:
     """Class-level traits the shared code needs before a driver is connected.
 
@@ -352,6 +383,13 @@ class DriverCapabilities:
     # hardware backstop never moves (#495).
     charge_cutoff_range: tuple[float, float] = (50.0, 100.0)
     discharge_cutoff_range: tuple[float, float] = (12.0, 50.0)
+
+    # Per-cell voltage levels the top-of-charge logic applies to the driver's
+    # ``max_cell_voltage``. None = the driver publishes no cell voltage (or the
+    # levels do not fit its chemistry): the core applies none. Kept per instance
+    # in the capabilities, not in DriverTraits, because the Marstek driver derives
+    # it from the telemetry its model publishes, like ``has_mppt_pv``.
+    cell_voltage_profile: Optional[CellVoltageProfile] = None
 
 
 def has_connected_mppt_pv(coordinator) -> bool:

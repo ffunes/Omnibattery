@@ -29,20 +29,16 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.util import dt as dt_util
 
-from .pack_soc import control_vmax
+from .pack_soc import cell_voltage_profile, control_vmax
 from ..drivers.base import InverterStatus
 from ..const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     NORMAL_BALANCE_CHARGE_POWER_W,
     NORMAL_BALANCE_MEASURE_WAIT_SECONDS,
-    NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
     NORMAL_BALANCE_RECAL_CUTOFF_POWER_W,
-    NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
     NORMAL_BALANCE_RECAL_SOC_THRESHOLD,
-    NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
-    NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE,
 )
 
 if TYPE_CHECKING:
@@ -217,10 +213,12 @@ class MaxSocChargeManager:
         evaluated before the latter in each control cycle.
         """
         coordinator_data = coordinator.data or {}
+        profile = cell_voltage_profile(coordinator)
         if (
             not self._uses_bms_cutoff_at_top(coordinator)
             or not self._taper_enabled(coordinator)
             or not coordinator_data
+            or profile is None
         ):
             return None
 
@@ -272,7 +270,7 @@ class MaxSocChargeManager:
             if soc is not None and soc >= 100:
                 retry_pending.pop(coordinator, None)
                 return None
-            if vmax is not None and vmax <= NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE:
+            if vmax is not None and vmax <= profile.recal_retry_v:
                 retry_pending.pop(coordinator, None)
                 retry_active[coordinator] = True
                 self._reset_bms_cutoff_counter(coordinator)
@@ -289,7 +287,7 @@ class MaxSocChargeManager:
             # Once the one-shot retry has been accepted, keep it alive until a
             # second refusal is confirmed. Leaving the taper zone ends this
             # top-charge session and lets normal SOC control resume.
-            if vmax is not None and vmax < NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
+            if vmax is not None and vmax < profile.taper_entry_v:
                 self._clear_bms_cutoff_retry_state(coordinator)
                 return None
             if self._bms_cutoff_confirmed(coordinator):
@@ -313,7 +311,7 @@ class MaxSocChargeManager:
             # first refusal; the retry is only for an incomplete coupled system.
             return None
 
-        if vmax is not None and vmax <= NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE:
+        if vmax is not None and vmax <= profile.recal_retry_v:
             retry_active[coordinator] = True
             self._reset_bms_cutoff_counter(coordinator)
             _LOGGER.info(
@@ -329,7 +327,7 @@ class MaxSocChargeManager:
             "%s: Venus A/D first cutoff at SOC %.1f%% — waiting for %.2f V before one %d W handover retry",
             coordinator.name,
             soc,
-            NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
+            profile.recal_retry_v,
             NORMAL_BALANCE_CHARGE_POWER_W,
         )
         return self._BMS_CUTOFF_RETRY_PENDING
@@ -385,11 +383,14 @@ class MaxSocChargeManager:
         # Deliberately the raw register, not control_vmax: True here means
         # "stay charge-eligible", so a pack-1-only top cell (issue #415) must
         # keep the charge alive rather than qualify it away.
+        profile = cell_voltage_profile(coordinator)
+        if profile is None:
+            return False
         try:
             vmax = float((coordinator.data or {}).get("max_cell_voltage"))
         except (TypeError, ValueError):
             return False
-        return vmax >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
+        return vmax >= profile.pause_v
 
     def _zone_active(self, coordinator) -> bool:
         """Return True when the battery is in the normal top-balancing zone."""
@@ -397,7 +398,10 @@ class MaxSocChargeManager:
             return False
 
         vmax = control_vmax(coordinator)
-        return vmax is not None and vmax >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
+        return (
+            vmax is not None
+            and vmax >= cell_voltage_profile(coordinator).taper_entry_v
+        )
 
     @staticmethod
     def _bms_cut_signature(coordinator, data: dict) -> bool:
@@ -468,6 +472,7 @@ class MaxSocChargeManager:
         c = self._controller
 
         data = coordinator.data or {}
+        profile = cell_voltage_profile(coordinator)
 
         # A first cutoff above the pause voltage can leave the top cell too high
         # for the BMS to accept another command immediately.  Keep the battery
@@ -480,7 +485,7 @@ class MaxSocChargeManager:
             if soc is None or soc >= 100:
                 c._normal_balance_recal_retry_pending.pop(coordinator, None)
                 return False
-            if vmax_f > NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE:
+            if vmax_f > profile.recal_retry_v:
                 return False
             c._normal_balance_recal_retry_pending.pop(coordinator, None)
             c._normal_balance_recal_retry_active[coordinator] = True
@@ -490,8 +495,8 @@ class MaxSocChargeManager:
                 "%s: SOC recalibration cutoff confirmed above %.2f V; cell relaxed to %.2f V — "
                 "starting one %d W retry",
                 coordinator.name,
-                NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
-                NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
+                profile.pause_v,
+                profile.recal_retry_v,
                 NORMAL_BALANCE_CHARGE_POWER_W,
             )
 
@@ -540,7 +545,7 @@ class MaxSocChargeManager:
                 c._normal_balance_recal_latched[coordinator] = True
                 c._normal_balance_recal_cutoff_count.pop(coordinator, None)
                 cutoff_vmax = c._normal_balance_recal_first_cutoff_voltage[coordinator]
-                if cutoff_vmax > NORMAL_BALANCE_PAUSE_CELL_VOLTAGE and soc < 100:
+                if cutoff_vmax > profile.pause_v and soc < 100:
                     c._normal_balance_recal_retry_pending[coordinator] = True
                     _LOGGER.info(
                         "%s: BMS cutoff during SOC recalibration at vmax=%.3f V, SOC=%s%% — "
@@ -548,7 +553,7 @@ class MaxSocChargeManager:
                         coordinator.name,
                         cutoff_vmax,
                         soc,
-                        NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
+                        profile.recal_retry_v,
                     )
                 else:
                     _LOGGER.info(
@@ -623,19 +628,20 @@ class MaxSocChargeManager:
                 continue
 
             in_zone = self._zone_active(coordinator)
+            profile = cell_voltage_profile(coordinator)
             vmax_f = control_vmax(coordinator)
             current_soc = data.get("battery_soc")
             # Hysteresis: only clear the taper latch once the cell has dropped to the
             # exit threshold (below entry), not the moment it slips under 3.48 V at
             # low charge power. This prevents full-power ↔ tapered-power oscillation.
-            if not in_zone and (vmax_f is None or vmax_f < NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE):
+            if not in_zone and (vmax_f is None or vmax_f < profile.taper_exit_v):
                 c._normal_balance_voltage_tapered.pop(coordinator, None)
             if not in_zone:
                 # Battery has dropped out of the top zone: end any recal session so
                 # a later full charge can recalibrate again.
                 self._clear_recal_state(coordinator)
 
-            if vmax_f is not None and in_zone and vmax_f >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
+            if vmax_f is not None and in_zone and vmax_f >= profile.taper_entry_v:
                 c._normal_balance_voltage_tapered[coordinator] = True
 
             if self._uses_bms_cutoff_at_top(coordinator):
@@ -686,7 +692,7 @@ class MaxSocChargeManager:
                     retry_state == self._BMS_CUTOFF_RETRY_ACTIVE
                     or
                     bms_cutoff_state.get(coordinator, False)
-                    or (vmax_f is not None and vmax_f >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE)
+                    or (vmax_f is not None and vmax_f >= profile.pause_v)
                 ):
                     bms_cutoff_state[coordinator] = True
                 else:
@@ -724,7 +730,7 @@ class MaxSocChargeManager:
                     self._BMS_CUTOFF_MEASUREMENT_DONE,
                 }
                 and vmax_f is not None
-                and vmax_f < NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
+                and vmax_f < profile.pause_v
                 and (in_zone or taper_latched)
                 and not c._normal_balance_recal_retry_pending.get(coordinator, False)
                 and not c._normal_balance_recal_retry_active.get(coordinator, False)
@@ -745,7 +751,7 @@ class MaxSocChargeManager:
                 vmax_f is not None
                 and in_zone
                 and (
-                    vmax_f >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE
+                    vmax_f >= profile.pause_v
                     or bms_cut_signature
                     or c._normal_balance_recal_override.get(coordinator, False)
                     or coordinator in c._normal_balance_recal_cutoff_count
@@ -768,10 +774,11 @@ class MaxSocChargeManager:
         voltage_tapered = c._normal_balance_voltage_tapered
         voltage_taper_latched = voltage_tapered.get(coordinator, False)
         if vmax is not None:
-            if vmax >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE:
+            profile = cell_voltage_profile(coordinator)
+            if vmax >= profile.taper_entry_v:
                 voltage_taper_latched = True
                 voltage_tapered[coordinator] = True
-            elif vmax < NORMAL_BALANCE_TAPER_EXIT_CELL_VOLTAGE:
+            elif vmax < profile.taper_exit_v:
                 voltage_tapered.pop(coordinator, None)
                 voltage_taper_latched = False
             if voltage_taper_latched:
@@ -877,11 +884,14 @@ class MaxSocChargeManager:
             if coordinator in c._normal_balance_phases:
                 active_coordinators.add(coordinator)
                 continue
+            profile = cell_voltage_profile(coordinator)
+            if profile is None:
+                continue
             try:
                 vmax = float(coordinator.data.get("max_cell_voltage"))
             except (TypeError, ValueError):
                 continue
-            if post_bms_measurement or vmax >= NORMAL_BALANCE_PAUSE_CELL_VOLTAGE:
+            if post_bms_measurement or vmax >= profile.pause_v:
                 c._normal_balance_phases[coordinator] = "WAIT_MEASURE"
                 c._normal_balance_measure_started[coordinator] = dt_util.utcnow()
                 active_coordinators.add(coordinator)
@@ -943,7 +953,7 @@ class MaxSocChargeManager:
                         vmax,
                         " after BMS cutoff" if is_post_bms_measurement else "",
                     )
-            if phase == "MEASURED" and vmax < NORMAL_BALANCE_PAUSE_CELL_VOLTAGE:
+            if phase == "MEASURED" and vmax < cell_voltage_profile(coordinator).pause_v:
                 c._normal_balance_phases.pop(coordinator, None)
                 c._normal_balance_measure_started.pop(coordinator, None)
                 await c._set_battery_power(coordinator, 0, 0)

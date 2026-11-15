@@ -25,12 +25,11 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .charge_delay import _PROVISIONAL_ZERO_HOLD_HOUR, _energy_needed_kwh
-from .pack_soc import control_vmax, soc_vs_ceiling
+from .pack_soc import cell_voltage_profile, control_vmax, soc_vs_ceiling
 from ..const import (
     DISCHARGE_ENGAGE_GRACE_S,
     DOMAIN,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
-    NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
     NOTIFICATION_ID_PREFIX,
     WEEKDAY_MAP,
 )
@@ -169,7 +168,10 @@ class WeeklyFullChargeManager:
             # packs are still filling, so a lull in acceptance during a handover
             # would be counted as a cutoff at 89% SOC.
             vmax = control_vmax(c)
-            in_taper_zone = vmax is not None and vmax >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
+            in_taper_zone = (
+                vmax is not None
+                and vmax >= cell_voltage_profile(c).taper_entry_v
+            )
             if soc >= 99 or in_taper_zone:
                 power = c.data.get("battery_power", None)
                 inv_state = c.data.get("inverter_state", None)
@@ -940,6 +942,7 @@ class WeeklyFullChargeManager:
         if measurement_state is not None:
             for coordinator in ctrl.coordinators:
                 data = coordinator.data or {}
+                profile = cell_voltage_profile(coordinator)
                 try:
                     vmax = float(data.get("max_cell_voltage"))
                 except (TypeError, ValueError):
@@ -948,8 +951,9 @@ class WeeklyFullChargeManager:
                     ctrl, "_normal_balance_voltage_tapered", {}
                 ).get(coordinator, False)
                 in_taper_zone = (
-                    vmax is not None
-                    and vmax >= NORMAL_BALANCE_TAPER_CELL_VOLTAGE
+                    profile is not None
+                    and vmax is not None
+                    and vmax >= profile.taper_entry_v
                 )
                 if (
                     self._bms_cutoff_counts.get(coordinator.name, 0)
