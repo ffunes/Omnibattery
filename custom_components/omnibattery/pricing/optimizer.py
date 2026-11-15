@@ -53,6 +53,10 @@ TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
 SELL = "sell"  # menu option ("sell", kW): the grid is held at -kW for the slot
+# Smart Pre-Discharge ("room", kW): the grid at -kW until the battery reaches
+# the slot's room level, then normal. Its value is the model's own: the risk
+# sun that does not fit is exported at the risk's price (<= the threshold).
+ROOM = "room"
 # Solar Charge Delay (D9): at most this much over the whole horizon, on the
 # solar surplus stored before each deadline, decreasing to 0 there: a
 # tie-break, never reported (per day it bought delay with real money once the
@@ -107,44 +111,58 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     levels = levels[(levels >= 0.0) & (levels <= cap + _TOL)]
 
     delay = _solar_delay(request, groups, model, fleet)
+    risk, room_levels, charge_caps = _room(request, groups, model, soc_step)
+    room_prices = request.room_export_prices or {}
 
     def menu(slot, quarters, slot_end):
+        # Inside a risk the grid is held at 0 W: only normal behaviour (and a
+        # floor charge) executes there.
+        in_risk = slot.start in risk
         # Normal first: on a tie neither a charge nor a hold is taken.
-        options = [None] + ([HOLD] if request.hold_allowed else [])
+        options = [None] + ([HOLD] if request.hold_allowed and not in_risk else [])
         # Store first: on a tie the surplus is stored. Never with a charge: the
         # surplus price hold's blocker stops all charging.
-        if (request.export_choice_allowed or (delay is not None and delay.offers(slot_end))) and any(
-            q.solar_kwh > q.house_kwh for q in quarters
-        ):
+        if not in_risk and (
+            request.export_choice_allowed or (delay is not None and delay.offers(slot_end))
+        ) and any(q.solar_kwh > q.house_kwh for q in quarters):
             options.append(EXPORT)
         # Sell last: on a tie it does not sell. Two powers, exclusive with the rest.
         # Never at a battery price <= 0: paid exports are Smart Pre-Discharge's
         # (its own switch and reserve SOC, design §3), not High-Price Sale's.
-        if (request.sell_allowed and request.sell_power_kw > 0 and slot.start in sell_prices
-                and sell_prices[slot.start] > 0):
+        if (not in_risk and request.sell_allowed and request.sell_power_kw > 0
+                and slot.start in sell_prices and sell_prices[slot.start] > 0):
             options += [(SELL, request.sell_power_kw), (SELL, request.sell_power_kw / 2)]
+        # Make room: the very last, so on a tie nothing is discharged.
+        room = (
+            [(ROOM, request.room_power_kw), (ROOM, request.room_power_kw / 2)]
+            if slot.start in room_levels
+            else []
+        )
         if not quarters[0].grid_charge_allowed:
-            return options
+            return options + room
         most = sum(model.charge_rate(q) for q in quarters)
         if most <= _TOL:
-            return options
+            return options + room
         step = max(QUOTA_STEP_KWH, most / MAX_ASKS)
         asks = [(a, False) for a in list(np.arange(step, most, step)) + [most]]
         asks.append((most + max(soc_step, QUOTA_STEP_KWH), True))
         # With the hold allowed a charge may also hold: once its target is
         # reached the battery keeps it instead of covering the rest of the slot.
-        holding = [(a, end, True) for a, end in asks] if request.hold_allowed else []
-        return options + asks + holding
+        holding = [(a, end, True) for a, end in asks] if request.hold_allowed and not in_risk else []
+        return options + asks + holding + room
 
     floor = min(max(0.0, float(request.floor_kwh or 0.0)), cap)
     hold_saving = max(0.0, float(request.hold_min_saving or 0.0))
     export_saving = max(0.0, float(request.export_choice_min_saving or 0.0))
     sell_prices = dict(request.battery_export_prices or request.export_prices or {})
 
-    def target_of(e, ask):
-        """The slot's target: the controller raises it to the floor while the
-        guaranteed floor is active."""
+    def target_of(e, ask, slot_start=None):
+        """The slot's target: capped before a risk where room is offered (a
+        charge must not fill what the plan would then export as room), then
+        raised to the floor while the guaranteed floor is active."""
         target = model.slot_target(e, ask)
+        if slot_start in charge_caps:
+            target = np.minimum(target, charge_caps[slot_start])
         return np.maximum(target, floor) if floor > 0 else target
 
     def run(quarters, e, option, slot_price, quarter_ends, slot_start=None):
@@ -153,7 +171,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         cost = np.zeros_like(e)
         decide = np.zeros_like(e)
         stored = np.zeros_like(e)
-        sell = isinstance(option, tuple) and option[0] == SELL
+        sell = isinstance(option, tuple) and option[0] in (SELL, ROOM)
+        room = sell and option[0] == ROOM
         hold = option == HOLD or (not sell and isinstance(option, tuple) and len(option) > 2)
         export = option == EXPORT
         # The delay applies where its mask lets the slot export, judged once at
@@ -162,7 +181,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         delayed = delay.allows(e, slot_start, quarter_ends[-1]) if delay is not None else None
         if export and not request.export_choice_allowed:
             export = delayed
-        target = None if option in (None, HOLD, EXPORT) or sell else target_of(e, option[0])
+        target = None if option in (None, HOLD, EXPORT) or sell else target_of(e, option[0], slot_start)
         done = np.zeros(e.shape, dtype=bool)
         ends = []
         for q, end in zip(quarters, quarter_ends):
@@ -193,16 +212,25 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             if sell:
                 # High-Price Sale's override: the grid at -P; the battery covers
                 # the house and exports the rest, solar beyond P charges it.
+                # Making room stops at the slot's level, then the battery covers
+                # the house as normal.
                 h_q = q.charge_kwh / max(request.effective_power_kw, _TOL)
-                flow = q.house_kwh - q.solar_kwh + option[1] * h_q
-                out = np.minimum(np.minimum(e * model.eff, max(flow, 0.0)), q.discharge_kwh)
+                net = q.house_kwh - q.solar_kwh
+                flow = net + option[1] * h_q
+                above = np.maximum(e - room_levels[slot_start], 0.0) if room else e
+                out = np.minimum(np.minimum(above * model.eff, max(flow, 0.0)), q.discharge_kwh)
                 inn = np.minimum(min(max(-flow, 0.0), q.charge_kwh), np.maximum(model.cap - e, 0.0) / model.eff)
-                grid = (q.house_kwh - q.solar_kwh) - out + inn
                 e = e - out / model.eff + inn * model.eff
+                if room:
+                    extra = np.minimum(np.minimum(np.maximum(net - out, 0.0), e * model.eff),
+                                       q.discharge_kwh - out)
+                    e = e - extra / model.eff
+                    out = out + extra
+                grid = net - out + inn
                 c = (np.maximum(grid, 0.0) * q.import_price
-                     - np.maximum(-grid, 0.0) * sell_prices[slot_start])
+                     - np.maximum(-grid, 0.0) * (room_prices if room else sell_prices)[slot_start])
                 cost += c
-                decide += c + margin * out
+                decide += c if room else c + margin * out
                 if floor > 0 and request.floor_until is not None and end <= request.floor_until:
                     decide += FLOOR_PENALTY_EUR * np.maximum(floor - e, 0.0)
                 ends.append(e)
@@ -258,6 +286,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     holds: list = []
     exports: list = []
     sales: list = []
+    rooms: list = []
     trajectory: list = []
     for k, (slot, quarters, ends) in enumerate(groups):
         nxt = values[k + 1]
@@ -269,8 +298,10 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 chosen = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
                           bool(open_[0]), [float(x[0]) for x in path])
         _v, option, e_end, c, stored, open_, path = chosen
-        selling = isinstance(option, tuple) and option[0] == SELL
-        if selling:
+        selling = isinstance(option, tuple) and option[0] in (SELL, ROOM)
+        if selling and option[0] == ROOM:
+            rooms.append((slot, float(option[1]), float(room_levels[slot.start])))
+        elif selling:
             sales.append((slot, float(option[1])))
         elif option == HOLD or (isinstance(option, tuple) and len(option) > 2):
             holds.append(slot)
@@ -281,8 +312,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         if option not in (None, HOLD, EXPORT) and not selling and stored > _TOL:
             allocations.append(SlotAllocation(
                 slot,
-                _published_quota(model, soc_step, e, None if open_ else float(target_of(e, option[0])),
-                                 stored),
+                _published_quota(model, soc_step, e,
+                                 None if open_ else float(target_of(e, option[0], slot.start)), stored),
                 None, "flexible",
                 # Charged to the slot's end or to the top: executing
                 # ``stored`` as a plain quota would stop it early.
@@ -323,8 +354,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         holds=tuple(holds),
         exports=tuple(exports),
         sales=tuple(sales),
+        room_sales=tuple(rooms),
+        risk_slots=tuple(s for s, _q, _e in groups if s.start in risk),
     )
     plan.optimizer_cost = total
+    # The plan decided Smart Pre-Discharge (with export prices, design §2.6 A).
+    plan.room_allowed = request.room_threshold is not None and bool(request.export_prices)
     plan.export_choice_allowed = request.export_choice_allowed
     plan.sell_allowed = request.sell_allowed
     plan.solar_delay = delay is not None
@@ -447,6 +482,105 @@ def _solar_delay(request, groups, model, fleet):
                         closed_until)
     delay.day_closed = closed
     return delay
+
+
+def risk_quarters(request: ChronologicalEvaluationRequest) -> frozenset:
+    """Starts of the intervals Smart Pre-Discharge protects: sun above the
+    house and an export price at or below the threshold. The price is read
+    from the export map: a slot missing from it has no risk (no sensor, or no
+    price published yet; ``Quarter.export_price`` would read it as 0)."""
+    threshold = request.room_threshold
+    exports = request.export_prices or {}
+    if threshold is None or not exports:
+        return frozenset()
+    slots = sorted(
+        (s for s in (request.price_curve or request.price_slots) if math.isfinite(float(s.price))),
+        key=lambda s: s.start,
+    )
+    starts = [s.start for s in slots]
+    risk = set()
+    for i in sorted(request.intervals, key=lambda x: x.start):
+        if i.start < request.now:
+            continue
+        k = bisect_right(starts, i.start) - 1
+        if k < 0 or not slots[k].start <= i.start < slots[k].end:
+            break
+        price = exports.get(slots[k].start)
+        if price is not None and i.solar_kwh > i.grid_load_kwh and price <= threshold:
+            risk.add(i.start)
+    return frozenset(risk)
+
+
+def _room(request, groups, model, soc_step):
+    """(risk slot starts, {slot start: room level}, {slot start: charge cap}).
+
+    Risk slots (any quarter at risk) do not charge from the grid, except for
+    the guaranteed floor. Before a risk, the room option stops at
+    L = full - the sun the next risk day's quarters can store + what the house
+    drains up to them, never under the reserve (``room_floor_kwh``); rounded up
+    to the whole-percent reading the controller stops at. Where room is
+    offered anywhere, charges before a risk are capped at L too (rounded down),
+    except a negative-price charge with negative-price charging on: filling a
+    cheap slot to export it as "room" is arbitrage with the sale off (stage 0.3).
+    """
+    threshold = request.room_threshold
+    if threshold is None:
+        return frozenset(), {}, {}
+    at_risk = risk_quarters(request)
+    flat = [i for i in sorted(request.intervals, key=lambda x: x.start) if i.start >= request.now]
+    risk_slots = set()
+    marks = []  # (interval start, Quarter, at risk), in the groups' order
+    for slot, quarters, _ends in groups:
+        for q in quarters:
+            start = flat[len(marks)].start
+            marks.append((start, q, start in at_risk))
+            if start in at_risk:
+                risk_slots.add(slot.start)
+    if request.floor_kwh <= _TOL:
+        for slot, quarters, _ends in groups:
+            if slot.start in risk_slots:
+                quarters[:] = [dataclasses.replace(q, grid_charge_allowed=False) for q in quarters]
+    cap = model.cap
+    reserve = min(max(0.0, float(request.room_floor_kwh or 0.0)), cap)
+
+    def on_grid(x, up):
+        if soc_step <= 0:
+            return x
+        steps = (model.floor_kwh + x) / soc_step
+        steps = math.ceil(steps - 1e-6) if up else math.floor(steps + 1e-6)
+        return min(cap, max(0.0, steps * soc_step - model.floor_kwh))
+
+    levels = {}
+    index = 0
+    for slot, quarters, _ends in groups:
+        index += len(quarters)
+        if slot.start in risk_slots:
+            continue
+        first = next((j for j in range(index, len(marks)) if marks[j][2]), None)
+        if first is None:
+            continue
+        day = marks[first][0].date()
+        storable = sum(
+            min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh) * model.eff
+            for start, q, risky in marks[first:] if risky and start.date() == day
+        )
+        drain = sum(
+            min(max(0.0, q.house_kwh - q.solar_kwh), q.discharge_kwh) / model.eff
+            for _start, q, _r in marks[index:first]
+        )
+        levels[slot.start] = (slot, min(cap, max(reserve, cap - storable + drain)))
+    room_prices = request.room_export_prices or {}
+    room = {
+        start: on_grid(level, True)
+        for start, (slot, level) in levels.items()
+        if request.room_power_kw > _TOL and start in room_prices and room_prices[start] > threshold
+    }
+    caps = {
+        start: on_grid(level, False)
+        for start, (slot, level) in levels.items()
+        if room and not (request.negative_price_charging and slot.price < 0)
+    }
+    return frozenset(risk_slots), room, caps
 
 
 def _published_quota(model, soc_step, e, target, stored):

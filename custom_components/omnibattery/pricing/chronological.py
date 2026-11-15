@@ -153,6 +153,10 @@ class ChronologicalPlan:
     exports: tuple[PriceSlot, ...] = ()
     # (slot, net export kW) the plan sells at (step 7).
     sales: tuple[tuple[PriceSlot, float], ...] = ()
+    # (slot, net export kW, usable kWh it stops at) the plan makes room at,
+    # and the slots with a risk quarter (Smart Pre-Discharge).
+    room_sales: tuple[tuple[PriceSlot, float, float], ...] = ()
+    risk_slots: tuple[PriceSlot, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -258,6 +262,18 @@ class ChronologicalEvaluationRequest:
     # A day closed by an earlier plan (its balance needed the grid): no delay
     # export before this time (the next midnight), as the module's daily latch.
     solar_delay_closed_until: datetime | None = None
+    # Smart Pre-Discharge on: the Negative Injection Threshold (None = off).
+    # A quarter whose sun exceeds the house and whose export price (read from
+    # ``export_prices``; a slot missing from it is no risk) is at or below it
+    # is a risk (``optimizer.risk_quarters``). Before a risk a slot may "make
+    # room": the grid at -``room_power_kw`` (0 = self-consumption, no option)
+    # down to the room it needs, never under ``room_floor_kwh`` (stored kWh at
+    # the Pre-discharge Reserve SOC), battery energy priced at
+    # ``room_export_prices`` (a slot missing from it: no option there).
+    room_threshold: float | None = None
+    room_power_kw: float = 0.0
+    room_floor_kwh: float = 0.0
+    room_export_prices: Mapping[datetime, float] | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

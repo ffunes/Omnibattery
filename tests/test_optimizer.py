@@ -579,3 +579,356 @@ def test_a_negative_price_charge_counts_only_its_grid_energy_as_zero():
     req = _request(prices, house=[0.05] * 2 + [0.4] * 6, solar=[0.8] * 2 + [0.0] * 6, usable=0.0,
                    room=2.0, negative=False, power=5.0)
     assert optimize_charge(req).plan.allocations
+
+
+# --- Smart Pre-Discharge in the optimizer: "make room" ----------------------
+# (docs/plans/predescarga-en-el-optimizador.md). A risk quarter: sun above the
+# house and an export price at or below the threshold (read from the export
+# map; a slot missing from it is no risk). Before a risk the plan may export
+# battery energy ("make room") down to L = full - the risk sun the battery can
+# store + what the house drains before the risk, never below the reserve.
+
+def _room_day(*, usable=9.0, morning=(0.30, 0.20), house_morning=0.1, solar_morning=0.0, risk_sun=1.0,
+              risk=(-0.02, -0.05), evening=(0.30, 0.05), threshold=0.0, power_kw=2.5, floor_kwh=0.0,
+              room_prices=None, n=8):
+    """n morning quarters, n risk quarters, n evening quarters on a 10 kWh
+    battery with 9 kWh usable (10 % floor), 2.5 kW both ways."""
+    import dataclasses
+    prices = [morning[0]] * n + [risk[0]] * n + [evening[0]] * n
+    exports = [morning[1]] * n + [risk[1]] * n + [evening[1]] * n
+    req = _request(prices, house=[house_morning] * n + [0.1] * n + [0.4] * n,
+                   solar=[solar_morning] * n + [risk_sun] * n + [0.0] * n,
+                   cap=10.0, soc=10.0 + usable * 10.0, usable=usable, room=9.0, power=2.5, discharge=2.5)
+    starts = [s.start for s in req.price_slots]
+    return dataclasses.replace(
+        req, export_prices=dict(zip(starts, exports)), room_threshold=threshold, room_power_kw=power_kw,
+        room_floor_kwh=floor_kwh,
+        room_export_prices=dict(zip(starts, exports)) if room_prices is None else room_prices,
+    )
+
+
+def _storable_risk_ac(request):
+    """The risk sun the battery could take, AC side, written apart."""
+    exports = request.export_prices
+    total = 0.0
+    for i in request.intervals:
+        s = next(s for s in request.price_slots if s.start <= i.start < s.end)
+        if s.start in exports and exports[s.start] <= request.room_threshold and i.solar_kwh > i.grid_load_kwh:
+            total += min(i.solar_kwh - i.grid_load_kwh, request.effective_power_kw * 0.25)
+    return total
+
+
+def _replay_room(request, plan):
+    """The controller: slot quotas as in ``_replay``; a room order holds the
+    grid at -kW until the battery reaches the order's level, then normal (the
+    battery covers the house); sun beyond kW charges it. Returns (cost, AC
+    exported in room slots, energy after each interval)."""
+    m = BatteryModel(capacity_kwh=request.fleet_capacity_kwh, round_trip_efficiency=0.85,
+                     floor_kwh=request.fleet_capacity_kwh * request.fleet_soc_pct / 100
+                     - request.usable_initial_kwh,
+                     usable_kwh=request.usable_initial_kwh + request.headroom_kwh,
+                     soc_resolution_pct=request.soc_resolution_pct)
+    step = request.fleet_capacity_kwh * request.soc_resolution_pct / 100
+    quota = {a.slot: (a.planned_battery_kwh, a.to_slot_end) for a in plan.allocations}
+    rooms = {s: (kw, level) for s, kw, level in plan.room_sales}
+    e, total, target, done, prices, sold, path = request.usable_initial_kwh, 0.0, {}, set(), [], 0.0, []
+    for i in request.intervals:
+        s = next(s for s in request.price_slots if s.start <= i.start < s.end)
+        prices.append(s.price)
+        h = (i.end - i.start).total_seconds() / 3600
+        net = i.grid_load_kwh - i.solar_kwh
+        if s in rooms:
+            kw, level = rooms[s]
+            flow = net + kw * h
+            if flow >= 0:
+                out = min(max(0.0, e - level) * m.eff, flow, request.discharge_kw * h)
+                e -= out / m.eff
+                extra = min(max(0.0, net - out), e * m.eff, request.discharge_kw * h - out)
+                e -= extra / m.eff
+                grid = net - out - extra
+            else:
+                st = min(-flow, request.effective_power_kw * h, (m.cap - e) / m.eff)
+                e += st * m.eff
+                grid = net + st
+            total += max(grid, 0) * s.price - max(-grid, 0) * request.room_export_prices[s.start]
+            sold += max(-grid, 0)
+            path.append(e)
+            continue
+        q = Quarter(i.grid_load_kwh, i.solar_kwh, s.price, (request.export_prices or {}).get(s.start, 0.0),
+                    True, request.effective_power_kw * h, request.discharge_kw * h)
+        t = None
+        if s in quota and s not in done:
+            if s not in target:
+                kwh, to_end = quota[s]
+                target[s] = float(m.slot_target(e, kwh + (step if to_end else 0.0)))
+            t = target[s]
+            if t - e <= m.charge_rate(q) + 1e-9:
+                done.add(s)
+        e1, c = m.normal_step(q, e, t)
+        total += float(c)
+        e = float(e1)
+        path.append(e)
+    end = min((p for p in prices if p > 0), default=0.0) * m.eff
+    return total - end * e, sold, path
+
+
+def test_a_full_battery_makes_room_before_a_negative_export_risk():
+    import dataclasses
+    req = _room_day()
+    plan = optimize_charge(req).plan
+    starts = {s.start for s, _kw, _l in plan.room_sales}
+    assert starts and all(t < req.price_slots[8].start for t in starts)
+    cost, _sold, _path = _replay_room(req, plan)
+    assert cost == pytest.approx(plan.optimizer_cost, abs=1e-4)
+    off = optimize_charge(dataclasses.replace(req, room_threshold=None)).plan
+    assert plan.optimizer_cost < off.optimizer_cost - 0.01
+    assert {s.start for s in plan.risk_slots} == {s.start for s in req.price_slots[8:16]}
+
+
+def test_no_room_when_the_risk_sun_fits():
+    req = _room_day(usable=4.0, risk_sun=0.4)
+    assert not optimize_charge(req).plan.room_sales
+
+
+def test_room_never_takes_the_battery_under_the_reserve():
+    # The morning house is covered by its sun: only the room order moves the
+    # battery. Reserve 7 kWh: it stops at 7.0 (80 %, on the whole percent).
+    req = _room_day(house_morning=0.1, solar_morning=0.1, floor_kwh=7.0, risk_sun=2.0)
+    plan = optimize_charge(req).plan
+    assert plan.room_sales
+    assert all(level == pytest.approx(7.0) for _s, _kw, level in plan.room_sales)
+    _c, sold, path = _replay_room(req, plan)
+    assert min(path[:8]) == pytest.approx(7.0, abs=1e-6)
+    assert sold == pytest.approx(2.0 * math.sqrt(0.85), abs=1e-3)
+
+
+def test_room_never_exports_more_than_the_risk_sun_that_would_not_fit():
+    # Morning export 0.25 against a cheap end value: without the cap the
+    # option would sell the whole battery (arbitrage with the sale off).
+    req = _room_day(morning=(0.30, 0.25), evening=(0.22, 0.05), risk_sun=0.4)
+    plan = optimize_charge(req).plan
+    assert plan.room_sales
+    _c, sold, _path = _replay_room(req, plan)
+    assert sold <= _storable_risk_ac(req) + 1e-6
+
+
+def test_the_cap_counts_what_the_house_drains_before_the_risk():
+    # Full the evening before, dear export that evening, the risk tomorrow
+    # morning: the night drains the battery by itself, so the room order
+    # leaves that energy for the night (a cap without it sells it).
+    import dataclasses
+    n = 8
+    prices = [0.30] * n + [0.20] * (2 * n) + [-0.02] * (2 * n)
+    exports = [0.25] * n + [0.05] * (2 * n) + [-0.05] * (2 * n)
+    house = [0.1] * n + [0.25] * (2 * n) + [0.1] * (2 * n)
+    solar = [0.0] * (3 * n) + [1.0] * (2 * n)
+    req = _request(prices, house=house, solar=solar, cap=10.0, soc=100.0, usable=9.0, room=9.0,
+                   power=2.5, discharge=2.5)
+    starts = [s.start for s in req.price_slots]
+    req = dataclasses.replace(req, export_prices=dict(zip(starts, exports)), room_threshold=0.0,
+                              room_power_kw=2.5, room_export_prices=dict(zip(starts, exports)))
+    plan = optimize_charge(req).plan
+    eff = math.sqrt(0.85)
+    storable = _storable_risk_ac(req) * eff
+    drain = sum(min(h - s, 2.5 * 0.25) / eff for h, s in zip(house[n:3 * n], solar[n:3 * n]))
+    assert drain > 1.0
+    assert plan.room_sales
+    for _s, _kw, level in plan.room_sales:
+        assert level >= 9.0 - storable + drain - 0.1 - 1e-6  # within one whole-percent step
+
+
+def test_no_room_at_a_battery_price_at_or_below_the_threshold():
+    req = _room_day(threshold=0.10, morning=(0.30, 0.08))
+    assert not optimize_charge(req).plan.room_sales  # room there frees sun worth no more
+
+
+def test_inside_the_risk_the_plan_neither_holds_nor_exports_nor_sells():
+    import dataclasses
+    req = _room_day(risk=(0.40, 0.30), threshold=0.35, room_prices={})
+    req = dataclasses.replace(req, hold_allowed=True, export_choice_allowed=True, sell_allowed=True,
+                              sell_power_kw=2.5, battery_export_prices=dict(req.export_prices))
+    plan = optimize_charge(req).plan
+    risk = {s.start for s in plan.risk_slots}
+    assert risk
+    assert not risk & {s.start for s in plan.holds}
+    assert not risk & {s.start for s in plan.exports}
+    assert not risk & {s.start for s, _kw in plan.sales}
+
+
+def test_a_risk_quarter_needs_its_export_price():
+    import dataclasses
+    req = _room_day()
+    missing = {t: p for t, p in req.export_prices.items() if t != req.price_slots[10].start}
+    plan = optimize_charge(dataclasses.replace(req, export_prices=missing)).plan
+    assert req.price_slots[10] not in plan.risk_slots
+    assert req.price_slots[9] in plan.risk_slots
+
+
+def test_risk_slots_do_not_charge_from_the_grid_except_for_the_floor():
+    # Paid to charge inside the risk: the plan leaves the risk to the sun.
+    req = _room_day(usable=1.0, risk=(-0.10, -0.12), risk_sun=0.3)
+    plan = optimize_charge(req).plan
+    risk = set(plan.risk_slots)
+    assert risk and not risk & {a.slot for a in plan.allocations}
+
+
+def _plan_key(plan):
+    return (
+        [(a.slot.start, round(a.planned_battery_kwh, 6), a.to_slot_end) for a in plan.allocations],
+        [round(x, 6) for _t, x in plan.trajectory], round(plan.optimizer_cost, 9),
+    )
+
+
+def test_pre_discharge_off_leaves_the_plan_as_today():
+    import dataclasses
+    req = _room_day()
+    today = dataclasses.replace(req, room_threshold=None, room_power_kw=0.0, room_floor_kwh=0.0,
+                                room_export_prices=None)
+    off = optimize_charge(dataclasses.replace(req, room_threshold=None)).plan
+    assert _plan_key(off) == _plan_key(optimize_charge(today).plan)
+    assert not off.room_sales and not off.risk_slots
+
+
+def test_self_consumption_power_offers_no_room():
+    import dataclasses
+    req = _room_day(power_kw=0.0)
+    plan = optimize_charge(req).plan
+    assert not plan.room_sales
+    assert _plan_key(plan) == _plan_key(optimize_charge(dataclasses.replace(req, room_export_prices=None)).plan)
+
+
+def test_making_room_buys_no_more_grid_before_the_risk_than_without_it():
+    # A cheap hour before a dear morning, battery half full: with the option
+    # the plan must not fill at 0.05 to "make room" at 0.25.
+    import dataclasses
+    n = 8
+    prices = [0.05] * 4 + [0.30] * n + [-0.02] * n + [0.22] * n
+    exports = [0.02] * 4 + [0.25] * n + [-0.05] * n + [0.10] * n
+    req = _request(prices, house=[0.075] * 4 + [0.075] * n + [0.1] * n + [0.15] * n,
+                   solar=[0.0] * 4 + [0.075] * n + [0.35] * n + [0.05] * n,
+                   cap=10.0, soc=80.0, usable=7.0, room=9.0, power=2.5, discharge=2.5)
+    starts = [s.start for s in req.price_slots]
+    req = dataclasses.replace(req, export_prices=dict(zip(starts, exports)), room_threshold=0.0,
+                              room_power_kw=2.5, room_export_prices=dict(zip(starts, exports)))
+    on = optimize_charge(req).plan
+    off = optimize_charge(dataclasses.replace(req, room_threshold=None)).plan
+    bought = lambda p: sum(a.planned_battery_kwh for a in p.allocations if a.slot.price > 0)
+    assert bought(on) <= bought(off) + 1e-6
+
+
+def test_a_negative_price_charge_before_the_risk_is_not_capped():
+    # Paid to charge at night (switch on): the cap would leave that money on
+    # the table (stage 0.3d); the night charge is the one the plan makes anyway.
+    import dataclasses
+    n = 8
+    prices = [-0.10] * n + [0.30] * n + [-0.01] * n + [0.22] * n
+    exports = [-0.12] * n + [0.25] * n + [-0.02] * n + [0.10] * n
+    req = _request(prices, house=[0.075] * n + [0.075] * n + [0.1] * n + [0.15] * n,
+                   solar=[0.0] * n + [0.075] * n + [0.35] * n + [0.0] * n,
+                   cap=10.0, soc=55.0, usable=4.5, room=9.0, power=2.5, discharge=2.5)
+    starts = [s.start for s in req.price_slots]
+    req = dataclasses.replace(req, export_prices=dict(zip(starts, exports)), room_threshold=0.0,
+                              room_power_kw=2.5, room_export_prices=dict(zip(starts, exports)))
+    on = optimize_charge(req).plan
+    off = optimize_charge(dataclasses.replace(req, room_threshold=None)).plan
+    night = lambda p: sum(a.planned_battery_kwh for a in p.allocations if a.slot.start < starts[n])
+    assert night(on) == pytest.approx(night(off), abs=0.05)
+    assert on.optimizer_cost <= off.optimizer_cost + 1e-6
+
+
+def _ledger_request(usable, risk_sun):
+    """10 kWh, 10 % floor, 2.5 kW: 2 quarters at 0.30 (export 0.20), 2 risk
+    quarters (import -0.02, export -0.05, sun ``risk_sun``), 1 evening quarter
+    (house 0.5, import 0.30)."""
+    import dataclasses
+    prices = [0.30, 0.30, -0.02, -0.02, 0.30]
+    exports = [0.20, 0.20, -0.05, -0.05, 0.05]
+    req = _request(prices, house=[0.0, 0.0, 0.0, 0.0, 0.5], solar=[0.0, 0.0, risk_sun, risk_sun, 0.0],
+                   cap=10.0, soc=10.0 + usable * 10.0, usable=usable, room=9.0, power=2.5, discharge=2.5)
+    starts = [s.start for s in req.price_slots]
+    return dataclasses.replace(req, export_prices=dict(zip(starts, exports)), room_threshold=0.0,
+                               room_power_kw=2.5, room_export_prices=dict(zip(starts, exports)))
+
+
+EFF_ = math.sqrt(0.85)
+END_ = 0.30 * EFF_  # end value per stored kWh: the cheapest positive import x eff
+
+
+@pytest.mark.parametrize(
+    "usable, risk_sun, room, ends, cost",
+    [
+        # Full: L = 9 - 2 x 0.625 x eff = 7.848 -> 7.9 (whole percent up).
+        # Room 1.1 kWh = 1.1 x eff AC sold at 0.20; the risk stores 1.1 back
+        # (1.1 / eff AC), the rest of its 2.0 kWh of sun spills at -0.05; the
+        # evening takes 0.5 / eff.
+        (9.0, 1.0, 1.1 * EFF_, (7.9, 7.9, 7.9 + 0.625 * EFF_, 9.0, 9.0 - 0.5 / EFF_),
+         -0.20 * 1.1 * EFF_ + 0.05 * (2.0 - 1.1 / EFF_) - END_ * (9.0 - 0.5 / EFF_)),
+        # Half: L = 7.9 is above the battery: no room. The risk stores 0.625 AC
+        # a quarter (its charge power) and spills 0.375 of each.
+        (5.0, 1.0, 0.0, (5.0, 5.0, 5.0 + 0.625 * EFF_, 5.0 + 1.25 * EFF_, 5.0 + 1.25 * EFF_ - 0.5 / EFF_),
+         0.05 * 0.75 - END_ * (5.0 + 1.25 * EFF_ - 0.5 / EFF_)),
+        # Too little sun for the room it has: L = 9 - 0.6 x eff = 8.447 -> 8.5,
+        # above the 8.0 stored: no room, nothing spills.
+        (8.0, 0.3, 0.0, (8.0, 8.0, 8.0 + 0.3 * EFF_, 8.0 + 0.6 * EFF_, 8.0 + 0.6 * EFF_ - 0.5 / EFF_),
+         -END_ * (8.0 + 0.6 * EFF_ - 0.5 / EFF_)),
+    ],
+    ids=["full", "half", "sun-fits"],
+)
+def test_the_room_ledger_by_hand(usable, risk_sun, room, ends, cost):
+    req = _ledger_request(usable, risk_sun)
+    plan = optimize_charge(req).plan
+    got, sold, path = _replay_room(req, plan)
+    assert sold == pytest.approx(room, abs=1e-6)
+    assert path[1:] == pytest.approx(list(ends[1:]), abs=1e-6)
+    assert plan.optimizer_cost == pytest.approx(cost, abs=1e-6)
+    assert got == pytest.approx(cost, abs=1e-6)
+    # Every kWh: sun in = stored + spilled; the house is the battery's.
+    spilled = 2 * risk_sun - (ends[3] - ends[1]) / EFF_
+    assert spilled == pytest.approx(2 * risk_sun - min(2 * risk_sun, 1.25, (9.0 - ends[1]) / EFF_), abs=1e-6)
+
+
+def test_the_room_is_the_best_a_search_finds():
+    """Short version of barrido/opt_precision_room.py: random small nights
+    against every room order per slot, the cap computed apart (next risk
+    day's storable sun, the house drain up to it, the reserve, whole percent
+    up). No grid charge (ceiling -1)."""
+    import dataclasses
+
+    rng = random.Random(7)
+    eff = math.sqrt(0.85)
+    for _night in range(15):
+        n_pre, n_risk, n_post = rng.choice((3, 4)), rng.choice((3, 4)), rng.choice((2, 3))
+        n = n_pre + n_risk + n_post
+        prices = ([rng.choice((0.10, 0.20, 0.30)) for _ in range(n_pre)]
+                  + [rng.choice((-0.05, -0.02)) for _ in range(n_risk)]
+                  + [rng.choice((0.20, 0.30)) for _ in range(n_post)])
+        exports = ([rng.choice((0.0, 0.05, 0.10, 0.25)) for _ in range(n_pre)]
+                   + [rng.choice((-0.08, -0.05, -0.01)) for _ in range(n_risk)] + [0.05] * n_post)
+        house = [rng.choice((0.0, 0.05, 0.1, 0.2)) for _ in range(n)]
+        solar = [0.0] * n_pre + [rng.choice((0.4, 0.8, 1.2)) for _ in range(n_risk)] + [0.0] * n_post
+        usable = rng.choice((2.0, 3.5, 4.0, 4.5))
+        req = _request(prices, house=house, solar=solar, cap=5.0, soc=(0.5 + usable) * 20.0, usable=usable,
+                       room=4.5, power=2.5, discharge=2.5, threshold=-1.0)
+        starts = [s.start for s in req.price_slots]
+        req = dataclasses.replace(req, export_prices=dict(zip(starts, exports)), room_threshold=0.0,
+                                  room_power_kw=2.5, room_floor_kwh=rng.choice((0.0, 1.5)),
+                                  room_export_prices=dict(zip(starts, exports)))
+        storable = sum(min(s - h, 0.625) * eff for s, h in zip(solar, house) if s > h)
+        levels = {}
+        for k in range(n_pre):
+            drain = sum(min(h - s, 0.625) / eff for s, h in zip(solar[k + 1:n_pre], house[k + 1:n_pre]) if h > s)
+            level = min(4.5, max(req.room_floor_kwh, 4.5 - storable + drain))
+            levels[req.price_slots[k]] = math.ceil((0.5 + level) / 0.05 - 1e-6) * 0.05 - 0.5
+        plan = optimize_charge(req).plan
+        assert {s: l for s, _kw, l in plan.room_sales} == pytest.approx(
+            {s: levels[s] for s, _kw, _l in plan.room_sales}, abs=1e-9)
+        best = math.inf
+        offered = [s for s in req.price_slots[:n_pre] if req.room_export_prices[s.start] > 0.0]
+        for combo in itertools.product((None, 2.5, 1.25), repeat=len(offered)):
+            fake = type("P", (), {})()
+            fake.allocations = []
+            fake.room_sales = [(s, kw, levels[s]) for s, kw in zip(offered, combo) if kw]
+            best = min(best, _replay_room(req, fake)[0])
+        got = _replay_room(req, plan)[0]
+        assert got == pytest.approx(plan.optimizer_cost, abs=1e-4)
+        assert got <= best + 0.0007
