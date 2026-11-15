@@ -1,11 +1,18 @@
 blueprint:
   name: "Omnibattery - Peak Shaving Limit Sync"
   description: >
-    Synchronizes Omnibattery's Capacity Protection Limit with the current
-    monthly peak measurement. The measured kW value is converted to W before
-    updating the number entity.
+    Version 2 (Omnibattery 2.0.0). Writes the current monthly peak into
+    Omnibattery's Maximum grid import, the one grid import cap: it limits
+    grid charging and makes the battery cover the house above it. Writes
+    max(minimum peak, monthly peak) minus the margin, never outside the
+    entity's own range, and nothing while the peak sensor has no value.
+    The measured kW value is converted to W. Coming from version 1, re-import
+    the blueprint and pick the Maximum grid import entity again: the old
+    Capacity Protection Limit entity no longer exists.
   domain: automation
   source_url: "https://github.com/ffunes/omnibattery/blob/main/blueprints/peak_shaving_limit_sync_blueprint.yaml"
+  homeassistant:
+    min_version: "2024.10.0"
 
   input:
     monthly_peak_sensor:
@@ -18,48 +25,84 @@ blueprint:
           filter:
             domain: sensor
 
-    capacity_protection_limit:
-      name: "Capacity Protection Limit"
-      description: "Omnibattery Capacity Protection Limit number entity, in W."
-      default: number.omnibattery_capacity_protection_limit
+    max_grid_import:
+      name: "Maximum Grid Import"
+      description: "Omnibattery's Maximum grid import number entity, in W."
       selector:
         entity:
           filter:
             domain: number
+            integration: omnibattery
+
+    minimum_peak:
+      name: "Minimum peak"
+      description: >
+        Never write less than this. Capacity tariffs bill at least a minimum
+        peak (2.5 kW in Flanders), and the meter's monthly peak restarts at 0
+        on the 1st, which would otherwise leave the battery covering the
+        whole house and block grid charging.
+      default: 2500
+      selector:
+        number:
+          min: 0
+          max: 20000
+          step: 100
+          unit_of_measurement: W
+          mode: box
+
+    margin:
+      name: "Margin"
+      description: >
+        Watts kept below the monthly peak, so the battery starts covering the
+        house a little before the peak is reached.
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 2000
+          step: 25
+          unit_of_measurement: W
+          mode: box
 
 variables:
   monthly_peak_sensor: !input monthly_peak_sensor
-  capacity_protection_limit: !input capacity_protection_limit
+  max_grid_import: !input max_grid_import
+  minimum_peak: !input minimum_peak
+  margin: !input margin
+  target_w: >
+    {% set unit = state_attr(monthly_peak_sensor, 'unit_of_measurement') %}
+    {% set peak = states(monthly_peak_sensor) | float(none) %}
+    {% set multiplier = 1000 if unit == 'kW' else 1 if unit == 'W' else none %}
+    {% if peak is none or multiplier is none %}
+      none
+    {% else %}
+      {% set low = state_attr(max_grid_import, 'min') | float(500) %}
+      {% set high = state_attr(max_grid_import, 'max') | float(20000) %}
+      {% set value = [minimum_peak | float(0), peak * multiplier] | max - margin | float(0) %}
+      {{ ([low, [high, value] | min] | max) | int }}
+    {% endif %}
 
-trigger:
-  - platform: state
+triggers:
+  - trigger: state
     entity_id: !input monthly_peak_sensor
 
-  - platform: state
-    entity_id: !input capacity_protection_limit
+  - trigger: state
+    entity_id: !input max_grid_import
 
-  - platform: time_pattern
+  - trigger: time_pattern
     seconds: "/15"
 
-condition:
+conditions:
   - condition: template
     value_template: >
-      {% set unit = state_attr(monthly_peak_sensor, 'unit_of_measurement') %}
-      {% set peak = states(monthly_peak_sensor) | float(none) %}
-      {% set multiplier = 1000 if unit == 'kW' else 1 if unit == 'W' else none %}
-      {{ peak is not none
-         and multiplier is not none
-         and states(capacity_protection_limit) | int(0) != (peak * multiplier) | int(0) }}
+      {{ target_w is number
+         and states(max_grid_import) | int(-1) != target_w }}
 
-action:
-  - service: number.set_value
+actions:
+  - action: number.set_value
     target:
-      entity_id: !input capacity_protection_limit
+      entity_id: !input max_grid_import
     data:
-      value: >
-        {% set unit = state_attr(monthly_peak_sensor, 'unit_of_measurement') %}
-        {% set peak = states(monthly_peak_sensor) | float(0) %}
-        {% set multiplier = 1000 if unit == 'kW' else 1 %}
-        {{ (peak * multiplier) | int(0) }}
+      value: "{{ target_w }}"
 
 mode: single

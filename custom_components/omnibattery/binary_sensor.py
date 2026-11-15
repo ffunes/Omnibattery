@@ -185,7 +185,7 @@ class CapacityProtectionStatusSensor(BinarySensorEntity):
     # While protection is active these numerics change every poll; keep the
     # on/off state + action/threshold in history, drop the per-cycle churn.
     _unrecorded_attributes = frozenset({
-        "avg_soc", "peak_limit_w", "estimated_house_load_w",
+        "avg_soc", "estimated_house_load_w",
         "original_target_w", "adjusted_target_w",
     })
 
@@ -220,7 +220,6 @@ class CapacityProtectionStatusSensor(BinarySensorEntity):
             ),
             "avg_soc": status.get("avg_soc"),
             "soc_threshold": status.get("soc_threshold"),
-            "peak_limit_w": status.get("peak_limit"),
             "estimated_house_load_w": status.get("estimated_house_load"),
             "action": status.get("action"),
             "original_target_w": status.get("original_target"),
@@ -622,7 +621,6 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
             attrs["solar_forecast_source"] = self.controller.solar_forecast_source
 
         attrs["max_contracted_power"] = self.controller.max_contracted_power
-        attrs["icp_excluded_protection_w"] = round(getattr(self.controller, "_icp_excluded_protection_w", 0.0))
 
         # Home consumption diagnostics: home power is always derived
         # (grid + battery AC + solar); the household sensor was removed.

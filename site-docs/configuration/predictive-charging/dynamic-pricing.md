@@ -57,7 +57,7 @@ Optional controls in the **Control** tab solve different problems:
 | No schedule appears | Future prices are unavailable or the wrong provider entity was selected | `price_data_status`, provider integration, and price-sensor attributes |
 | Cheap periods appear but no charge starts | The calendar is informational, no deficit remains, or the per-period quota is already met | `charging_needed`, `slot_energy_targets_kwh`, and battery target SOC |
 | The cheapest period was skipped | It occurs after the energy deadline, exceeds the price ceiling, or fails the arbitrage margin | `energy_deadlines`, active price controls, and `total_shortfall_kwh` |
-| The schedule reports a shortfall | Eligible periods cannot supply enough energy before it is needed | Price ceiling, charging power, battery capacity, phase and contracted-power limits |
+| The schedule reports a shortfall | Eligible periods cannot supply enough energy before it is needed | Price ceiling, charging power, battery capacity, phase and Maximum grid import limits |
 | Tomorrow’s cheaper periods are missing | The provider has not published them or the active period is allowed to finish before replanning | Provider data and **Re-evaluate Predictive Charging** after publication |
 | A price feature is enabled but inactive | Its required forecast, profile, export price, battery capacity, or grid reading is unavailable | The feature’s status binary sensor and reason attribute |
 | Solar surplus exports unexpectedly | **Surplus Price Hold** selected a later, cheaper absorption period | **Surplus Price Hold Status** and its next release time |
@@ -124,7 +124,7 @@ Optional controls in the **Control** tab solve different problems:
     opportunistic space = current free space − remaining solar reserve
     ```
 
-    A guaranteed-minimum-SOC requirement is the safety exception. Missing solar data makes anti-curtailment fail safe but does not cancel an otherwise valid negative import-price opportunity. Contracted power, battery limits, manual control, backup state, availability, and other safety blockers still apply.
+    A guaranteed-minimum-SOC requirement is the safety exception. Missing solar data makes anti-curtailment fail safe but does not cancel an otherwise valid negative import-price opportunity. Maximum grid import, battery limits, manual control, backup state, availability, and other safety blockers still apply.
 
     ### Smart Pre-discharge / Anti-curtailment
 

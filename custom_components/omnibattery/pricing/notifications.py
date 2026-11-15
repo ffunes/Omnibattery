@@ -164,24 +164,15 @@ def _horizon_text(context: dict, *, with_for: bool = False) -> str:
 def _max_charge_power_str(
     max_contracted_power,
     max_charge_capacity=None,
-    peak_limit=None,
     *,
     contracted_label: str = "contracted",
 ) -> str:
-    """Render the effective grid-charge ceiling and the limits behind it.
-
-    Peak shaving caps grid import, so it caps grid charging too (see
-    ``_predictive_charge_ceiling``); it must appear here or the notification
-    promises a power the controller will never command.
-    """
+    """Render the effective grid-charge ceiling and the limits behind it."""
     limits = [max_contracted_power]
     parts = [f"{contracted_label}: {max_contracted_power:g}W"]
     if max_charge_capacity is not None:
         limits.append(max_charge_capacity)
         parts.append(f"batteries: {max_charge_capacity:g}W")
-    if peak_limit:
-        limits.append(peak_limit)
-        parts.append(f"peak limit: {peak_limit:g}W")
     return f"{min(limits):g}W (" + ", ".join(parts) + ")"
 
 
@@ -216,7 +207,6 @@ def format_predictive_notification_message(
     *,
     max_contracted_power,
     max_charge_capacity,
-    peak_limit=None,
     charging_time_slot,
 ) -> tuple[str, str]:
     """Format notification title and message from decision data.
@@ -242,7 +232,7 @@ def format_predictive_notification_message(
     solar_str = f"{solar_forecast:.2f} kWh" if solar_forecast is not None else "unavailable"
     forecast_lines = _build_forecast_lines(context, solar_str, consumption_for_horizon)
     power_str = _max_charge_power_str(
-        max_contracted_power, max_charge_capacity, peak_limit
+        max_contracted_power, max_charge_capacity
     )
 
     # Safe mode: no solar forecast
@@ -473,7 +463,6 @@ def format_dynamic_pricing_notification(
     arbitrage_ceiling=None,
     max_contracted_power,
     max_charge_capacity,
-    peak_limit=None,
     plan_orders=None,
     arbitrage_margin=None,
 ) -> tuple[str, str]:
@@ -643,7 +632,6 @@ def format_dynamic_pricing_notification(
                 "Max charge power: " + _max_charge_power_str(
                     max_contracted_power,
                     max_charge_capacity,
-                    peak_limit,
                     contracted_label="ICP",
                 )
             )
@@ -732,7 +720,6 @@ def format_dynamic_pricing_notification(
                 "Max charge power: " + _max_charge_power_str(
                     max_contracted_power,
                     max_charge_capacity,
-                    peak_limit,
                     contracted_label="ICP",
                 )
                 + _max_discharge_power_line(decision_data)
@@ -747,7 +734,6 @@ def format_slot_start_notification(
     *,
     unit: str,
     max_contracted_power,
-    peak_limit=None,
 ) -> tuple[str, str]:
     """Format the 'cheap pricing slot started' notification.
 
@@ -767,7 +753,7 @@ def format_slot_start_notification(
 
     title = f"Predictive Charging STARTED ({slot.price:.4f} {unit})"
     message = (
-        f"⚡ Charging at max {min(max_contracted_power, peak_limit) if peak_limit else max_contracted_power:g}W\n"
+        f"⚡ Charging at max {max_contracted_power:g}W\n"
         f"Slot: {slot.start.strftime('%H:%M')}-{slot.end.strftime('%H:%M')}\n"
         f"{next_slot_str} · {remaining_str}"
     )

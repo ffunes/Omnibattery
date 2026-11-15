@@ -626,10 +626,8 @@ WEEKDAY_MAP = {
 CONF_CAPACITY_PROTECTION_ENABLED = "capacity_protection_enabled"
 CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES = "capacity_protection_excluded_devices"
 CONF_CAPACITY_PROTECTION_SOC_THRESHOLD = "capacity_protection_soc_threshold"
-CONF_CAPACITY_PROTECTION_LIMIT = "capacity_protection_limit"
 
 DEFAULT_CAPACITY_PROTECTION_SOC = 30
-DEFAULT_CAPACITY_PROTECTION_LIMIT = 2500
 
 # PD Controller Advanced Configuration Keys
 CONF_PD_KP = "pd_controller_kp"
@@ -1234,15 +1232,16 @@ CONFIG_NUMBER_DEFINITIONS = [
         "power_direction": "discharge",
     },
     {
+        # The one grid import cap (#506): always present, it limits grid
+        # charging and makes the battery cover the import above it.
         "key": CONF_MAX_CONTRACTED_POWER,
-        "name": "Max Contracted Power",
-        "min": 1000,
+        "name": "Maximum Grid Import",
+        "min": 500,
         "max": 20000,
         "step": 100,
         "unit": "W",
         "default": 7000,
         "icon": "mdi:transmission-tower",
-        "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
     },
     {
         "key": CONF_DELAY_SAFETY_MARGIN_MIN,
@@ -1287,17 +1286,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "unit": "%",
         "default": DEFAULT_CAPACITY_PROTECTION_SOC,
         "icon": "mdi:battery-alert-variant-outline",
-        "condition": CONF_CAPACITY_PROTECTION_ENABLED,
-    },
-    {
-        "key": CONF_CAPACITY_PROTECTION_LIMIT,
-        "name": "Capacity Protection Peak Limit",
-        "min": 500,
-        "max": 20000,
-        "step": 100,
-        "unit": "W",
-        "default": DEFAULT_CAPACITY_PROTECTION_LIMIT,
-        "icon": "mdi:flash-alert",
         "condition": CONF_CAPACITY_PROTECTION_ENABLED,
     },
     {

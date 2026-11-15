@@ -12,7 +12,7 @@ Empieza con el contador de red y la conexión de la batería; después añade so
 
 - Añade la batería a tu red o prepara los datos de conexión que requiera su controlador.
 - Localiza un sensor de Home Assistant que informe de la potencia importada y exportada de red.
-- Ten a mano tu límite de potencia contratada.
+- Ten a mano tu límite de potencia contratada (será tu Máximo de importación de red).
 - Para funciones opcionales, identifica los sensores de previsión solar, producción solar, corriente de fase o cargas grandes que vayas a usar.
 
 ## Cómo activarlo

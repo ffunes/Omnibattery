@@ -947,7 +947,6 @@ class IntegrationStatusSensor(SensorEntity):
         action = c._capacity_protection_status.get("action")
         return {
             "shaving": "peak_shaving",
-            "shaving_excluded": "peak_shaving",
             "conserving": "capacity_conserving",
             "charging": "capacity_protection_charging",
         }.get(action, "capacity_protection")

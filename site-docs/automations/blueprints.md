@@ -79,11 +79,15 @@ While the run is charging and the sensor's `solar_sufficient` attribute is `fals
 
 [Import blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/peak_shaving_limit_sync_blueprint.yaml)
 
-- **Purpose:** synchronizes Omnibattery's **Capacity Protection Limit** with a monthly-peak sensor, for tariffs or demand-management setups where the allowed peak follows a measured monthly value.
-- **Requires:** the monthly-peak sensor and the **Capacity Protection Limit** number.
-- **Controls:** the **Capacity Protection Limit** number only.
+- **Purpose:** synchronizes Omnibattery's **Maximum grid import** with a monthly-peak sensor, for tariffs or demand-management setups where the allowed peak follows a measured monthly value.
+- **Requires:** the monthly-peak sensor and the **Maximum grid import** number, which you must pick.
+- **Controls:** the **Maximum grid import** number only.
 - **Compatible with:** a monthly-peak sensor reporting in either `kW` or `W`; the blueprint converts `kW` to watts automatically.
-- **Does not do:** write the number when its value already matches the measured peak.
+- **Does not do:** write the number when its value already matches, or write anything while the peak sensor has no value.
+
+Inputs: **Monthly Peak Sensor**, **Maximum Grid Import**, **Minimum peak** (default `2500 W`) and **Margin** (default `0 W`). It writes the larger of the minimum peak and the monthly peak, minus the margin, kept inside the number's range. The minimum exists because the meter's monthly peak restarts at 0 on the 1st and Flanders bills at least 2.5 kW; the margin is the watts kept below the monthly peak.
+
+This is version 2 of the blueprint: if you used the earlier one, re-import it and pick the **Maximum grid import** entity again.
 
 Checks on changes and every 15 seconds.
 
@@ -99,7 +103,7 @@ Checks on changes and every 15 seconds.
 
 Configure the SOC floor, a higher SOC recovery target, charge power, and idle target. It restores the idle target when SOC reaches the recovery target or capacity protection ends.
 
-The grid target is the total import, not the charge power: the battery charges with the target minus the house load, and does not charge while the house draws more than the target. Setting it to your Peak Limit charges whatever fits under the peak. System SOC counts only batteries under automatic control, so a battery in manual mode (for example balancing) does not hold it up.
+The grid target is the total import, not the charge power: the battery charges with the target minus the house load, and does not charge while the house draws more than the target. Setting it to your Maximum grid import charges whatever fits under it. System SOC counts only batteries under automatic control, so a battery in manual mode (for example balancing) does not hold it up.
 
 ## Forward persistent notifications to Telegram
 

@@ -75,15 +75,19 @@ De forma predeterminada establece `-50 W` mientras carga (una pequeña exportaci
 
 Mientras la carga semanal está en curso y el atributo `solar_sufficient` del sensor es `false`, sube el objetivo al valor de refuerzo (`2000 W` por defecto; las baterías reciben eso menos el consumo de la casa, dentro de los límites del número). Lo mantiene hasta que la carga termina (`complete` o `idle`), aunque el veredicto pase a `true` al llenarse las baterías, y luego vuelve al valor normal (`0 W` por defecto).
 
-## Sincronización del límite de peak shaving
+## Sincronización del límite de peak shaving {#sincronizacion-del-limite-de-peak-shaving}
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/peak_shaving_limit_sync_blueprint.yaml)
 
-- **Finalidad:** sincroniza **Capacity Protection Limit** de Omnibattery con un sensor de pico mensual, para tarifas o configuraciones de gestión de demanda donde el pico permitido sigue un valor mensual medido.
-- **Requiere:** el sensor de pico mensual y el número **Capacity Protection Limit**.
-- **Controla:** solo el número **Capacity Protection Limit**.
+- **Finalidad:** sincroniza el **Máximo de importación de red** de Omnibattery con un sensor de pico mensual, para tarifas o configuraciones de gestión de demanda donde el pico permitido sigue un valor mensual medido.
+- **Requiere:** el sensor de pico mensual y el número **Máximo de importación de red**, que debes elegir.
+- **Controla:** solo el número **Máximo de importación de red**.
 - **Compatible con:** un sensor de pico mensual que informa en `kW` o `W`; el blueprint convierte automáticamente `kW` a vatios.
-- **No hace:** escribir el número cuando su valor ya coincide con el pico medido.
+- **No hace:** escribir el número cuando su valor ya coincide, ni escribir nada mientras el sensor de pico no tiene valor.
+
+Entradas: **Monthly Peak Sensor**, **Maximum Grid Import**, **Minimum peak** (predeterminado `2500 W`) y **Margin** (predeterminado `0 W`). Escribe el mayor entre el pico mínimo y el pico mensual, menos el margen, dentro del rango del número. El mínimo existe porque el pico mensual del contador vuelve a 0 el día 1 y Flandes factura como mínimo 2,5 kW; el margen son los vatios que se mantienen por debajo del pico mensual.
+
+Esta es la versión 2 del blueprint: si usabas la anterior, vuelve a importarla y elige de nuevo la entidad **Máximo de importación de red**.
 
 Comprueba los cambios y también cada 15 segundos.
 
@@ -99,7 +103,7 @@ Comprueba los cambios y también cada 15 segundos.
 
 Configura el suelo de SOC, un objetivo de recuperación de SOC más alto, la potencia de carga y el objetivo en reposo. Restaura el objetivo en reposo cuando el SOC alcanza el objetivo de recuperación o termina la protección de capacidad.
 
-El objetivo de red es la importación total, no la potencia de carga: la batería carga con el objetivo menos el consumo de la casa, y no carga mientras la casa consume más que el objetivo. Si lo igualas a tu Peak Limit, carga todo lo que cabe bajo el pico. El SOC del sistema solo cuenta las baterías bajo control automático, así que una batería en modo manual (por ejemplo, equilibrando celdas) no lo mantiene alto.
+El objetivo de red es la importación total, no la potencia de carga: la batería carga con el objetivo menos el consumo de la casa, y no carga mientras la casa consume más que el objetivo. Si lo igualas a tu Máximo de importación de red, carga todo lo que cabe bajo él. El SOC del sistema solo cuenta las baterías bajo control automático, así que una batería en modo manual (por ejemplo, equilibrando celdas) no lo mantiene alto.
 
 ## Reenviar notificaciones persistentes a Telegram
 

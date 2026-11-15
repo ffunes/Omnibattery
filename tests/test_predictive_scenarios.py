@@ -466,10 +466,14 @@ def _controller(scenario: Scenario) -> SimpleNamespace:
         max_price_threshold=settings["max_price_threshold"],
         min_arbitrage_margin=settings["min_arbitrage_margin"],
         round_trip_efficiency=settings["round_trip_efficiency"],
-        max_contracted_power=settings["contracted_power_w"],
+        # A scenario's peak limit is what the v17 migration makes of it (#506):
+        # the one grid import cap is the lower of the two numbers.
+        max_contracted_power=(
+            min(settings["contracted_power_w"], peak["limit_w"])
+            if peak else settings["contracted_power_w"]
+        ),
         max_charge_capacity=sum(b["max_charge_w"] for b in scenario.fleet),
         capacity_protection_enabled=peak is not None,
-        capacity_protection_limit=peak["limit_w"] if peak else 0,
         capacity_protection_soc_threshold=peak["soc_threshold"] if peak else 0,
         _predictive_min_soc_floor_enabled=floor is not None,
         _predictive_min_soc_floor=floor or 0.0,

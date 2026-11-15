@@ -43,7 +43,6 @@ FINGERPRINT = {
     "weekly_full_charge_day",
     "discharge_reserve_enabled",
     "capacity_protection_enabled",
-    "capacity_protection_limit",
     "max_contracted_power",
     "enable_system_power_limits",
     "system_max_charge_power",

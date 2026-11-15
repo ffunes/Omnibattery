@@ -28,9 +28,8 @@ def _slot(*, previous_power=-FLOOR_W, protection=True, contracted=5000.0):
     state_holder = {"state": None, "first_report": first_report, "step": 0}
     writes = []
     controller = _predictive_controller(state_holder, writes)
-    controller.max_contracted_power = contracted
+    controller.max_contracted_power = min(contracted, CEILING_W) if protection else contracted
     controller.capacity_protection_enabled = protection
-    controller.capacity_protection_limit = CEILING_W
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False
     controller.min_charge_power = FLOOR_W
@@ -256,8 +255,8 @@ def test_peak_is_confirmed_on_the_second_fresh_sample():
     controller, _, _ = _slot()
     controller.deadband = 50.0
 
-    assert _confirm(controller, 4650) is False
-    assert _confirm(controller, 4650) is True
+    assert _confirm(controller, 4550) is False
+    assert _confirm(controller, 4550) is True
 
 
 def test_peak_just_above_the_trigger_counts():
@@ -307,11 +306,11 @@ def test_a_stale_sample_resets_the_peak_count():
     controller, _, _ = _slot()
     controller.deadband = 50.0
 
-    assert _confirm(controller, 4650) is False
-    assert _confirm(controller, 4650, fresh=False) is False
+    assert _confirm(controller, 4550) is False
+    assert _confirm(controller, 4550, fresh=False) is False
     assert controller._predictive_hard_limit_samples == 0
-    assert _confirm(controller, 4650) is False
-    assert _confirm(controller, 4650) is True
+    assert _confirm(controller, 4550) is False
+    assert _confirm(controller, 4550) is True
 
 
 def test_settle_window_with_a_battery_past_its_target_does_not_raise():

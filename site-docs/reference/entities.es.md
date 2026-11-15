@@ -64,8 +64,9 @@ Estas entidades pertenecen a **Omnibattery System**, no a una batería.
     Los controles de funciones aparecen solo cuando se configura esa función o modo de precio.
 
     - Control PD: `pd_controller_kp`, `pd_controller_kd`, `pd_controller_deadband`, `pd_controller_max_power_change`, `pd_controller_direction_hysteresis`, `pd_min_charge_power`, `pd_min_discharge_power`, `pd_relay_cooldown`, `pd_min_cycle_interval`, `pd_target_grid_power`, `no_pd_command_delay`
-    - Límites de flota: `system_max_charge_power`, `system_max_discharge_power`, `max_contracted_power`
-    - Protección de capacidad: `capacity_protection_limit`, `capacity_protection_soc_threshold`
+    - Límites de flota: `system_max_charge_power`, `system_max_discharge_power`
+    - Máximo de importación de red: `max_contracted_power` (siempre presente; 500–20,000 W)
+    - Protección de capacidad: `capacity_protection_soc_threshold`
     - Retraso de carga: `delay_safety_margin_min`, `charge_delay_balance_deadband_kwh`, `delay_soc_setpoint`
     - Temperatura: `temp_charge_limit_c`, `temp_charge_limit_band_c`, `temp_charge_limit_floor_pct`
     - Carga predictiva: `predictive_safety_margin_kwh`, `predictive_min_soc_floor`

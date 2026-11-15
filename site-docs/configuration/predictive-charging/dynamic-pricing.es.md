@@ -57,7 +57,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 | No aparece ningún horario | Los precios futuros no están disponibles o se eligió la entidad de proveedor incorrecta | `price_data_status`, integración del proveedor y atributos del sensor de precio |
 | Aparecen periodos baratos pero no empieza la carga | El calendario es informativo, no queda déficit o ya se cumplió la cuota por periodo | `charging_needed`, `slot_energy_targets_kwh` y SOC objetivo de batería |
 | Se omitió el periodo más barato | Ocurre después del plazo energético, supera el techo de precio o no cumple el margen de arbitraje | `energy_deadlines`, controles de precio activos y `total_shortfall_kwh` |
-| El horario informa de un déficit no cubierto | Los periodos elegibles no pueden suministrar suficiente energía antes de necesitarla | Techo de precio, potencia de carga, capacidad de batería y límites de fase y potencia contratada |
+| El horario informa de un déficit no cubierto | Los periodos elegibles no pueden suministrar suficiente energía antes de necesitarla | Techo de precio, potencia de carga, capacidad de batería y límites de fase y Máximo de importación de red |
 | Faltan periodos más baratos de mañana | El proveedor aún no los ha publicado o se permite que termine el periodo activo antes de replanificar | Datos del proveedor y **Reevaluar carga predictiva** tras su publicación |
 | Una función de precio está activada pero inactiva | No están disponibles su previsión, perfil, precio de exportación, capacidad de batería o lectura de red requeridos | Sensor binario de estado de la función y atributo de motivo |
 | El excedente solar se exporta inesperadamente | **Retención de excedente por precio** seleccionó un periodo posterior de absorción más barato | **Estado de retención de excedente por precio** y su próxima hora de liberación |
@@ -124,7 +124,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
     opportunistic space = current free space − remaining solar reserve
     ```
 
-    Un requisito de SOC mínimo garantizado es la excepción de seguridad. La falta de datos solares hace que la antilimitación de producción falle de forma segura, pero no cancela una oportunidad válida de precio de importación negativo. Potencia contratada, límites de batería, control manual, estado de respaldo, disponibilidad y demás bloqueos de seguridad siguen aplicándose.
+    Un requisito de SOC mínimo garantizado es la excepción de seguridad. La falta de datos solares hace que la antilimitación de producción falle de forma segura, pero no cancela una oportunidad válida de precio de importación negativo. Máximo de importación de red, límites de batería, control manual, estado de respaldo, disponibilidad y demás bloqueos de seguridad siguen aplicándose.
 
     ### Predescarga inteligente / Antilimitación de producción
 

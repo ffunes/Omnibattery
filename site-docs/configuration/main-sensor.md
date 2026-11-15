@@ -4,7 +4,7 @@ Omnibattery uses your grid-power sensor to decide how much the batteries should 
 
 ## Do I need it?
 
-**Use it if** you are setting up Omnibattery: every installation needs a grid consumption sensor and a maximum contracted power.
+**Use it if** you are setting up Omnibattery: every installation needs a grid consumption sensor and a Maximum grid import.
 
 **You do not need** the optional solar, backup-output, or three-phase fields unless your installation uses the related feature.
 
@@ -12,14 +12,14 @@ Omnibattery uses your grid-power sensor to decide how much the batteries should 
 
 - Find a Home Assistant `sensor` that reports live grid exchange in `W` or `kW`, such as a Shelly EM/EM3, Neurio, or smart-meter integration.
 - Check whether positive values mean import and negative values mean export.
-- Find your contracted-power limit in watts.
+- Find your contracted-power limit in watts; it is the starting value for **Maximum grid import**.
 - Optional: prepare a remaining-today solar forecast, external-inverter production sensor, or separate backup-circuit meter.
 
 ## How to enable it
 
 1. Open **Settings → Devices & services → Omnibattery → Configure → Sensors** and select **Grid consumption sensor**.
 2. Import power should be positive. If your meter reports import as negative, enable **Inverted meter sign**.
-3. Enter **Maximum contracted power (W)** so battery charging cannot push projected grid import above that ceiling.
+3. Enter **Maximum grid import (W)**. It is a ceiling for grid import all day: grid charging stays under it and the battery covers any excess.
 4. Add only the optional sources you need: **Solar forecast remaining today sensor (recommended)** for solar planning, **Solar production sensor (optional)** for an external inverter, or **Off-grid power sensor (optional)** for a separately metered backup circuit.
 5. Enable **Three-phase current protection** only when you can provide signed current sensors and limits for the physical phases you want to protect.
 
@@ -55,9 +55,9 @@ A remaining-today solar forecast becomes available to predictive charging and so
 
     Sensors with `unit_of_measurement: kW` are converted to watts automatically.
 
-    **Contracted-power protection**
+    **Maximum grid import**
 
-    The setup value defaults to 7,000 W and accepts 1,000–20,000 W. It caps battery charging in normal control, positive targets, hourly net balance, and predictive grid charging. During a predictive charging slot, Omnibattery first stops charging if import reaches the ceiling; after telemetry settles, it may discharge the confirmed excess. [Capacity protection (peak shaving)](../features/peak-shaving.md) is a separate reserve strategy.
+    The setup value defaults to 7,000 W and accepts 500–20,000 W. It caps battery charging in normal control, positive targets, hourly net balance, and predictive grid charging, and the battery covers load above it. During a predictive charging slot, Omnibattery first stops charging if import reaches the ceiling; after telemetry settles, it may discharge the confirmed excess. See [Capacity protection (peak shaving)](../features/peak-shaving.md) for the reserve behaviour.
 
     **Solar sources**
 

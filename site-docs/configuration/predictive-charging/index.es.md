@@ -53,7 +53,7 @@ Desactiva **Carga predictiva** para pausar toda la carga predictiva desde red y 
 | Aparecen periodos baratos pero no empieza a cargar | El calendario es informativo, la cuota ya está cumplida o hay una regla de seguridad/control activa | `charging_needed`, la página del modo activo, límites de SOC de la batería y **Estado de integración** |
 | El plan informa de un déficit no cubierto | Los periodos elegibles no pueden entregar suficiente energía antes de necesitarla | Potencia de carga, capacidad de batería, techo de precio, ventanas configuradas y bloqueos físicos |
 | La batería carga demasiado o demasiado poco | La estimación solar o de demanda de la vivienda no coincide con el día restante | Tipo de sensor de previsión, cobertura del perfil de consumo y **Margen de seguridad de previsión solar** |
-| La carga se pausa mientras aumenta la carga de la vivienda | La protección de potencia contratada, fase o capacidad conserva el límite de importación | [Protección de capacidad](../../features/peak-shaving.md) y [Sensor principal de red](../main-sensor.md) |
+| La carga se pausa mientras aumenta la carga de la vivienda | El Máximo de importación de red o la protección de fase conserva el límite de importación | [Protección de capacidad](../../features/peak-shaving.md) y [Sensor principal de red](../main-sensor.md) |
 | Un cambio de ajuste no tiene efecto inmediato | El plan activo aún no se ha reconstruido | Pulsa **Reevaluar carga predictiva** donde esté disponible |
 
 ??? "Detalles avanzados"
@@ -86,11 +86,11 @@ Desactiva **Carga predictiva** para pausar toda la carga predictiva desde red y 
 
     Un periodo predictivo mantiene la responsabilidad sobre las baterías hasta que termina o alcanza su objetivo. El control proporcional–derivativo (PD) normal no toma el control inmediatamente cuando aumenta la demanda de la vivienda porque la importación de red aún puede incluir la orden de carga previa de la batería.
 
-    El techo de importación es el menor entre la potencia contratada y el límite de protección de capacidad cuando esta función está activada. Omnibattery primero reduce la carga para que la vivienda reciba la capacidad de red disponible. Si el cálculo cruza a descarga durante un exceso ordinario, mantiene la menor carga positiva efectiva y conserva el estado incremental del PD.
+    El techo de importación es el Máximo de importación de red. Omnibattery primero reduce la carga para que la vivienda reciba la capacidad de red disponible. Si el cálculo cruza a descarga durante un exceso ordinario, mantiene la menor carga positiva efectiva y conserva el estado incremental del PD.
 
     Un exceso físico se convierte en emergencia solo después de que tres publicaciones consecutivas y recientes del contador lo confirmen. La protección de emergencia puede entonces esperar la respuesta del inversor y descargar solo el exceso estabilizado. Tras dos muestras recientes que muestren al menos `max(200 W, 2 × PD deadband)` de capacidad disponible, la carga se reanuda desde ese margen en vez de desde la potencia máxima de batería.
 
-    Por ejemplo, con un límite de potencia contratada de 2.000 W y una carga física estabilizada de la vivienda de 2.800 W, la protección de emergencia solicita unos 800 W de descarga para mantener la importación cerca de 2.000 W. Un pico breve que desaparece mientras se estabiliza la telemetría no activa esa descarga.
+    Por ejemplo, con un Máximo de importación de red de 2.000 W y una carga física estabilizada de la vivienda de 2.800 W, la protección de emergencia solicita unos 800 W de descarga para mantener la importación cerca de 2.000 W. Un pico breve que desaparece mientras se estabiliza la telemetría no activa esa descarga.
 
     `0 W` se reserva para bloqueos explícitos, límites del sistema de gestión de batería (BMS), baterías no disponibles, telemetría crítica, el final de un periodo, SOC alcanzado, protección de fase o una emergencia de seguridad confirmada. La descarga de seguridad puede ignorar bloqueos económicos de precio o de limitación de producción solar, pero no puede ignorar el SOC mínimo, baterías no disponibles o controladas manualmente, restricciones de respaldo/RS-485, límites de dispositivo y sistema ni la protección de fase.
 

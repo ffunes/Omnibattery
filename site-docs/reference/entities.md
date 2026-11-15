@@ -64,8 +64,9 @@ These entities belong to **Omnibattery System** rather than one battery.
     Feature controls appear only when that feature or pricing mode is configured.
 
     - PD control: `pd_controller_kp`, `pd_controller_kd`, `pd_controller_deadband`, `pd_controller_max_power_change`, `pd_controller_direction_hysteresis`, `pd_min_charge_power`, `pd_min_discharge_power`, `pd_relay_cooldown`, `pd_min_cycle_interval`, `pd_target_grid_power`, `no_pd_command_delay`
-    - Fleet limits: `system_max_charge_power`, `system_max_discharge_power`, `max_contracted_power`
-    - Capacity protection: `capacity_protection_limit`, `capacity_protection_soc_threshold`
+    - Fleet limits: `system_max_charge_power`, `system_max_discharge_power`
+    - Maximum grid import: `max_contracted_power` (always present; 500–20,000 W)
+    - Capacity protection: `capacity_protection_soc_threshold`
     - Charge delay: `delay_safety_margin_min`, `charge_delay_balance_deadband_kwh`, `delay_soc_setpoint`
     - Temperature: `temp_charge_limit_c`, `temp_charge_limit_band_c`, `temp_charge_limit_floor_pct`
     - Predictive charging: `predictive_safety_margin_kwh`, `predictive_min_soc_floor`

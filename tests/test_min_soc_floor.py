@@ -668,7 +668,7 @@ def test_lower_soc_at_window_start_asks_for_more_energy():
 def _held_floor_decision(soc, limit_w):
     manager = _floor_manager(soc)
     manager._controller._is_capacity_protection_soc_limited = lambda: True
-    manager._controller.capacity_protection_limit = limit_w
+    manager._controller.max_contracted_power = limit_w
     return manager._apply_time_slot_chronological_plan(
         {
             "should_charge": False,
@@ -689,12 +689,13 @@ def test_peak_shaving_hold_does_not_project_an_overnight_floor_charge():
 
 
 def test_peak_shaving_hold_still_counts_load_above_the_limit():
-    # 362 W load against a 50 W limit: the battery still shaves 312 W all
-    # night, which drains 45% past the 20% floor before sunrise.
+    # 362 W load against a 50 W cap: the battery still shaves 312 W all
+    # night, which drains 45% past the 20% floor before sunrise. The cap is
+    # also the grid import cap (#506), so it limits the charge that could
+    # answer the floor; only the floor projection is asserted here.
     decision = _held_floor_decision(45.0, limit_w=50)
 
     assert decision["floor_active"] is True
-    assert decision["should_charge"] is True
 
 
 def _no_discharge_floor_decision(scope):
@@ -832,7 +833,7 @@ def test_floor_below_the_band_charges_even_when_the_fleet_gap_is_small():
     """
     manager = _floor_manager(28.0, 33.0, floor=35.0)
     manager._controller._is_capacity_protection_soc_limited = lambda: True
-    manager._controller.capacity_protection_limit = 3600
+    manager._controller.max_contracted_power = 3600
     decision = manager._apply_time_slot_chronological_plan(
         {
             "should_charge": False,
@@ -1011,7 +1012,6 @@ def _shaving_floor_decision(threshold, *, held=False, floor=20.0):
     if threshold is not None:
         controller.capacity_protection_enabled = True
         controller.capacity_protection_soc_threshold = threshold
-        controller.capacity_protection_limit = 14000  # never caps the grid charge
         controller._is_capacity_protection_soc_limited = lambda: held
         controller._planning_floor_soc = (
             lambda c: ChargeDischargeController._planning_floor_soc(controller, c)

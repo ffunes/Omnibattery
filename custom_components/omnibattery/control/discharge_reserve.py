@@ -746,10 +746,10 @@ class DischargeReserveManager:
         return consumption, solar, fraction_fn
 
     def _peak_shaving_hold(self, pricing, consumption: dict, now: datetime) -> dict:
-        """Leave the load below the peak-shaving limit to the grid until sunrise.
+        """Leave the load below the grid import cap to the grid until sunrise.
 
         While peak shaving conserves, the battery covers only what is above
-        ``capacity_protection_limit``; the charge planner models the same hold
+        ``max_contracted_power`` (#506); the charge planner models the same hold
         (``battery_idle_intervals``), so the reserve must not hold energy for
         load the battery will not carry.
         """
@@ -757,7 +757,7 @@ class DischargeReserveManager:
         held_check = getattr(controller, "_is_capacity_protection_soc_limited", None)
         try:
             limit_kw = max(
-                0.0, float(getattr(controller, "capacity_protection_limit", 0.0) or 0.0)
+                0.0, float(getattr(controller, "max_contracted_power", 0.0) or 0.0)
             ) / 1000.0
             if not callable(held_check) or held_check() is not True or limit_kw <= 0.0:
                 return consumption

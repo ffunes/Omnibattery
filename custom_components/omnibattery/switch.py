@@ -889,9 +889,9 @@ class CapacityProtectionSwitch(SwitchEntity):
         new_data = dict(self.entry.data)
         new_data[CONF_CAPACITY_PROTECTION_ENABLED] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-        _LOGGER.info("Capacity Protection ENABLED (SOC threshold: %d%%, peak limit: %dW)",
+        _LOGGER.info("Capacity Protection ENABLED (SOC threshold: %d%%, grid import cap: %dW)",
                      self.controller.capacity_protection_soc_threshold,
-                     self.controller.capacity_protection_limit)
+                     self.controller.max_contracted_power)
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:

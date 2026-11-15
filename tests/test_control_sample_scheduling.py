@@ -567,7 +567,6 @@ def _predictive_controller(state_holder, writes):
         first_execution=False,
         _predictive_charge_target_soc={coordinator: 80.0},
         capacity_protection_enabled=False,
-        capacity_protection_limit=0.0,
         _get_available_batteries=lambda is_charging, **_kwargs: [coordinator],
         _filter_grid_sample=lambda raw, _elapsed: raw,
         _effective_system_capacity=lambda _batteries, is_charging: 2500.0,
@@ -797,9 +796,8 @@ def test_predictive_peak_shaving_waits_for_two_fresh_samples_before_discharge():
     state_holder = {"state": _state(3000, first_report)}
     writes = []
     controller = _predictive_controller(state_holder, writes)
-    controller.max_contracted_power = 4000.0
+    controller.max_contracted_power = 2900.0
     controller.capacity_protection_enabled = True
-    controller.capacity_protection_limit = 2000.0
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False
 
@@ -817,8 +815,8 @@ def test_predictive_peak_shaving_waits_for_two_fresh_samples_before_discharge():
     # only amount Peak Shaving is allowed to discharge.
     state_holder["state"] = _state(3000, first_report + timedelta(seconds=16))
     asyncio.run(controller._handle_predictive_grid_charging())
-    assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 1000)
-    assert controller._predictive_demand_state == "peak_shaving"
+    assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 100)
+    assert controller._predictive_demand_state == "emergency_discharge"
 
 
 def test_predictive_charge_blocker_keeps_peak_protection_ownership():
@@ -826,9 +824,8 @@ def test_predictive_charge_blocker_keeps_peak_protection_ownership():
     state_holder = {"state": _state(3000, first_report)}
     writes = []
     controller = _predictive_controller(state_holder, writes)
-    controller.max_contracted_power = 4000.0
+    controller.max_contracted_power = 2900.0
     controller.capacity_protection_enabled = True
-    controller.capacity_protection_limit = 2000.0
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False
 
@@ -840,8 +837,8 @@ def test_predictive_charge_blocker_keeps_peak_protection_ownership():
         asyncio.run(controller._handle_predictive_grid_charging())
 
     assert controller.grid_charging_active is True
-    assert controller._predictive_demand_state == "peak_shaving"
-    assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 1000)
+    assert controller._predictive_demand_state == "emergency_discharge"
+    assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 100)
 
 
 def test_predictive_protection_clears_status_while_settling_after_peak():
@@ -849,9 +846,8 @@ def test_predictive_protection_clears_status_while_settling_after_peak():
     state_holder = {"state": _state(3000, first_report)}
     writes = []
     controller = _predictive_controller(state_holder, writes)
-    controller.max_contracted_power = 4000.0
+    controller.max_contracted_power = 2900.0
     controller.capacity_protection_enabled = True
-    controller.capacity_protection_limit = 2000.0
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False
 
@@ -875,7 +871,6 @@ def test_predictive_emergency_uses_physical_load_when_excluded_load_is_ignored()
     controller = _predictive_controller(state_holder, writes)
     controller.max_contracted_power = 2000.0
     controller.capacity_protection_enabled = False
-    controller.capacity_protection_limit = 0.0
     controller.capacity_protection_excluded_devices = False
     controller._excluded_included_adjustment = 2500.0
     controller._capacity_protection_status = {}
@@ -896,9 +891,8 @@ def test_predictive_settling_counts_samples_only_after_measured_idle():
     state_holder = {"state": _state(3000, first_report)}
     writes = []
     controller = _predictive_controller(state_holder, writes)
-    controller.max_contracted_power = 4000.0
+    controller.max_contracted_power = 2300.0
     controller.capacity_protection_enabled = True
-    controller.capacity_protection_limit = 2000.0
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False
     measured = {"power": 500.0}
@@ -921,7 +915,7 @@ def test_predictive_settling_counts_samples_only_after_measured_idle():
 
     state_holder["state"] = _state(3000, first_report + timedelta(seconds=20))
     asyncio.run(controller._handle_predictive_grid_charging())
-    assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 1000)
+    assert [(charge, discharge) for _, charge, discharge in writes][-1] == (0, 700)
 
 
 def test_predictive_peak_does_not_recalculate_from_watchdog_sample():
@@ -929,9 +923,8 @@ def test_predictive_peak_does_not_recalculate_from_watchdog_sample():
     state_holder = {"state": _state(3000, first_report)}
     writes = []
     controller = _predictive_controller(state_holder, writes)
-    controller.max_contracted_power = 4000.0
+    controller.max_contracted_power = 2900.0
     controller.capacity_protection_enabled = True
-    controller.capacity_protection_limit = 2000.0
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False
 
@@ -948,7 +941,7 @@ def test_predictive_peak_does_not_recalculate_from_watchdog_sample():
     asyncio.run(controller._handle_predictive_grid_charging())
 
     assert len(writes) == write_count
-    assert controller._predictive_protection_command_w == 1000.0
+    assert controller._predictive_protection_command_w == 100.0
 
 
 def test_predictive_peak_stops_discharge_when_meter_is_too_stale():
@@ -956,9 +949,8 @@ def test_predictive_peak_stops_discharge_when_meter_is_too_stale():
     state_holder = {"state": _state(3000, first_report)}
     writes = []
     controller = _predictive_controller(state_holder, writes)
-    controller.max_contracted_power = 4000.0
+    controller.max_contracted_power = 2900.0
     controller.capacity_protection_enabled = True
-    controller.capacity_protection_limit = 2000.0
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False
 

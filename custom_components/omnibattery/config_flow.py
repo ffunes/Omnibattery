@@ -1223,7 +1223,7 @@ async def _dispatch_brand_entry(flow, brand: str):
 class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Omnibattery."""
 
-    VERSION = 16
+    VERSION = 17
 
     def __init__(self):
         """Initialize the config flow."""
@@ -1320,7 +1320,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     vol.Required("max_contracted_power", default=7000):
                         NumberSelector(
                             NumberSelectorConfig(
-                                min=1000, max=20000, step=100, mode=NumberSelectorMode.BOX
+                                min=500, max=20000, step=100, mode=NumberSelectorMode.BOX
                             )
                         ),
                     vol.Optional(CONF_SOLAR_FORECAST_SENSOR):
@@ -2539,7 +2539,7 @@ class OptionsFlowHandler(OptionsFlow):
                     vol.Required("max_contracted_power", default=current_max_power):
                         NumberSelector(
                             NumberSelectorConfig(
-                                min=1000, max=20000, step=100, mode=NumberSelectorMode.BOX
+                                min=500, max=20000, step=100, mode=NumberSelectorMode.BOX
                             )
                         ),
                     vol.Optional(CONF_SOLAR_FORECAST_SENSOR, description={"suggested_value": current_forecast} if current_forecast else {}):

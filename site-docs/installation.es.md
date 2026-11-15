@@ -40,7 +40,7 @@ Puedes dejar estos campos vacíos o desactivados durante la primera configuraci�
 - **Sensor de potencia aislada de la red** cuando un medidor independiente mide el circuito respaldado
 - **Protección de corriente trifásica** cuando hay sensores de corriente por fase; consulta [Protección de corriente trifásica](configuration/three-phase.md)
 
-Establece **Potencia máxima contratada** en el límite de importación real de tu casa. Omnibattery la usa como techo de seguridad de carga.
+Establece el **Máximo de importación de red** en el límite de importación real de tu casa. Omnibattery mantiene la carga desde red por debajo y cubre cualquier exceso con la batería.
 
 ??? "Detalles de conexión por tipo de batería"
     **Marstek:** Venus E v2 necesita una conexión RS-485, como un adaptador USB o un convertidor RS-485 a TCP. Venus E v3, Venus A y Venus D pueden usar su conexión de red. La vía LilyGo necesita el firmware ESPHome compatible y sus entidades estándar de Home Assistant.

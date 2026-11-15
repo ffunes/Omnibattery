@@ -4,7 +4,7 @@ Omnibattery utiliza su sensor de energía de la red para decidir cuánto deben c
 
 ## ¿Lo necesito?
 
-**Úsalo si** estás configurando Omnibattery: cada instalación necesita un sensor de consumo de red y una potencia máxima contratada.
+**Úsalo si** estás configurando Omnibattery: cada instalación necesita un sensor de consumo de red y un Máximo de importación de red.
 
 **No necesita** los campos solares, de salida de respaldo o trifásicos opcionales a menos que su instalación utilice la función relacionada.
 
@@ -12,14 +12,14 @@ Omnibattery utiliza su sensor de energía de la red para decidir cuánto deben c
 
 - Encuentre un Home Assistant `sensor` que informe el intercambio de red en vivo en `W` o `kW`, como Shelly EM/EM3, Neurio o integración de medidores inteligentes.
 - Compruebe si los valores positivos significan importación y los valores negativos significan exportación.
-- Encuentra tu límite de potencia contratada en vatios.
+- Encuentra tu límite de potencia contratada en vatios; es el valor de partida del **Máximo de importación de red**.
 - Opcional: prepare un pronóstico solar del día restante, un sensor de producción de inversor externo o un medidor de circuito de respaldo separado.
 
 ## Cómo activarlo
 
 1. Abra **Configuración → Dispositivos y servicios → Omnibattery → Configurar → Sensores** y seleccione **Sensor de consumo de red**.
 2. El poder de importación debería ser positivo. Si su medidor informa que la importación es negativa, habilite **Signo de medidor invertido**.
-3. Ingrese **Potencia máxima contratada (W)** para que la carga de la batería no pueda impulsar la importación de red proyectada por encima de ese límite.
+3. Introduce el **Máximo de importación de red (W)**. Es un techo para la importación de red todo el día: la carga desde red se mantiene por debajo y la batería cubre cualquier exceso.
 4. Agregue solo las fuentes opcionales que necesita: **Sensor de pronóstico solar restante para hoy (recomendado)** para planificación solar, **Sensor de producción solar (opcional)** para un inversor externo o **Sensor de energía fuera de la red (opcional)** para un circuito de respaldo medido por separado.
 5. Habilite la **Protección de corriente trifásica** solo cuando pueda proporcionar límites y sensores de corriente firmados para las fases físicas que desea proteger.
 
@@ -55,9 +55,9 @@ Un pronóstico solar del resto del día estará disponible para predecir la carg
 
     Los sensores con `unit_of_measurement: kW` se convierten a vatios automáticamente.
 
-    **Protección de potencia contratada**
+    **Máximo de importación de red**
 
-    El valor de configuración predeterminado es 7000 W y acepta entre 1000 y 20 000 W. Limita la carga de la batería en control normal, objetivos positivos, saldo neto por hora y carga de red predictiva. Durante un intervalo de carga predictiva, Omnibattery primero deja de cargar si la importación alcanza el límite; una vez que la telemetría se estabilice, puede descargar el exceso confirmado. [Protección de capacidad (reducción de picos)](../features/peak-shaving.md) es una estrategia de reserva separada.
+    El valor de configuración predeterminado es 7000 W y acepta entre 500 y 20 000 W. Limita la carga de la batería en control normal, objetivos positivos, saldo neto por hora y carga de red predictiva, y la batería cubre la carga por encima. Durante un intervalo de carga predictiva, Omnibattery primero deja de cargar si la importación alcanza el límite; una vez que la telemetría se estabilice, puede descargar el exceso confirmado. Consulta [Protección de capacidad (reducción de picos)](../features/peak-shaving.md) para el comportamiento de reserva.
 
     **Fuentes solares**
 

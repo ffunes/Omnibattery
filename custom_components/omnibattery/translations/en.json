@@ -84,7 +84,7 @@
           "solar_forecast_remaining_sensor": "Solar forecast remaining today sensor (recommended)",
           "solar_production_sensor": "Solar production sensor (optional)",
           "meter_inverted": "Inverted meter sign",
-          "max_contracted_power": "Maximum contracted power (W)",
+          "max_contracted_power": "Maximum grid import (W)",
           "three_phase_enabled": "Enable three-phase current protection"
         },
         "data_description": {
@@ -95,7 +95,7 @@
           "solar_forecast_remaining_sensor": "Sensor providing solar production still expected today in kWh. Saving it replaces the legacy whole-day forecast and it is never reduced by production already measured.",
           "solar_production_sensor": "Real-time PV production power sensor (W/kW) from an external inverter not wired through the battery MPPT inputs. Used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your panels feed the battery MPPT directly.",
           "meter_inverted": "Enable this option if your meter uses the opposite convention: positive = export, negative = import. The unit (W/kW) is detected automatically.",
-          "max_contracted_power": "Total contracted power in watts. System won't exceed this limit when charging to avoid tripping the breaker",
+          "max_contracted_power": "Most power you want to draw from the grid, in watts: your contracted power (ICP) or, with a capacity tariff, your monthly peak. Grid charging stays under it, and the battery covers the house above it.",
           "three_phase_enabled": "Optional safety envelope for three-phase installations. Configure one signed RMS current sensor in A, one fuse-size limit in A and the physical battery phase for each circuit in the next step."
         }
       },
@@ -495,21 +495,19 @@
       },
       "capacity_protection": {
         "title": "Peak Shaving Mode",
-        "description": "When enabled, if battery SOC drops below a threshold, the system conserves energy by only discharging to offset consumption above a peak limit.",
+        "description": "When enabled, if battery SOC drops below a threshold, the battery keeps its remaining charge for peaks: it stops covering ordinary consumption and only covers the load above the Maximum grid import.",
         "data": {
           "configure_capacity_protection": "Enable peak shaving"
         }
       },
       "capacity_protection_config": {
         "title": "Peak Shaving Configuration",
-        "description": "Configure the SOC threshold below which peak shaving activates, and the peak power limit. The battery will only discharge to keep grid import at or below the peak limit.",
+        "description": "Set the SOC threshold below which the battery keeps its remaining charge for peaks and only covers consumption above the Maximum grid import.",
         "data": {
-          "capacity_protection_soc_threshold": "SOC Threshold (%)",
-          "capacity_protection_limit": "Peak Limit (W)"
+          "capacity_protection_soc_threshold": "SOC Threshold (%)"
         },
         "data_description": {
-          "capacity_protection_soc_threshold": "When average battery SOC drops below this value, peak shaving activates. The battery will stop discharging for normal consumption and only cover peaks above the limit.",
-          "capacity_protection_limit": "Grid import power threshold. When house consumption exceeds this value and peak shaving is active, the battery discharges only the excess above this limit."
+          "capacity_protection_soc_threshold": "When average battery SOC drops below this value, the battery stops covering ordinary consumption and only covers the load above the Maximum grid import."
         }
       },
       "hourly_balance": {
@@ -857,7 +855,7 @@
           "solar_forecast_remaining_sensor": "Solar forecast remaining today sensor (recommended)",
           "solar_production_sensor": "Solar production sensor (optional)",
           "meter_inverted": "Inverted meter sign",
-          "max_contracted_power": "Maximum contracted power (W)",
+          "max_contracted_power": "Maximum grid import (W)",
           "three_phase_enabled": "Enable three-phase current protection"
         },
         "data_description": {
@@ -868,7 +866,7 @@
           "solar_forecast_remaining_sensor": "Sensor providing solar production still expected today in kWh. Saving it replaces the legacy whole-day forecast and it is never reduced by production already measured.",
           "solar_production_sensor": "Real-time PV production power sensor (W/kW) from an external inverter not wired through the battery MPPT inputs. Used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your panels feed the battery MPPT directly.",
           "meter_inverted": "Enable this option if your meter uses the opposite convention: positive = export, negative = import. The unit (W/kW) is detected automatically.",
-          "max_contracted_power": "Total contracted power in watts. System won't exceed this limit when charging to avoid tripping the breaker",
+          "max_contracted_power": "Most power you want to draw from the grid, in watts: your contracted power (ICP) or, with a capacity tariff, your monthly peak. Grid charging stays under it, and the battery covers the house above it.",
           "three_phase_enabled": "Optional safety envelope for three-phase installations. Configure one signed RMS current sensor in A, one fuse-size limit in A and the physical battery phase for each circuit in the next step."
         }
       },
@@ -1270,21 +1268,19 @@
       },
       "capacity_protection": {
         "title": "Capacity Protection Mode",
-        "description": "When enabled, if battery SOC drops below a threshold, the system conserves energy by only discharging to offset consumption above a peak limit.",
+        "description": "When enabled, if battery SOC drops below a threshold, the battery keeps its remaining charge for peaks: it stops covering ordinary consumption and only covers the load above the Maximum grid import.",
         "data": {
           "configure_capacity_protection": "Enable capacity protection"
         }
       },
       "capacity_protection_config": {
         "title": "Capacity Protection Configuration",
-        "description": "Configure the SOC threshold below which protection activates, and the peak power limit. The battery will only discharge to keep grid import at or below the peak limit.",
+        "description": "Set the SOC threshold below which the battery keeps its remaining charge for peaks and only covers consumption above the Maximum grid import.",
         "data": {
-          "capacity_protection_soc_threshold": "SOC Threshold (%)",
-          "capacity_protection_limit": "Peak Limit (W)"
+          "capacity_protection_soc_threshold": "SOC Threshold (%)"
         },
         "data_description": {
-          "capacity_protection_soc_threshold": "When average battery SOC drops below this value, capacity protection activates. The battery will stop discharging for normal consumption and only cover peaks above the limit.",
-          "capacity_protection_limit": "Grid import power threshold. When house consumption exceeds this value and protection is active, the battery discharges only the excess above this limit."
+          "capacity_protection_soc_threshold": "When average battery SOC drops below this value, the battery stops covering ordinary consumption and only covers the load above the Maximum grid import."
         }
       },
       "pd_advanced": {
@@ -2715,7 +2711,7 @@
         "name": "System Max Discharge Power"
       },
       "max_contracted_power": {
-        "name": "Max Contracted Power"
+        "name": "Maximum Grid Import"
       },
       "capacity_protection_soc_threshold": {
         "name": "Peak Shaving SOC Threshold"
@@ -2737,9 +2733,6 @@
       },
       "temp_charge_limit_floor_pct": {
         "name": "Temperature Charge Limit Floor"
-      },
-      "capacity_protection_limit": {
-        "name": "Peak Shaving Limit"
       },
       "backup_offgrid_threshold": {
         "name": "Backup Offgrid Threshold"
