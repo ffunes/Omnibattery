@@ -11,8 +11,8 @@ import asyncio
 
 import pytest
 
-from custom_components.omnibattery.infra.modbus_client import (
-    decode_registers,
+from custom_components.omnibattery.infra.modbus_helpers import decode_registers
+from custom_components.omnibattery.drivers.marstek_client import (
     MarstekModbusClient,
     _marstek_v3_packet_correction,
 )

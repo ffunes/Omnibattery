@@ -3,7 +3,7 @@
 Three Indevolt settings have an Omnibattery counterpart: the reserve (min SOC),
 the max AC input (max charge power) and the max AC output (max discharge power).
 They live in the battery's flash, so they are written only on a direct user
-action (see FLASH WEAR in ``infra/indevolt_client.py``):
+action (see FLASH WEAR in ``drivers/indevolt_client.py``):
 
 * **Omnibattery -> device:** a number entity or an options-flow save requests a
   value. After a debounce the value is compared with what the device holds and
@@ -31,7 +31,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from ..infra.indevolt_client import CONFIG_WRITE_POINTS, IndevoltClient, IndevoltError
+from .indevolt_client import CONFIG_WRITE_POINTS, IndevoltClient, IndevoltError
 
 _LOGGER = logging.getLogger(__name__)
 

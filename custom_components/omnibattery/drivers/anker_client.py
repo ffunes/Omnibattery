@@ -17,7 +17,7 @@ from typing import Optional
 from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ConnectionException, ModbusIOException
 
-from .modbus_client import _detect_slave_kwarg, decode_registers
+from ..infra.modbus_helpers import _detect_slave_kwarg, decode_registers
 
 _LOGGER = logging.getLogger(__name__)
 

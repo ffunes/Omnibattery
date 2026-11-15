@@ -23,7 +23,7 @@ from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
     _sync_device_reported_limits,
 )
-from custom_components.omnibattery.infra.indevolt_client import SLOT_S, pacing_levels
+from custom_components.omnibattery.drivers.indevolt_client import SLOT_S, pacing_levels
 from tests.indevolt_fake import FakeIndevoltDevice, RecordingNotifier, VirtualClock, connected_driver
 
 MIN = "discharging_cutoff_capacity"

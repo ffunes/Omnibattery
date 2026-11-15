@@ -57,7 +57,7 @@ from typing import Optional
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
-from ..infra.huawei_modbus_client import (
+from .huawei_client import (
     HuaweiModbusClient,
     decode_i16,
     decode_i32,

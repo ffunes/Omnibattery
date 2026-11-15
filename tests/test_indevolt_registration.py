@@ -29,7 +29,7 @@ from custom_components.omnibattery.drivers.indevolt import (
     SENSOR_DEFINITIONS,
     IndevoltDriver,
 )
-from custom_components.omnibattery.infra.indevolt_client import (
+from custom_components.omnibattery.drivers.indevolt_client import (
     REQUEST_SPEED_SLOT_S,
     SLOT_S,
     IndevoltAuthenticationError,

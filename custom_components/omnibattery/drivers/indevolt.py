@@ -1,6 +1,6 @@
 """Local HTTP driver for Indevolt batteries (SolidFlex / PowerFlex, Gen 2).
 
-All device traffic goes through :class:`~..infra.indevolt_client.IndevoltScheduler`:
+All device traffic goes through :class:`~.indevolt_client.IndevoltScheduler`:
 one request per slot, writes first, and a timestamped cache that
 :meth:`IndevoltDriver.read_telemetry` serves to the coordinator. The coordinator
 can poll as often as it likes; the device sees the scheduler's pace.
@@ -44,7 +44,7 @@ from dataclasses import dataclass
 from typing import Any, Optional, Protocol
 
 from ..const import CONF_INDEVOLT_REQUEST_SPEED
-from ..infra.indevolt_client import (
+from .indevolt_client import (
     ACTION_CHARGE,
     ACTION_DISCHARGE,
     ACTION_STOP,
@@ -66,7 +66,7 @@ from ..infra.indevolt_client import (
     pacing_levels,
     slot_for_request_speed,
 )
-from ..infra.indevolt_notify import IndevoltNotifier
+from .indevolt_notify import IndevoltNotifier
 from ..infra.mac_tracking import normalise_mac
 from .indevolt_settings import BY_KEY as SETTING_BY_KEY
 from .indevolt_settings import (

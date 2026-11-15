@@ -26,7 +26,7 @@ from custom_components.omnibattery.const import (
     REGISTER_MAP,
     max_power_for_battery_version,
 )
-from custom_components.omnibattery.infra.modbus_client import BLOCK_REFUSED
+from custom_components.omnibattery.drivers.marstek_client import BLOCK_REFUSED
 
 
 def _fake_client():

@@ -20,7 +20,7 @@ from custom_components.omnibattery.drivers.indevolt import (
     firmware_below,
     model_label_for,
 )
-from custom_components.omnibattery.infra.indevolt_client import REQUEST_SPEED_SLOT_S, SLOT_S, pacing_levels
+from custom_components.omnibattery.drivers.indevolt_client import REQUEST_SPEED_SLOT_S, SLOT_S, pacing_levels
 from tests.indevolt_fake import (
     FakeIndevoltDevice,
     RecordingNotifier,

@@ -23,7 +23,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 
 from ..const import DOMAIN, NOTIFICATION_ID_PREFIX
-from ..drivers.indevolt_settings import FLASH_WRITES_ISSUE
+from .indevolt_settings import FLASH_WRITES_ISSUE
 
 _LOGGER = logging.getLogger(__name__)
 

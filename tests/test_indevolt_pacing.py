@@ -11,8 +11,8 @@ import asyncio
 import pytest
 
 from custom_components.omnibattery.drivers.indevolt import CONTROL_TIER, RAMP_S, ControlState
-from custom_components.omnibattery.infra import indevolt_client as ic
-from custom_components.omnibattery.infra.indevolt_client import (
+from custom_components.omnibattery.drivers import indevolt_client as ic
+from custom_components.omnibattery.drivers.indevolt_client import (
     MAXIMUM_LEVEL,
     MIN_REPLY_GAP_S,
     MIN_SLOT_S,

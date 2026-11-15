@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-import custom_components.omnibattery.infra.anker_modbus_client as anker_client
+import custom_components.omnibattery.drivers.anker_client as anker_client
 
 
 def _client_factory(connect_result):

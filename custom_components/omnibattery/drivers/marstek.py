@@ -40,7 +40,8 @@ from ..const import (
     REGISTER_MAP,
     max_power_for_battery_version,
 )
-from ..infra.modbus_client import BLOCK_REFUSED, MarstekModbusClient, decode_registers
+from ..infra.modbus_helpers import decode_registers
+from .marstek_client import BLOCK_REFUSED, MarstekModbusClient
 from .base import (
     BatteryDriver,
     DriverCapabilities,

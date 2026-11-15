@@ -19,8 +19,8 @@ import time
 
 import pytest
 
-from custom_components.omnibattery.infra import modbus_client as modbus_client_module
-from custom_components.omnibattery.infra.modbus_client import (
+from custom_components.omnibattery.drivers import marstek_client as modbus_client_module
+from custom_components.omnibattery.drivers.marstek_client import (
     BLOCK_REFUSED,
     MarstekModbusClient,
 )

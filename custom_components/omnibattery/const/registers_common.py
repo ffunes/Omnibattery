@@ -88,7 +88,7 @@ MESSAGE_WAIT_MS_RS485_GATEWAY = 30
 # occasionally stalls for several seconds and then flushes queued replies in a
 # burst. Each pymodbus-internal retry re-sends the SAME transaction_id (>=3.8),
 # so a reply arriving after a per-attempt timeout still matches the retry and
-# is consumed (issue #361 history in infra/modbus_client.py).
+# is consumed (issue #361 history in drivers/marstek_client.py).
 #
 # That is why these were kept short: let the retry land inside the stall. On a
 # Venus D it does not work out that way. The stall is a regular one - every
@@ -103,7 +103,7 @@ MESSAGE_WAIT_MS_RS485_GATEWAY = 30
 #
 # Six seconds covers it with room to spare and the noise stops. The cost is
 # that a battery that is genuinely gone is given longer before the attempt is
-# abandoned - the outer safety net in infra/modbus_client.py grows from 11 s to
+# abandoned - the outer safety net in drivers/marstek_client.py grows from 11 s to
 # 20 s - which is the right trade for a device whose only failure mode here is
 # being four seconds late.
 #

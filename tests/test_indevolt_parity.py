@@ -18,7 +18,7 @@ from custom_components.omnibattery.drivers.indevolt import (
     PACK_DETAIL_DEFINITIONS,
     SENSOR_DEFINITIONS,
 )
-from custom_components.omnibattery.infra.indevolt_client import MAX_POINTS
+from custom_components.omnibattery.drivers.indevolt_client import MAX_POINTS
 from tests.indevolt_fake import PACK_DETAIL_POINTS, FakeIndevoltDevice, VirtualClock, connected_driver
 
 _DETAIL = re.compile(r"expansion_battery_(\d)_(soc|cycles|mos_temperature|voltage|current|serial_number)")

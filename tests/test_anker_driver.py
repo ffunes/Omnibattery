@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, call
 import pytest
 
 from custom_components.omnibattery.drivers import AnkerModbusDriver, DriverCapabilities
-from custom_components.omnibattery.infra.anker_modbus_client import encode_int32
-from custom_components.omnibattery.infra.modbus_client import decode_registers
+from custom_components.omnibattery.drivers.anker_client import encode_int32
+from custom_components.omnibattery.infra.modbus_helpers import decode_registers
 
 
 def _fake_client():
@@ -635,7 +635,7 @@ async def test_probe_reads_soc_and_power_caps(monkeypatch):
 @pytest.mark.asyncio
 async def test_read_telemetry_rejects_transient_zero_power_glitch():
     """A single decoded 0 W while charging must not overwrite HA's last reading."""
-    from custom_components.omnibattery.infra.anker_modbus_client import encode_int32
+    from custom_components.omnibattery.drivers.anker_client import encode_int32
 
     client = _fake_client()
     regs = [0] * 51

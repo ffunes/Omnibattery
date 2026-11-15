@@ -55,7 +55,7 @@ from custom_components.omnibattery.drivers.zendure import ZendureLocalDriver
 from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
 )
-from custom_components.omnibattery.infra.indevolt_client import SLOT_S
+from custom_components.omnibattery.drivers.indevolt_client import SLOT_S
 
 
 @pytest.fixture(autouse=True)

@@ -22,7 +22,7 @@ from custom_components.omnibattery.drivers.huawei import (
     _PV_PROBE_SETTLE_S,
     _PV_PROBE_WINDOW_S,
 )
-from custom_components.omnibattery.infra.huawei_modbus_client import (
+from custom_components.omnibattery.drivers.huawei_client import (
     decode_i16,
     decode_i32,
     decode_string,

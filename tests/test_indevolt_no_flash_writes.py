@@ -22,8 +22,8 @@ from pathlib import Path
 import pytest
 
 from custom_components.omnibattery.drivers.indevolt import ControlState, IndevoltDriver
-from custom_components.omnibattery.infra import indevolt_client
-from custom_components.omnibattery.infra.indevolt_client import (
+from custom_components.omnibattery.drivers import indevolt_client
+from custom_components.omnibattery.drivers.indevolt_client import (
     ALLOWED_ENDPOINTS,
     CONFIG_WRITE_POINTS,
     RAM_WRITE_POINTS,
@@ -42,7 +42,7 @@ from tests.indevolt_fake import (
 )
 
 PACKAGE = Path(__file__).resolve().parents[1] / "custom_components" / "omnibattery"
-CLIENT_FILE = PACKAGE / "infra" / "indevolt_client.py"
+CLIENT_FILE = PACKAGE / "drivers" / "indevolt_client.py"
 SETTINGS_FILE = PACKAGE / "drivers" / "indevolt_settings.py"
 DRIVER_FILE = PACKAGE / "drivers" / "indevolt.py"
 

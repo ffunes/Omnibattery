@@ -7,8 +7,8 @@ from types import SimpleNamespace
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 
-from custom_components.omnibattery.infra import indevolt_notify
-from custom_components.omnibattery.infra.indevolt_notify import IndevoltNotifier
+from custom_components.omnibattery.drivers import indevolt_notify
+from custom_components.omnibattery.drivers.indevolt_notify import IndevoltNotifier
 
 
 @pytest.fixture

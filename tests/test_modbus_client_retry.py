@@ -20,7 +20,7 @@ import pytest
 from pymodbus.exceptions import ConnectionException
 from pymodbus.pdu import ExceptionResponse
 
-from custom_components.omnibattery.infra.modbus_client import (
+from custom_components.omnibattery.drivers.marstek_client import (
     BLOCK_REFUSED,
     MarstekModbusClient,
     _backoff_jitter,
