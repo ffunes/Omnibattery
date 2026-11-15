@@ -3882,6 +3882,12 @@ class PricingManager:
                     # The runtime regulates import incl. the house load to this
                     # ceiling, so a slot stores less while the house draws.
                     grid_ceiling_kw=self._contracted_charge_ceiling() / 1000.0,
+                    # A Dynamic Pricing slot holds the battery once it stored
+                    # its amount (apply_dynamic_slot_hold).
+                    battery_holds_rest_of_slot=(
+                        getattr(self._controller, "predictive_charging_mode", None)
+                        == PREDICTIVE_MODE_DYNAMIC_PRICING
+                    ),
                 )
             )
             plan = evaluation.plan

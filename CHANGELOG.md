@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **Dynamic Pricing: no discharging in the rest of a slot that charged**: a booked slot stops once it stored its target, and the battery then covered the house again for the rest of the slot, so energy bought in a quarter was spent in the same quarter at the same price, losing the round trip. With quarter-hour prices and an empty battery this repeated every quarter (14 Nov: charging from 2 to 4 % in two minutes, then discharging back to 2 %, from 02:45 to 04:00). The battery now holds until the slot ends and the grid carries the house at the slot's price. Peak shaving can still use the battery, and a slot that charged nothing holds nothing. The Daily operation projection shows the same hold.
+- **Dynamic Pricing: no discharging in the rest of a slot that charged**: a booked slot stops once it stored its target, and the battery then covered the house again for the rest of the slot, so energy bought in a quarter was spent in the same quarter at the same price, losing the round trip. With quarter-hour prices and an empty battery this repeated every quarter (14 Nov: charging from 2 to 4 % in two minutes, then discharging back to 2 %, from 02:45 to 04:00). The battery now holds until the slot ends and the grid carries the house at the slot's price. Peak shaving can still use the battery, and a slot that charged nothing holds nothing. The Daily operation projection shows the same hold. The planner counts the hold too: the grid carries the house for the whole booked quarter, so each slot stores that much less (a logged night plan of 13 Nov: 3.45 instead of 4.63 kWh). Without that, every slot ended fuller than planned, and the last ones before sunrise left the surplus in the battery when the sun took over.
 
 ### Fixed
 
