@@ -69,6 +69,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverTraits,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -453,6 +454,7 @@ class HuaweiSolarDriver(BatteryDriver):
     """One Huawei inverter's attached LUNA2000, read natively and driven by service."""
 
     BRAND = "huawei"
+    TRAITS = DriverTraits(supports_voltage_taper=False)
     LABEL = "Huawei SUN2000 + LUNA2000"
     MANUFACTURER = "Huawei"
     DEFAULT_MODEL = "Venus"

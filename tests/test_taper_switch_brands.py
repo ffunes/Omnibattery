@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from custom_components.omnibattery.const import DOMAIN
+from custom_components.omnibattery.drivers.registry import DRIVERS
 from custom_components.omnibattery.switch import (
     BatteryFullChargeVoltageTaperSwitch,
     async_setup_entry,
@@ -22,6 +23,7 @@ from custom_components.omnibattery.switch import (
 def _setup_switches(brand: str) -> list:
     coordinator = SimpleNamespace(
         brand=brand,
+        traits=DRIVERS[brand].traits_for({}),
         name="Battery",
         device_key=f"{brand}_1",
         switch_definitions=[],
@@ -36,8 +38,9 @@ def _setup_switches(brand: str) -> list:
     return added
 
 
-def test_taper_switch_created_for_marstek():
-    added = _setup_switches("marstek")
+@pytest.mark.parametrize("brand", ["marstek", "esphome"])
+def test_taper_switch_created_for_cell_voltage_brands(brand):
+    added = _setup_switches(brand)
     assert any(isinstance(e, BatteryFullChargeVoltageTaperSwitch) for e in added)
 
 

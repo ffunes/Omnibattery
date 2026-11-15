@@ -354,11 +354,13 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.zendure_model = None
         self.consumption_sensor = consumption_sensor
         self.brand = battery_config.get("brand", DEFAULT_BRAND)
+        driver_cls = driver_class(self.brand)
+        self.traits = driver_cls.traits_for(battery_config)
         full_charge_voltage_taper_enabled = battery_config.get(
             CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
             DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
         )
-        if self.brand in ("zendure", "anker", "hoymiles", "huawei", "indevolt"):
+        if not self.traits.supports_voltage_taper and not self.traits.keeps_stored_taper_flag:
             full_charge_voltage_taper_enabled = False
 
         # Validate and store battery version
@@ -375,7 +377,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # the historical connected default until config-entry migration runs.
         self.dc_pv_connected = bool(
             battery_config.get(CONF_DC_PV_CONNECTED, True)
-            and self.battery_version in ("vA", "vD")
+            and self.traits.optional_dc_pv_input
         )
 
         _LOGGER.info("[%s] Initialized as %s battery", name, self.battery_version)
@@ -491,7 +493,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # packet correction; the coordinator and platform setups read the
         # per-platform definition lists back from it (see the passthrough
         # properties below) instead of branching on the version string.
-        self.driver = driver_class(self.brand).from_config(
+        self.driver = driver_cls.from_config(
             battery_config,
             DriverContext(
                 hass=hass,
@@ -552,7 +554,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 self.device_max_discharge_power,
                 self.driver.capabilities.max_discharge_power_w,
             )
-        if self.brand == "sessy":
+        if self.traits.fixed_power_envelope:
             # Sessy has a fixed asymmetric envelope. Clamp malformed legacy
             # entries (for example the former symmetric 5,000 W default) so
             # the configured value also remains representable by its entity.

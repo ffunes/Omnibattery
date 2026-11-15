@@ -18,6 +18,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverTraits,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -60,6 +61,7 @@ class SessyLocalDriver(BatteryDriver):
     """Poll and control one Sessy dongle using its documented local API."""
 
     BRAND = "sessy"
+    TRAITS = DriverTraits(supports_voltage_taper=False, keeps_stored_taper_flag=True, fixed_power_envelope=True, ip_addressed=True)
     LABEL = "Sessy"
     MANUFACTURER = "Sessy"
     DEFAULT_MODEL = "Sessy"

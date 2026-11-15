@@ -39,7 +39,6 @@ from homeassistant.helpers.storage import Store
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.omnibattery.config_backup import BACKUP_KEY
-from custom_components.omnibattery.infra.mac_tracking import IP_BASED_BRANDS
 from tests.flow_harness import (  # noqa: F401  (fixtures are used by name)
     CASES,
     DOMAIN,
@@ -402,6 +401,7 @@ async def test_indevolt_reconfigure_abandoned_on_step_two_changes_nothing(flow_e
 
 # --------------------------------------------------------------------------- 3. DHCP
 
+IP_BASED_BRANDS = frozenset({"marstek", "zendure", "anker", "sessy", "indevolt"})
 MAC = "aa:bb:cc:dd:ee:ff"
 NEW_IP = "192.0.2.99"
 DHCP_CASE_IDS = [

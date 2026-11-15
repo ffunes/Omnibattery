@@ -46,6 +46,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverTraits,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -308,6 +309,7 @@ class MarstekModbusDriver(BatteryDriver):
     """Modbus-TCP driver for a single Marstek battery."""
 
     BRAND = "marstek"
+    TRAITS = DriverTraits(ip_addressed=True)
     LABEL = "Marstek Venus"
     MANUFACTURER = "Marstek"
     DEFAULT_MODEL = "Venus"

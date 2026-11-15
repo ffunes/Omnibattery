@@ -25,9 +25,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Sequence
 
-# Brands whose batteries are addressed by IP and can therefore drift.
-# Serial (a device path), ESPHome and MQTT (a device id) have no IP to track.
-IP_BASED_BRANDS = frozenset({"marstek", "zendure", "anker", "sessy", "indevolt"})
 
 CONF_TRACK_MAC = "track_mac"
 CONF_MAC = "mac"
@@ -86,13 +83,16 @@ def normalise_mac(raw: Any) -> str | None:
 def is_ip_based(battery: dict) -> bool:
     """True when this battery is addressed by IP, so its address can drift.
 
-    A Marstek entry configured over serial stores its device path in ``host``
-    and is not IP-based despite the brand being in ``IP_BASED_BRANDS`` — the
-    brand alone is not enough to decide.
+    Serial (a device path), ESPHome and MQTT (a device id) have no IP to track,
+    and a Marstek entry over serial stores its device path in ``host``: the brand
+    alone is not enough, so the driver's ``traits_for`` decides. An unknown brand
+    is not IP-based.
     """
-    if battery.get("brand", "marstek") not in IP_BASED_BRANDS:
-        return False
-    if (battery.get("serial_port") or "").strip():
+    # Local import: the registry pulls in the Indevolt driver, which imports this
+    # module.
+    from ..drivers.registry import is_ip_addressed
+
+    if not is_ip_addressed(battery):
         return False
     return bool((battery.get("host") or "").strip())
 

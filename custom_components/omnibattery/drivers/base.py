@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 from ..const import CONF_BATTERY_VERSION, DEFAULT_VERSION, SUPPORTED_VERSIONS
@@ -103,6 +103,31 @@ def resolve_battery_version(battery_config: Mapping, name: str | None = None) ->
             )
         return DEFAULT_VERSION
     return version
+
+
+@dataclass(frozen=True)
+class DriverTraits:
+    """Class-level traits the shared code needs before a driver is connected.
+
+    Unlike :class:`DriverCapabilities` (per instance, refined after ``connect``),
+    these are fixed per brand, or derived from the stored battery config by
+    :meth:`BatteryDriver.traits_for`.
+    """
+
+    # The 100 % charge voltage taper switch exists (needs per-cell voltages).
+    supports_voltage_taper: bool = True
+    # The coordinator keeps the stored taper flag even without the switch.
+    # Freezes a known defect (plan section 8): Sessy's weekly-charge planning
+    # assumes a 200 W tail from a taper it does not have. Remove with that fix.
+    keeps_stored_taper_flag: bool = False
+    # Fixed power envelope: legacy configured limits are clamped to the device's.
+    fixed_power_envelope: bool = False
+    # The battery has a DC PV input that can be left unconnected (Marstek vA/vD).
+    optional_dc_pv_input: bool = False
+    # Initial SOC/power config is not written at setup: the device holds it.
+    device_owns_initial_config: bool = False
+    # Addressed by IP, so its address can drift (see ``traits_for``).
+    ip_addressed: bool = False
 
 
 @dataclass(frozen=True)
@@ -359,6 +384,24 @@ class BatteryDriver(ABC):
     # Config keys of this brand to redact from diagnostics. The generic keys
     # live here; ``registry.redact_keys()`` unions every registered class.
     REDACT_KEYS: frozenset[str] = frozenset({"host", "serial", "ip_address", "mac"})
+
+    TRAITS: DriverTraits = DriverTraits()
+
+    @classmethod
+    def traits_for(cls, battery_config: Mapping) -> DriverTraits:
+        """Traits of this brand for one stored battery config.
+
+        ``optional_dc_pv_input`` follows the resolved stored version (vA/vD) for
+        any brand, and a stored ``serial_port`` is never IP-addressed: both
+        freeze today's behaviour, including the stale keys left behind by a
+        brand change in the options flow (plan section 8).
+        """
+        return replace(
+            cls.TRAITS,
+            optional_dc_pv_input=resolve_battery_version(battery_config) in ("vA", "vD"),
+            ip_addressed=cls.TRAITS.ip_addressed
+            and not (battery_config.get("serial_port") or "").strip(),
+        )
 
     @classmethod
     @abstractmethod

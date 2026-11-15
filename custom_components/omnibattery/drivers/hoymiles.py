@@ -23,6 +23,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverTraits,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -190,6 +191,7 @@ class HoymilesMqttDriver(BatteryDriver):
     """Push telemetry and external-power control for one Hoymiles system."""
 
     BRAND = "hoymiles"
+    TRAITS = DriverTraits(supports_voltage_taper=False)
     LABEL = "Hoymiles MQTT"
     MANUFACTURER = "Hoymiles"
     DEFAULT_MODEL = "MS-A2"

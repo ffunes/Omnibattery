@@ -82,6 +82,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverTraits,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -567,6 +568,7 @@ class IndevoltDriver(BatteryDriver):
     """Monitor and control one Indevolt battery through its local HTTP API."""
 
     BRAND = "indevolt"
+    TRAITS = DriverTraits(supports_voltage_taper=False, ip_addressed=True)
     LABEL = "Indevolt SolidFlex / PowerFlex"
     MANUFACTURER = "Indevolt"
     DEFAULT_MODEL = "Indevolt"

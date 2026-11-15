@@ -7,6 +7,7 @@ coordinator has always done with an unrecognised ``brand`` value.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 
 from .anker import AnkerModbusDriver
 from .base import BatteryDriver
@@ -48,3 +49,13 @@ def redact_keys() -> frozenset[str]:
     for cls in DRIVERS.values():
         keys |= cls.REDACT_KEYS
     return frozenset(keys)
+
+
+def is_ip_addressed(battery_config: Mapping) -> bool:
+    """True when this stored battery's driver says it is addressed by IP.
+
+    Unlike ``driver_class``, an unknown brand is not IP-addressed (it does not
+    fall back to ``DEFAULT_BRAND``); an entry without ``brand`` is the default.
+    """
+    cls = DRIVERS.get(battery_config.get("brand", DEFAULT_BRAND))
+    return cls is not None and cls.traits_for(battery_config).ip_addressed

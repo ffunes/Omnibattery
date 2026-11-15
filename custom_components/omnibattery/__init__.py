@@ -11585,7 +11585,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 def _device_owns_initial_config(brand: str) -> bool:
     """Return whether setup must preserve configuration stored by the device."""
-    return brand == "zendure"
+    return driver_class(brand).TRAITS.device_owns_initial_config
 
 
 _LEGACY_ACTIVE_BALANCE_PREFIX = "active_balance_mode_"

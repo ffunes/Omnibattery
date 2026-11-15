@@ -3,8 +3,6 @@
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
 __init__.py:_async_setup_entry:compare:CONF_BATTERY_VERSION not in battery_config
-__init__.py:_device_owns_initial_config:compare:brand == 'zendure'
-__init__.py:_device_owns_initial_config:literal:zendure
 config_flow.py:<module>:identifier:AnkerModbusDriver
 config_flow.py:<module>:identifier:CONF_INDEVOLT_REQUEST_SPEED
 config_flow.py:<module>:identifier:DEFAULT_HOYMILES_MODEL
@@ -780,19 +778,10 @@ frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.battery_version == 'vD'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.battery_version in ('vA', 'vD')
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'marstek'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'sessy'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand in ('zendure', 'anker', 'hoymiles', 'huawei', 'indevolt')
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:indevolt_request_speed
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:zendure_model
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:anker
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:hoymiles
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:huawei
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:indevolt
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:marstek
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:zendure
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:identifier:sync_marstek_ceiling
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:identifier:sync_marstek_ceiling
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:identifier:sync_marstek_ceiling
@@ -818,13 +807,6 @@ infra/coordinator.py:MarstekVenusDataUpdateCoordinator.needs_software_power_cap:
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_detected_zendure_model
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_marstek_ems_power_ceiling
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_zendure_inverse_max_power
-infra/mac_tracking.py:<module>:literal:anker
-infra/mac_tracking.py:<module>:literal:indevolt
-infra/mac_tracking.py:<module>:literal:marstek
-infra/mac_tracking.py:<module>:literal:sessy
-infra/mac_tracking.py:<module>:literal:zendure
-infra/mac_tracking.py:is_ip_based:compare:battery.get('brand', 'marstek') not in IP_BASED_BRANDS
-infra/mac_tracking.py:is_ip_based:literal:marstek
 number.py:<module>:identifier:MarstekArbitrageNumber
 number.py:<module>:identifier:MarstekBackupThresholdNumber
 number.py:<module>:identifier:MarstekChargeHysteresisNumber
@@ -856,12 +838,5 @@ sensors/aggregate_sensors.py:MarstekVenusAggregateSensor._calculate_system_soc:c
 sensors/calculated_sensors.py:<module>:identifier:ZendurePackSensor
 switch.py:ManualModeSwitch.async_turn_on:literal:anker
 switch.py:ManualModeSwitch.async_turn_on:literal:anker
-switch.py:async_setup_entry:compare:coordinator.brand not in ('zendure', 'anker', 'sessy', 'hoymiles', 'huawei', 'indevolt')
-switch.py:async_setup_entry:literal:anker
-switch.py:async_setup_entry:literal:hoymiles
-switch.py:async_setup_entry:literal:huawei
-switch.py:async_setup_entry:literal:indevolt
-switch.py:async_setup_entry:literal:sessy
-switch.py:async_setup_entry:literal:zendure
 tracking/balance_monitor.py:BalanceMonitor._evaluate:literal:marstek
 tracking/balance_monitor.py:BalanceMonitor._maybe_notify:literal:marstek

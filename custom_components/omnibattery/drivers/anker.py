@@ -29,6 +29,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverTraits,
     DELIVERED_AC_POWER_KEY,
     ReadGroup,
     SetpointResult,
@@ -303,6 +304,7 @@ class AnkerModbusDriver(BatteryDriver):
     """Modbus TCP driver for Anker SOLIX Solarbank Max AC / 4 E5000 Pro / XE AC."""
 
     BRAND = "anker"
+    TRAITS = DriverTraits(supports_voltage_taper=False, ip_addressed=True)
     LABEL = "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"
     MANUFACTURER = "Anker"
     DEFAULT_MODEL = "Solarbank Max AC"

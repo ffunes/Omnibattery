@@ -48,6 +48,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverTraits,
     DELIVERED_AC_POWER_KEY,
     ReadGroup,
     SetpointResult,
@@ -366,6 +367,7 @@ class ZendureLocalDriver(BatteryDriver):
     """Local HTTP driver for a single Zendure SolarFlow device."""
 
     BRAND = "zendure"
+    TRAITS = DriverTraits(supports_voltage_taper=False, device_owns_initial_config=True, ip_addressed=True)
     LABEL = "Zendure SolarFlow"
     MANUFACTURER = "Zendure"
     DEFAULT_MODEL = "Zendure"
