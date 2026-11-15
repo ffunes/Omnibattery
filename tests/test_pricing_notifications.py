@@ -634,6 +634,7 @@ ORDERS = {
     "exports": frozenset({_slot_at(-480, 60)}),
     "sales": {_slot_at(120): 2.5, _slot_at(135): 2.5},
     "solar_delay": True,
+    "room": {_slot_at(-540): 2.5, _slot_at(-525): 1.2},
 }
 
 
@@ -647,6 +648,7 @@ def test_optimizer_plan_without_charge_still_names_its_orders():
     assert "Selling to the grid: 20:00-20:30 at 2.5 kW" in message
     assert "Solar surplus to export: 10:00-11:00" in message
     assert "Solar charge delayed by the plan" in message
+    assert "Making room for the sun: 09:00-09:15 at 2.5 kW, 09:15-09:30 at 1.2 kW" in message
     # The old planner's words stay on its own path, and it has no orders.
     old = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False), None, plan_orders=ORDERS, **_DP_CFG)[1]

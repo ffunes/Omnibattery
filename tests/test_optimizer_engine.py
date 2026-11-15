@@ -773,3 +773,207 @@ def test_the_panel_anchor_is_the_fleet_energy_over_every_capacity(monkeypatch, m
     assert h._run_engine(sc, monkeypatch).planner == "optimizer"
     start, capacity = box["c"]._dp_eval_anchor
     assert start == pytest.approx(5.12 * 0.8 + 2.5 * 0.2) and capacity == pytest.approx(7.62)
+
+
+# --- Smart Pre-Discharge decided by the optimizer (stage 3) ----------------
+
+def _neg_noon(hr):
+    return 0.15 if hr < 7 else (-0.05 if 11 <= hr < 15 else (0.30 if 18 <= hr < 22 else 0.20))
+
+
+def _room_engine(monkeypatch, *, enabled=True, sensor=True, negative=False, weekly=False, calls=None,
+                 case=("1x10k-800", 15, "flat0.4", "neg-noon", False, "sunny", "00:05")):
+    """A neg-noon night through the engine with Smart Pre-Discharge on: the
+    module's plan stubbed (risk = today's negative slots, per-slot reserve),
+    the export curve = import - 0.02."""
+    from custom_components.omnibattery.pricing import PriceSlot
+    from custom_components.omnibattery.pricing import engine as engine_module
+    from custom_components.omnibattery.pricing.curtailment import CurtailmentPlan
+    from custom_components.omnibattery.pricing.engine import PricingManager
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    monkeypatch.setitem(sw.PRICES, "neg-noon", _neg_noon)
+    box = {}
+    real_controller = h._controller
+
+    def build(s):
+        c = real_controller(s)
+        c.smart_predischarge_enabled = enabled
+        c.negative_injection_threshold = 0.0
+        c.predischarge_export_mode = "automatic"  # the only mode the options offer
+        c.predischarge_reserve_soc = 20.0
+        c.negative_price_charging_enabled = negative
+        c.export_price_sensor = "sensor.export" if sensor else None
+        c._dp_plan_room = "stale"
+        if weekly:
+            c._weekly_full_charge_pending = lambda: True
+        box["c"] = c
+        return c
+
+    def fake_build(self, slots, reserved=None, *, now=None):
+        risk = [s for s in slots if s.price < 0 and s.start.date() == sw.DAY.date()]
+        plan = CurtailmentPlan(status="planned", reason="headroom_required", risk_slots=risk,
+                               solar_reserve_by_slot={s: 0.2 for s in risk}, opportunistic_space_kwh=3.0)
+        self._controller._curtailment_plan = plan
+        return plan
+
+    monkeypatch.setattr(h, "_controller", build)
+    monkeypatch.setattr(PricingManager, "_build_curtailment_plan", fake_build)
+    monkeypatch.setattr(PricingManager, "clear_curtailment_runtime", lambda self, *a, **k: None)
+    monkeypatch.setattr(
+        PricingManager, "get_future_export_price_slots",
+        lambda self, horizon_end=None, **_kw: [
+            PriceSlot(x.start, x.end, x.price - 0.02) for x in self._raw_price_slots(quiet=True)[0]
+        ],
+    )
+    if calls is not None:
+        from custom_components.omnibattery.pricing.optimizer import optimize_charge as real
+
+        monkeypatch.setattr(engine_module, "optimize_charge", lambda r: calls.append(r) or real(r))
+    try:
+        outcome = h._run_engine(sw.scenario(case), monkeypatch)
+    except h.ScenarioError:  # a weekly day's schedule is the old allocator's
+        outcome = None
+    return outcome, box["c"]
+
+
+def test_the_request_carries_the_room_fields_only_with_pre_discharge_on(monkeypatch):
+    outcome, c = _room_engine(monkeypatch)
+    req = outcome.request
+    assert req.room_threshold == 0.0
+    assert req.room_power_kw == pytest.approx(0.8)  # automatic: the fleet's discharge power
+    assert req.room_floor_kwh == pytest.approx(0.10 * 10.0)  # reserve 20 % over the 10 % floor
+    assert req.room_export_prices and all(
+        p == pytest.approx(req.export_prices[t]) for t, p in req.room_export_prices.items()
+    )
+    assert c._dp_plan_room is not None and c._dp_plan_room.risk
+    outcome, c = _room_engine(monkeypatch, enabled=False)
+    assert outcome.request.room_threshold is None and not outcome.request.room_export_prices
+    assert c._dp_plan_room is None
+    # No export sensor (design §2.6 A): the module keeps deciding.
+    outcome, c = _room_engine(monkeypatch, sensor=False)
+    assert outcome.request.room_threshold is None and c._dp_plan_room is None
+
+
+def test_with_the_plan_deciding_the_optimizer_runs_once(monkeypatch):
+    calls = []
+    outcome, c = _room_engine(monkeypatch, calls=calls)
+    assert outcome.planner == "optimizer" and len(calls) == 1
+    calls.clear()
+    # The module decides: its risk window is taken out and the plan rebuilt.
+    _room_engine(monkeypatch, enabled=False, calls=calls)
+    assert len(calls) == 2
+
+
+def test_the_negative_price_calendar_still_fills_inside_the_risk(monkeypatch):
+    """Decision 3 of the stage-0 consultation: only the second optimizer call
+    is skipped; the risk's negative quarters stay booked as today (the
+    module's live opportunistic space limits them)."""
+    from custom_components.omnibattery.pricing import SLOT_PURPOSE_NEGATIVE_PRICE
+
+    _outcome, c = _room_engine(monkeypatch, negative=True)
+    purposes = c._dynamic_pricing_schedule.slot_purposes
+    negative = sorted(s.start.strftime("%H:%M") for s, p in purposes.items() if p == SLOT_PURPOSE_NEGATIVE_PRICE)
+    assert negative[0] == "11:00" and negative[-1] == "14:45" and len(negative) == 16
+
+
+def test_a_weekly_full_charge_day_leaves_pre_discharge_to_the_module(monkeypatch):
+    _outcome, c = _room_engine(monkeypatch, weekly=True)
+    assert (c._last_decision_data or {}).get("planner") != "optimizer"
+    assert c._dp_plan_room is None
+
+
+def test_room_prices_leave_out_slots_where_the_battery_may_not_discharge(monkeypatch):
+    # D4 (stage-0 decision 7): a slot at or below the discharge price
+    # threshold, with price discharge control on, is no room slot.
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    monkeypatch.setattr(PricingManager, "_dp_price_discharge_threshold", lambda self: 0.15)
+    outcome, _c = _room_engine(monkeypatch)
+    req = outcome.request
+    prices = {s.start: s.price for s in req.price_slots}
+    assert req.room_export_prices
+    assert all(prices[t] > 0.15 for t in req.room_export_prices)
+
+
+def test_room_prices_leave_out_a_no_discharge_window(monkeypatch):
+    from tests import test_predictive_scenarios as h
+
+    real_controller = h._controller
+
+    def build(s):
+        c = real_controller(s)
+        c.config_entry.data["no_discharge_time_slots"] = [
+            {"start_time": "07:00:00", "end_time": "09:00:00", "days": [], "enabled": True,
+             "allow_discharge": False}
+        ]
+        return c
+
+    monkeypatch.setattr(h, "_controller", build)
+    outcome, _c = _room_engine(monkeypatch)
+    req = outcome.request
+    assert req.room_export_prices
+    assert not [t for t in req.room_export_prices if 7 <= t.hour < 9]
+    assert [t for t in req.export_prices if 7 <= t.hour < 9]
+
+
+def test_an_evaluation_drops_the_room_orders_with_the_plan_orders():
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    ctrl = SimpleNamespace(_dp_plan_room="stale")
+    PricingManager._clear_plan_orders(SimpleNamespace(_controller=ctrl))
+    assert ctrl._dp_plan_room is None
+
+
+def test_a_real_room_order_runs_stops_at_its_level_and_does_not_re_plan(monkeypatch):
+    """The whole chain with an order the plan made: the module exports at the
+    plan's power on the plan's line, stops at the whole percent of the plan's
+    level (in the request's own SOC terms), and the SOC-drop trigger sees the
+    planned discharge as on the line."""
+    from custom_components.omnibattery.pricing.curtailment import BatterySnapshot
+
+    outcome, c = _room_engine(monkeypatch, case=("1x5k-2500", 100, "flat0.4", "neg-noon", False, "sunny", "00:05"))
+    room = c._dp_plan_room
+    assert room.orders
+    manager = c._pricing_mgr
+    # The order whose projection falls the most: a real discharge.
+    first = max(room.orders, key=lambda s: manager.projected_soc_now(s.start) - manager.projected_soc_now(s.end))
+    assert manager.projected_soc_now(first.start) - manager.projected_soc_now(first.end) > 1.0
+    kw, level = room.orders[first]
+    req = outcome.request
+    level_soc = req.fleet_soc_pct + level / req.fleet_capacity_kwh * 100.0
+    assert level_soc == pytest.approx(round(level_soc), abs=1e-6)  # on the whole percent
+
+    overrides = {}
+    c._setpoint_overrides = overrides
+    c.set_setpoint_override = lambda source, value, priority=0: overrides.__setitem__(source, (priority, value))
+    c.remove_setpoint_override = lambda source: overrides.pop(source, None)
+    c.set_discharge_block = lambda *a, **k: None
+    c.remove_discharge_block = lambda *a, **k: None
+    battery = c.coordinators[0]
+    manager._curtailment_battery_snapshots = lambda: [
+        BatterySnapshot("b", battery.data["battery_soc"], 5.12, 100.0, 20.0, 2500.0)
+    ]
+
+    def at(moment, soc):
+        manager._now = lambda: moment
+        battery.data["battery_soc"] = soc
+        manager._refresh_plan_room(room, None)
+        return c._curtailment_runtime_status
+
+    start = first.start + timedelta(minutes=1)
+    assert at(start, manager.projected_soc_now(start)) == "predischarging"
+    assert overrides["curtailment_predischarge"] == (5, -kw * 1000.0)
+    assert at(start, round(level_soc)) == "predischarging"  # the reading at the level still runs
+    assert at(start, round(level_soc) - 1) == "predischarging"  # held: no export, no charge
+    assert "curtailment_predischarge" not in overrides and manager._room_hold
+    assert at(start, round(level_soc) - 2) == "target_reached"
+    # Executed as planned to the slot's end: on the line, no re-plan.
+    manager._now = lambda: first.end
+    battery.data["battery_soc"] = manager.projected_soc_now(first.end)
+    assert manager._is_dp_soc_drop_reeval() is False
+    battery.data["battery_soc"] -= 3.0
+    assert manager._is_dp_soc_drop_reeval() is True
