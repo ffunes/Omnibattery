@@ -405,9 +405,10 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
             return None
         model = getattr(self.coordinator.driver, "model_label", None)
         attributes = {"model": model} if model else {}
+        attributes["aggregate_solar"] = self.coordinator.driver.allows_aggregate_solar
         if getattr(self.coordinator.capabilities, "has_mppt_pv", False):
             attributes["dc_pv_connected"] = has_connected_mppt_pv(self.coordinator)
-        return attributes or None
+        return attributes
 
     @property
     def device_info(self):

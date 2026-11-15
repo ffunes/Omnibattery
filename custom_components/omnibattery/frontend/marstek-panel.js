@@ -2074,23 +2074,11 @@ class MarstekVenusPanel extends HTMLElement {
     const u = (stateObj.attributes.unit_of_measurement || "").toLowerCase();
     return u === "kw" ? n * 1000 : n;
   }
-  /** Anker AC models expose a calculated PV-looking value, not DC PV input. */
-  _isAnkerAcOnlyModel(model) {
-    const normalized = String(model || "").trim().toLowerCase();
-    return /(?:^|\s)solarbank\s+(?:max|xe)\s+ac(?:$|\s)/.test(normalized);
-  }
-  /** Only the verified E5000 Anker models may use aggregate PV in the panel. */
-  _isAnkerIndependentPvModel(model) {
-    const normalized = String(model || "").trim().toLowerCase();
-    return normalized.includes("solarbank 4 e5000 pro");
-  }
-  _allowAggregateSolar(model, device) {
-    const manufacturer = String((device && device.manufacturer) || "").toLowerCase();
-    const normalized = String(model || "").trim().toLowerCase();
-    const isAnker = manufacturer.includes("anker") || normalized.includes("solarbank");
-    if (!isAnker) return true;
-    if (this._isAnkerAcOnlyModel(model)) return false;
-    return this._isAnkerIndependentPvModel(model);
+  /** The backend decides per battery whether its aggregate solar value is a real
+   *  PV source (battery_soc attribute `aggregate_solar`). Missing attribute (state
+   *  not loaded yet) means do not trust it, so a derived value is never shown as PV. */
+  _allowAggregateSolar(socObj) {
+    return Boolean(socObj && socObj.attributes && socObj.attributes.aggregate_solar);
   }
   /** Sum live power (W) of every enabled excluded device. Configuration comes
    *  from the panel payload so disabling a control entity cannot remove a load
@@ -2174,10 +2162,7 @@ class MarstekVenusPanel extends HTMLElement {
         return e && e.translation_key === K.batterySoc;
       });
       if (!socObj) continue; // not a battery device
-      const modelLabel = (socObj.attributes && socObj.attributes.model) || "";
-      const socEntity = hass.entities[socObj.entity_id];
-      const device = socEntity && hass.devices && hass.devices[socEntity.device_id];
-      const allowAggregateSolar = this._allowAggregateSolar(modelLabel, device);
+      const allowAggregateSolar = this._allowAggregateSolar(socObj);
       const get = (key) => {
         const id = ids.find((i) => {
           const e = hass.entities[i];

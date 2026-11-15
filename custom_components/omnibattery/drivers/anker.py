@@ -399,6 +399,11 @@ class AnkerModbusDriver(BatteryDriver):
         """
         return self._product_code in _INDEPENDENT_PV_PRODUCT_CODES
 
+    @property
+    def allows_aggregate_solar(self) -> bool:
+        """Only independent-PV SKUs publish a real aggregate PV value."""
+        return self.has_independent_pv
+
     OBSOLETE_ENTITY_LEGACY_PREFIXES = True
 
     def obsolete_entity_suffixes(self) -> tuple[str, ...]:

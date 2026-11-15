@@ -755,16 +755,6 @@ const/integration_const.py:<module>:identifier:CONF_INDEVOLT_REQUEST_SPEED
 const/integration_const.py:<module>:literal:indevolt
 const/integration_const.py:max_power_for_battery_version:compare:battery_version != 'vD'
 const/integration_const.py:max_power_for_battery_version:lookup:MAX_POWER_BY_VERSION.get(battery_version, 2500)
-frontend/marstek-panel.js:<js>:js:anker
-frontend/marstek-panel.js:<js>:js:anker
-frontend/marstek-panel.js:<js>:js:anker
-frontend/marstek-panel.js:<js>:js:anker
-frontend/marstek-panel.js:<js>:js:anker
-frontend/marstek-panel.js:<js>:js:anker
-frontend/marstek-panel.js:<js>:js:anker
-frontend/marstek-panel.js:<js>:js:solarbank
-frontend/marstek-panel.js:<js>:js:solarbank
-frontend/marstek-panel.js:<js>:js:solarbank
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus

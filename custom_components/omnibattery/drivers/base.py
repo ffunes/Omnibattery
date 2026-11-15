@@ -535,6 +535,16 @@ class BatteryDriver(ABC):
         return False
 
     @property
+    def allows_aggregate_solar(self) -> bool:
+        """Whether the panel may read this battery's aggregate ``solar_power``.
+
+        The panel fills a battery's PV from the single aggregate value only when
+        it is a genuine PV source. A driver whose aggregate value is derived
+        from the battery's own AC measurement returns False. Defaults to True.
+        """
+        return True
+
+    @property
     def model_label(self) -> Optional[str]:
         """Human-readable model for display (panel chip / device page).
 
