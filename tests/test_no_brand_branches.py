@@ -85,7 +85,9 @@ INFRA_CLIENTS = frozenset({
     "indevolt_client", "indevolt_notify",
 })
 # The only driver modules shared code may import (registry does not exist yet).
-ALLOWED_DRIVER_MODULES = frozenset({"base", "registry"})
+# "setup" is the shared per-brand config flow module (DriverSetup, flow context);
+# it imports neither config_flow nor registry, so brand flows may import it.
+ALLOWED_DRIVER_MODULES = frozenset({"base", "registry", "setup"})
 
 LOG_METHODS = frozenset({"debug", "info", "warning", "error", "exception", "critical", "log"})
 

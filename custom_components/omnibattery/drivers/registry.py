@@ -44,6 +44,12 @@ def driver_class(brand: str | None) -> type[BatteryDriver]:
     return cls
 
 
+def setup_for(brand: str | None):
+    """The ``DriverSetup`` of ``brand``'s driver, or None (no setup, or not registered)."""
+    cls = DRIVERS.get(brand) if brand is not None else None
+    return cls.SETUP if cls is not None else None
+
+
 def traits_for_brand(brand: str | None, battery_config: Mapping) -> DriverTraits:
     """Traits of the driver class that serves ``brand`` for this stored config.
 

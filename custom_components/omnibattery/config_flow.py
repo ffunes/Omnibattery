@@ -12,7 +12,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.core import callback
-from homeassistant.config_entries import ConfigFlow, OptionsFlow, ConfigEntry
+from homeassistant.config_entries import SOURCE_RECONFIGURE, ConfigFlow, OptionsFlow, ConfigEntry
 from homeassistant.const import (
     CONF_HOST,
     CONF_NAME,
@@ -151,7 +151,15 @@ from .const import (
     MAX_TIME_SLOTS,
 )
 from .drivers.base import DriverCapabilities
+from .drivers import registry
 from .drivers.registry import DEFAULT_BRAND
+from .drivers.setup import (
+    FlowKind,
+    SetupContext,
+    is_flow_result,
+    live_coordinator,
+    work_dict,
+)
 from .drivers.esphome import EsphomeEntityDriver
 from .drivers.marstek import MarstekModbusDriver
 from .drivers.zendure import (
@@ -1435,48 +1443,160 @@ def _restore_submitted_values(data_schema: vol.Schema, user_input: dict[str, Any
     return vol.Schema(schema, required=data_schema.required, extra=data_schema.extra)
 
 
+def _wrap_preserving_values(name, method):
+    """The step ``method`` wrapped to restore submitted values in error forms.
+
+    Returns ``None`` when ``method`` is not a step with a ``user_input`` argument
+    or is already wrapped.
+    """
+    # Read parameter names from the code object, not inspect.signature():
+    # on Python 3.14 that evaluates annotations, and inherited HA steps
+    # annotate with TYPE_CHECKING-only names (BluetoothServiceInfoBleak).
+    code = method.__code__
+    params = code.co_varnames[: code.co_argcount]
+    if (
+        not name.startswith("async_step_")
+        or "user_input" not in params
+        or getattr(method, "_preserves_submitted_values", False)
+    ):
+        return None
+
+    # Position of user_input among the args passed after self.
+    position = params.index("user_input") - 1
+
+    @functools.wraps(method)
+    async def wrapped(self, *args, __method=method, __position=position, **kwargs):
+        submitted = kwargs.get(
+            "user_input", args[__position] if len(args) > __position else None
+        )
+        result = await __method(self, *args, **kwargs)
+        if (
+            not isinstance(submitted, dict)
+            or not isinstance(result, dict)
+            or result.get("type") != "form"
+            or not result.get("errors")
+        ):
+            return result
+
+        data_schema = result.get("data_schema")
+        if not isinstance(data_schema, vol.Schema):
+            return result
+        updated = dict(result)
+        updated["data_schema"] = _restore_submitted_values(data_schema, submitted)
+        return updated
+
+    wrapped._preserves_submitted_values = True
+    return wrapped
+
+
 def _preserve_values_in_error_forms(flow_class):
     """Wrap flow steps so validation errors do not discard their submitted values."""
     for name, method in inspect.getmembers(flow_class, inspect.iscoroutinefunction):
-        # Read parameter names from the code object, not inspect.signature():
-        # on Python 3.14 that evaluates annotations, and inherited HA steps
-        # annotate with TYPE_CHECKING-only names (BluetoothServiceInfoBleak).
-        code = method.__code__
-        params = code.co_varnames[: code.co_argcount]
-        if (
-            not name.startswith("async_step_")
-            or "user_input" not in params
-            or getattr(method, "_preserves_submitted_values", False)
-        ):
-            continue
-
-        # Position of user_input among the args passed after self.
-        position = params.index("user_input") - 1
-
-        @functools.wraps(method)
-        async def wrapped(self, *args, __method=method, __position=position, **kwargs):
-            submitted = kwargs.get(
-                "user_input", args[__position] if len(args) > __position else None
-            )
-            result = await __method(self, *args, **kwargs)
-            if (
-                not isinstance(submitted, dict)
-                or not isinstance(result, dict)
-                or result.get("type") != "form"
-                or not result.get("errors")
-            ):
-                return result
-
-            data_schema = result.get("data_schema")
-            if not isinstance(data_schema, vol.Schema):
-                return result
-            updated = dict(result)
-            updated["data_schema"] = _restore_submitted_values(data_schema, submitted)
-            return updated
-
-        wrapped._preserves_submitted_values = True
-        setattr(flow_class, name, wrapped)
+        wrapped = _wrap_preserving_values(name, method)
+        if wrapped is not None:
+            setattr(flow_class, name, wrapped)
     return flow_class
+
+
+def _flow_kind(flow) -> FlowKind:
+    if isinstance(flow, OptionsFlowHandler):
+        return FlowKind.OPTIONS
+    if getattr(flow, "source", None) == SOURCE_RECONFIGURE:
+        return FlowKind.RECONFIGURE
+    return FlowKind.CONFIG
+
+
+def _stored_battery(flow, entry) -> dict | None:
+    if entry is None:
+        return None
+    batteries = entry.data.get("batteries", [])
+    return batteries[flow.battery_index] if flow.battery_index < len(batteries) else None
+
+
+def _setup_context(flow, brand: str) -> SetupContext:
+    """The context a brand's step handler receives (built per call; ``work`` persists)."""
+    kind = _flow_kind(flow)
+    if kind is FlowKind.OPTIONS:
+        entry = flow.config_entry
+    elif kind is FlowKind.RECONFIGURE:
+        entry = flow._get_reconfigure_entry()
+    else:
+        entry = None
+    return SetupContext(
+        kind=kind,
+        battery=_stored_battery(flow, entry),
+        entry=entry,
+        coordinator=live_coordinator(flow, entry, flow.battery_index),
+        work=work_dict(flow, brand),
+    )
+
+
+async def _run_driver_step(flow, brand: str, handler, user_input):
+    """Run a generated step: a FlowResult goes back as is, battery data is merged."""
+    ctx = _setup_context(flow, brand)
+    result = await handler(flow, user_input, ctx)
+    if is_flow_result(result):
+        return result
+    if ctx.kind is not FlowKind.RECONFIGURE:
+        flow._current_battery_data.update(result)
+        return await flow.async_step_battery_limits()
+    # Reconfigure: lay the data over the stored battery, then next battery or save.
+    entry = ctx.entry
+    updated = dict(ctx.battery or {})
+    updated.update(result)
+    flow._reconfigure_batteries.append(updated)
+    flow.battery_index += 1
+    if flow.battery_index >= len(entry.data.get("batteries", [])):
+        return flow.async_update_reload_and_abort(
+            entry, data_updates={"batteries": flow._reconfigure_batteries}
+        )
+    return await flow.async_step_reconfigure_battery()
+
+
+def _install_driver_steps(flow_class, setup, brand: str, setter=setattr) -> list[str]:
+    """Generate ``flow_class.async_step_<id>`` for every step of ``setup``.
+
+    Each method is a real coroutine function with a real ``user_input`` parameter
+    (no ``__getattr__``: a missing attribute must keep raising ``AttributeError``).
+    Order: the flow classes are decorated with ``_preserve_values_in_error_forms``
+    when the module is imported, before any brand's steps are installed (see
+    ``_install_registered_driver_steps`` at the end of the module), so the
+    decorator never sees these methods. This function therefore applies the same
+    wrapper itself; were it run before the decorator, the decorator would skip the
+    already-wrapped method. ``setter(cls, name, method)`` lets a test undo the
+    install; the names installed are returned.
+    """
+    installed = []
+    for step_id, handler in setup.steps.items():
+        name = f"async_step_{step_id}"
+
+        async def step(self, user_input=None, __handler=handler, __brand=brand):
+            return await _run_driver_step(self, __brand, __handler, user_input)
+
+        step.__name__ = name
+        step.__qualname__ = f"{flow_class.__name__}.{name}"
+        step.__doc__ = handler.__doc__
+        method = _wrap_preserving_values(name, step) or step
+        setter(flow_class, name, method)
+        installed.append(name)
+    return installed
+
+
+def _brand_selector_options() -> list[dict[str, str]]:
+    """Brand selector options: registry order and each driver's ``LABEL``."""
+    return [
+        {"value": brand, "label": cls.LABEL}
+        for brand, cls in registry.DRIVERS.items()
+    ]
+
+
+async def _dispatch_brand_entry(flow, brand: str):
+    """Go to the brand's ``SETUP.entry_step``; ``None`` = the brand has no setup yet."""
+    setup = registry.setup_for(brand)
+    if setup is None:
+        return None
+    work_dict(flow, brand, reset=True)
+    return await getattr(flow, f"async_step_{setup.entry_step}")()
 
 
 @_preserve_values_in_error_forms
@@ -1743,6 +1863,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         if user_input is not None:
             brand = user_input["brand"]
             self._current_battery_data = {"brand": brand}
+            if (dispatched := await _dispatch_brand_entry(self, brand)) is not None:
+                return dispatched
             if brand == "zendure":
                 return await self.async_step_battery_connection_zendure()
             if brand == "esphome":
@@ -1765,16 +1887,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 {
                     vol.Required("brand", default="marstek"):
                         SelectSelector(SelectSelectorConfig(
-                            options=[
-                                {"value": "marstek", "label": "Marstek Venus"},
-                                {"value": "zendure", "label": "Zendure SolarFlow"},
-                                {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
-                                {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
-                                {"value": "sessy", "label": "Sessy"},
-                                {"value": "indevolt", "label": "Indevolt SolidFlex / PowerFlex"},
-                                {"value": "hoymiles", "label": "Hoymiles MQTT"},
-                                {"value": "huawei", "label": "Huawei SUN2000 + LUNA2000"},
-                            ],
+                            options=_brand_selector_options(),
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
                 }
@@ -3118,6 +3231,15 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             else {}
         )
 
+        current_brand = current.get("brand", DEFAULT_BRAND)
+        setup = registry.setup_for(current_brand)
+        if setup is not None and setup.reconfigure_entry_step:
+            if user_input is None:
+                work_dict(self, current_brand, reset=True)
+            return await getattr(
+                self, f"async_step_{setup.reconfigure_entry_step}"
+            )(user_input)
+
         if current.get("brand", "marstek") == "zendure":
             return await self.async_step_reconfigure_battery_zendure(user_input)
         if current.get("brand", "marstek") == "esphome":
@@ -4347,6 +4469,8 @@ class OptionsFlowHandler(OptionsFlow):
                 CONF_TRACK_MAC: current_battery.get(CONF_TRACK_MAC, False),
                 CONF_MAC: current_battery.get(CONF_MAC, ""),
             }
+            if (dispatched := await _dispatch_brand_entry(self, brand)) is not None:
+                return dispatched
             if brand == "zendure":
                 return await self.async_step_battery_connection_zendure()
             if brand == "esphome":
@@ -4369,16 +4493,7 @@ class OptionsFlowHandler(OptionsFlow):
                 {
                     vol.Required("brand", default=current_brand):
                         SelectSelector(SelectSelectorConfig(
-                            options=[
-                                {"value": "marstek", "label": "Marstek Venus"},
-                                {"value": "zendure", "label": "Zendure SolarFlow"},
-                                {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
-                                {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
-                                {"value": "sessy", "label": "Sessy"},
-                                {"value": "indevolt", "label": "Indevolt SolidFlex / PowerFlex"},
-                                {"value": "hoymiles", "label": "Hoymiles MQTT"},
-                                {"value": "huawei", "label": "Huawei SUN2000 + LUNA2000"},
-                            ],
+                            options=_brand_selector_options(),
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
                 }
@@ -5915,3 +6030,14 @@ class OptionsFlowHandler(OptionsFlow):
             data_schema=vol.Schema(schema_dict),
             errors=errors,
         )
+
+
+def _install_registered_driver_steps() -> None:
+    """Generate the flow steps of every registered brand that declares a SETUP."""
+    for brand, driver in registry.DRIVERS.items():
+        if driver.SETUP is not None:
+            for flow_class in (MarstekVenusConfigFlow, OptionsFlowHandler):
+                _install_driver_steps(flow_class, driver.SETUP, brand)
+
+
+_install_registered_driver_steps()

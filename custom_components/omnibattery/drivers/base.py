@@ -41,6 +41,8 @@ from ..const import (
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+    from .setup import DriverSetup
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -451,6 +453,9 @@ class BatteryDriver(ABC):
     REDACT_KEYS: frozenset[str] = frozenset({"host", "serial", "ip_address", "mac"})
 
     TRAITS: DriverTraits = DriverTraits()
+    # Config flow steps of this brand. ``None`` = the brand still goes through the
+    # branches of ``config_flow.py``; a ``DriverSetup`` gets its steps generated.
+    SETUP: "DriverSetup | None" = None
 
     @classmethod
     def traits_for(cls, battery_config: Mapping) -> DriverTraits:
