@@ -174,7 +174,9 @@ def test_direct_power_reader_sums_external_pv_and_mppt_only():
         solar_production_sensor="sensor.pv",
         coordinators=[
             SimpleNamespace(
-                capabilities=SimpleNamespace(has_mppt_pv=True),
+                capabilities=SimpleNamespace(
+                    has_mppt_pv=True, mppt_power_keys=("mppt1_power",)
+                ),
                 is_available=True,
                 data={"mppt1_power": 500, "ac_power": 900},
             )

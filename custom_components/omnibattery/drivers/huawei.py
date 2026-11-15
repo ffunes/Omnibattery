@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import replace
 from typing import Optional
 
 from homeassistant.core import HomeAssistant
@@ -262,6 +263,13 @@ _BLOCK_STATE3 = (32003, 2, "medium", {
 # to 24 strings; four is where the battery panel's MPPT card stops, so reading
 # further would produce entities nothing displays.
 _MAX_PV_STRINGS = 4
+
+
+def _pv_string_keys(count: int) -> tuple[str, ...]:
+    """The ``mppt<n>_power`` keys published for ``count`` wired PV strings."""
+    return tuple(f"mppt{index}_power" for index in range(1, count + 1))
+
+
 _BLOCK_STRINGS = (32016, _MAX_PV_STRINGS * 2, "high", {
     key: (offset, kind, scale)
     for index in range(1, _MAX_PV_STRINGS + 1)
@@ -558,6 +566,7 @@ class HuaweiSolarDriver(BatteryDriver):
             max_charge_power_w=max_charge_power_w,
             max_discharge_power_w=max_discharge_power_w,
             has_mppt_pv=False,
+            mppt_power_keys=_pv_string_keys(self._pv_strings),
             has_alarm_registers=False,
             has_rs485_control=False,
             has_energy_counters=True,
@@ -849,6 +858,9 @@ class HuaweiSolarDriver(BatteryDriver):
 
         if snapshot.get("pv_string_count") is not None:
             self._pv_strings = max(0, min(_MAX_PV_STRINGS, int(snapshot["pv_string_count"])))
+            self._capabilities = replace(
+                self._capabilities, mppt_power_keys=_pv_string_keys(self._pv_strings)
+            )
         for index in range(1, _MAX_PV_STRINGS + 1):
             volts = snapshot.pop(f"pv{index}_voltage", None)
             amps = snapshot.pop(f"pv{index}_current", None)

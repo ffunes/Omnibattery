@@ -130,7 +130,10 @@ def _runtime_controller(coordinators, *, grid_active=False, solar_power_kw=None)
 def test_runtime_diary_detects_dc_coupled_solar_charge_while_ac_is_exporting():
     coordinator = SimpleNamespace(
         driver=_FakeMarstekDriver(),
-        capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
+        capabilities=SimpleNamespace(
+            has_mppt_pv=True,
+            mppt_power_keys=("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"),
+            has_solar_telemetry=True),
         data={
             "ac_power": 265,
             "mppt1_power": 405,
@@ -154,7 +157,10 @@ def test_runtime_diary_detects_dc_coupled_solar_charge_while_ac_is_exporting():
 def test_runtime_diary_composes_grid_and_dc_solar_charge():
     coordinator = SimpleNamespace(
         driver=_FakeMarstekDriver(),
-        capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
+        capabilities=SimpleNamespace(
+            has_mppt_pv=True,
+            mppt_power_keys=("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"),
+            has_solar_telemetry=True),
         data={"ac_power": -200, "mppt1_power": 800},
     )
     controller = _runtime_controller([coordinator], grid_active=True)

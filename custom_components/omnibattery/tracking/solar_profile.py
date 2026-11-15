@@ -28,7 +28,7 @@ from ..const import (
     normalize_solar_profile_mode,
 )
 from ..pricing.solar_timeline import PROGRESS_BIN_COUNT
-from ..drivers.base import has_connected_mppt_pv
+from ..drivers.base import has_connected_mppt_pv, mppt_power_keys
 from .consumption_profile import (
     INTERVAL_COUNT,
     INTERVAL_SECONDS,
@@ -611,7 +611,7 @@ class SolarProfileTracker:
                 continue
             channels = tuple(
                 key
-                for key in ("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power")
+                for key in mppt_power_keys(coordinator)
                 if not hasattr(coordinator, "data") or key in (getattr(coordinator, "data", {}) or {})
             )
             capacity = getattr(coordinator, "battery_capacity_kwh", None)

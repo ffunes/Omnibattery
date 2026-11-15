@@ -229,7 +229,10 @@ async def test_backup_function_active_in_bypass(brand, value):
 async def test_daily_operation_runtime_decision(brand, value):
     coord = SimpleNamespace(
         driver=_AcRegister(_coordinator(brand).driver),
-        capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
+        capabilities=SimpleNamespace(
+            has_mppt_pv=True,
+            mppt_power_keys=("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"),
+            has_solar_telemetry=True),
         data=_data(value, ac_power=300, ac_offgrid_power=100, mppt1_power=0),
     )
     controller = _runtime_controller([coord])
@@ -286,7 +289,10 @@ async def test_tick_bms_cutoff(brand, value, bms_cutoff_clock):
 async def test_battery_cell_power(brand, value):
     coord = SimpleNamespace(
         is_available=True, driver=_coordinator(brand).driver,
-        capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=False),
+        capabilities=SimpleNamespace(
+            has_mppt_pv=True,
+            mppt_power_keys=("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"),
+            has_solar_telemetry=False),
         data=_data(value, ac_power=-100, ac_offgrid_power=50, mppt1_power=100),
     )
     sensor = _sensor([coord], "system_battery_cell_power")

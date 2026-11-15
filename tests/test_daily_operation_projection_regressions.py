@@ -600,7 +600,10 @@ def test_external_solar_charge_becomes_grid_after_material_import_energy():
 def test_direct_solar_and_ac_draw_are_both_reported_during_net_import():
     coordinator = SimpleNamespace(
         driver=_FakeMarstekDriver(),
-        capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
+        capabilities=SimpleNamespace(
+            has_mppt_pv=True,
+            mppt_power_keys=("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"),
+            has_solar_telemetry=True),
         data={"ac_power": -600, "mppt1_power": 800},
     )
     controller = SimpleNamespace(

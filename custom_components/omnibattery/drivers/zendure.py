@@ -110,6 +110,9 @@ _MODEL_POWER_LIMITS: dict[str, tuple[int, int]] = {
 _SOLAR_MPPT_KEYS: frozenset[str] = frozenset({
     "solar_power", "mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power",
 })
+_MPPT_POWER_KEYS: tuple[str, ...] = (
+    "mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power",
+)
 _AC_COUPLED_MODELS: frozenset[str] = frozenset({
     ZENDURE_MODEL_1600AC_PLUS,
     ZENDURE_MODEL_2400AC_PLUS,
@@ -533,6 +536,9 @@ class ZendureLocalDriver(BatteryDriver):
                 default_discharge_power if max_discharge_power_w is None else max_discharge_power_w
             ),
             has_mppt_pv=model in _MPPT_MODELS,
+            mppt_power_keys=(
+                () if model in _AC_COUPLED_MODELS else _MPPT_POWER_KEYS
+            ),
             has_solar_telemetry=model in _AGGREGATE_PV_MODELS,
             has_alarm_registers=True,    # faultLevel + is_error
             has_rs485_control=False,
@@ -841,6 +847,9 @@ class ZendureLocalDriver(BatteryDriver):
                 else default_discharge_power
             ),
             has_mppt_pv=detected in _MPPT_MODELS,
+            mppt_power_keys=(
+                () if detected in _AC_COUPLED_MODELS else _MPPT_POWER_KEYS
+            ),
             has_solar_telemetry=detected in _AGGREGATE_PV_MODELS,
         )
 

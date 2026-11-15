@@ -26,7 +26,7 @@ from ..const import (
     CONF_BATTERY_MANUAL_MODE_ENABLED,
     pd_profile_from_params,
 )
-from ..drivers.base import DELIVERED_AC_POWER_KEY, InverterStatus
+from ..drivers.base import DELIVERED_AC_POWER_KEY, InverterStatus, mppt_power_keys
 from ..infra.coordinator import MarstekVenusDataUpdateCoordinator
 from ..infra.entity_naming import system_entity_id
 from ..tracking.consumption_tracker import (
@@ -393,12 +393,7 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
                 mppt_values = (
                     [
                         data.get(mk)
-                        for mk in (
-                            "mppt1_power",
-                            "mppt2_power",
-                            "mppt3_power",
-                            "mppt4_power",
-                        )
+                        for mk in mppt_power_keys(coordinator)
                         if data.get(mk) is not None
                     ]
                     # Coordinators predating the topology setting retain the

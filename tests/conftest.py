@@ -242,6 +242,11 @@ class FakeCoordinator:
             max_charge_power_w=self.max_charge_power,
             max_discharge_power_w=self.max_discharge_power,
             has_mppt_pv=has_pv,
+            mppt_power_keys=(
+                ("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power")
+                if has_pv
+                else ()
+            ),
             has_alarm_registers=self.battery_version == "v2",
             has_rs485_control=True,
             actuator_latency_s=0.8 if v3_family else 0.3,

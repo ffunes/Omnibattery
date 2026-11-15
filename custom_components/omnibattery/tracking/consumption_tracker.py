@@ -32,7 +32,7 @@ from homeassistant.util import dt as dt_util
 
 from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN, MISSING_DAY_FLEET_SHARE
 from ..infra.entity_naming import is_omnibattery_solar_entity
-from ..drivers.base import AC_PORT_FIRST, has_connected_mppt_pv
+from ..drivers.base import AC_PORT_FIRST, has_connected_mppt_pv, mppt_power_keys
 from .backfill import BackfillToken, RecorderBackfillCoordinator, local_day_bounds
 from .consumption_profile import (
     ConsumptionForecast,
@@ -934,9 +934,7 @@ class ConsumptionTracker:
             mppt_w = 0.0
             seen = False
             pv_keys = (
-                ("mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power")
-                if has_mppt
-                else ("solar_power",)
+                mppt_power_keys(coordinator) if has_mppt else ("solar_power",)
             )
             for key in pv_keys:
                 value = coordinator.data.get(key)

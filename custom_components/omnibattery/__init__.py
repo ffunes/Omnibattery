@@ -246,6 +246,7 @@ from .drivers.base import (
     DELIVERED_AC_POWER_KEY,
     InverterStatus,
     has_connected_mppt_pv,
+    mppt_power_keys,
 )
 from .drivers.registry import DEFAULT_BRAND, driver_class
 from .control.discharge_reserve import (
@@ -1754,12 +1755,7 @@ class ChargeDischargeController:
             )
             direct_pv_w = 0.0
             if has_mppt:
-                for key in (
-                    "mppt1_power",
-                    "mppt2_power",
-                    "mppt3_power",
-                    "mppt4_power",
-                ):
+                for key in mppt_power_keys(coordinator):
                     value = self._daily_operation_float(data.get(key), math.nan)
                     if math.isfinite(value) and value >= 0.0:
                         direct_pv_w += value

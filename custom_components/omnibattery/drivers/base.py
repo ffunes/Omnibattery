@@ -391,6 +391,19 @@ class DriverCapabilities:
     # it from the telemetry its model publishes, like ``has_mppt_pv``.
     cell_voltage_profile: Optional[CellVoltageProfile] = None
 
+    # Telemetry keys of the per-MPPT-channel PV power (W) the driver publishes,
+    # in channel order. () = no channel keys. Separate from ``has_mppt_pv`` (the
+    # hardware flag the installation can switch off) and from the aggregate
+    # ``solar_power`` key: a model may publish channel keys without having
+    # ``has_mppt_pv``, and the core only ever sums the keys listed here.
+    mppt_power_keys: tuple[str, ...] = ()
+
+
+def mppt_power_keys(coordinator) -> tuple[str, ...]:
+    """The MPPT channel keys this battery's driver publishes (``()`` if none)."""
+    capabilities = getattr(coordinator, "capabilities", None)
+    return tuple(getattr(capabilities, "mppt_power_keys", ()))
+
 
 def has_connected_mppt_pv(coordinator) -> bool:
     """Return whether an MPPT-capable battery has panels connected.

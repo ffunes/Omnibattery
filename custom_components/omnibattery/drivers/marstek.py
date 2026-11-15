@@ -527,6 +527,11 @@ class MarstekModbusDriver(BatteryDriver):
             min_charge_power_w=hw_charge_floor,
             min_discharge_power_w=hw_discharge_floor,
             has_mppt_pv="mppt1_power" in self._telemetry_index,
+            mppt_power_keys=tuple(
+                f"mppt{channel}_power"
+                for channel in range(1, 5)
+                if f"mppt{channel}_power" in self._telemetry_index
+            ),
             has_alarm_registers="alarm_status" in self._telemetry_index,
             has_rs485_control=REGISTER_MAP.get(version, {}).get("rs485_control") is not None,
             has_energy_counters=True,  # battery_total_energy + total_*_energy registers

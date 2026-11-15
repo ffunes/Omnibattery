@@ -19,7 +19,7 @@ from ..energy import (
     BACKUP_DAILY_DISCHARGING_ENERGY_KEY,
     effective_total_discharging_energy,
 )
-from ..drivers.base import DELIVERED_AC_POWER_KEY
+from ..drivers.base import DELIVERED_AC_POWER_KEY, mppt_power_keys
 from ..infra.coordinator import MarstekVenusDataUpdateCoordinator
 from ..infra.entity_naming import english_entity_id
 from ..tracking.backfill import local_day_bounds
@@ -95,7 +95,6 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
             )
             and getattr(capabilities, "independent_power_planes", True)
         )
-        self._mppt_keys = ["mppt1_power", "mppt2_power", "mppt3_power", "mppt4_power"]
         # Energy on each plane, split by direction (kWh), MPPT=0 windows only.
         self._charge_ac_kwh = 0.0      # AC drawn while charging the cells
         self._charge_dc_kwh = 0.0      # DC stored while charging the cells
@@ -218,7 +217,11 @@ class MarstekVenusEfficiencySensor(CoordinatorEntity, RestoreEntity, SensorEntit
         if getattr(
             getattr(self.coordinator, "capabilities", None), "has_mppt_pv", False
         ):
-            solar = sum(v for k in self._mppt_keys if (v := data.get(k)) is not None)
+            solar = sum(
+                v
+                for k in mppt_power_keys(self.coordinator)
+                if (v := data.get(k)) is not None
+            )
         else:
             solar = data.get("solar_power") or 0.0
 
