@@ -51,18 +51,6 @@ POWER_LIMIT_RESTORE_COOLDOWN_S = 60.0
 # these — the burst poll must not accelerate unrelated registers.
 _DELIVERED_POWER_KEYS = frozenset({"ac_power", "battery_power"})
 
-# Register groups that directly govern control safety. During non-responsive
-# recovery, successful BMS reads must not hide a frozen inverter/SOC/control
-# group indefinitely (issue #26).
-_CRITICAL_CONTROL_KEYS = frozenset({
-    "ac_power",
-    "battery_power",
-    "battery_soc",
-    "force_mode",
-    "inverter_state",
-    "set_charge_power",
-    "set_discharge_power",
-})
 _CRITICAL_GROUP_FAILURES_BEFORE_RECONNECT = 3
 
 
@@ -782,9 +770,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         """True when the driver exposes no force_mode/set_*_power registers, so
         manual control must be asserted via apply_setpoint each cycle (e.g.
         Zendure). Register-based drivers (Marstek) drive the hardware directly."""
-        has_force = any(d["key"] == "force_mode" for d in self.select_definitions)
-        has_setpoint = any(d["key"] == "set_charge_power" for d in self.number_definitions)
-        return not (has_force or has_setpoint)
+        return not self.driver.manual_control_by_registers
 
     @property
     def needs_software_max_charge(self) -> bool:
@@ -1302,7 +1288,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Lock ensures reads don't interleave with control loop writes.
             sensors_attempted += 1
-            critical_keys_requested = _CRITICAL_CONTROL_KEYS.intersection(fetch_keys)
+            critical_keys_requested = self.driver.critical_control_keys.intersection(fetch_keys)
             if critical_keys_requested:
                 critical_groups_attempted.add(group.keys)
             try:

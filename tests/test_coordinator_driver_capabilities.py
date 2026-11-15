@@ -42,6 +42,7 @@ def test_anker_needs_software_max_despite_read_only_sensors():
         number_definitions=list(anker_mod.NUMBER_DEFINITIONS),
         sensor_definitions=list(anker_mod.SENSOR_DEFINITIONS),
         select_definitions=list(anker_mod.SELECT_DEFINITIONS),
+        driver=SimpleNamespace(manual_control_by_registers=False),
     )
 
     assert (

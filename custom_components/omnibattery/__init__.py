@@ -8478,25 +8478,7 @@ class ChargeDischargeController:
                     except (TypeError, ValueError):
                         return 0.0
 
-            # Keep the fallback usable for lightweight/test coordinators and
-            # for driver data received before the driver object is attached.
-            try:
-                force_mode = int(round(float(data.get("force_mode"))))
-            except (TypeError, ValueError):
-                force_mode = 0
-            if force_mode == 1:
-                value = data.get("set_charge_power", 0)
-                sign = 1
-            elif force_mode == 2:
-                value = data.get("set_discharge_power", 0)
-                sign = -1
-            else:
-                return 0.0
-
-            try:
-                return sign * max(0.0, float(value or 0))
-            except (TypeError, ValueError):
-                return 0.0
+            return driver.forcible_power_from_data(data)
 
         try:
             return sign * max(0.0, float(value or 0))

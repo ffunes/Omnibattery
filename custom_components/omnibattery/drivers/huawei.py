@@ -1400,6 +1400,13 @@ class HuaweiSolarDriver(BatteryDriver):
             return value in ("Off-grid", "Ready")
         return super().backup_enabled(data)
 
+    @property
+    def manual_control_by_registers(self) -> bool:
+        # The capability is True (the hybrid inverter has a forcible-charge
+        # register) but no force_mode select / set_*_power number is published,
+        # so manual control is asserted by software, as before.
+        return False
+
     def net_power_from_data(self, data: dict) -> Optional[int]:
         mode = data.get("force_mode")
         charge = data.get("set_charge_power")

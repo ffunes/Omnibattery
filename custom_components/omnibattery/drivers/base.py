@@ -61,6 +61,23 @@ _LOGGER = logging.getLogger(__name__)
 # control layer keeps judging delivery from the cells alone.
 DELIVERED_AC_POWER_KEY = "ac_delivered_power"
 
+# Telemetry keys that directly govern control safety, in the canonical
+# vocabulary every driver imitates. During non-responsive recovery a successful
+# read of unrelated groups must not hide a frozen group that carries one of these
+# (issue #26): the coordinator counts the failures of those groups apart. A key a
+# driver does not publish simply never matches, so the default is the same set for
+# every driver; ``BatteryDriver.critical_control_keys`` is where a driver narrows
+# or widens it.
+CRITICAL_CONTROL_KEYS = frozenset({
+    "ac_power",
+    "battery_power",
+    "battery_soc",
+    "force_mode",
+    "inverter_state",
+    "set_charge_power",
+    "set_discharge_power",
+})
+
 
 class AcSource(enum.Enum):
     """Where ``BatteryDriver.ac_contribution_w`` may read a battery's AC contribution.
@@ -1029,6 +1046,52 @@ class BatteryDriver(ABC):
         whose telemetry reports such a state overrides this.
         """
         return False
+
+    @property
+    def manual_control_by_registers(self) -> bool:
+        """Whether manual mode drives the hardware through force-mode entities.
+
+        True when the driver publishes the ``force_mode`` select and the
+        ``set_charge_power`` / ``set_discharge_power`` numbers: manual charge and
+        discharge are then written straight to the device. False means the core
+        asserts the manual setpoint through ``apply_setpoint`` every cycle.
+        Defaults to ``capabilities.has_force_mode``; a driver that has the
+        capability but publishes no such entities overrides this.
+        """
+        return self.capabilities.has_force_mode
+
+    @property
+    def critical_control_keys(self) -> frozenset:
+        """Telemetry keys whose read groups count as safety-critical (issue #26).
+
+        Defaults to ``CRITICAL_CONTROL_KEYS``, the canonical vocabulary; keys the
+        driver does not publish never match.
+        """
+        return CRITICAL_CONTROL_KEYS
+
+    def forcible_power_from_data(self, data: dict) -> float:
+        """Signed power (+ charge / - discharge) the telemetry says is forced, else 0.
+
+        Decodes the canonical ``force_mode`` codes (1 charge, 2 discharge) with
+        ``set_charge_power`` / ``set_discharge_power``. Used as a last resort when
+        ``net_power_from_data`` cannot tell; a negative setpoint counts as 0.
+        """
+        try:
+            force_mode = int(round(float(data.get("force_mode"))))
+        except (TypeError, ValueError):
+            force_mode = 0
+        if force_mode == 1:
+            value = data.get("set_charge_power", 0)
+            sign = 1
+        elif force_mode == 2:
+            value = data.get("set_discharge_power", 0)
+            sign = -1
+        else:
+            return 0.0
+        try:
+            return sign * max(0.0, float(value or 0))
+        except (TypeError, ValueError):
+            return 0.0
 
     def device_max_soc(self, data: dict) -> Optional[float]:
         """The maximum SOC the device itself keeps, or None if it does not publish one.

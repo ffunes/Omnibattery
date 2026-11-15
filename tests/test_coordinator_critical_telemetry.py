@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from custom_components.omnibattery.drivers.base import ReadGroup
+from custom_components.omnibattery.drivers.base import CRITICAL_CONTROL_KEYS, ReadGroup
 from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
 )
@@ -31,6 +31,7 @@ def _coordinator(
         read_groups=[critical_group, other_group],
         read_telemetry=read_telemetry,
         control_dependency_keys=set(),
+        critical_control_keys=CRITICAL_CONTROL_KEYS,
     )
     registry = SimpleNamespace(
         async_get_entity_id=lambda *args: None,
@@ -156,6 +157,7 @@ def _power_limit_coordinator(
         read_groups=[group],
         read_telemetry=read_telemetry,
         control_dependency_keys=set(),
+        critical_control_keys=CRITICAL_CONTROL_KEYS,
     )
     registry = SimpleNamespace(
         async_get_entity_id=lambda *args: None,
@@ -248,6 +250,7 @@ async def test_lifetime_energy_totals_are_dependencies_for_derived_daily_energy(
         read_groups=[total_group],
         read_telemetry=AsyncMock(return_value={"total_charging_energy": 49100}),
         control_dependency_keys=set(),
+        critical_control_keys=CRITICAL_CONTROL_KEYS,
     )
     disabled_entry = SimpleNamespace(disabled=True, disabled_by="user")
     registry = SimpleNamespace(

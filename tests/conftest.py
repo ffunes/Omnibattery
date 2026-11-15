@@ -133,6 +133,9 @@ class _FakeMarstekDriver:
     is_self_managed = BatteryDriver.is_self_managed
     device_max_soc = BatteryDriver.device_max_soc
     ac_contribution_w = BatteryDriver.ac_contribution_w
+    critical_control_keys = BatteryDriver.critical_control_keys
+    forcible_power_from_data = BatteryDriver.forcible_power_from_data
+    manual_control_by_registers = True
 
     @staticmethod
     def ac_register_power_w(data: dict):

@@ -169,6 +169,7 @@ def _polling_coordinator(read_groups, read_telemetry):
             read_groups=read_groups,
             read_telemetry=read_telemetry,
             control_dependency_keys=set(),
+            critical_control_keys=_FakeMarstekDriver().critical_control_keys,
             inverter_status=_FakeMarstekDriver().inverter_status,
             backup_enabled=_FakeMarstekDriver().backup_enabled,
         ),
