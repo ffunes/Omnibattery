@@ -63,6 +63,18 @@ Restart Home Assistant after adding the `rest_command`, and retain the default R
 
 By default it sets `-50 W` while charging (a small grid export) and `+50 W` while discharging (a small grid import). The active-power threshold ignores noise near zero. The automation runs when power crosses the threshold and when Home Assistant starts.
 
+## Weekly full charge grid boost
+
+[Import blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/weekly_full_charge_grid_boost_blueprint.yaml)
+
+- **Purpose:** finishes the weekly full charge from the grid when today's sun alone cannot reach 100 %, for installations with **Predictive Charging** off.
+- **Requires:** the **Weekly Full Charge** sensor, the **PD Target Grid Power** number, and a solar forecast sensor configured in Omnibattery.
+- **Controls:** the **PD Target Grid Power** number only.
+- **Compatible with:** any installation using PD grid-following control.
+- **Does not do:** boost while **Predictive Charging** is on, or reset a target that was changed by hand during the run.
+
+While the run is charging and the sensor's `solar_sufficient` attribute is `false`, the target is raised to the boost value (`2000 W` by default; the batteries take that minus the home load, within the number's limits). It stays raised until the run ends (`complete` or `idle`), even when the verdict turns `true` as the batteries fill, and then returns to the normal value (`0 W` by default).
+
 ## Peak shaving limit sync
 
 [Import blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/peak_shaving_limit_sync_blueprint.yaml)
