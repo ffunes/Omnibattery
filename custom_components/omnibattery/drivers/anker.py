@@ -36,6 +36,7 @@ from .base import (
     SetpointResult,
     TelemetrySnapshot,
 )
+from .anker_flow import ANKER_SETUP
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -305,6 +306,7 @@ class AnkerModbusDriver(BatteryDriver):
     """Modbus TCP driver for Anker SOLIX Solarbank Max AC / 4 E5000 Pro / XE AC."""
 
     BRAND = "anker"
+    SETUP = ANKER_SETUP
     TRAITS = DriverTraits(
         supports_voltage_taper=False, ip_addressed=True, min_soc_range=(0, 20, 10)
     )

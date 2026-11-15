@@ -211,7 +211,7 @@ def test_selector_options_are_todays_literal_list():
 
 
 def test_only_migrated_brands_have_a_setup():
-    assert {b for b, cls in registry.DRIVERS.items() if cls.SETUP is not None} == {"sessy", "zendure", "esphome", "hoymiles"}
+    assert {b for b, cls in registry.DRIVERS.items() if cls.SETUP is not None} == {"sessy", "zendure", "esphome", "hoymiles", "anker"}
 
 
 def test_fake_brand_is_not_visible_outside_its_fixture():

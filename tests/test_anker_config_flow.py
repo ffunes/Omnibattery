@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from custom_components.omnibattery.config_flow import _validate_anker_connection
+from custom_components.omnibattery.drivers.anker_flow import _validate_anker_connection
 from custom_components.omnibattery.const import DOMAIN
 from custom_components.omnibattery.drivers.anker import AnkerModbusDriver
 
