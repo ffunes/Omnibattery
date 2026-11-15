@@ -56,6 +56,7 @@ from .base import (
     SetpointResult,
     TelemetrySnapshot,
 )
+from .zendure_flow import ZENDURE_SETUP
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -369,6 +370,7 @@ class ZendureLocalDriver(BatteryDriver):
     """Local HTTP driver for a single Zendure SolarFlow device."""
 
     BRAND = "zendure"
+    SETUP = ZENDURE_SETUP
     TRAITS = DriverTraits(
         supports_voltage_taper=False,
         device_owns_initial_config=True,

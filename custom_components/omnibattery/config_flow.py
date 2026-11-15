@@ -161,11 +161,7 @@ from .drivers.setup import (
 )
 from .drivers.esphome import EsphomeEntityDriver
 from .drivers.marstek import MarstekModbusDriver
-from .drivers.zendure import (
-    ZendureLocalDriver,
-    detect_model as _detect_zendure_model,
-    zendure_power_limits as _zendure_power_limits,
-)
+from .drivers.zendure import ZendureLocalDriver
 from .drivers.anker import AnkerModbusDriver
 from .drivers.sessy import SessyLocalDriver
 from .drivers.indevolt import IndevoltDriver
@@ -886,12 +882,6 @@ async def _validate_anker_connection(
     return await AnkerModbusDriver.probe(host, port, slave_id)
 
 
-def _seed_software_power_limits(merged: dict, brand: str) -> None:
-    """Persist soft-max keys for Zendure (read-only chargeMaxLimit + software ceiling)."""
-    if brand != "zendure":
-        return
-    merged["user_max_charge_power"] = int(merged["max_charge_power"])
-
 _LOGGER = logging.getLogger(__name__)
 
 # The integration that provides the Huawei control services, and the domain it
@@ -910,11 +900,7 @@ MAX_CHARGING_WINDOWS = 3
 
 def _legacy_power_ceilings(brand: str, battery_data: dict) -> tuple[int, int]:
     """Power ceilings the limits step offers, per brand (to move into each ``DriverSetup``)."""
-    if brand == "zendure":
-        max_charge_power, max_discharge_power = _zendure_power_limits(
-            battery_data.get("zendure_model", "2400ac_pro")
-        )
-    elif brand == "anker":
+    if brand == "anker":
         max_charge_power, max_discharge_power = _anker_power_ceilings(battery_data)
     elif brand == "indevolt":
         max_charge_power, max_discharge_power = _indevolt_power_ceilings(battery_data)
@@ -959,7 +945,7 @@ def _legacy_limits_schema(
         else:
             dc_default = True
         fields[vol.Required(CONF_DC_PV_CONNECTED, default=dc_default)] = BooleanSelector()
-    if brand not in ("zendure", "anker", "hoymiles", "huawei", "indevolt"):
+    if brand not in ("anker", "hoymiles", "huawei", "indevolt"):
         taper_default = (
             current.get(
                 CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -974,7 +960,7 @@ def _legacy_limits_schema(
     )
     if current is not None:
         capacity_default = current.get("battery_capacity_kwh", capacity_default)
-    if brand in ("zendure", "hoymiles"):
+    if brand == "hoymiles":
         fields[vol.Optional("battery_capacity_kwh", default=capacity_default)] = NumberSelector(
             NumberSelectorConfig(min=0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
         )
@@ -992,15 +978,14 @@ def _legacy_finalize_limits(
         charge_w, discharge_w = _anker_power_ceilings(source)
         merged["max_charge_power"] = charge_w
         merged["max_discharge_power"] = discharge_w
-    _seed_software_power_limits(merged, brand)
     merged[CONF_DC_PV_CONNECTED] = bool(
         user_input.get(CONF_DC_PV_CONNECTED, True)
     ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
     merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-        False if brand in ("zendure", "anker", "hoymiles", "huawei", "indevolt")
+        False if brand in ("anker", "hoymiles", "huawei", "indevolt")
         else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
     )
-    if brand in ("zendure", "hoymiles"):
+    if brand == "hoymiles":
         capacity_default = (
             _hoymiles_capacity_default(battery_data)
             if brand == "hoymiles" else 0.0
@@ -1972,8 +1957,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             self._current_battery_data = {"brand": brand}
             if (dispatched := await _dispatch_brand_entry(self, brand)) is not None:
                 return dispatched
-            if brand == "zendure":
-                return await self.async_step_battery_connection_zendure()
             if brand == "esphome":
                 return await self.async_step_battery_connection_esphome()
             if brand == "anker":
@@ -2072,42 +2055,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
-                }
-            ),
-            errors=errors,
-            description_placeholders={"battery_num": str(battery_num)},
-        )
-
-    async def async_step_battery_connection_zendure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Step 3b (Zendure): Connection details for a Zendure SolarFlow device."""
-        errors = {}
-        battery_num = self.battery_index + 1
-
-        if user_input is not None:
-            host = user_input[CONF_HOST]
-            port = int(user_input.get(CONF_PORT, 80))
-            ok, product = await ZendureLocalDriver.probe(host, port)
-            if not ok:
-                errors["base"] = "cannot_connect"
-            else:
-                self._current_battery_data.update({
-                    CONF_NAME: user_input[CONF_NAME],
-                    CONF_HOST: host,
-                    CONF_PORT: port,
-                    "brand": "zendure",
-                    "zendure_model": _detect_zendure_model(product),
-                })
-                return await self.async_step_battery_limits()
-
-        return self.async_show_form(
-            step_id="battery_connection_zendure",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=f"Zendure SolarFlow {battery_num}"): str,
-                    vol.Required(CONF_HOST): str,
-                    vol.Optional(CONF_PORT, default=80): int,
                 }
             ),
             errors=errors,
@@ -3258,8 +3205,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 self, f"async_step_{setup.reconfigure_entry_step}"
             )(user_input)
 
-        if current.get("brand", "marstek") == "zendure":
-            return await self.async_step_reconfigure_battery_zendure(user_input)
         if current.get("brand", "marstek") == "esphome":
             return await self.async_step_reconfigure_battery_esphome(user_input)
         if current.get("brand", "marstek") == "anker":
@@ -3366,69 +3311,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                             mode=SelectSelectorMode.DROPDOWN,
                         )
                     ),
-                }
-            ),
-            errors=errors,
-            description_placeholders={"battery_num": str(battery_num)},
-        )
-
-    async def async_step_reconfigure_battery_zendure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Update connection settings for a Zendure battery during reconfiguration."""
-        entry = self._get_reconfigure_entry()
-        current_batteries = entry.data.get("batteries", [])
-        battery_num = self.battery_index + 1
-        current = (
-            current_batteries[self.battery_index]
-            if self.battery_index < len(current_batteries)
-            else {}
-        )
-        errors = {}
-
-        if user_input is not None:
-            new_host = user_input[CONF_HOST]
-            new_port = user_input[CONF_PORT]
-            ok, product = await ZendureLocalDriver.probe(new_host, new_port)
-            if not ok:
-                errors["base"] = "cannot_connect"
-            else:
-                old_host = current.get(CONF_HOST)
-                old_port = current.get(CONF_PORT)
-
-                if old_host and old_port and (old_host != new_host or old_port != new_port):
-                    self._migrate_battery_registry_ids(
-                        entry, old_host, old_port, new_host, new_port
-                    )
-
-                updated = dict(current)
-                updated[CONF_NAME] = user_input[CONF_NAME]
-                updated[CONF_HOST] = new_host
-                updated[CONF_PORT] = new_port
-                updated["zendure_model"] = _detect_zendure_model(product)
-                self._reconfigure_batteries.append(updated)
-                self.battery_index += 1
-
-                if self.battery_index >= len(current_batteries):
-                    return self.async_update_reload_and_abort(
-                        entry,
-                        data_updates={"batteries": self._reconfigure_batteries},
-                    )
-                return await self.async_step_reconfigure_battery()
-
-        defaults = {
-            CONF_NAME: current.get(CONF_NAME, f"Zendure SolarFlow {battery_num}"),
-            CONF_HOST: current.get(CONF_HOST, ""),
-            CONF_PORT: current.get(CONF_PORT, 80),
-        }
-
-        return self.async_show_form(
-            step_id="reconfigure_battery_zendure",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
-                    vol.Required(CONF_HOST, default=defaults[CONF_HOST]): str,
-                    vol.Required(CONF_PORT, default=defaults[CONF_PORT]): int,
                 }
             ),
             errors=errors,
@@ -4419,8 +4301,6 @@ class OptionsFlowHandler(OptionsFlow):
             }
             if (dispatched := await _dispatch_brand_entry(self, brand)) is not None:
                 return dispatched
-            if brand == "zendure":
-                return await self.async_step_battery_connection_zendure()
             if brand == "esphome":
                 return await self.async_step_battery_connection_esphome()
             if brand == "anker":
@@ -4541,60 +4421,6 @@ class OptionsFlowHandler(OptionsFlow):
                             ],
                             mode=SelectSelectorMode.DROPDOWN,
                         )),
-                }
-            ),
-            errors=errors,
-            description_placeholders={"battery_num": str(battery_num)},
-        )
-
-    async def async_step_battery_connection_zendure(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Configure connection details for a Zendure SolarFlow device."""
-        errors = {}
-
-        try:
-            battery_num = self.battery_index + 1
-            current_batteries = self.config_entry.data.get("batteries", [])
-
-            if user_input is not None:
-                host = user_input[CONF_HOST]
-                port = int(user_input.get(CONF_PORT, 80))
-                ok, product = await ZendureLocalDriver.probe(host, port)
-                if not ok:
-                    errors["base"] = "cannot_connect"
-                else:
-                    self._current_battery_data.update({
-                        CONF_NAME: user_input[CONF_NAME],
-                        CONF_HOST: host,
-                        CONF_PORT: port,
-                        "brand": "zendure",
-                        "zendure_model": _detect_zendure_model(product),
-                    })
-                    return await self.async_step_battery_limits()
-
-            if self.battery_index < len(current_batteries):
-                current_battery = current_batteries[self.battery_index]
-                defaults = {
-                    CONF_NAME: current_battery.get(CONF_NAME, f"Zendure SolarFlow {battery_num}"),
-                    CONF_HOST: current_battery.get(CONF_HOST, ""),
-                    CONF_PORT: current_battery.get(CONF_PORT, 80),
-                }
-            else:
-                defaults = {
-                    CONF_NAME: f"Zendure SolarFlow {battery_num}",
-                    CONF_HOST: "",
-                    CONF_PORT: 80,
-                }
-        except Exception as e:
-            _LOGGER.error("Error in options flow battery_connection_zendure step: %s", e, exc_info=True)
-            return self.async_abort(reason="unknown_error")
-
-        return self.async_show_form(
-            step_id="battery_connection_zendure",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
-                    vol.Required(CONF_HOST, default=defaults[CONF_HOST]): str,
-                    vol.Optional(CONF_PORT, default=defaults[CONF_PORT]): int,
                 }
             ),
             errors=errors,
