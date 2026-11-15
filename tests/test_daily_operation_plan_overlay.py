@@ -96,3 +96,21 @@ def test_old_projection_unless_the_optimizer_plan_owns_the_control(change):
     assert CDC._daily_operation_plan_overlay(_controller(**change), dto, T0) is dto
     drawn = CDC._daily_operation_plan_overlay(_controller(), _dto(), T0)
     assert drawn["intervals"][0]["soc_end_pct"] == pytest.approx(47.5)
+
+
+def test_aware_panel_clock_over_naive_plan_times():
+    """In Home Assistant the engine's plan is on naive local wall clock
+    (``datetime.now()``) and the panel's on an aware one (``dt_util.now()``)."""
+    from zoneinfo import ZoneInfo
+
+    from custom_components.omnibattery import ChargeDischargeController as CDC
+
+    zone = ZoneInfo("Europe/Madrid")
+    dto = _dto()
+    for key in ("intervals", "extended_intervals"):
+        for item in dto[key]:
+            item["start"], item["end"] = (item[k].replace(tzinfo=zone) for k in ("start", "end"))
+    drawn = CDC._daily_operation_plan_overlay(_controller(), dto, T0.replace(tzinfo=zone))
+    assert drawn is not dto
+    assert [x["soc_end_pct"] for x in drawn["intervals"]] == pytest.approx([47.5, 56.5])
+    assert all(x["end"].tzinfo is zone for x in drawn["intervals"] + drawn["extended_intervals"])
