@@ -33,6 +33,7 @@ from homeassistant.core import CoreState
 import custom_components.omnibattery as omnibattery_init
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import MAIN_SENSOR_DEAD_S
+from tests.conftest import _FakeMarstekDriver
 
 NOW = omnibattery_init.dt_util.utcnow()
 
@@ -405,7 +406,10 @@ class _Battery(SimpleNamespace):
 
 
 def _fallback_ctrl(*, dead=True, grid_charging_active=False):
-    batteries = [_Battery(name="a"), _Battery(name="b")]
+    batteries = [
+        _Battery(name="a", driver=_FakeMarstekDriver()),
+        _Battery(name="b", driver=_FakeMarstekDriver()),
+    ]
     writes: list[tuple] = []
     cleared: list[str] = []
 

@@ -16,10 +16,12 @@ from types import SimpleNamespace
 from homeassistant.util import dt as dt_util
 
 from custom_components.omnibattery import ChargeDischargeController
+from tests.conftest import _FakeMarstekDriver
 
 
 def _coord(reliable):
     return SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(delivered_power_reliable=reliable),
         manual_mode_enabled=False,
     )

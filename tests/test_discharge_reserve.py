@@ -29,6 +29,7 @@ from custom_components.omnibattery.control.discharge_reserve import (
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.discharge_reserve import STATUS_DISABLED
 from custom_components.omnibattery.solar_forecast import SolarForecastPeriod
+from tests.conftest import _FakeMarstekDriver
 
 DAY = datetime(2026, 9, 4)
 NOW = DAY + timedelta(hours=13)
@@ -55,6 +56,7 @@ def _coordinator(
     name: str = "battery-1",
 ):
     return _HashableNamespace(
+        driver=_FakeMarstekDriver(),
         name=name,
         data={"battery_soc": soc, "battery_total_energy": capacity},
         is_available=available,

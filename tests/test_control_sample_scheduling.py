@@ -20,6 +20,7 @@ from custom_components.omnibattery.const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from custom_components.omnibattery.tracking.non_responsive_tracker import (
     NonResponsiveTracker,
 )
+from tests.conftest import _FakeMarstekDriver
 
 _TRACKER = "custom_components.omnibattery.tracking.non_responsive_tracker"
 
@@ -54,6 +55,7 @@ def _main_controller(state_holder, pd_calls):
 
     coordinator = _Coordinator(
         _is_shutting_down=False,
+        driver=_FakeMarstekDriver(),
         is_available=True,
         data={"battery_soc": 50},
         max_soc=90,
@@ -367,6 +369,7 @@ def test_manual_grid_charge_does_not_induce_automatic_discharge_when_idle():
 
     manual = _HashableNamespace(
         _is_shutting_down=False,
+        driver=_FakeMarstekDriver(),
         battery_manual_mode_enabled=True,
         data={"battery_power": 700},
         name="manual battery",
@@ -402,6 +405,7 @@ def test_manual_grid_charge_reduces_automatic_charge_without_discharge():
     controller._compute_pd_new_power = _reduce_automatic_charge
     manual = _HashableNamespace(
         _is_shutting_down=False,
+        driver=_FakeMarstekDriver(),
         battery_manual_mode_enabled=True,
         data={"battery_power": 1000},
         name="manual battery",
@@ -526,7 +530,10 @@ def _predictive_controller(state_holder, writes):
     class _Coordinator(SimpleNamespace):
         __hash__ = object.__hash__
 
-    coordinator = _Coordinator(name="battery", data={"battery_soc": 50}, max_soc=90)
+    coordinator = _Coordinator(
+        name="battery", driver=_FakeMarstekDriver(),
+        data={"battery_soc": 50}, max_soc=90,
+    )
 
     class _States:
         def get(self, _entity_id):
@@ -978,7 +985,10 @@ def test_predictive_target_battery_absorbs_measured_export_only():
     controller = _predictive_controller(state_holder, writes)
     predictive = controller.coordinators[0]
     # Past its predictive target, still below its normal max SOC.
-    surplus = type(predictive)(name="surplus", data={"battery_soc": 38}, max_soc=100)
+    surplus = type(predictive)(
+        name="surplus", driver=_FakeMarstekDriver(),
+        data={"battery_soc": 38}, max_soc=100,
+    )
     controller.coordinators = [predictive, surplus]
     controller._get_available_batteries = (
         lambda is_charging, ignore_predictive_target=False, **_kwargs: (

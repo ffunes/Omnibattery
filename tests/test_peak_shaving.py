@@ -10,6 +10,7 @@ from custom_components.omnibattery.const import (
     CONFIG_NUMBER_DEFINITIONS,
     CONF_CAPACITY_PROTECTION_LIMIT,
 )
+from tests.conftest import _FakeMarstekDriver
 
 
 def test_peak_shaving_limit_supports_20_kw():
@@ -28,7 +29,7 @@ def _controller(*, previous_power: float):
     ctrl.capacity_protection_excluded_devices = False
     ctrl.capacity_protection_soc_threshold = 25
     ctrl.capacity_protection_limit = 3000
-    ctrl.coordinators = [SimpleNamespace(data={"battery_soc": 24})]
+    ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 24})]
     ctrl._non_responsive = SimpleNamespace(is_excluded=lambda _c: False)
     ctrl.previous_power = previous_power
     ctrl._excluded_included_adjustment = 0.0
@@ -81,7 +82,7 @@ def test_solar_surplus_charge_remains_allowed():
 
 def test_excluded_devices_switch_is_backward_compatible_when_off():
     ctrl = _controller(previous_power=0.0)
-    ctrl.coordinators = [SimpleNamespace(data={"battery_soc": 80})]
+    ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 80})]
     ctrl._excluded_included_adjustment = 4000.0
 
     target, sensor = ctrl._apply_capacity_protection(
@@ -96,7 +97,7 @@ def test_excluded_devices_switch_is_backward_compatible_when_off():
 
 def test_excluded_devices_switch_covers_only_demand_above_peak_limit():
     ctrl = _controller(previous_power=0.0)
-    ctrl.coordinators = [SimpleNamespace(data={"battery_soc": 80})]
+    ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 80})]
     ctrl.capacity_protection_excluded_devices = True
     ctrl._excluded_included_adjustment = 4000.0
 
@@ -113,7 +114,7 @@ def test_excluded_devices_switch_covers_only_demand_above_peak_limit():
 
 def test_excluded_devices_switch_preserves_normal_home_coverage():
     ctrl = _controller(previous_power=-2000.0)
-    ctrl.coordinators = [SimpleNamespace(data={"battery_soc": 80})]
+    ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 80})]
     ctrl.capacity_protection_excluded_devices = True
     ctrl._excluded_included_adjustment = 4000.0
 
@@ -128,7 +129,7 @@ def test_excluded_devices_switch_preserves_normal_home_coverage():
 
 def test_excluded_devices_below_peak_limit_keep_normal_exclusion():
     ctrl = _controller(previous_power=0.0)
-    ctrl.coordinators = [SimpleNamespace(data={"battery_soc": 80})]
+    ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 80})]
     ctrl.capacity_protection_excluded_devices = True
     ctrl._excluded_included_adjustment = 2500.0
 
@@ -154,8 +155,8 @@ def _stale_soc_fleet(*, threshold: float = 35):
     """Two batteries: one unreachable at 89%, one live at 12% (#803)."""
     ctrl = _controller(previous_power=STALE_SOC_PREVIOUS_POWER)
     ctrl.capacity_protection_soc_threshold = threshold
-    dead = SimpleNamespace(data={"battery_soc": 89})
-    live = SimpleNamespace(data={"battery_soc": 12})
+    dead = SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 89})
+    live = SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 12})
     ctrl.coordinators = [dead, live]
     return ctrl, dead, live
 
@@ -206,8 +207,8 @@ def test_unavailable_battery_stale_soc_is_left_out_of_the_average():
     ctrl = _controller(previous_power=STALE_SOC_PREVIOUS_POWER)
     ctrl.capacity_protection_soc_threshold = 35
     ctrl.coordinators = [
-        SimpleNamespace(data={"battery_soc": 89}, is_available=False),
-        SimpleNamespace(data={"battery_soc": 12}),
+        SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 89}, is_available=False),
+        SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 12}),
     ]
 
     ctrl._apply_capacity_protection(
@@ -238,8 +239,8 @@ def test_responsive_fleet_still_averages_every_battery():
     ctrl = _controller(previous_power=STALE_SOC_PREVIOUS_POWER)
     ctrl.capacity_protection_soc_threshold = 35
     ctrl.coordinators = [
-        SimpleNamespace(data={"battery_soc": 89}),
-        SimpleNamespace(data={"battery_soc": 12}),
+        SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 89}),
+        SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 12}),
     ]
 
     ctrl._apply_capacity_protection(

@@ -23,6 +23,7 @@ from custom_components.omnibattery.pricing.engine import (
     DynamicPricingEvaluationHorizon,
     PricingManager,
 )
+from tests.conftest import _FakeMarstekDriver
 
 
 class _Coord:
@@ -31,6 +32,7 @@ class _Coord:
         self.min_soc = min_soc
         self.max_soc = max_soc
         self.data = {"battery_soc": soc, "battery_total_energy": capacity_kwh}
+        self.driver = _FakeMarstekDriver()
 
 
 def _consumption(value):

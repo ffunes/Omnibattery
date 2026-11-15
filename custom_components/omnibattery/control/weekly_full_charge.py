@@ -650,7 +650,9 @@ class WeeklyFullChargeManager:
         config may be older, because the device's own Target SOC entity writes
         only the device.
         """
-        if "soc_set" in (getattr(coordinator, "data", None) or {}):
+        if coordinator.driver.device_max_soc(
+            getattr(coordinator, "data", None) or {}
+        ) is not None:
             try:
                 live = int(getattr(coordinator, "max_soc", 100))
             except (TypeError, ValueError):

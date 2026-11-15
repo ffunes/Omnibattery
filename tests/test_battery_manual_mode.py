@@ -15,7 +15,15 @@ from custom_components.omnibattery.control.weekly_full_charge import (
 )
 from custom_components.omnibattery.control.power_distribution import PowerDistribution
 from custom_components.omnibattery.switch import BatteryManualModeSwitch, ManualModeSwitch
-from tests.conftest import FakeCoordinator
+from custom_components.omnibattery.drivers.zendure import ZendureLocalDriver
+from tests.conftest import FakeCoordinator, _FakeMarstekDriver
+
+
+def _zendure_driver():
+    """The real Zendure ``is_self_managed`` (it does not read the instance)."""
+    return SimpleNamespace(
+        is_self_managed=lambda data: ZendureLocalDriver.is_self_managed(None, data)
+    )
 
 
 class HashableNamespace(SimpleNamespace):
@@ -397,10 +405,12 @@ def test_automatic_measured_power_excludes_manual_battery():
     manual = HashableNamespace(
         battery_manual_mode_enabled=True,
         data={"battery_power": 700},
+        driver=_FakeMarstekDriver(),
     )
     automatic = HashableNamespace(
         battery_manual_mode_enabled=False,
         data={"battery_power": -400},
+        driver=_FakeMarstekDriver(),
     )
     controller = SimpleNamespace(
         coordinators=[manual, automatic],
@@ -455,6 +465,7 @@ def test_soc_calibration_hands_battery_out_of_and_back_to_automatic_control():
     coordinator = HashableNamespace(
         name="Zendure",
         battery_manual_mode_enabled=False,
+        driver=_zendure_driver(),
         data={"soc_status": 1},
     )
     controller = _controller_with_reset(
@@ -482,6 +493,7 @@ def test_soc_calibration_hands_battery_out_of_and_back_to_automatic_control():
 async def test_calibrating_battery_gets_no_manual_setpoint():
     coordinator = SimpleNamespace(
         battery_manual_mode_enabled=False,
+        driver=_zendure_driver(),
         data={"soc_status": 1},
         needs_software_manual_control=True,
         manual_force_mode="None",

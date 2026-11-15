@@ -936,6 +936,24 @@ class BatteryDriver(ABC):
             return None
         return value == 0
 
+    def is_self_managed(self, data: dict) -> bool:
+        """Whether the device is running its own routine and ignores setpoints.
+
+        True while the device calibrates its SOC on its own: the core takes it
+        out of automatic control until it finishes. Defaults to False; a driver
+        whose telemetry reports such a state overrides this.
+        """
+        return False
+
+    def device_max_soc(self, data: dict) -> Optional[float]:
+        """The maximum SOC the device itself keeps, or None if it does not publish one.
+
+        None means the device stores no ceiling of its own, so the integration's
+        configured value is the only one. A driver whose device holds its own
+        Target SOC overrides this.
+        """
+        return None
+
     @property
     @abstractmethod
     def control_dependency_keys(self) -> frozenset:

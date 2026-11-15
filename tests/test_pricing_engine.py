@@ -60,6 +60,7 @@ from custom_components.omnibattery.pricing.curtailment import (
     EXPORT_MODE_CUSTOM,
     EXPORT_MODE_SELF_CONSUMPTION,
 )
+from tests.conftest import _FakeMarstekDriver
 
 
 # ----------------------------------------------------------------------
@@ -1829,6 +1830,7 @@ def test_energy_balance_accepts_remaining_horizon_overrides():
         raise AssertionError("remaining-horizon evaluation already supplied consumption")
 
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         data={"battery_soc": 50.0, "battery_total_energy": 10.0},
         min_soc=10.0,
         max_soc=95.0,
@@ -3025,6 +3027,7 @@ def test_curtailment_export_settings_keep_legacy_compatibility_and_modes():
 
 def test_daily_profile_consumes_energy_horizon_end():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         data={"battery_soc": 50.0, "battery_total_energy": 10.0},
         min_soc=10.0,
         max_soc=95.0,
@@ -3074,6 +3077,7 @@ def test_daily_profile_consumes_energy_horizon_end():
 def test_daily_profile_scope_publishes_energy_horizon_end():
     """Phase 4: the daily-profile decision exposes the horizon it planned to."""
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         data={"battery_soc": 50.0, "battery_total_energy": 10.0},
         min_soc=10.0,
         max_soc=95.0,
@@ -3137,6 +3141,7 @@ def test_remaining_scope_does_not_publish_daily_profile_horizon():
     ctrl.predictive_charging_overridden = False
     ctrl.coordinators = [
         SimpleNamespace(
+            driver=_FakeMarstekDriver(),
             data={"battery_soc": 50.0, "battery_total_energy": 10.0},
             min_soc=10.0,
             max_soc=95.0,

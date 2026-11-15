@@ -129,6 +129,8 @@ class _FakeMarstekDriver:
 
     inverter_status = BatteryDriver.inverter_status
     backup_enabled = BatteryDriver.backup_enabled
+    is_self_managed = BatteryDriver.is_self_managed
+    device_max_soc = BatteryDriver.device_max_soc
 
     @property
     def control_dependency_keys(self) -> frozenset:

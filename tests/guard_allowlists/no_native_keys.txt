@@ -2,7 +2,6 @@
 # occurrence, format path:symbol:kind:detail. It may only SHRINK: delete lines
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
-__init__.py:ChargeDischargeController._is_battery_calibrating:key:soc_status
 const/registers_common.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
 const/registers_common.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
 const/registers_v2.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
@@ -11,7 +10,6 @@ const/registers_v2.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
 const/registers_v2.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
 const/registers_v2.py:<module>:key:alarm_status
 const/registers_v2.py:<module>:key:fault_status
-control/weekly_full_charge.py:WeeklyFullChargeManager._original_max_soc:key:soc_set
 infra/alarm_notifier.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
 infra/alarm_notifier.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
 infra/alarm_notifier.py:AlarmNotifier._send:alarm_table:ALARM_BIT_DESCRIPTIONS

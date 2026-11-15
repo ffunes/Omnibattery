@@ -25,6 +25,7 @@ from custom_components.omnibattery.const import (
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.engine import PricingManager
 from custom_components.omnibattery.tracking.consumption_profile import ConsumptionForecast
+from tests.conftest import _FakeMarstekDriver
 
 
 class _Coord:
@@ -32,6 +33,7 @@ class _Coord:
         self.min_soc = min_soc
         self.max_soc = max_soc
         self.data = {"battery_soc": soc, "battery_total_energy": capacity_kwh}
+        self.driver = _FakeMarstekDriver()
 
 
 async def _noop():

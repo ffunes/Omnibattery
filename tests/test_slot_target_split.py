@@ -16,6 +16,7 @@ import pytest
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import CHARGE_EFFICIENCY
 from custom_components.omnibattery.pricing import SLOT_PURPOSE_DEFICIT, PriceSlot
+from tests.conftest import _FakeMarstekDriver
 
 
 class _Coord:
@@ -26,6 +27,7 @@ class _Coord:
         self.effective_max_charge_power = power_w
         self.derate = derate
         self.data = {"battery_soc": soc, "battery_total_energy": capacity_kwh}
+        self.driver = _FakeMarstekDriver()
 
 
 def _ctrl(coords, planned_kwh, **extra):

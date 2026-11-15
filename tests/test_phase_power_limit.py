@@ -38,6 +38,7 @@ from custom_components.omnibattery.config_flow import (
     _validate_phase_protection,
 )
 from custom_components.omnibattery.sensor import ThreePhaseProtectionSensor
+from tests.conftest import _FakeMarstekDriver
 
 
 class FakeStates:
@@ -53,6 +54,7 @@ class FakeCoordinator:
         self.name = name
         self.phase = phase
         self.data = {"battery_power": 0}
+        self.driver = _FakeMarstekDriver()
         self.max_charge_power = max_power
         self.max_discharge_power = max_power
         self.commanded_charge_power = 0

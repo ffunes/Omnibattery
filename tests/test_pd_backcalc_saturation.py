@@ -15,16 +15,21 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from custom_components.omnibattery import ChargeDischargeController
+from tests.conftest import _FakeMarstekDriver
 
 
 def _coord(ac_power, limit=1250, blocked=False):
-    return SimpleNamespace(data={"ac_power": ac_power}, limit=limit, blocked=blocked)
+    return SimpleNamespace(
+        data={"ac_power": ac_power}, limit=limit, blocked=blocked,
+        driver=_FakeMarstekDriver(),
+    )
 
 
 def _zendure(battery_power, limit=1250, blocked=False):
     """Registerless driver: no ac_power, only synthesised battery_power (+charge)."""
     return SimpleNamespace(
-        data={"battery_power": battery_power}, limit=limit, blocked=blocked
+        data={"battery_power": battery_power}, limit=limit, blocked=blocked,
+        driver=_FakeMarstekDriver(),
     )
 
 
@@ -60,7 +65,10 @@ def test_blocked_battery_is_saturated():
 
 def test_unknown_delivery_not_saturated():
     # No ac_power and no battery_power: cannot prove saturation → assume ramp lag.
-    coord = SimpleNamespace(data={"ac_power": None}, limit=1250, blocked=False)
+    coord = SimpleNamespace(
+        data={"ac_power": None}, limit=1250, blocked=False,
+        driver=_FakeMarstekDriver(),
+    )
     assert _saturated([coord]) is False
 
 
@@ -127,7 +135,7 @@ def test_measured_includes_zendure_via_battery_power():
 
 
 def test_measured_none_when_no_battery_reports():
-    coord = SimpleNamespace(data={})
+    coord = SimpleNamespace(data={}, driver=_FakeMarstekDriver())
     assert _measured([coord]) is None
 
 

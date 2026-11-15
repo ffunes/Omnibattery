@@ -35,6 +35,7 @@ from custom_components.omnibattery.pricing.surplus_absorption import (
     STATUS_PLANNED,
     plan_surplus_absorption,
 )
+from tests.conftest import _FakeMarstekDriver
 
 DAY = datetime(2026, 9, 4)
 NOW = DAY + timedelta(hours=9, minutes=30)
@@ -63,6 +64,7 @@ SLOTS = [_slot(9, 0.28), _slot(12, 0.12), _slot(18, 0.45), _slot(19, 0.45)]
 
 def _coordinator(soc: float = 45.0):
     return _HashableNamespace(
+        driver=_FakeMarstekDriver(),
         name="battery-1",
         data={"battery_soc": soc, "battery_total_energy": CAPACITY_KWH},
         is_available=True,

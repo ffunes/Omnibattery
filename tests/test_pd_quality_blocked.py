@@ -21,6 +21,7 @@ from types import SimpleNamespace
 
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.sensors.aggregate_sensors import PdControlQualitySensor
+from tests.conftest import _FakeMarstekDriver
 
 
 def _ctrl(*, charge_blocked=False, discharge_blocked=False, deadband=40):
@@ -39,6 +40,7 @@ def _fleet_ctrl(*, global_charge=None, per_battery_charge=None, n=2):
     """Real blocker registry over n PD-owned batteries."""
     class _Battery:  # hashable: the registry is keyed by coordinator
         data = {}
+        driver = _FakeMarstekDriver()
         is_available = True
         battery_manual_mode_enabled = False
 

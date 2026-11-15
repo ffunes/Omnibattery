@@ -2769,12 +2769,9 @@ class ChargeDischargeController:
         """
         return bool(
             getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
-        ) or ChargeDischargeController._is_battery_calibrating(coordinator)
-
-    @staticmethod
-    def _is_battery_calibrating(coordinator) -> bool:
-        """Return whether the battery reports an active SOC calibration."""
-        return (getattr(coordinator, "data", None) or {}).get("soc_status") == 1
+        ) or coordinator.driver.is_self_managed(
+            getattr(coordinator, "data", None) or {}
+        )
 
     def _sync_calibration_ownership(self) -> None:
         """Hand a battery over/back when its SOC calibration starts or ends."""
@@ -2782,7 +2779,9 @@ class ChargeDischargeController:
         if calibrating is None:
             calibrating = self._calibrating_batteries = set()
         for coordinator in self.coordinators:
-            now = ChargeDischargeController._is_battery_calibrating(coordinator)
+            now = coordinator.driver.is_self_managed(
+                getattr(coordinator, "data", None) or {}
+            )
             if now == (coordinator in calibrating):
                 continue
             if now:

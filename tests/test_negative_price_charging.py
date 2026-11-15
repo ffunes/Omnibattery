@@ -33,6 +33,7 @@ from custom_components.omnibattery.switch import (
     NegativePriceChargingSwitch,
     SmartPredischargeSwitch,
 )
+from tests.conftest import _FakeMarstekDriver
 
 
 class _Battery:
@@ -48,6 +49,7 @@ class _Battery:
         available: bool = True,
     ) -> None:
         self.name = name
+        self.driver = _FakeMarstekDriver()
         self.max_soc = max_soc
         self.is_available = available
         self.data = {

@@ -986,6 +986,18 @@ class ZendureLocalDriver(BatteryDriver):
         limit = data.get("output_limit")
         return -int(limit) if limit is not None else None
 
+    def is_self_managed(self, data: dict) -> bool:
+        # socStatus 1 = the device is calibrating its SOC and ignores setpoints.
+        return data.get("soc_status") == 1
+
+    def device_max_soc(self, data: dict) -> float | None:
+        if "soc_set" not in data:
+            return None
+        value = data["soc_set"]
+        # A published-but-unknown Target SOC (None) still counts as "the device
+        # keeps its own ceiling"; 0.0 is the placeholder for that case.
+        return 0.0 if value is None else float(value)
+
     @property
     def control_dependency_keys(self) -> frozenset:
         # ac_mode + input/output_limit feed net_power_from_data, which the
