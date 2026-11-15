@@ -159,7 +159,6 @@ from .drivers.setup import (
     live_coordinator,
     work_dict,
 )
-from .drivers.esphome import EsphomeEntityDriver
 from .drivers.marstek import MarstekModbusDriver
 from .drivers.zendure import ZendureLocalDriver
 from .drivers.anker import AnkerModbusDriver
@@ -1957,8 +1956,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             self._current_battery_data = {"brand": brand}
             if (dispatched := await _dispatch_brand_entry(self, brand)) is not None:
                 return dispatched
-            if brand == "esphome":
-                return await self.async_step_battery_connection_esphome()
             if brand == "anker":
                 return await self.async_step_battery_connection_anker()
             if brand == "hoymiles":
@@ -2059,44 +2056,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             ),
             errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
-        )
-
-    async def async_step_battery_connection_esphome(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Step 3b (ESPHome): pick the LilyGo/ESPHome device bridging the battery."""
-        errors = {}
-        placeholders: dict[str, str] = {"battery_num": str(self.battery_index + 1)}
-
-        if user_input is not None:
-            device_id = user_input["esphome_device"]
-            _, missing = EsphomeEntityDriver.resolve(self.hass, device_id)
-            if missing:
-                errors["base"] = "esphome_entities_missing"
-                placeholders["missing"] = ", ".join(missing)
-            else:
-                self._current_battery_data.update({
-                    CONF_NAME: user_input[CONF_NAME],
-                    # The registry device id doubles as the battery identity
-                    # (device_key, persistence matching); there is no IP:port.
-                    CONF_HOST: device_id,
-                    CONF_PORT: 0,
-                    "brand": "esphome",
-                    "esphome_device_id": device_id,
-                })
-                return await self.async_step_battery_limits()
-
-        return self.async_show_form(
-            step_id="battery_connection_esphome",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=f"Marstek Venus {self.battery_index + 1}"): str,
-                    vol.Required("esphome_device"):
-                        DeviceSelector(DeviceSelectorConfig(integration="esphome")),
-                }
-            ),
-            errors=errors,
-            description_placeholders=placeholders,
         )
 
     async def async_step_battery_connection_indevolt(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -3205,8 +3164,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 self, f"async_step_{setup.reconfigure_entry_step}"
             )(user_input)
 
-        if current.get("brand", "marstek") == "esphome":
-            return await self.async_step_reconfigure_battery_esphome(user_input)
         if current.get("brand", "marstek") == "anker":
             return await self.async_step_reconfigure_battery_anker(user_input)
         if current.get("brand", "marstek") == "indevolt":
@@ -3378,71 +3335,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             data_schema=_indevolt_request_speed_schema(updated),
             description_placeholders={"battery_num": str(self.battery_index + 1)},
         )
-
-    async def async_step_reconfigure_battery_esphome(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Update the ESPHome bridge device for a battery during reconfiguration."""
-        entry = self._get_reconfigure_entry()
-        current_batteries = entry.data.get("batteries", [])
-        battery_num = self.battery_index + 1
-        current = (
-            current_batteries[self.battery_index]
-            if self.battery_index < len(current_batteries)
-            else {}
-        )
-        errors = {}
-        placeholders: dict[str, str] = {"battery_num": str(battery_num)}
-
-        if user_input is not None:
-            device_id = user_input["esphome_device"]
-            _, missing = EsphomeEntityDriver.resolve(self.hass, device_id)
-            if missing:
-                errors["base"] = "esphome_entities_missing"
-                placeholders["missing"] = ", ".join(missing)
-            else:
-                old_host = current.get(CONF_HOST)
-                old_port = current.get(CONF_PORT)
-                if old_host and old_host != device_id:
-                    self._migrate_battery_registry_ids(
-                        entry, old_host, old_port, device_id, 0
-                    )
-
-                updated = dict(current)
-                updated[CONF_NAME] = user_input[CONF_NAME]
-                updated[CONF_HOST] = device_id
-                updated[CONF_PORT] = 0
-                updated["esphome_device_id"] = device_id
-                self._reconfigure_batteries.append(updated)
-                self.battery_index += 1
-
-                if self.battery_index >= len(current_batteries):
-                    return self.async_update_reload_and_abort(
-                        entry,
-                        data_updates={"batteries": self._reconfigure_batteries},
-                    )
-                return await self.async_step_reconfigure_battery()
-
-        schema: dict = {
-            vol.Required(CONF_NAME, default=current.get(CONF_NAME, f"Marstek Venus {battery_num}")): str,
-        }
-        current_device = current.get("esphome_device_id")
-        if current_device:
-            schema[vol.Required("esphome_device", default=current_device)] = DeviceSelector(
-                DeviceSelectorConfig(integration="esphome")
-            )
-        else:
-            schema[vol.Required("esphome_device")] = DeviceSelector(
-                DeviceSelectorConfig(integration="esphome")
-            )
-
-        return self.async_show_form(
-            step_id="reconfigure_battery_esphome",
-            data_schema=vol.Schema(schema),
-            errors=errors,
-            description_placeholders=placeholders,
-        )
-
 
     async def async_step_reconfigure_battery_anker(
         self, user_input: dict[str, Any] | None = None
@@ -4301,8 +4193,6 @@ class OptionsFlowHandler(OptionsFlow):
             }
             if (dispatched := await _dispatch_brand_entry(self, brand)) is not None:
                 return dispatched
-            if brand == "esphome":
-                return await self.async_step_battery_connection_esphome()
             if brand == "anker":
                 return await self.async_step_battery_connection_anker()
             if brand == "indevolt":
@@ -4426,61 +4316,6 @@ class OptionsFlowHandler(OptionsFlow):
             errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
         )
-
-    async def async_step_battery_connection_esphome(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Pick the LilyGo/ESPHome device bridging a Marstek battery."""
-        errors = {}
-        battery_num = self.battery_index + 1
-        placeholders: dict[str, str] = {"battery_num": str(battery_num)}
-
-        try:
-            current_batteries = self.config_entry.data.get("batteries", [])
-
-            if user_input is not None:
-                device_id = user_input["esphome_device"]
-                _, missing = EsphomeEntityDriver.resolve(self.hass, device_id)
-                if missing:
-                    errors["base"] = "esphome_entities_missing"
-                    placeholders["missing"] = ", ".join(missing)
-                else:
-                    self._current_battery_data.update({
-                        CONF_NAME: user_input[CONF_NAME],
-                        CONF_HOST: device_id,
-                        CONF_PORT: 0,
-                        "brand": "esphome",
-                        "esphome_device_id": device_id,
-                    })
-                    return await self.async_step_battery_limits()
-
-            if self.battery_index < len(current_batteries):
-                current_battery = current_batteries[self.battery_index]
-                defaults = {
-                    CONF_NAME: current_battery.get(CONF_NAME, f"Marstek Venus {battery_num}"),
-                    "esphome_device": current_battery.get("esphome_device_id"),
-                }
-            else:
-                defaults = {
-                    CONF_NAME: f"Marstek Venus {battery_num}",
-                    "esphome_device": None,
-                }
-        except Exception as e:
-            _LOGGER.error("Error in options flow battery_connection_esphome step: %s", e, exc_info=True)
-            return self.async_abort(reason="unknown_error")
-
-        device_selector = DeviceSelector(DeviceSelectorConfig(integration="esphome"))
-        schema: dict = {vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str}
-        if defaults["esphome_device"]:
-            schema[vol.Required("esphome_device", default=defaults["esphome_device"])] = device_selector
-        else:
-            schema[vol.Required("esphome_device")] = device_selector
-
-        return self.async_show_form(
-            step_id="battery_connection_esphome",
-            data_schema=vol.Schema(schema),
-            errors=errors,
-            description_placeholders=placeholders,
-        )
-
 
     async def async_step_battery_connection_indevolt(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure an Indevolt battery through its local HTTP API (read-only probe)."""

@@ -38,6 +38,7 @@ from .base import (
     SetpointResult,
     TelemetrySnapshot,
 )
+from .esphome_flow import ESPHOME_SETUP
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -398,6 +399,7 @@ class EsphomeEntityDriver(BatteryDriver):
     """Drives a Marstek battery through the LilyGo/ESPHome HA entities."""
 
     BRAND = "esphome"
+    SETUP = ESPHOME_SETUP
     LABEL = "Marstek via LilyGo RS485 (ESPHome)"
     MANUFACTURER = "Marstek"
     DEFAULT_MODEL = "Venus"
