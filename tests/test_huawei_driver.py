@@ -2356,16 +2356,14 @@ async def test_the_service_path_still_releases_through_the_service():
     ],
 )
 def test_both_shapes_of_backup_state_are_understood(value, armed):
-    from custom_components.omnibattery import _backup_switch_enabled
-
-    assert _backup_switch_enabled(value) is armed
+    # The core only asks whether it is armed: "cannot tell" (None) is not armed.
+    assert bool(_driver().backup_enabled({"backup_function": value})) is armed
 
 
 def test_the_driver_only_ever_reports_states_the_guard_knows():
     """A fourth spelling would silently disable the guard again."""
     import inspect
 
-    from custom_components.omnibattery import _backup_switch_enabled
     from custom_components.omnibattery.drivers import huawei
 
     source = inspect.getsource(huawei.HuaweiSolarDriver.read_telemetry)
@@ -2376,8 +2374,10 @@ def test_the_driver_only_ever_reports_states_the_guard_knows():
     }
     assert published == {"Off-grid", "Ready", "Disabled"}
     # Every one of them decides the guard one way or the other, none by accident.
-    assert _backup_switch_enabled("Off-grid") and _backup_switch_enabled("Ready")
-    assert not _backup_switch_enabled("Disabled")
+    driver = _driver()
+    assert driver.backup_enabled({"backup_function": "Off-grid"})
+    assert driver.backup_enabled({"backup_function": "Ready"})
+    assert not driver.backup_enabled({"backup_function": "Disabled"})
 
 
 # ----------------------------------------------------------------------

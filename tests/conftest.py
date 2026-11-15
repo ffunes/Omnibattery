@@ -128,6 +128,7 @@ class _FakeMarstekDriver:
         return 0
 
     inverter_status = BatteryDriver.inverter_status
+    backup_enabled = BatteryDriver.backup_enabled
 
     @property
     def control_dependency_keys(self) -> frozenset:

@@ -1380,6 +1380,14 @@ class HuaweiSolarDriver(BatteryDriver):
             return None
         return max(0, ceiling - non_battery_ac)
 
+    def backup_enabled(self, data: dict) -> Optional[bool]:
+        # A hybrid inverter has no backup switch: it reports a state, and only
+        # off-grid or ready-to-go-off-grid mean the output is armed.
+        value = data.get("backup_function")
+        if isinstance(value, str):
+            return value in ("Off-grid", "Ready")
+        return super().backup_enabled(data)
+
     def net_power_from_data(self, data: dict) -> Optional[int]:
         mode = data.get("force_mode")
         charge = data.get("set_charge_power")

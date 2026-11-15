@@ -619,25 +619,6 @@ def _apply_driver_dynamic_limit(
     return max(0, int(dynamic))
 
 
-def _backup_switch_enabled(value) -> bool:
-    """Whether a battery's backup output is armed, whatever shape it reports in.
-
-    Register drivers publish the switch itself: 0 is on, 1 is off. A hybrid
-    inverter has no such switch — it reports a state, and this driver names the
-    three a SUN2000 distinguishes: off-grid, ready to go off-grid, or the
-    function disabled outright.
-
-    Comparing against 0 alone reads every one of those strings as "off", which
-    would let a Huawei keep taking charge and discharge commands through a power
-    cut. Both shapes are answered here rather than at each call site.
-    """
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return value in ("Off-grid", "Ready")
-    return value == 0
-
-
 def _delivered_toward(data: dict, cell_power: float, *, is_charge: bool) -> float:
     """Power (W, unsigned) delivered toward the commanded direction.
 
@@ -5089,8 +5070,7 @@ class ChargeDischargeController:
         now = dt_util.utcnow()
 
         # From SWITCH_DEFINITIONS: command_on = 0 (enabled), command_off = 1 (disabled)
-        backup_value = coordinator.data.get("backup_function")
-        if not _backup_switch_enabled(backup_value):
+        if not coordinator.driver.backup_enabled(coordinator.data):
             # Switch is off — clear any lingering cooldown and allow PD control
             self._backup_cooldown_until.pop(coordinator, None)
             return False
@@ -12656,8 +12636,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                 # Skip batteries that are actively providing offgrid backup power
                 # (backup switch ON and ac_offgrid_power exceeds threshold, or sensor unavailable)
-                if coordinator.data and _backup_switch_enabled(
-                    coordinator.data.get("backup_function")
+                if coordinator.data and coordinator.driver.backup_enabled(
+                    coordinator.data
                 ):
                     ac_offgrid = coordinator.data.get("ac_offgrid_power")
                     if ac_offgrid is None or ac_offgrid > coordinator.backup_offgrid_threshold:

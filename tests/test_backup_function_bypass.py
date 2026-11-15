@@ -170,6 +170,7 @@ def _polling_coordinator(read_groups, read_telemetry):
             read_telemetry=read_telemetry,
             control_dependency_keys=set(),
             inverter_status=_FakeMarstekDriver().inverter_status,
+            backup_enabled=_FakeMarstekDriver().backup_enabled,
         ),
         _def_by_key={k: {"key": k} for k in keys},
         _get_entity_type=lambda definition, fallback_key=None: "sensor",

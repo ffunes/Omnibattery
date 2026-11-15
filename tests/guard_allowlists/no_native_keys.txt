@@ -3,8 +3,6 @@
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
 __init__.py:ChargeDischargeController._is_battery_calibrating:key:soc_status
-__init__.py:_backup_switch_enabled:backup_code:value == 0
-__init__.py:_backup_switch_enabled:backup_code:value in ('Off-grid', 'Ready')
 const/registers_common.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
 const/registers_common.py:<module>:alarm_table:FAULT_BIT_DESCRIPTIONS
 const/registers_v2.py:<module>:alarm_table:ALARM_BIT_DESCRIPTIONS
