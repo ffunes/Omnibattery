@@ -590,3 +590,87 @@ def test_dynamic_omits_the_discharge_line_without_a_limit():
     )
 
     assert "Max discharge power" not in message
+
+
+# ----------------------------------------------------------------------
+# The 2.0.0 optimizer's plan: its own words, and the orders it gives
+# ----------------------------------------------------------------------
+
+
+def _optimizer_schedule(prices, kwh):
+    schedule = _schedule(prices, hours_needed=1.0, charging_needed=True, estimated_cost=0.4)
+    schedule.slot_energy_targets_kwh = dict(zip(schedule.selected_slots, kwh))
+    schedule.slot_deadlines = {s: None for s in schedule.selected_slots}
+    schedule.chronological_planning_active = True
+    schedule.deadline_required_kwh = 9.0
+    schedule.purpose_for = lambda _s: "deficit"
+    return schedule
+
+
+def test_optimizer_charge_lists_blocks_without_the_old_planner_words():
+    schedule = _optimizer_schedule([0.10, 0.10, 0.10, 0.12], [0.5, 0.5, 0.4, 0.3])
+    title, message = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=9.0, planned_grid_charge_kwh=1.7,
+                  planner="optimizer", deadline_required_kwh=9.0),
+        schedule, **_DP_CFG,
+    )
+    assert "Grid charge planned: 1.70 kWh" in message
+    for old in ("Energy deficit", "Required before deadlines", "Flexible by price",
+                "[flexible]", "[deficit]", "meet each deadline", "of charging needed"):
+        assert old not in message
+    # Back-to-back quarters at one price are one line, with their energy added up.
+    assert "18:00-18:45 → 0.1000 €/kWh, 1.40 kWh" in message
+    assert "18:45-19:00 → 0.1200 €/kWh, 0.30 kWh" in message
+    assert message.count("→") == 2
+
+
+def _slot_at(minutes, length=15):
+    return PriceSlot(start=_DAY + timedelta(minutes=minutes),
+                     end=_DAY + timedelta(minutes=minutes + length), price=0.3)
+
+
+ORDERS = {
+    "holds": frozenset({_slot_at(60), _slot_at(75)}),
+    "exports": frozenset({_slot_at(-480, 60)}),
+    "sales": {_slot_at(120): 2.5, _slot_at(135): 2.5},
+    "solar_delay": True,
+}
+
+
+def test_optimizer_plan_without_charge_still_names_its_orders():
+    title, message = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False, planner="optimizer"), None,
+        plan_orders=ORDERS, **_DP_CFG,
+    )
+    assert "NOT needed" in title
+    assert "Battery kept for later: 19:00-19:30" in message
+    assert "Selling to the grid: 20:00-20:30 at 2.5 kW" in message
+    assert "Solar surplus to export: 10:00-11:00" in message
+    assert "Solar charge delayed by the plan" in message
+    # The old planner's words stay on its own path, and it has no orders.
+    old = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False), None, plan_orders=ORDERS, **_DP_CFG)[1]
+    assert "Battery kept" not in old
+
+
+def test_optimizer_cheaper_to_import_is_not_a_warning():
+    decision = _decision(should_charge=True, energy_deficit_kwh=4.0, planner="optimizer",
+                         chronological_plan_reason="cheaper_to_import", cheaper_to_import_kwh=3.5)
+    title, message = notifications.format_dynamic_pricing_notification(
+        decision, None, arbitrage_margin=0.0, **_DP_CFG)
+    assert title.endswith("Grid import is cheaper")
+    assert "⚠️" not in message and "Energy deficit" not in message
+    assert "3.50 kWh" in message and "round-trip losses" in message
+    assert "margin" not in message
+    message = notifications.format_dynamic_pricing_notification(
+        decision, None, arbitrage_margin=0.05, **_DP_CFG)[1]
+    assert "0.0500 €/kWh arbitrage margin" in message
+
+
+def test_optimizer_price_info_groups_the_cheap_hours_without_tags():
+    schedule = _schedule([0.10, 0.10, 0.10, 0.10])
+    schedule.purpose_for = lambda _s: "deficit"
+    message = notifications.format_dynamic_pricing_notification(
+        _decision(planner="optimizer"), schedule, **_DP_CFG)[1]
+    assert "18:00-19:00 → 0.1000 €/kWh" in message
+    assert message.count("→") == 1 and "[deficit]" not in message

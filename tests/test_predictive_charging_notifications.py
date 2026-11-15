@@ -336,3 +336,18 @@ def test_switch_absent_when_predictive_charging_never_configured():
     added: list = []
     asyncio.run(async_setup_entry(hass, entry, lambda ents: added.extend(ents)))
     assert not any(isinstance(e, PredictiveChargingNotificationsSwitch) for e in added)
+
+
+def test_changed_plan_orders_notify_again(monkeypatch):
+    """A plan that only changes its sales (or holds) is a new plan."""
+    manager, calls = _dedupe_manager(monkeypatch)
+    controller = manager._controller
+
+    async def _run():
+        for kw in (2.5, 2.5, 3.0):
+            controller._dp_plan_sales = {_Slot(7, 8): kw}
+            await manager._send_dynamic_pricing_notification({}, None)
+
+    asyncio.run(_run())
+    assert len(_creates(calls)) == 2
+
