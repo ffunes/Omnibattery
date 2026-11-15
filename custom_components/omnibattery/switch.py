@@ -2242,7 +2242,7 @@ class WeeklyFullChargeSkipRecentSwitch(SwitchEntity):
     """Skip the weekly full charge after a recent full charge.
 
     ON  = no weekly run when every battery reached 100% in the
-          WEEKLY_FULL_CHARGE_RECENT_DAYS days before the run day.
+          configured number of days (default 5) before the run day.
     OFF = the weekly full charge runs every week (default).
     """
 

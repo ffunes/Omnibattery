@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Weekly full charge: skip it after a recent full charge** (opt-in): a new switch in the panel's Weekly full charge card. When it is on, the weekly run is skipped if every battery already reached 100% (or a confirmed BMS cutoff) in the 5 days before the full charge day, because that charge balanced the cells already. The planner then plans no fill to 100% the evening before either. The integration remembers when the fleet was last full across restarts, starting with this update; the Weekly full charge status sensor shows it (`last_full_charge`) and reads "Skipped" for a skipped run. A run that already raised the charge cutoff always finishes.
+- **Weekly full charge: skip it after a recent full charge** (opt-in): a new switch in the panel's Weekly full charge card. When it is on, the weekly run is skipped if every battery already reached 100% (or a confirmed BMS cutoff) in the days before the full charge day, because that charge balanced the cells already. How many days is a setting next to it: a whole number from 1 to 14, default 5; any other value is refused before it is saved. The planner then plans no fill to 100% the evening before either. The integration remembers when the fleet was last full across restarts, starting with this update; the Weekly full charge status sensor shows it (`last_full_charge`) and reads "Skipped" for a skipped run. A run that already raised the charge cutoff always finishes.
 
 ### Fixed
 

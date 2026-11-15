@@ -2647,6 +2647,9 @@
       }
     },
     "number": {
+      "weekly_full_charge_skip_recent_days": {
+        "name": "Periodo de omisión de la carga semanal completa"
+      },
       "surplus_hold_min_saving": {
         "name": "Ahorro mínimo de retención de excedente"
       },

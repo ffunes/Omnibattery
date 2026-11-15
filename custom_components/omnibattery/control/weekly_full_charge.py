@@ -29,8 +29,9 @@ from ..const import (
     NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
     NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
+    DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
     WEEKDAY_MAP,
-    WEEKLY_FULL_CHARGE_RECENT_DAYS,
+    weekly_full_charge_skip_recent_days,
 )
 
 if TYPE_CHECKING:
@@ -379,13 +380,23 @@ class WeeklyFullChargeManager:
             self._last_full_at = stored
             self._last_full_saved_at = stored
 
+    @property
+    def skip_recent_days(self) -> int:
+        """Days before the run day a full charge counts; the default if unset or invalid."""
+        return (
+            weekly_full_charge_skip_recent_days(
+                getattr(self._controller, "_weekly_full_charge_skip_recent_days", None)
+            )
+            or DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS
+        )
+
     def recent_full_charge_before(self, run_day: date) -> datetime | None:
         """The full charge that makes the run on ``run_day`` unnecessary, or None.
 
         Only with the skip switch on: the fleet stood full on or after the
-        start of the day WEEKLY_FULL_CHARGE_RECENT_DAYS before ``run_day``.
-        Judged against the run day, not the clock, so a run is skipped or not
-        for its whole window.
+        start of the day the configured number of days (default 5) before
+        ``run_day``. Judged against the run day, not the clock, so a run is
+        skipped or not for its whole window.
         """
         if not getattr(self._controller, "_weekly_full_charge_skip_recent", False):
             return None
@@ -393,7 +404,7 @@ class WeeklyFullChargeManager:
         if last is None:
             return None
         since = datetime.combine(run_day, datetime.min.time()) - timedelta(
-            days=WEEKLY_FULL_CHARGE_RECENT_DAYS
+            days=self.skip_recent_days
         )
         return last if last >= since else None
 

@@ -766,11 +766,11 @@ class WeeklyFullChargeSensor(SensorEntity):
         attrs["skip_after_recent_full_charge"] = bool(
             getattr(self._controller, "_weekly_full_charge_skip_recent", False)
         )
-        last_full = getattr(
-            getattr(self._controller, "_weekly_charge_mgr", None),
-            "last_full_charge_at",
-            None,
-        )
+        manager = getattr(self._controller, "_weekly_charge_mgr", None)
+        days = getattr(manager, "skip_recent_days", None)
+        if days is not None:
+            attrs["skip_recent_days"] = days
+        last_full = getattr(manager, "last_full_charge_at", None)
         attrs["last_full_charge"] = (
             last_full.isoformat(timespec="minutes") if last_full else None
         )

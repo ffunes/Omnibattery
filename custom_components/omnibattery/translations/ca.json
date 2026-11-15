@@ -2647,6 +2647,9 @@
       }
     },
     "number": {
+      "weekly_full_charge_skip_recent_days": {
+        "name": "Període d'omissió de la càrrega setmanal completa"
+      },
       "surplus_hold_min_saving": {
         "name": "Estalvi mínim de retenció d'excedent"
       },

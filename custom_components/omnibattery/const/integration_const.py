@@ -1,5 +1,7 @@
 """Integration-level configuration constants for Omnibattery."""
 
+import math as _math
+
 DOMAIN = "omnibattery"
 
 # Prefix for every persistent_notification this integration creates/dismisses.
@@ -286,11 +288,35 @@ CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY = "weekly_full_charge_skip_delay"
 # the solar charge delay and charges immediately on its target day. The runtime
 # switch flips this so the weekly charge can instead wait for the delay to unlock.
 DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY = True
-# Skip the weekly full charge when every battery already reached 100% within
-# WEEKLY_FULL_CHARGE_RECENT_DAYS before the run day (off by default).
+# Skip the weekly full charge when every battery already reached 100% in the
+# configured number of days before the run day (off by default). The days are
+# whole and positive, at most two weeks.
 CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT = "weekly_full_charge_skip_recent"
 DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT = False
-WEEKLY_FULL_CHARGE_RECENT_DAYS = 5
+CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = "weekly_full_charge_skip_recent_days"
+DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 5
+MIN_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 1
+MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 14
+
+
+def weekly_full_charge_skip_recent_days(value) -> int | None:
+    """``value`` as a valid number of days, or None.
+
+    Valid: a whole number (an integer or a float without fraction, not a
+    bool) from MIN_ to MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS.
+    """
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not _math.isfinite(number) or number != int(number):  # NaN, ±inf or a fraction
+        return None
+    days = int(number)
+    if not MIN_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS <= days <= MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS:
+        return None
+    return days
 CONF_ENABLE_BALANCE_MONITOR = "enable_balance_monitor"
 
 # Cell Balance Monitor

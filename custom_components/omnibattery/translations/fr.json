@@ -2647,6 +2647,9 @@
       }
     },
     "number": {
+      "weekly_full_charge_skip_recent_days": {
+        "name": "Période d'exemption de la charge complète hebdomadaire"
+      },
       "surplus_hold_min_saving": {
         "name": "Économie minimale de retenue du surplus"
       },

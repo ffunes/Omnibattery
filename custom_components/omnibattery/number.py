@@ -5,6 +5,7 @@ import logging
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity import EntityCategory
@@ -49,6 +50,11 @@ from .const import (
     CONF_MAX_CONTRACTED_POWER,
     effective_system_power,
     total_battery_power,
+    CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
+    DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
+    MIN_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
+    MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
+    weekly_full_charge_skip_recent_days,
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.manual_control import assert_manual_control
@@ -173,6 +179,12 @@ async def async_setup_entry(
         entities.append(MarstekArbitrageNumber(hass, entry, "efficiency"))
         entities.append(SmartPredischargeNumber(hass, entry, "threshold"))
         entities.append(SmartPredischargeNumber(hass, entry, "reserve"))
+
+    # Days for the "skip the weekly full charge after a recent full charge"
+    # switch; always present, like that switch.
+    controller = hass.data[DOMAIN][entry.entry_id].get("controller")
+    if controller is not None:
+        entities.append(WeeklyFullChargeSkipRecentDaysNumber(hass, entry, controller))
 
     # Temperature charge limit sliders (system-level, when the feature is configured)
     if CONF_ENABLE_TEMP_CHARGE_LIMIT in entry.data:
@@ -747,6 +759,73 @@ class MarstekPriceThresholdNumber(NumberEntity):
         new_data[self._conf_key] = value
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("Dynamic pricing %s price threshold updated to %s", self._kind, value)
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class WeeklyFullChargeSkipRecentDaysNumber(NumberEntity):
+    """Days before the weekly run in which a full charge makes it unnecessary.
+
+    Used by the "skip after a recent full charge" switch. A whole number from
+    MIN_ to MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS; anything else is refused
+    before it is saved.
+    """
+
+    _attr_has_entity_name = True
+    _attr_mode = NumberMode.BOX
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_min_value = MIN_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS
+    _attr_native_max_value = MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = UnitOfTime.DAYS
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the skip-window number."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        key = "weekly_full_charge_skip_recent_days"
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+        self.entity_id = system_entity_id("number", key)
+        self._attr_icon = "mdi:calendar-range"
+
+    @property
+    def native_value(self) -> int:
+        """The days in force (the default until one is saved)."""
+        return (
+            weekly_full_charge_skip_recent_days(
+                getattr(self.controller, "_weekly_full_charge_skip_recent_days", None)
+            )
+            or DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS
+        )
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Save a valid number of days; refuse anything else unsaved."""
+        days = weekly_full_charge_skip_recent_days(value)
+        if days is None:
+            raise ServiceValidationError(
+                "The number of days must be a whole number from "
+                f"{MIN_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS} to "
+                f"{MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS}, not {value}."
+            )
+        self.controller._weekly_full_charge_skip_recent_days = days
+        new_data = dict(self.entry.data)
+        new_data[CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS] = days
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info(
+            "Weekly Full Charge: a full charge in the last %d days skips the run", days
+        )
         self.async_write_ha_state()
 
     @property

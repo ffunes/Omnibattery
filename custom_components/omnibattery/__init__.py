@@ -78,6 +78,9 @@ from .const import (
     DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY,
     CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT,
     DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT,
+    CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
+    DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
+    weekly_full_charge_skip_recent_days,
     CONF_ENABLE_CHARGE_DELAY,
     CONF_DELAY_SAFETY_MARGIN_MIN,
     DEFAULT_DELAY_SAFETY_MARGIN_MIN,
@@ -1314,6 +1317,12 @@ class ChargeDischargeController:
         )
         self._weekly_full_charge_skip_recent = config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT
+        )
+        self._weekly_full_charge_skip_recent_days = (
+            weekly_full_charge_skip_recent_days(
+                config_entry.data.get(CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS)
+            )
+            or DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS
         )
         # None until the user sets one: the default then follows the fleet.
         self._predictive_safety_margin_stored: float | None = config_entry.data.get(
@@ -3182,6 +3191,7 @@ class ChargeDischargeController:
             bool(getattr(self, "weekly_full_charge_enabled", False)),
             getattr(self, "weekly_full_charge_day", None),
             bool(getattr(self, "_weekly_full_charge_skip_recent", False)),
+            getattr(self, "_weekly_full_charge_skip_recent_days", None),
             bool(getattr(self, "discharge_reserve_enabled", False)),
             bool(getattr(self, "capacity_protection_enabled", False)),
             _rounded(getattr(self, "capacity_protection_limit", None)),
@@ -3328,6 +3338,12 @@ class ChargeDischargeController:
         )
         self._weekly_full_charge_skip_recent = self.config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT
+        )
+        self._weekly_full_charge_skip_recent_days = (
+            weekly_full_charge_skip_recent_days(
+                self.config_entry.data.get(CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS)
+            )
+            or DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS
         )
         self._predictive_safety_margin_stored = self.config_entry.data.get(
             CONF_PREDICTIVE_SAFETY_MARGIN_KWH
