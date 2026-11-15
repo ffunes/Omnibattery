@@ -488,9 +488,16 @@ class BatteryDriver(ABC):
         """Identity of the physical link a battery sits on.
 
         Batteries with the same key are set up one after another (they share one
-        connection slot); different keys connect concurrently.
+        connection slot); different keys connect concurrently. A stored
+        ``serial_port`` is its own link for any brand: it freezes today's grouping,
+        including the stale key a brand change in the options flow leaves behind
+        (plan section 8).
         """
-        return (battery_config.get("host"), battery_config.get("port"))
+        return (
+            battery_config.get("host"),
+            battery_config.get("port"),
+            battery_config.get("serial_port"),
+        )
 
     def coordinator_attributes(self) -> dict[str, Any]:
         """Brand-owned config values the coordinator mirrors as public attributes."""

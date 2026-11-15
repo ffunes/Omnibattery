@@ -351,15 +351,6 @@ class MarstekModbusDriver(BatteryDriver):
             return ("solar_power", "battery_cell_power")
         return ()
 
-    @classmethod
-    def link_key(cls, battery_config) -> tuple:
-        # A serial port is its own link, whatever host/port the entry carries.
-        return (
-            battery_config.get("host"),
-            battery_config.get("port"),
-            battery_config.get(CONF_SERIAL_PORT),
-        )
-
     def coordinator_attributes(self) -> dict:
         return {
             "serial_port": self._serial_port,
