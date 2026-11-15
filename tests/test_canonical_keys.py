@@ -20,7 +20,12 @@ from custom_components.omnibattery.drivers.zendure import NUMBER_DEFINITIONS as 
 from custom_components.omnibattery.drivers.registry import traits_for_brand
 from custom_components.omnibattery.switch import ManualModeSwitch
 from custom_components.omnibattery.tracking.balance_monitor import BalanceMonitor
-from tests.test_cell_voltage_profile_characterization import CASES, IDS, _coordinator
+from tests.test_cell_voltage_profile_characterization import (  # noqa: F401 (autouse stub)
+    CASES,
+    IDS,
+    _coordinator,
+    _no_ha_runtime,
+)
 from tests.test_driver_construction_characterization import BRAND_CONFIGS
 
 PACKAGE_DIR = Path(package.__file__).parent

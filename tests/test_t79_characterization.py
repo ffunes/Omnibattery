@@ -25,6 +25,7 @@ from tests.test_cell_voltage_profile_characterization import (
     IDS,
     PUBLISHERS,
     _coordinator,
+    _no_ha_runtime,  # noqa: F401 (autouse: stub DataUpdateCoordinator.__init__)
 )
 
 # ---------------------------------------------------------------------------
