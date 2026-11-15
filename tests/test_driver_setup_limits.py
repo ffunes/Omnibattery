@@ -2,8 +2,8 @@
 
 The shared ``battery_limits`` step (config flow and options flow) and the
 time-slot forms ask ONE place for everything brand-specific: the brand's
-``DriverSetup`` when it has one, otherwise the ``_LegacyLimits`` adapter that
-holds the branches that used to live in the two steps. The five hooks are
+``DriverSetup`` when it has one, otherwise (an unregistered brand) the ``SETUP`` of
+``DEFAULT_BRAND``. The five hooks are
 ``power_ceilings``, ``limits_schema`` and ``finalize_limits`` (the time-slot
 ceiling is ``BatteryDriver.slot_power_ceiling``); the SOC ranges and the capacity field come from
 ``DriverTraits``.
@@ -394,3 +394,20 @@ async def test_options_flow_hook_can_force_the_power_limits(flow_env, limits_bra
     stored = run.batteries[0]
     assert stored["max_charge_power"] == 777 and stored["max_discharge_power"] == 666
 
+
+
+# --------------------------------------------------------------------------- an unregistered brand
+
+
+def test_unregistered_brand_uses_the_default_brand_setup():
+    assert _limits_setup("not_registered") is registry.DRIVERS[registry.DEFAULT_BRAND].SETUP
+    assert _limits_setup("not_registered").power_ceilings({"battery_version": "v3"}) == (2500, 2500)
+
+
+@pytest.mark.parametrize("brand,has_dc", [("marstek", True), (None, True), ("not_registered", False)])
+def test_dc_field_is_offered_only_to_a_marstek_on_va_vd(brand, has_dc):
+    ctx = SetupContext(kind=FlowKind.CONFIG, battery=None, entry=None, coordinator=None)
+    data = {"battery_version": "vA"} | ({} if brand is None else {"brand": brand})
+    names = _field_names(_limits_setup(brand or "marstek").limits_schema(data, {}, ctx))
+    assert ("dc_pv_connected" in names) is has_dc
+    assert "full_charge_voltage_taper_enabled" in names

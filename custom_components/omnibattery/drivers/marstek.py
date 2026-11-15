@@ -45,6 +45,7 @@ from ..const import (
 )
 from ..infra.modbus_helpers import decode_registers
 from .marstek_client import BLOCK_REFUSED, MarstekModbusClient
+from .marstek_flow import MARSTEK_SETUP
 from .base import (
     BatteryDriver,
     DriverCapabilities,
@@ -314,6 +315,7 @@ class MarstekModbusDriver(BatteryDriver):
     """Modbus-TCP driver for a single Marstek battery."""
 
     BRAND = "marstek"
+    SETUP = MARSTEK_SETUP
     TRAITS = DriverTraits(ip_addressed=True)
     LABEL = "Marstek Venus"
     MANUFACTURER = "Marstek"

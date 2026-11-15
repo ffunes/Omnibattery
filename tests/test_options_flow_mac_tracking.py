@@ -13,6 +13,7 @@ import pytest
 
 from custom_components.omnibattery import config_flow as cf
 from custom_components.omnibattery.config_flow import OptionsFlowHandler
+from custom_components.omnibattery.drivers.marstek import MarstekModbusDriver
 from custom_components.omnibattery.infra.mac_tracking import CONF_MAC, CONF_TRACK_MAC
 
 MAC = "00:00:5e:00:53:01"
@@ -43,6 +44,12 @@ def empty_dhcp_cache(monkeypatch):
     monkeypatch.setattr(cf, "detect_mac", lambda discovered, host: None)
 
 
+@pytest.fixture(autouse=True)
+def reachable_marstek(monkeypatch):
+    """The Marstek connection step probes the battery; here it always answers."""
+    monkeypatch.setattr(MarstekModbusDriver, "probe", AsyncMock(return_value=True))
+
+
 def _options_flow(batteries) -> OptionsFlowHandler:
     entry = SimpleNamespace(entry_id="test-entry", data={"batteries": batteries}, options={})
     flow = OptionsFlowHandler(entry)
@@ -52,7 +59,6 @@ def _options_flow(batteries) -> OptionsFlowHandler:
         )
     )
     flow.handler = entry.entry_id
-    flow._test_connection = AsyncMock(return_value=True)
     return flow
 
 

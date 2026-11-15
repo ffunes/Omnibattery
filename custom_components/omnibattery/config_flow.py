@@ -95,15 +95,11 @@ from .const import (
     CONF_ENABLE_TEMP_CHARGE_LIMIT,
     CONF_DELAY_SOC_SETPOINT_ENABLED,
     CONF_BATTERY_VERSION,
-    CONF_DC_PV_CONNECTED,
     CONF_PRIMARY_BATTERY,
     CONF_SLAVE_ID,
     DEFAULT_SLAVE_ID,
-    CONF_SERIAL_PORT,
-    CONF_RS485_GATEWAY,
     DEFAULT_VERSION,
     MAX_POWER_BY_VERSION,
-    max_power_for_battery_version,
     MAX_BATTERIES,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
     CONF_CAPACITY_PROTECTION_ENABLED,
@@ -130,8 +126,6 @@ from .const import (
     PRICE_INTEGRATION_ZONNEPLAN,
     PRICE_INTEGRATION_FRANK_ENERGIE,
     CONF_METER_INVERTED,
-    CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-    DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     MIN_CHARGE_HYSTERESIS_PERCENT,
     DEFAULT_CHARGE_HYSTERESIS_PERCENT,
     MAX_CHARGE_HYSTERESIS_PERCENT,
@@ -560,93 +554,14 @@ _ALL_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 MAX_CHARGING_WINDOWS = 3
 
 
-def _legacy_power_ceilings(brand: str, battery_data: dict) -> tuple[int, int]:
-    """Power ceilings the limits step offers, per brand (to move into each ``DriverSetup``)."""
-    battery_version = battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
-    max_charge_power = max_discharge_power = max_power_for_battery_version(
-        battery_version, battery_data.get("ems_version")
-    )
-    return max_charge_power, max_discharge_power
-
-
-def _legacy_limits_schema(
-    brand: str, battery_data: dict, base_fields: dict, ctx: SetupContext
-) -> dict:
-    """Brand fields of the limits form (to move into each ``DriverSetup``).
-
-    The two flows build them differently: the config flow always opens on fixed
-    defaults, the options flow on the stored battery's values.
-    """
-    options = ctx.kind is FlowKind.OPTIONS
-    # Options flow: the stored battery with this flow's connection data on top.
-    current = {**ctx.battery, **battery_data} if options and ctx.battery is not None else None
-    fields = dict(base_fields)
-    if (
-        brand == "marstek"
-        and battery_data.get(CONF_BATTERY_VERSION) in ("vA", "vD")
-    ):
-        if current is not None:
-            dc_default = current.get(
-                CONF_DC_PV_CONNECTED,
-                current.get(CONF_BATTERY_VERSION) in ("vA", "vD"),
-            )
-        elif options:
-            dc_default = battery_data.get(CONF_BATTERY_VERSION) in ("vA", "vD")
-        else:
-            dc_default = True
-        fields[vol.Required(CONF_DC_PV_CONNECTED, default=dc_default)] = BooleanSelector()
-    taper_default = (
-        current.get(
-            CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-            DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-        )
-        if current is not None
-        else DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED
-    )
-    fields[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=taper_default)] = bool
-    return fields
-
-
-def _legacy_finalize_limits(
-    brand: str, merged: dict, user_input: dict, battery_data: dict, ctx: SetupContext
-) -> None:
-    """Brand values stored by the limits step (to move into each ``DriverSetup``)."""
-    merged[CONF_DC_PV_CONNECTED] = bool(
-        user_input.get(CONF_DC_PV_CONNECTED, True)
-    ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
-    merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = user_input.get(
-        CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED
-    )
-
-
-class _LegacyLimits:
-    """The limits-step hooks of a brand that has no ``DriverSetup`` yet.
-
-    Same calls as ``DriverSetup``; each delegates to the branches that used to
-    live in the two ``async_step_battery_limits``. Each brand's task moves its
-    branches into its own ``DriverSetup``; the last one empties this.
-    """
-
-    def __init__(self, brand: str) -> None:
-        self.brand = brand
-
-    def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
-        return _legacy_power_ceilings(self.brand, battery_data)
-
-    def limits_schema(self, battery_data: dict, base_fields: dict, ctx: SetupContext) -> dict:
-        return _legacy_limits_schema(self.brand, battery_data, base_fields, ctx)
-
-    def finalize_limits(
-        self, merged: dict, user_input: dict, battery_data: dict, ctx: SetupContext
-    ) -> None:
-        _legacy_finalize_limits(self.brand, merged, user_input, battery_data, ctx)
-
+def _setup_brand(brand: str | None) -> str:
+    """The brand whose ``SETUP`` serves ``brand``: itself, or ``DEFAULT_BRAND`` if unregistered."""
+    return brand if registry.is_registered(brand) else DEFAULT_BRAND
 
 
 def _limits_setup(brand: str):
-    """What the limits step and the slot forms ask: the brand's ``SETUP`` or the legacy branches."""
-    setup = registry.setup_for(brand)
-    return setup if setup is not None else _LegacyLimits(brand)
+    """What the limits step and the slot forms ask: the ``SETUP`` of the brand's driver."""
+    return registry.setup_for(_setup_brand(brand))
 
 
 def _normalize_charging_windows(raw) -> list[dict]:
@@ -1274,6 +1189,12 @@ async def _run_driver_step(flow, brand: str, handler, user_input):
     return await flow.async_step_reconfigure_battery()
 
 
+# Step id of the shared reconfigure dispatcher (``async_step_reconfigure_battery``).
+# A brand may use it as its own step id; no method is generated over the dispatcher,
+# which runs that handler itself.
+_DISPATCHER_STEP = "reconfigure_battery"
+
+
 def _install_driver_steps(flow_class, setup, brand: str, setter=setattr) -> list[str]:
     """Generate ``flow_class.async_step_<id>`` for every step of ``setup``.
 
@@ -1289,6 +1210,8 @@ def _install_driver_steps(flow_class, setup, brand: str, setter=setattr) -> list
     """
     installed = []
     for step_id, handler in setup.steps.items():
+        if step_id == _DISPATCHER_STEP:
+            continue  # the shared dispatcher is a real method; see async_step_reconfigure_battery
         name = f"async_step_{step_id}"
 
         async def step(self, user_input=None, __handler=handler, __brand=brand):
@@ -1312,10 +1235,9 @@ def _brand_selector_options() -> list[dict[str, str]]:
 
 
 async def _dispatch_brand_entry(flow, brand: str):
-    """Go to the brand's ``SETUP.entry_step``; ``None`` = the brand has no setup yet."""
+    """Go to the ``SETUP.entry_step`` of the brand's driver (``DEFAULT_BRAND`` if unregistered)."""
+    brand = _setup_brand(brand)
     setup = registry.setup_for(brand)
-    if setup is None:
-        return None
     work_dict(flow, brand, reset=True)
     return await getattr(flow, f"async_step_{setup.entry_step}")()
 
@@ -1584,9 +1506,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         if user_input is not None:
             brand = user_input["brand"]
             self._current_battery_data = {"brand": brand}
-            if (dispatched := await _dispatch_brand_entry(self, brand)) is not None:
-                return dispatched
-            return await self.async_step_battery_connection()
+            return await _dispatch_brand_entry(self, brand)
 
         return self.async_show_form(
             step_id="battery_brand",
@@ -1599,84 +1519,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                         )),
                 }
             ),
-            description_placeholders={"battery_num": str(battery_num)},
-        )
-
-    async def async_step_battery_connection(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Step 3b (Marstek): Connection details and battery model."""
-        errors = {}
-        battery_num = self.battery_index + 1
-
-        if user_input is not None:
-            battery_version = user_input.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
-            slave_id = user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
-            serial_port = (user_input.get(CONF_SERIAL_PORT) or "").strip()
-            rs485_gateway = bool(user_input.get(CONF_RS485_GATEWAY, False))
-            host = (user_input.get(CONF_HOST) or "").strip()
-            is_serial = bool(serial_port)
-
-            if not is_serial and not host:
-                # No IP and no serial port: nothing to connect to.
-                errors["base"] = "host_or_serial_required"
-            else:
-                if is_serial:
-                    # Serial has no IP:port; the path doubles as the battery's
-                    # identity (device_key, naming). port stays a placeholder.
-                    host = serial_port
-                    port = user_input.get(CONF_PORT, 502)
-                else:
-                    port = user_input[CONF_PORT]
-
-                connection_result = await self._test_connection(
-                    host,
-                    port,
-                    battery_version,
-                    slave_id,
-                    brand="marstek",
-                    serial_port=serial_port or None,
-                )
-                if not connection_result:
-                    errors["base"] = "cannot_connect"
-                else:
-                    self._current_battery_data.update({
-                        CONF_NAME: user_input[CONF_NAME],
-                        CONF_HOST: host,
-                        CONF_PORT: port,
-                        CONF_SERIAL_PORT: serial_port,
-                        CONF_RS485_GATEWAY: rs485_gateway,
-                        CONF_SLAVE_ID: slave_id,
-                        CONF_BATTERY_VERSION: battery_version,
-                        "brand": "marstek",
-                        "ems_version": getattr(self, "_last_marstek_ems_version", None),
-                    })
-                    return await self.async_step_battery_limits()
-
-        return self.async_show_form(
-            step_id="battery_connection",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=f"Marstek Venus {battery_num}"): str,
-                    vol.Optional(CONF_HOST): str,
-                    vol.Optional(CONF_PORT, default=502): int,
-                    vol.Optional(CONF_SERIAL_PORT): str,
-                    vol.Optional(CONF_RS485_GATEWAY, default=False): bool,
-                    vol.Required(CONF_SLAVE_ID, default=DEFAULT_SLAVE_ID):
-                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
-                    vol.Required(CONF_BATTERY_VERSION, default=DEFAULT_VERSION):
-                        SelectSelector(SelectSelectorConfig(
-                            options=[
-                                {"value": "v2", "label": "Ev2"},
-                                {"value": "v3", "label": "Ev3"},
-                                {"value": "vA", "label": "A"},
-                                {"value": "vD", "label": "D"},
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )),
-                }
-            ),
-            errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
         )
 
@@ -2416,125 +2258,33 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
     async def async_step_reconfigure_battery(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Update connection settings for each battery during reconfiguration."""
+        """Update connection settings for each battery during reconfiguration.
+
+        The dispatcher: runs the reconfigure step of the stored battery's brand
+        (an unregistered brand, or none, is served by ``DEFAULT_BRAND``). A brand
+        whose reconfigure step id is this method's own (Marstek) has its handler
+        run directly, since no method is generated over this one.
+        """
         entry = self._get_reconfigure_entry()
         current_batteries = entry.data.get("batteries", [])
-        battery_num = self.battery_index + 1
         current = (
             current_batteries[self.battery_index]
             if self.battery_index < len(current_batteries)
             else {}
         )
 
-        current_brand = current.get("brand", DEFAULT_BRAND)
-        setup = registry.setup_for(current_brand)
-        if setup is not None and setup.reconfigure_entry_step:
-            if user_input is None:
-                work_dict(self, current_brand, reset=True)
-            return await getattr(
-                self, f"async_step_{setup.reconfigure_entry_step}"
-            )(user_input)
+        brand = _setup_brand(current.get("brand", DEFAULT_BRAND))
+        setup = registry.setup_for(brand)
+        if setup is None or not setup.reconfigure_entry_step:
+            brand = DEFAULT_BRAND
+            setup = registry.setup_for(brand)
+        if user_input is None:
+            work_dict(self, brand, reset=True)
+        step = setup.reconfigure_entry_step
+        if step == _DISPATCHER_STEP:
+            return await _run_driver_step(self, brand, setup.steps[step], user_input)
+        return await getattr(self, f"async_step_{step}")(user_input)
 
-        errors = {}
-
-        if user_input is not None:
-            battery_version = user_input.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
-            slave_id = user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
-            serial_port = (user_input.get(CONF_SERIAL_PORT) or "").strip()
-            rs485_gateway = bool(user_input.get(CONF_RS485_GATEWAY, False))
-            new_host = (user_input.get(CONF_HOST) or "").strip()
-            is_serial = bool(serial_port)
-
-            if is_serial:
-                new_host = serial_port  # path doubles as identity (see add flow)
-                new_port = user_input.get(CONF_PORT, 502)
-            else:
-                new_port = user_input.get(CONF_PORT, 502)
-
-            if not is_serial and not new_host:
-                errors["base"] = "host_or_serial_required"
-            elif not await self._test_connection(
-                new_host, new_port, battery_version, slave_id,
-                serial_port=serial_port or None,
-            ):
-                errors["base"] = "cannot_connect"
-            else:
-                old_host = current.get(CONF_HOST)
-                old_port = current.get(CONF_PORT)
-                old_slave = current.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
-
-                if (
-                    old_host
-                    and old_port
-                    and (old_host != new_host or old_port != new_port or old_slave != slave_id)
-                ):
-                    self._migrate_battery_registry_ids(
-                        entry, old_host, old_port, new_host, new_port, old_slave, slave_id
-                    )
-
-                updated = dict(current)
-                updated[CONF_NAME] = user_input[CONF_NAME]
-                updated[CONF_HOST] = new_host
-                updated[CONF_PORT] = new_port
-                updated[CONF_SERIAL_PORT] = serial_port
-                updated[CONF_RS485_GATEWAY] = rs485_gateway
-                updated[CONF_SLAVE_ID] = slave_id
-                updated[CONF_BATTERY_VERSION] = battery_version
-                updated["ems_version"] = getattr(
-                    self, "_last_marstek_ems_version", None
-                )
-                self._reconfigure_batteries.append(updated)
-                self.battery_index += 1
-
-                if self.battery_index >= len(current_batteries):
-                    return self.async_update_reload_and_abort(
-                        entry,
-                        data_updates={"batteries": self._reconfigure_batteries},
-                    )
-                return await self.async_step_reconfigure_battery()
-
-        defaults = {
-            CONF_NAME: current.get(CONF_NAME, f"Marstek Venus {battery_num}"),
-            CONF_HOST: current.get(CONF_HOST, ""),
-            CONF_PORT: current.get(CONF_PORT, 502),
-            CONF_SERIAL_PORT: current.get(CONF_SERIAL_PORT, ""),
-            CONF_RS485_GATEWAY: current.get(CONF_RS485_GATEWAY, False),
-            CONF_SLAVE_ID: current.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
-            CONF_BATTERY_VERSION: current.get(CONF_BATTERY_VERSION, DEFAULT_VERSION),
-        }
-        # A serial battery stores its path in CONF_HOST too; don't prefill the IP
-        # field with the device path.
-        host_default = "" if defaults[CONF_SERIAL_PORT] else defaults[CONF_HOST]
-
-        return self.async_show_form(
-            step_id="reconfigure_battery",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
-                    vol.Optional(CONF_HOST, default=host_default): str,
-                    vol.Optional(CONF_PORT, default=defaults[CONF_PORT]): int,
-                    vol.Optional(CONF_SERIAL_PORT, default=defaults[CONF_SERIAL_PORT]): str,
-                    vol.Optional(CONF_RS485_GATEWAY, default=defaults[CONF_RS485_GATEWAY]): bool,
-                    vol.Required(CONF_SLAVE_ID, default=defaults[CONF_SLAVE_ID]):
-                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
-                    vol.Required(
-                        CONF_BATTERY_VERSION, default=defaults[CONF_BATTERY_VERSION]
-                    ): SelectSelector(
-                        SelectSelectorConfig(
-                            options=[
-                                {"value": "v2", "label": "Ev2"},
-                                {"value": "v3", "label": "Ev3"},
-                                {"value": "vA", "label": "A"},
-                                {"value": "vD", "label": "D"},
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )
-                    ),
-                }
-            ),
-            errors=errors,
-            description_placeholders={"battery_num": str(battery_num)},
-        )
 
     @staticmethod
     @callback
@@ -2700,77 +2450,6 @@ class OptionsFlowHandler(OptionsFlow):
         self._pending_slot_step_a: dict | None = None  # Buffer between slot step A and step B
         _LOGGER.info("OptionsFlowHandler initialized successfully for entry: %s", config_entry.entry_id)
 
-
-    async def _test_connection(
-        self,
-        host: str,
-        port: int,
-        version: str = "v2",
-        slave_id: int = DEFAULT_SLAVE_ID,
-        brand: str = "marstek",
-        serial_port: str | None = None,
-    ) -> bool:
-        """Test connection to a battery.
-
-        For Zendure: simple HTTP probe (no single-slot constraint).
-        For Marstek: temporarily closes any existing coordinator connection to
-        free the single Modbus TCP slot (or the serial port), probes, then
-        reconnects. ``serial_port`` probes over Modbus RTU instead of TCP (#350).
-        """
-        self._last_marstek_ems_version = None
-        if brand == "zendure":
-            _LOGGER.info("Probing Zendure device at %s:%s", host, port)
-            ok, _ = await ZendureLocalDriver.probe(host, port)
-            return ok
-
-        if brand == "anker":
-            _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
-            ok, _ = await AnkerModbusDriver.probe(host, port, slave_id)
-            return ok
-
-        # Marstek: handle single-connection-slot constraint.
-        entry_data = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id, {})
-        coordinators = entry_data.get("coordinators", [])
-        existing_coordinator = None
-        for coordinator in coordinators:
-            if coordinator.host == host and coordinator.slave_id == slave_id:
-                existing_coordinator = coordinator
-                break
-
-        if existing_coordinator is not None:
-            _LOGGER.info(
-                "Reusing coordinator for %s (version=%s) - closing connection for test",
-                host, existing_coordinator.battery_version
-            )
-            async with existing_coordinator.lock:
-                await existing_coordinator.driver.close()
-                await asyncio.sleep(0.5)
-                if version == "vD":
-                    result, self._last_marstek_ems_version = await MarstekModbusDriver.probe_details(
-                        host, port, version, slave_id, serial_port=serial_port
-                    )
-                else:
-                    result = await MarstekModbusDriver.probe(
-                        host, port, version, slave_id, serial_port=serial_port
-                    )
-                await asyncio.sleep(0.3)
-                await existing_coordinator.driver.connect()
-                if result:
-                    _LOGGER.info("Test connection to %s successful, coordinator reconnected", host)
-                else:
-                    _LOGGER.warning("Test connection to %s failed after closing coordinator", host)
-                return result
-        else:
-            _LOGGER.info("No existing coordinator for %s - opening new connection", host)
-            if version == "vD":
-                result, self._last_marstek_ems_version = await MarstekModbusDriver.probe_details(
-                    host, port, version, slave_id, serial_port=serial_port
-                )
-            else:
-                result = await MarstekModbusDriver.probe(
-                    host, port, version, slave_id, serial_port=serial_port
-                )
-            return result
 
     async def _save_and_finish(self) -> FlowResult:
         """Merge config_data into existing entry data, save, and reload."""
@@ -3100,9 +2779,7 @@ class OptionsFlowHandler(OptionsFlow):
                 CONF_TRACK_MAC: current_battery.get(CONF_TRACK_MAC, False),
                 CONF_MAC: current_battery.get(CONF_MAC, ""),
             }
-            if (dispatched := await _dispatch_brand_entry(self, brand)) is not None:
-                return dispatched
-            return await self.async_step_battery_connection()
+            return await _dispatch_brand_entry(self, brand)
 
         return self.async_show_form(
             step_id="battery_brand",
@@ -3115,106 +2792,6 @@ class OptionsFlowHandler(OptionsFlow):
                         )),
                 }
             ),
-            description_placeholders={"battery_num": str(battery_num)},
-        )
-
-    async def async_step_battery_connection(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Configure connection details for a Marstek battery."""
-        errors = {}
-
-        try:
-            battery_num = self.battery_index + 1
-            current_batteries = self.config_entry.data.get("batteries", [])
-
-            if user_input is not None:
-                battery_version = user_input.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
-                slave_id = user_input.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
-                serial_port = (user_input.get(CONF_SERIAL_PORT) or "").strip()
-                rs485_gateway = bool(user_input.get(CONF_RS485_GATEWAY, False))
-                host = (user_input.get(CONF_HOST) or "").strip()
-                is_serial = bool(serial_port)
-
-                if is_serial:
-                    # Serial has no IP:port; the path doubles as identity (see add flow).
-                    host = serial_port
-                    port = user_input.get(CONF_PORT, 502)
-                else:
-                    port = user_input.get(CONF_PORT, 502)
-
-                if not is_serial and not host:
-                    errors["base"] = "host_or_serial_required"
-                elif not await self._test_connection(
-                    host, port, battery_version, slave_id,
-                    brand="marstek", serial_port=serial_port or None,
-                ):
-                    errors["base"] = "cannot_connect"
-                else:
-                    self._current_battery_data.update({
-                        CONF_NAME: user_input[CONF_NAME],
-                        CONF_HOST: host,
-                        CONF_PORT: port,
-                        CONF_SERIAL_PORT: serial_port,
-                        CONF_RS485_GATEWAY: rs485_gateway,
-                        CONF_SLAVE_ID: slave_id,
-                        CONF_BATTERY_VERSION: battery_version,
-                        "brand": "marstek",
-                        "ems_version": getattr(self, "_last_marstek_ems_version", None),
-                    })
-                    return await self.async_step_battery_limits()
-
-            if self.battery_index < len(current_batteries):
-                current_battery = current_batteries[self.battery_index]
-                defaults = {
-                    CONF_NAME: current_battery.get(CONF_NAME, f"Marstek Venus {battery_num}"),
-                    CONF_HOST: current_battery.get(CONF_HOST, ""),
-                    CONF_PORT: current_battery.get(CONF_PORT, 502),
-                    CONF_SERIAL_PORT: current_battery.get(CONF_SERIAL_PORT, ""),
-                    CONF_RS485_GATEWAY: current_battery.get(CONF_RS485_GATEWAY, False),
-                    CONF_SLAVE_ID: current_battery.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
-                    CONF_BATTERY_VERSION: current_battery.get(CONF_BATTERY_VERSION, DEFAULT_VERSION),
-                }
-            else:
-                defaults = {
-                    CONF_NAME: f"Marstek Venus {battery_num}",
-                    CONF_HOST: "",
-                    CONF_PORT: 502,
-                    CONF_SERIAL_PORT: "",
-                    CONF_RS485_GATEWAY: False,
-                    CONF_SLAVE_ID: DEFAULT_SLAVE_ID,
-                    CONF_BATTERY_VERSION: DEFAULT_VERSION,
-                }
-        except Exception as e:
-            _LOGGER.error("Error in options flow battery_connection step: %s", e, exc_info=True)
-            return self.async_abort(reason="unknown_error")
-
-        # A serial battery stores its path in CONF_HOST too; don't prefill the IP
-        # field with the device path.
-        host_default = "" if defaults[CONF_SERIAL_PORT] else defaults[CONF_HOST]
-
-        return self.async_show_form(
-            step_id="battery_connection",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_NAME, default=defaults[CONF_NAME]): str,
-                    vol.Optional(CONF_HOST, default=host_default): str,
-                    vol.Optional(CONF_PORT, default=defaults[CONF_PORT]): int,
-                    vol.Optional(CONF_SERIAL_PORT, default=defaults[CONF_SERIAL_PORT]): str,
-                    vol.Optional(CONF_RS485_GATEWAY, default=defaults[CONF_RS485_GATEWAY]): bool,
-                    vol.Required(CONF_SLAVE_ID, default=defaults[CONF_SLAVE_ID]):
-                        vol.All(NumberSelector(NumberSelectorConfig(min=1, max=247, step=1, mode=NumberSelectorMode.BOX)), vol.Coerce(int)),
-                    vol.Required(CONF_BATTERY_VERSION, default=defaults[CONF_BATTERY_VERSION]):
-                        SelectSelector(SelectSelectorConfig(
-                            options=[
-                                {"value": "v2", "label": "Ev2"},
-                                {"value": "v3", "label": "Ev3"},
-                                {"value": "vA", "label": "A"},
-                                {"value": "vD", "label": "D"},
-                            ],
-                            mode=SelectSelectorMode.DROPDOWN,
-                        )),
-                }
-            ),
-            errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
         )
 

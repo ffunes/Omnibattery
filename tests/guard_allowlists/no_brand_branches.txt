@@ -38,44 +38,9 @@ config_flow.py:MarstekVenusConfigFlow._test_connection:literal:marstek
 config_flow.py:MarstekVenusConfigFlow._test_connection:literal:sessy
 config_flow.py:MarstekVenusConfigFlow._test_connection:literal:zendure
 config_flow.py:MarstekVenusConfigFlow.async_step_battery_brand:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection:literal:venus
 config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_reconfigure_battery:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_reconfigure_battery:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_reconfigure_battery:literal:venus
-config_flow.py:OptionsFlowHandler._test_connection:compare:brand == 'anker'
-config_flow.py:OptionsFlowHandler._test_connection:compare:brand == 'zendure'
-config_flow.py:OptionsFlowHandler._test_connection:identifier:AnkerModbusDriver
-config_flow.py:OptionsFlowHandler._test_connection:identifier:MarstekModbusDriver
-config_flow.py:OptionsFlowHandler._test_connection:identifier:MarstekModbusDriver
-config_flow.py:OptionsFlowHandler._test_connection:identifier:MarstekModbusDriver
-config_flow.py:OptionsFlowHandler._test_connection:identifier:MarstekModbusDriver
-config_flow.py:OptionsFlowHandler._test_connection:identifier:ZendureLocalDriver
-config_flow.py:OptionsFlowHandler._test_connection:identifier:_last_marstek_ems_version
-config_flow.py:OptionsFlowHandler._test_connection:identifier:_last_marstek_ems_version
-config_flow.py:OptionsFlowHandler._test_connection:identifier:_last_marstek_ems_version
-config_flow.py:OptionsFlowHandler._test_connection:literal:anker
-config_flow.py:OptionsFlowHandler._test_connection:literal:marstek
-config_flow.py:OptionsFlowHandler._test_connection:literal:zendure
 config_flow.py:OptionsFlowHandler.async_step_battery_brand:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_connection:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_connection:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_connection:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_connection:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_connection:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_connection:literal:venus
-config_flow.py:OptionsFlowHandler.async_step_battery_connection:literal:venus
 config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:marstek
-config_flow.py:_legacy_finalize_limits:compare:merged.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:_legacy_limits_schema:compare:battery_data.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:_legacy_limits_schema:compare:battery_data.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:_legacy_limits_schema:compare:brand == 'marstek'
-config_flow.py:_legacy_limits_schema:compare:current.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:_legacy_limits_schema:literal:marstek
 const/integration_const.py:<module>:identifier:CONF_INDEVOLT_REQUEST_SPEED
 const/integration_const.py:<module>:literal:indevolt
 const/integration_const.py:max_power_for_battery_version:compare:battery_version != 'vD'
