@@ -1,0 +1,18 @@
+# Brand/version knowledge frozen in the shared modules of drivers/ (see
+# tests/test_driver_shared_modules_frozen.py). Every line names the plan section 8
+# row it keeps; it goes when that defect is fixed. May only shrink.
+#
+# Stale keys after a brand change in the options flow (section 8, T1.2/T2.2):
+# a stored serial_port is its own setup link and never IP-addressed, for any brand.
+drivers/base.py:BatteryDriver.link_key:version:config_key serial_port  # §8 deriva OF (serial_port)
+drivers/base.py:BatteryDriver.traits_for:version:config_key serial_port  # §8 deriva OF (serial_port)
+# Version-based traits that today follow the stored battery_version for any brand
+# (section 8, T1.1 battery_version kept for non-Marstek; T1.2 vD -> zendure drift).
+drivers/base.py:BatteryDriver.traits_for:version:NORMAL_BALANCE_BMS_CUTOFF_VERSIONS  # §8 #12 por versión
+drivers/base.py:BatteryDriver.traits_for:version:v3  # §8 #14 soc_decimals por versión
+drivers/base.py:BatteryDriver.traits_for:version:vA  # §8 #11 dc_pv por versión
+drivers/base.py:BatteryDriver.traits_for:version:vA  # §8 #14 soc_decimals por versión
+drivers/base.py:BatteryDriver.traits_for:version:vD  # §8 #11 dc_pv por versión
+drivers/base.py:BatteryDriver.traits_for:version:vD  # §8 #14 soc_decimals por versión
+# The coordinator validates battery_version for every brand (section 8, T1.1).
+drivers/base.py:resolve_battery_version:version:SUPPORTED_VERSIONS  # §8 T1.1 battery_version en no-Marstek
