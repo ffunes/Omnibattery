@@ -128,15 +128,13 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     ### Predescarga inteligente / Antilimitación de producción
 
-    Esta función opcional no controla un inversor solar. Encuentra periodos donde el precio de importación es igual o inferior a **Umbral de inyección negativa** y el excedente solar previsto supera el consumo de la vivienda. Antes del primer periodo de riesgo, selecciona los periodos elegibles de mayor valor para predescargar hasta que exista suficiente espacio de batería, sujeto a suelos de SOC, reservas, límites de potencia y bloqueos.
+    Esta función opcional no controla un inversor solar. Encuentra periodos donde el precio de **exportación** es igual o inferior a **Umbral de inyección negativa** (el de importación si no hay sensor de precio de exportación) y el excedente solar previsto supera el consumo de la vivienda. Antes del primer periodo de riesgo, selecciona los periodos elegibles de mayor valor para predescargar hasta que exista suficiente espacio de batería, sujeto a suelos de SOC, reservas, límites de potencia y bloqueos.
+
+    Con sensor de precio de exportación, la predescarga la decide el propio plan de Precio Dinámico, junto con la carga de red y las demás decisiones: cuándo descargar y cuánto, hasta el sol de mañana cuando sus precios están publicados. Solo hace el hueco que necesita el sol del riesgo, contando lo que la casa gastará antes del riesgo, nunca por debajo de la reserva, nunca dentro de un periodo de riesgo y nunca con un precio de exportación de la batería igual o inferior al umbral; no compra energía antes de un riesgo solo para descargarla. La notificación del plan lista esos periodos («Making room for the sun») y `curtailment_status` muestra los periodos de riesgo y de descarga del plan con `decided_by: plan`. Sin sensor de precio de exportación, la predescarga funciona como se describe a continuación.
 
     El umbral de inyección negativa predeterminado es 0 moneda/kWh. **SOC de reserva de predescarga** añade un suelo; su valor predeterminado es 20%, mientras que un valor de 0 usa los suelos existentes de las baterías. Los periodos de riesgo se agrupan en bloques de aproximadamente una hora para reducir cambios repetidos.
 
-    El comportamiento de exportación puede ser **Solo autoconsumo**, **Automático** o **Límite personalizado**:
-
-    - **Solo autoconsumo** no permite exportación deliberada a red y equivale a 0 W.
-    - **Automático** exporta solo la potencia necesaria para crear el espacio calculado.
-    - **Límite personalizado** limita la exportación deliberada a red al valor configurado en W; no limita la descarga total de batería usada por la vivienda.
+    La exportación es automática: la batería puede exportar hasta la potencia de descarga de la flota, solo para crear el espacio calculado.
 
     Durante un periodo de riesgo, el objetivo neto de red se limita a cero para que la batería pueda cubrir el consumo de la vivienda sin exportación deliberada. Siguen prevaleciendo SOC mínimo y mínimo garantizado, franjas horarias de funcionamiento, control manual, estado de respaldo, baterías no disponibles y protección de capacidad. La falta de precios, previsión, SOC, capacidad o datos de red elimina la anulación y el bloqueo.
 
