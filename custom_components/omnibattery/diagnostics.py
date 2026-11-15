@@ -17,21 +17,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
+from .drivers.registry import redact_keys
 
 # Identifiers and user sensor references that could deanonymise the dump.
 # async_redact_data recurses into nested dicts/lists, so per-battery "host"
 # entries inside a batteries list are covered too.
 # Configured sensor entity ids are intentionally kept: they are often enough
 # to diagnose an issue and do not expose connection or authentication details.
-TO_REDACT = {
-    "host",
-    "username",
-    "password",
-    "serial",
-    "serial_port",
-    "ip_address",
-    "mac",
-}
+TO_REDACT = redact_keys()
 
 
 def _safe_number(value: object) -> float | None:

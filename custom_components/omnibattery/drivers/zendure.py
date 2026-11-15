@@ -364,6 +364,11 @@ def _number_definitions_for_model(model: str) -> list[dict]:
 class ZendureLocalDriver(BatteryDriver):
     """Local HTTP driver for a single Zendure SolarFlow device."""
 
+    BRAND = "zendure"
+    LABEL = "Zendure SolarFlow"
+    MANUFACTURER = "Zendure"
+    DEFAULT_MODEL = "Zendure"
+
     def __init__(
         self,
         host: str,

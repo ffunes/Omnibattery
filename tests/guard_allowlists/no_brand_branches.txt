@@ -18,7 +18,6 @@ __init__.py:_async_setup_entry._setup_battery:literal:hoymiles
 __init__.py:_async_setup_entry._setup_battery:literal:huawei
 __init__.py:_async_setup_entry._setup_battery:literal:huawei
 __init__.py:_async_setup_entry._setup_battery:literal:huawei
-__init__.py:_async_setup_entry._setup_battery:literal:marstek
 __init__.py:_async_setup_entry._setup_battery:literal:zendure
 __init__.py:_async_setup_entry:compare:CONF_BATTERY_VERSION not in battery_config
 __init__.py:_async_setup_entry:identifier:CONF_INDEVOLT_REQUEST_SPEED
@@ -80,7 +79,6 @@ config_flow.py:<module>:import:drivers.sessy
 config_flow.py:<module>:import:drivers.zendure
 config_flow.py:<module>:import:infra.indevolt_client
 config_flow.py:<module>:literal:huawei
-config_flow.py:MarstekVenusConfigFlow._async_probe_battery_endpoint:literal:marstek
 config_flow.py:MarstekVenusConfigFlow._huawei_reconfigure_store:identifier:HuaweiSolarDriver
 config_flow.py:MarstekVenusConfigFlow._huawei_reconfigure_store:literal:emma
 config_flow.py:MarstekVenusConfigFlow._huawei_reconfigure_store:literal:emma
@@ -872,7 +870,6 @@ infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:huawei
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:indevolt
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:indevolt
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:marstek
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:marstek
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:sessy
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:sessy
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:zendure
@@ -895,46 +892,6 @@ infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_marstek_ems_power_c
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_zendure_inverse_max_power:compare:getattr(self, 'brand', None) != 'zendure'
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_zendure_inverse_max_power:literal:zendure
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.async_reconnect_fresh:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'anker'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'anker'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'hoymiles'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'hoymiles'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'huawei'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'indevolt'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'indevolt'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'sessy'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'sessy'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'sessy'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'zendure'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand == 'zendure'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:compare:self.brand in ('sessy', 'indevolt')
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:anker
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:anker
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:anker
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:hoymiles
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:hoymiles
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:hoymiles
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:huawei
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:huawei
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:indevolt
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:indevolt
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:indevolt
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:indevolt
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:indevolt
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:marstek
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:ms-a2
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:solarbank
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:venus
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.battery_device_info:literal:zendure
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.connect:literal:zendure
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.needs_software_power_cap:compare:self.battery_version in ('v2', 'v3')
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.needs_software_power_cap:compare:self.brand == 'marstek'

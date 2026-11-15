@@ -251,6 +251,7 @@ from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager, _plan_owns_delay
 from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
+from .drivers.registry import DEFAULT_BRAND
 from .control.discharge_reserve import (
     RESERVE_SOC_TOLERANCE_PCT,
     DischargeReserveManager,
@@ -12060,7 +12061,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
             ),
             backup_discharge_store=backup_discharge_store,
             backup_discharge_store_key=f"{entry.entry_id}:{battery_index}",
-            brand=battery_config.get("brand", "marstek"),
+            brand=battery_config.get("brand", DEFAULT_BRAND),
             zendure_model=battery_config.get("zendure_model", "2400ac_pro"),
             hoymiles_model=battery_config.get("hoymiles_model"),
             serial_port=battery_config.get(CONF_SERIAL_PORT) or None,

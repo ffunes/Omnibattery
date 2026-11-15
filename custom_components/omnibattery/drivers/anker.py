@@ -301,6 +301,11 @@ def _label_for_product_code(code: Optional[str]) -> str:
 class AnkerModbusDriver(BatteryDriver):
     """Modbus TCP driver for Anker SOLIX Solarbank Max AC / 4 E5000 Pro / XE AC."""
 
+    BRAND = "anker"
+    LABEL = "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"
+    MANUFACTURER = "Anker"
+    DEFAULT_MODEL = "Solarbank Max AC"
+
     def __init__(
         self,
         host: str,

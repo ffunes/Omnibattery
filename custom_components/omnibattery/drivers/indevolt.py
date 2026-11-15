@@ -562,6 +562,11 @@ class Notifier(Protocol):
 class IndevoltDriver(BatteryDriver):
     """Monitor and control one Indevolt battery through its local HTTP API."""
 
+    BRAND = "indevolt"
+    LABEL = "Indevolt SolidFlex / PowerFlex"
+    MANUFACTURER = "Indevolt"
+    DEFAULT_MODEL = "Indevolt"
+
     def __init__(
         self,
         host: str,
@@ -668,6 +673,9 @@ class IndevoltDriver(BatteryDriver):
     @property
     def model_label(self) -> Optional[str]:
         return model_label_for(self._model_code)
+
+    def software_version(self, data: dict) -> Optional[str]:
+        return data.get("software_version")
 
     @property
     def serial(self) -> Optional[str]:

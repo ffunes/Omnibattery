@@ -451,6 +451,11 @@ SENSOR_DEFINITIONS = [
 class HuaweiSolarDriver(BatteryDriver):
     """One Huawei inverter's attached LUNA2000, read natively and driven by service."""
 
+    BRAND = "huawei"
+    LABEL = "Huawei SUN2000 + LUNA2000"
+    MANUFACTURER = "Huawei"
+    DEFAULT_MODEL = "Venus"
+
     def __init__(
         self,
         hass: HomeAssistant,

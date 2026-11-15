@@ -151,6 +151,7 @@ from .const import (
     MAX_TIME_SLOTS,
 )
 from .drivers.base import DriverCapabilities
+from .drivers.registry import DEFAULT_BRAND
 from .drivers.esphome import EsphomeEntityDriver
 from .drivers.marstek import MarstekModbusDriver
 from .drivers.zendure import (
@@ -3833,7 +3834,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             battery.get(CONF_PORT),
             battery.get(CONF_BATTERY_VERSION, DEFAULT_VERSION),
             battery.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
-            brand=battery.get("brand", "marstek"),
+            brand=battery.get("brand", DEFAULT_BRAND),
             username=battery.get(CONF_USERNAME, ""),
             password=battery.get(CONF_PASSWORD, ""),
         )

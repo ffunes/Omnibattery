@@ -160,7 +160,7 @@ def test_sessy_device_info_exposes_local_ui_and_firmware():
         device_key="sessy.local_80",
         name="Garage Sessy",
         brand="sessy",
-        driver=SimpleNamespace(model_label="Sessy"),
+        driver=SessyLocalDriver("sessy.local"),
         host="sessy.local",
         port=80,
         data={"software_version": "1.9.2"},

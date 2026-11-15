@@ -300,6 +300,12 @@ def _derive_register_blocks(definitions: list[dict]) -> list[dict]:
 class MarstekModbusDriver(BatteryDriver):
     """Modbus-TCP driver for a single Marstek battery."""
 
+    BRAND = "marstek"
+    LABEL = "Marstek Venus"
+    MANUFACTURER = "Marstek"
+    DEFAULT_MODEL = "Venus"
+    REDACT_KEYS = frozenset({"serial_port"})
+
     def __init__(
         self,
         host: str,

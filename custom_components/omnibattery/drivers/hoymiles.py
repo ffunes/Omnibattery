@@ -188,6 +188,11 @@ SENSOR_DEFINITIONS: list[dict] = [
 class HoymilesMqttDriver(BatteryDriver):
     """Push telemetry and external-power control for one Hoymiles system."""
 
+    BRAND = "hoymiles"
+    LABEL = "Hoymiles MQTT"
+    MANUFACTURER = "Hoymiles"
+    DEFAULT_MODEL = "MS-A2"
+
     def __init__(self, hass: HomeAssistant, device_id: str, *, model: str | None = None,
                  max_charge_power_w: int | None = None,
                  max_discharge_power_w: int | None = None) -> None:

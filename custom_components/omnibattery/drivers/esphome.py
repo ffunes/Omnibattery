@@ -396,6 +396,11 @@ NUMBER_DEFINITIONS: list[dict] = [
 class EsphomeEntityDriver(BatteryDriver):
     """Drives a Marstek battery through the LilyGo/ESPHome HA entities."""
 
+    BRAND = "esphome"
+    LABEL = "Marstek via LilyGo RS485 (ESPHome)"
+    MANUFACTURER = "Marstek"
+    DEFAULT_MODEL = "Venus"
+
     def __init__(
         self,
         hass: HomeAssistant,

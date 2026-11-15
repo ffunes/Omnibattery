@@ -333,7 +333,11 @@ def test_coordinator_builds_the_indevolt_driver(monkeypatch):
 def test_the_device_page_shows_the_firmware_the_battery_reports():
     coordinator = SimpleNamespace(
         device_key="192.0.2.50_8080", name="Garage Indevolt", brand="indevolt",
-        driver=SimpleNamespace(model_label="SolidFlex 2000", serial="1"),
+        driver=SimpleNamespace(
+            model_label="SolidFlex 2000", serial="1", MANUFACTURER="Indevolt",
+            DEFAULT_MODEL="Indevolt", configuration_url=None,
+            software_version=lambda data: data.get("software_version"),
+        ),
         data={"software_version": "V1500.0B.0041"},
     )
     info = MarstekVenusDataUpdateCoordinator.battery_device_info.fget(coordinator)

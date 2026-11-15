@@ -32,6 +32,7 @@ from .indevolt_notify import IndevoltNotifier
 from ..drivers.hoymiles import HoymilesMqttDriver
 from ..drivers.huawei import HuaweiSolarDriver
 from ..drivers.base import SetpointResult
+from ..drivers.registry import DEFAULT_BRAND
 from ..backup_discharge_store import BackupDischargeEnergyStore
 from ..energy import BackupDischargeAccumulator
 from .alarm_notifier import AlarmNotifier
@@ -328,7 +329,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                  backup_offgrid_threshold: int = 50,
                  allow_charge: bool = True, allow_discharge: bool = True,
                  full_charge_voltage_taper_enabled: bool = DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-                 brand: str = "marstek",
+                 brand: str = DEFAULT_BRAND,
                  zendure_model: str = ZENDURE_MODEL_2400AC_PRO,
                  hoymiles_model: str | None = None,
                  serial_port: str | None = None,
@@ -913,23 +914,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         info = {
             "identifiers": {(DOMAIN, f"{self.device_key}")},
             "name": self.name,
-            "manufacturer": (
-                "Zendure" if self.brand == "zendure"
-                else "Anker" if self.brand == "anker"
-                else "Sessy" if self.brand == "sessy"
-                else "Hoymiles" if self.brand == "hoymiles"
-                else "Huawei" if self.brand == "huawei"
-                else "Indevolt" if self.brand == "indevolt"
-                else "Marstek"
-            ),
-            "model": self.driver.model_label or (
-                "Zendure" if self.brand == "zendure"
-                else "Solarbank Max AC" if self.brand == "anker"
-                else "Sessy" if self.brand == "sessy"
-                else "MS-A2" if self.brand == "hoymiles"
-                else "Indevolt" if self.brand == "indevolt"
-                else "Venus"
-            ),
+            "manufacturer": self.driver.MANUFACTURER,
+            "model": self.driver.model_label or self.driver.DEFAULT_MODEL,
         }
         # The registry shows this on the device page, and the panel prefers it
         # over the sensor. Drivers that cannot read one report None.
@@ -942,19 +928,15 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             # CONNECTION_NETWORK_MAC is the prerequisite for the manifest's
             # "registered_devices" DHCP matcher to deliver a discovery flow.
             info["connections"] = {(dr.CONNECTION_NETWORK_MAC, self.mac)}
-        if self.brand == "sessy":
-            info["configuration_url"] = (
-                f"http://{self.host}"
-                + (f":{self.port}" if self.port != 80 else "")
-                + "/"
-            )
+        configuration_url = self.driver.configuration_url
+        if configuration_url:
+            info["configuration_url"] = configuration_url
         # The firmware line on the device page. Home Assistant keeps the last
         # value written there, so a brand whose software version is the
         # battery's firmware writes it on every start.
-        if self.brand in ("sessy", "indevolt"):
-            software_version = (getattr(self, "data", None) or {}).get("software_version")
-            if software_version:
-                info["sw_version"] = str(software_version)
+        software_version = self.driver.software_version(getattr(self, "data", None) or {})
+        if software_version:
+            info["sw_version"] = str(software_version)
         return info
 
     async def connect(self) -> bool:

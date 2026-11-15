@@ -288,6 +288,16 @@ class BatteryDriver(ABC):
 
     # --- identity -----------------------------------------------------------
 
+    # Class-level identity, read by ``drivers.registry`` and the device registry.
+    # A subclass sets all of them; the defaults only keep a bare driver usable.
+    BRAND: str = ""             # stable id stored as ``brand`` in the config entry
+    LABEL: str = ""             # label in the config flow's brand selector
+    MANUFACTURER: str = ""      # device registry manufacturer
+    DEFAULT_MODEL: str = ""     # device registry model when ``model_label`` is None
+    # Config keys of this brand to redact from diagnostics. The generic keys
+    # live here; ``registry.redact_keys()`` unions every registered class.
+    REDACT_KEYS: frozenset[str] = frozenset({"host", "serial", "ip_address", "mac"})
+
     @property
     @abstractmethod
     def capabilities(self) -> DriverCapabilities:
@@ -315,6 +325,19 @@ class BatteryDriver(ABC):
         Defaults to None; concrete drivers override (Marstek: "Venus <version>";
         Zendure: the report's ``product`` field). Not abstract so a driver with no
         model identity need not implement it.
+        """
+        return None
+
+    @property
+    def configuration_url(self) -> Optional[str]:
+        """Web page of the device, shown as "Visit" on its device page."""
+        return None
+
+    def software_version(self, data: dict) -> Optional[str]:
+        """Firmware line for the device page, read from the coordinator's data.
+
+        None (the default) writes no firmware line. A method rather than a
+        property because the value lives in the polled telemetry, not the driver.
         """
         return None
 

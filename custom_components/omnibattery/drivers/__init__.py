@@ -25,6 +25,8 @@ Drivers:
 See ``docs/plans/driver_abstraction.md`` for the phased extraction plan.
 """
 
+# Registration lives in ``registry.py``: a new driver is added there, not here.
+# The re-exports below are kept for callers that import the classes directly.
 from .base import (
     DELIVERED_AC_POWER_KEY,
     BatteryDriver,

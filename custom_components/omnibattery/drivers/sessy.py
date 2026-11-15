@@ -52,6 +52,12 @@ _DEVICE_INFO_KEYS = frozenset({"wifi_signal_strength", "software_version"})
 class SessyLocalDriver(BatteryDriver):
     """Poll and control one Sessy dongle using its documented local API."""
 
+    BRAND = "sessy"
+    LABEL = "Sessy"
+    MANUFACTURER = "Sessy"
+    DEFAULT_MODEL = "Sessy"
+    REDACT_KEYS = frozenset({"username", "password"})
+
     def __init__(
         self,
         host: str,
@@ -97,6 +103,9 @@ class SessyLocalDriver(BatteryDriver):
     def capabilities(self) -> DriverCapabilities: return self._capabilities
     @property
     def model_label(self) -> Optional[str]: return "Sessy"
+    @property
+    def configuration_url(self) -> Optional[str]: return self._base_url + "/"
+    def software_version(self, data: dict) -> Optional[str]: return data.get("software_version")
     @property
     def connected(self) -> bool: return self._connected
     @property

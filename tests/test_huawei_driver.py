@@ -655,7 +655,11 @@ def test_device_info_reports_huawei_as_the_manufacturer():
         device_key="192.168.1.10_2502_4",
         name="Huawei LUNA2000",
         brand="huawei",
-        driver=SimpleNamespace(model_label="SUN2000-8K-MAP0"),
+        driver=SimpleNamespace(
+            model_label="SUN2000-8K-MAP0", MANUFACTURER="Huawei",
+            DEFAULT_MODEL="Venus", configuration_url=None,
+            software_version=lambda data: None,
+        ),
         host="192.168.1.10",
         port=2502,
         data={},
@@ -667,7 +671,9 @@ def test_device_info_reports_huawei_as_the_manufacturer():
     assert "serial_number" not in info
 
     coordinator.driver = SimpleNamespace(
-        model_label="SUN2000-8K-MAP0", serial="TA2470074124"
+        model_label="SUN2000-8K-MAP0", serial="TA2470074124",
+        MANUFACTURER="Huawei", DEFAULT_MODEL="Venus", configuration_url=None,
+        software_version=lambda data: None,
     )
     info = MarstekVenusDataUpdateCoordinator.battery_device_info.fget(coordinator)
     assert info["serial_number"] == "TA2470074124"
