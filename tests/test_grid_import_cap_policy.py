@@ -391,3 +391,34 @@ def test_release_helper_clears_flags_and_status():
     assert ctrl._cap_overrides_policy is False
     assert ctrl.is_discharge_blocked() is True
     assert ctrl._capacity_protection_status["grid_import_cap_active"] is False
+
+
+# --- A blocker whose owner yields to peak shaving must not make the cap flap ------
+
+def test_the_discharge_reserve_does_not_withdraw_while_the_cap_overrides_it():
+    """The reserve releases its price_reserve block while peak shaving is
+    active. Recomputed every cycle, that used to drop the cap's own reason
+    to engage: the cap let go, the reserve blocked again, and so on."""
+    from custom_components.omnibattery.control.discharge_reserve import DischargeReserveManager
+
+    ctrl = _ctrl()
+    manager = object.__new__(DischargeReserveManager)
+    manager._controller = ctrl
+    d, engagements, was = 0.0, 0, False
+    house = 6000.0
+    for _ in range(120):
+        # What _refresh_price_reserve_blocks does each cycle.
+        if manager._release_guard() is None:
+            _block(ctrl, "price_reserve", per_battery=True)
+        else:
+            ctrl._battery_discharge_blockers.pop(ctrl.battery, None)
+        ctrl.previous_power = -d
+        t, s = ctrl._apply_capacity_protection(house - d, 0.0)
+        engaged = bool(ctrl._cap_shave_engaged)
+        engagements += engaged and not was
+        was = engaged
+        d = max(0.0, min(2500.0, d + 0.5 * (s - t)))
+        if ctrl.is_discharge_blocked(ctrl.battery):
+            d = 0.0
+    assert engagements == 1
+    assert house - d == pytest.approx(CAP, abs=TOL)

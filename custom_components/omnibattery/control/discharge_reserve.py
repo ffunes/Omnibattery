@@ -1047,7 +1047,12 @@ class DischargeReserveManager:
         # is spending it on a spike on purpose. A floor would fight both.
         if getattr(controller, "_curtailment_runtime_status", None) in _CURTAILMENT_ACTIVE_STATES:
             return GUARD_CURTAILMENT
-        if getattr(controller, "_capacity_protection_active", False):
+        # Not while the grid import cap is overriding this very block (#506):
+        # the block is already suspended for the excess, and withdrawing it
+        # would drop the cap's reason to engage on the next cycle.
+        if getattr(controller, "_capacity_protection_active", False) and not getattr(
+            controller, "_cap_overrides_policy", False
+        ):
             return GUARD_CAPACITY_PROTECTION
 
         return None
