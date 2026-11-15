@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from dataclasses import replace
 
 from .anker import AnkerModbusDriver
-from .base import BatteryDriver
+from .base import BatteryDriver, DriverTraits
 from .esphome import EsphomeEntityDriver
 from .hoymiles import HoymilesMqttDriver
 from .huawei import HuaweiSolarDriver
@@ -41,6 +42,22 @@ def driver_class(brand: str | None) -> type[BatteryDriver]:
         _LOGGER.warning("Unknown battery brand %r, using %s", brand, DEFAULT_BRAND)
         cls = DRIVERS[DEFAULT_BRAND]
     return cls
+
+
+def traits_for_brand(brand: str | None, battery_config: Mapping) -> DriverTraits:
+    """Traits of the driver class that serves ``brand`` for this stored config.
+
+    An unregistered brand is served by the ``DEFAULT_BRAND`` class, but its
+    ``hardware_power_cap_choices`` is forced off: the coordinator has always
+    compared ``brand == "marstek"`` literally, so an unknown brand storing
+    ``battery_version: v3`` builds the Marstek v3 driver without the power-cap
+    choices (plan section 8, T1.1). This freezes that defect; remove it with the fix.
+    """
+    cls = DRIVERS.get(brand) if brand is not None else None
+    traits = (cls or DRIVERS[DEFAULT_BRAND]).traits_for(battery_config)
+    if cls is None:
+        traits = replace(traits, hardware_power_cap_choices=False)
+    return traits
 
 
 def redact_keys() -> frozenset[str]:

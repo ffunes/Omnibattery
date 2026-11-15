@@ -34,7 +34,6 @@ from ..const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     NORMAL_BALANCE_CHARGE_POWER_W,
-    NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
     NORMAL_BALANCE_MEASURE_WAIT_SECONDS,
     NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
@@ -119,10 +118,7 @@ class MaxSocChargeManager:
     @staticmethod
     def _uses_bms_cutoff_at_top(coordinator) -> bool:
         """Return True for coupled-pack Venus models with BMS-owned top cutoff."""
-        return (
-            getattr(coordinator, "battery_version", None)
-            in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS
-        )
+        return coordinator.traits.bms_owns_top_cutoff
 
     def _bms_cutoff_confirmed(self, coordinator) -> bool:
         """Return True once the shared BMS-cutoff detector has latched."""

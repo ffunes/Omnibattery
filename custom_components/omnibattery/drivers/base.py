@@ -31,7 +31,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
-from ..const import CONF_BATTERY_VERSION, DEFAULT_VERSION, SUPPORTED_VERSIONS
+from ..const import (
+    CONF_BATTERY_VERSION,
+    DEFAULT_VERSION,
+    NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
+    SUPPORTED_VERSIONS,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -128,6 +133,21 @@ class DriverTraits:
     device_owns_initial_config: bool = False
     # Addressed by IP, so its address can drift (see ``traits_for``).
     ip_addressed: bool = False
+    # The BMS owns the top-of-charge cutoff (coupled-pack Marstek vA/vD): software
+    # must not treat a refused charge near 100 % as a fault. Derived by
+    # ``traits_for`` from the resolved stored version for any brand.
+    bms_owns_top_cutoff: bool = False
+    # A top-of-charge cutoff can be told from idle without ``inverter_state``
+    # (Zendure's local API does not publish it); the commanded setpoint and
+    # SOC >= 99 stand in for it.
+    cutoff_without_inverter_state: bool = False
+    # Decimals of the aggregate SOC; None keeps the sensor definition's own.
+    # Derived by ``traits_for`` from the resolved stored version for any brand.
+    soc_decimals: Optional[int] = None
+    # The device's max-power setting is only a hardware ceiling chosen from
+    # fixed options (Marstek v2/v3: 800 W or 2500 W), so the user's own limit
+    # must survive polling.
+    hardware_power_cap_choices: bool = False
 
 
 @dataclass(frozen=True)
@@ -391,14 +411,18 @@ class BatteryDriver(ABC):
     def traits_for(cls, battery_config: Mapping) -> DriverTraits:
         """Traits of this brand for one stored battery config.
 
-        ``optional_dc_pv_input`` follows the resolved stored version (vA/vD) for
-        any brand, and a stored ``serial_port`` is never IP-addressed: both
-        freeze today's behaviour, including the stale keys left behind by a
-        brand change in the options flow (plan section 8).
+        ``optional_dc_pv_input``, ``bms_owns_top_cutoff`` and ``soc_decimals``
+        follow the resolved stored version for any brand, and a stored
+        ``serial_port`` is never IP-addressed: all freeze today's behaviour,
+        including the stale keys left behind by a brand change in the options
+        flow (plan section 8).
         """
+        version = resolve_battery_version(battery_config)
         return replace(
             cls.TRAITS,
-            optional_dc_pv_input=resolve_battery_version(battery_config) in ("vA", "vD"),
+            optional_dc_pv_input=version in ("vA", "vD"),
+            bms_owns_top_cutoff=version in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
+            soc_decimals=1 if version in ("v3", "vA", "vD") else None,
             ip_addressed=cls.TRAITS.ip_addressed
             and not (battery_config.get("serial_port") or "").strip(),
         )

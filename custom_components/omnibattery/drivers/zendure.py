@@ -367,7 +367,12 @@ class ZendureLocalDriver(BatteryDriver):
     """Local HTTP driver for a single Zendure SolarFlow device."""
 
     BRAND = "zendure"
-    TRAITS = DriverTraits(supports_voltage_taper=False, device_owns_initial_config=True, ip_addressed=True)
+    TRAITS = DriverTraits(
+        supports_voltage_taper=False,
+        device_owns_initial_config=True,
+        ip_addressed=True,
+        cutoff_without_inverter_state=True,
+    )
     LABEL = "Zendure SolarFlow"
     MANUFACTURER = "Zendure"
     DEFAULT_MODEL = "Zendure"

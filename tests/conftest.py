@@ -22,6 +22,7 @@ import pytest
 
 from custom_components.omnibattery.const import BURST_POLL_WINDOW_S
 from custom_components.omnibattery.drivers import DriverCapabilities
+from custom_components.omnibattery.drivers.registry import traits_for_brand
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -136,6 +137,13 @@ class _FakeMarstekDriver:
         })
 
 
+def fake_traits(brand, battery_version):
+    """``coordinator.traits`` for a double: the registry's traits for this brand and
+    stored version, the same derivation the real coordinator uses (stale keys
+    included)."""
+    return traits_for_brand(brand, {"brand": brand, "battery_version": battery_version})
+
+
 class FakeCoordinator:
     """Test double pinned to the real coordinator's public surface.
 
@@ -159,6 +167,7 @@ class FakeCoordinator:
         "host": "1.2.3.4",
         "port": 502,
         "slave_id": 1,
+        "brand": "marstek",
         "battery_version": "v2",
         "data": None,
         "is_available": True,
@@ -191,6 +200,12 @@ class FakeCoordinator:
         """Mirror MarstekVenusDataUpdateCoordinator.start_burst_poll (real method,
         not a constructor default, so _set_battery_power can call it unconditionally)."""
         self.boost_fast_poll_until = time.monotonic() + BURST_POLL_WINDOW_S
+
+    @property
+    def traits(self):
+        """Mirror ``coordinator.traits``: the registry's traits for this brand and
+        stored version (so the same derivations as production, stale keys included)."""
+        return fake_traits(self.brand, self.battery_version)
 
     @property
     def driver(self) -> _FakeMarstekDriver:

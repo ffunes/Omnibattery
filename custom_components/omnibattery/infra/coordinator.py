@@ -32,7 +32,7 @@ from ..drivers.base import (
     resolve_battery_version,
     stored_battery_value,
 )
-from ..drivers.registry import DEFAULT_BRAND, driver_class
+from ..drivers.registry import DEFAULT_BRAND, driver_class, traits_for_brand
 from ..backup_discharge_store import BackupDischargeEnergyStore
 from ..energy import BackupDischargeAccumulator
 from .alarm_notifier import AlarmNotifier
@@ -355,7 +355,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.consumption_sensor = consumption_sensor
         self.brand = battery_config.get("brand", DEFAULT_BRAND)
         driver_cls = driver_class(self.brand)
-        self.traits = driver_cls.traits_for(battery_config)
+        self.traits = traits_for_brand(self.brand, battery_config)
         full_charge_voltage_taper_enabled = battery_config.get(
             CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
             DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -783,7 +783,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         user limit. The polling path must retain that user limit instead of
         replacing it with the value read from the battery.
         """
-        return self.brand == "marstek" and self.battery_version in ("v2", "v3")
+        return self.traits.hardware_power_cap_choices
 
     def readings_from_same_poll(self, key_a: str, key_b: str) -> bool:
         """Whether two keys were last stored by the same poll cycle.

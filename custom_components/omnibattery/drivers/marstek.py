@@ -316,6 +316,15 @@ class MarstekModbusDriver(BatteryDriver):
     REDACT_KEYS = frozenset({"serial_port"})
 
     @classmethod
+    def traits_for(cls, battery_config) -> DriverTraits:
+        # v2/v3 only: their app max-power setting is an 800/2500 W selector.
+        return replace(
+            super().traits_for(battery_config),
+            hardware_power_cap_choices=resolve_battery_version(battery_config)
+            in ("v2", "v3"),
+        )
+
+    @classmethod
     def from_config(cls, battery_config, context: DriverContext) -> "MarstekModbusDriver":
         return cls(
             battery_config["host"],

@@ -30,6 +30,7 @@ from custom_components.omnibattery.drivers import indevolt
 from custom_components.omnibattery.drivers.base import DELIVERED_AC_POWER_KEY
 from custom_components.omnibattery.drivers.indevolt import START_GRACE_S, ControlState
 from tests.indevolt_fake import FakeIndevoltDevice, VirtualClock, connected_driver
+from tests.conftest import fake_traits
 
 FULL_W = 2400
 
@@ -118,7 +119,8 @@ class _Coordinator(SimpleNamespace):
 async def _cutoff_counts(clock, driver, device, seconds, monkeypatch):
     # A detector that times the cutoff reads ``monotonic``: give it the test clock.
     monkeypatch.setattr(weekly_full_charge, "monotonic", lambda: clock.now, raising=False)
-    coord = _Coordinator(name="Indevolt", brand="indevolt", battery_version=None, data={},
+    coord = _Coordinator(name="Indevolt", brand="indevolt", battery_version=None,
+                         traits=fake_traits("indevolt", None), data={},
                          commanded_charge_power=0, battery_manual_mode_enabled=False)
     mgr = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
     mgr._controller = SimpleNamespace(coordinators=[coord], weekly_full_charge_enabled=False)

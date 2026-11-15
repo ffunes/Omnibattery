@@ -755,12 +755,6 @@ const/integration_const.py:<module>:identifier:CONF_INDEVOLT_REQUEST_SPEED
 const/integration_const.py:<module>:literal:indevolt
 const/integration_const.py:max_power_for_battery_version:compare:battery_version != 'vD'
 const/integration_const.py:max_power_for_battery_version:lookup:MAX_POWER_BY_VERSION.get(battery_version, 2500)
-control/max_soc_charge.py:MaxSocChargeManager._uses_bms_cutoff_at_top:compare:getattr(coordinator, 'battery_version', None) in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS
-control/weekly_full_charge.py:WeeklyFullChargeManager._complete_weekly_charge:compare:getattr(coordinator, 'battery_version', None) in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS
-control/weekly_full_charge.py:WeeklyFullChargeManager.tick_bms_cutoff:compare:getattr(c, 'brand', None) == 'zendure'
-control/weekly_full_charge.py:WeeklyFullChargeManager.tick_bms_cutoff:identifier:is_zendure
-control/weekly_full_charge.py:WeeklyFullChargeManager.tick_bms_cutoff:identifier:is_zendure
-control/weekly_full_charge.py:WeeklyFullChargeManager.tick_bms_cutoff:literal:zendure
 frontend/marstek-panel.js:<js>:js:anker
 frontend/marstek-panel.js:<js>:js:anker
 frontend/marstek-panel.js:<js>:js:anker
@@ -801,9 +795,6 @@ infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_zendure_inverse_max
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_zendure_inverse_max_power:literal:zendure
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.async_reconnect_fresh:literal:zendure
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.connect:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.needs_software_power_cap:compare:self.battery_version in ('v2', 'v3')
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.needs_software_power_cap:compare:self.brand == 'marstek'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.needs_software_power_cap:literal:marstek
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_detected_zendure_model
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_marstek_ems_power_ceiling
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_zendure_inverse_max_power
@@ -834,7 +825,6 @@ sensor.py:_remove_obsolete_solar_entities:compare:getattr(coordinator, 'brand', 
 sensor.py:_remove_obsolete_solar_entities:literal:anker
 sensor.py:_remove_obsolete_solar_entities:literal:marstek
 sensor.py:async_setup_entry:identifier:ZendurePackSensor
-sensors/aggregate_sensors.py:MarstekVenusAggregateSensor._calculate_system_soc:compare:getattr(c, 'battery_version', 'v2') in ('v3', 'vA', 'vD')
 sensors/calculated_sensors.py:<module>:identifier:ZendurePackSensor
 switch.py:ManualModeSwitch.async_turn_on:literal:anker
 switch.py:ManualModeSwitch.async_turn_on:literal:anker

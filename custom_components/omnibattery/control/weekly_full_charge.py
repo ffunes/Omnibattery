@@ -29,7 +29,6 @@ from .pack_soc import control_vmax, soc_vs_ceiling
 from ..const import (
     DISCHARGE_ENGAGE_GRACE_S,
     DOMAIN,
-    NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
     NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
     NOTIFICATION_ID_PREFIX,
@@ -175,7 +174,6 @@ class WeeklyFullChargeManager:
             if soc >= 99 or in_taper_zone:
                 power = c.data.get("battery_power", None)
                 inv_state = c.data.get("inverter_state", None)
-                is_zendure = getattr(c, "brand", None) == "zendure"
                 # A real top-of-charge cutoff only counts when we are actually
                 # commanding the battery to charge but it refuses (≤10 W +
                 # Standby). A battery that is merely idle — not allocated charge
@@ -193,7 +191,11 @@ class WeeklyFullChargeManager:
                         # Zendure's local API has no inverter_state field.  Its
                         # commanded setpoint is the equivalent idle guard, and
                         # the SOC >= 99 gate above prevents lower-SOC false hits.
-                        or (is_zendure and inv_state is None and soc >= 99)
+                        or (
+                            c.traits.cutoff_without_inverter_state
+                            and inv_state is None
+                            and soc >= 99
+                        )
                     )
                 )
                 if cutoff and now - charge_commanded_at[c.name] < self._engage_grace_s(c):
@@ -951,8 +953,7 @@ class WeeklyFullChargeManager:
                     self._bms_cutoff_counts.get(coordinator.name, 0)
                     >= _BMS_CUTOFF_REQUIRED_CYCLES
                     and (
-                        getattr(coordinator, "battery_version", None)
-                        in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS
+                        coordinator.traits.bms_owns_top_cutoff
                         or in_taper_zone
                         or taper_latched
                     )

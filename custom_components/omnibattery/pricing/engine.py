@@ -7217,7 +7217,7 @@ class PricingManager:
                 continue
             if (
                 target >= 100.0
-                and MaxSocChargeManager._uses_bms_cutoff_at_top(coordinator)
+                and coordinator.traits.bms_owns_top_cutoff
                 and MaxSocChargeManager._taper_enabled(coordinator)
             ):
                 # ponytail: at a 100% ceiling a Venus A/D may keep charging to

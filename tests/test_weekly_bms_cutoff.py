@@ -27,6 +27,7 @@ from custom_components.omnibattery.control.weekly_full_charge import (
     _BMS_CUTOFF_REQUIRED_CYCLES,
 )
 from custom_components.omnibattery.control.max_soc_charge import MaxSocChargeManager
+from tests.conftest import fake_traits
 
 _IN_ZONE = NORMAL_BALANCE_TAPER_CELL_VOLTAGE + 0.05  # cell above taper entry
 _STANDBY = 1
@@ -48,6 +49,7 @@ class _Coord:
         self.name = name
         self.battery_version = battery_version
         self.brand = brand
+        self.traits = fake_traits(brand, battery_version)
         self.commanded_charge_power = commanded
         self.data = {
             "battery_soc": soc,

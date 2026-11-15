@@ -30,6 +30,7 @@ from custom_components.omnibattery.const import (
 from custom_components.omnibattery.control.max_soc_charge import (
     MaxSocChargeManager,
 )
+from tests.conftest import fake_traits
 
 
 # ----------------------------------------------------------------------
@@ -54,6 +55,7 @@ class _Coord:
         self.name = name
         self.data = {} if data is None else data
         self.battery_version = battery_version
+        self.traits = fake_traits(None, battery_version)
         self.max_soc = max_soc
         self.max_charge_power = max_charge_power
         self.commanded_charge_power = commanded_charge_power

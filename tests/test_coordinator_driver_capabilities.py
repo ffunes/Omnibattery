@@ -10,6 +10,7 @@ from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
 )
 from custom_components.omnibattery.drivers.marstek import MarstekModbusDriver
+from tests.conftest import fake_traits
 
 
 def test_only_zendure_owns_initial_config():
@@ -81,7 +82,10 @@ def test_marstek_writable_max_charge_skips_software_max():
 
 def test_venus_e_v2_v3_keep_a_software_power_cap_during_polling():
     for version in ("v2", "v3"):
-        coordinator = SimpleNamespace(brand="marstek", battery_version=version)
+        coordinator = SimpleNamespace(
+            brand="marstek", battery_version=version,
+            traits=fake_traits("marstek", version),
+        )
         assert (
             MarstekVenusDataUpdateCoordinator.needs_software_power_cap.fget(
                 coordinator
@@ -90,7 +94,10 @@ def test_venus_e_v2_v3_keep_a_software_power_cap_during_polling():
         )
 
     for version in ("vA", "vD"):
-        coordinator = SimpleNamespace(brand="marstek", battery_version=version)
+        coordinator = SimpleNamespace(
+            brand="marstek", battery_version=version,
+            traits=fake_traits("marstek", version),
+        )
         assert (
             MarstekVenusDataUpdateCoordinator.needs_software_power_cap.fget(
                 coordinator
@@ -347,3 +354,16 @@ async def test_reconnect_records_failed_rs485_reenable():
 
     assert result is True
     assert coordinator._last_rs485_reenable_success is False
+
+
+def test_t32_traits_follow_the_stored_version_for_any_brand():
+    # Stale keys (plan section 8): a non-Marstek brand keeps the version-derived traits.
+    assert fake_traits("zendure", "vD").bms_owns_top_cutoff is True
+    assert fake_traits("zendure", "vD").soc_decimals == 1
+    assert fake_traits("zendure", "v2").soc_decimals is None
+    assert fake_traits("zendure", "v2").cutoff_without_inverter_state is True
+    assert fake_traits("marstek", "v3").cutoff_without_inverter_state is False
+    # Power-cap choices: Marstek v2/v3 only, and not for an unknown brand (frozen defect).
+    assert fake_traits("marstek", "v3").hardware_power_cap_choices is True
+    assert fake_traits("zendure", "v3").hardware_power_cap_choices is False
+    assert fake_traits("acme", "v3").hardware_power_cap_choices is False

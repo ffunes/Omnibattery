@@ -39,6 +39,7 @@ from custom_components.omnibattery.pricing import (
 )
 from custom_components.omnibattery.pricing import engine as engine_module
 from custom_components.omnibattery.pricing.engine import PricingManager
+from tests.conftest import fake_traits
 
 _DAY = datetime(2026, 9, 26)
 
@@ -64,6 +65,7 @@ def clock(monkeypatch):
 class _Battery:
     def __init__(self, soc: float, capacity_kwh: float = 10.0, max_soc: float = 95.0):
         self.name = "b1"
+        self.traits = fake_traits(None, None)
         self.max_soc = max_soc
         self.is_available = True
         self.data = {"battery_soc": soc, "battery_total_energy": capacity_kwh}
@@ -833,7 +835,7 @@ def test_full_battery_with_a_one_hundred_percent_ceiling_is_skipped(clock):
 
 def test_venus_a_d_at_one_hundred_percent_is_left_to_the_handler(clock):
     battery = _Battery(100.0, max_soc=100.0)
-    battery.battery_version = "vD"
+    battery.traits = fake_traits(None, "vD")
     (slot,) = _slots(_at(12, 0), [0.20])
     ctrl = _controller(battery, _decision(0.0), _schedule({slot: SLOT_PURPOSE_DEFICIT}))
     manager = _manager(ctrl, _balance(battery, 12.0))

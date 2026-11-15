@@ -464,11 +464,12 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
             weighted_soc = sum(socs) / len(socs)
         else:
             weighted_soc = (total_stored / total_capacity) * 100
-        has_v3 = any(
-            getattr(c, "battery_version", "v2") in ("v3", "vA", "vD")
+        decimals = [
+            c.traits.soc_decimals
             for c in self.coordinators
-        )
-        precision = 1 if has_v3 else self.definition.get("precision", 0)
+            if c.traits.soc_decimals is not None
+        ]
+        precision = max(decimals) if decimals else self.definition.get("precision", 0)
         return round(weighted_soc, precision)
 
     @staticmethod
