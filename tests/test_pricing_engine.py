@@ -2179,6 +2179,62 @@ def test_plan_rows_for_the_panel_carry_the_house_not_the_battery_drain():
     assert controller._dp_eval_rows == ((start, end, 0.05, 0.2, 0.0),)
 
 
+def test_panel_sun_is_drawn_without_the_safety_margin():
+    """15 Nov 2026: 3.2 kWh forecast for tomorrow morning and a 6 kWh safety
+    margin drew no sun at all. The margin stays in the plan's own intervals;
+    the panel's series carry the forecast."""
+    madrid = ZoneInfo("Europe/Madrid")
+    now = datetime(2026, 11, 15, 22, 45, tzinfo=madrid)
+    midnight = now.replace(hour=0, minute=0) + timedelta(days=1)
+    periods = tuple(
+        SolarForecastPeriod(
+            midnight + timedelta(hours=8 + hour),
+            midnight + timedelta(hours=9 + hour),
+            0.8,
+        )
+        for hour in range(4)
+    )
+    forecast = ConsumptionForecast(
+        9.6, [0.1] * INTERVAL_COUNT, "profile", True
+    )
+    tracker = SimpleNamespace(
+        consumption_profile=SimpleNamespace(),
+        forecast_consumption_between=lambda *_args, **_kwargs: forecast,
+    )
+    ctrl = _controller(
+        _consumption_tracker=tracker,
+        solar_profile_mode="active",
+        _predictive_safety_margin_kwh=6.0,
+        coordinators=[],
+        _is_battery_manual_owned=lambda _coordinator: False,
+        max_contracted_power=0.0,
+        max_charge_capacity=0.0,
+    )
+    manager = PricingManager(
+        SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Madrid")), ctrl
+    )
+
+    plan = manager.build_extended_chronological_projection(
+        now=now,
+        slots=[],
+        base_decision_data={
+            "solar_forecast_input": SolarForecastInput(
+                0.0, "remaining_sensor", periods=periods
+            )
+        },
+        price_ceiling=None,
+        horizon_end=midnight + timedelta(hours=12),
+    ).plan
+
+    assert sum(i.solar_kwh for i in plan.intervals) == 0.0
+    assert sum(i.solar_kwh for i in plan.shown_intervals) == pytest.approx(3.2)
+    assert sum(solar for solar, _house in plan.house_forecast.values()) == (
+        pytest.approx(3.2)
+    )
+    morning = midnight + timedelta(hours=9)
+    assert plan.house_forecast[morning][0] == pytest.approx(0.2)
+
+
 def test_extended_projection_survives_the_autumn_dst_change():
     """The repeated 02:00 hour must not make the projection fall back."""
     madrid = ZoneInfo("Europe/Madrid")

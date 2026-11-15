@@ -4128,14 +4128,10 @@ class PricingManager:
             learned_snapshot = self._learned_solar_snapshot(
                 now, horizon_end, tracker, solar_profile_mode, solar_start_dt, solar_end_dt
             )
-            solar_result = solar_timeline(
-                boundaries,
-                solar_input,
-                learned_snapshot,
+            solar_kwargs = dict(
                 solar_start=solar_start_dt,
                 solar_end=solar_end_dt,
                 mode=solar_profile_mode,
-                safety_margin_kwh=safety,
                 # Only an extended horizon with provider periods needs the
                 # timezone, so only then is it read.
                 extended_timezone=(
@@ -4147,6 +4143,13 @@ class PricingManager:
                     decision_data.get("excluded_demand_claim_kwh", 0.0) or 0.0
                 ),
                 today_end=daily_horizon_end,
+            )
+            solar_result = solar_timeline(
+                boundaries,
+                solar_input,
+                learned_snapshot,
+                safety_margin_kwh=safety,
+                **solar_kwargs,
             )
             timeline = solar_result.timeline
             solar = solar_result.intervals_kwh
@@ -4203,16 +4206,16 @@ class PricingManager:
                     for slot in self.get_future_price_slots(horizon_end=local_end)
                     if slot.price <= price_block
                 ]
-            intervals = battery_idle_intervals(
-                boundaries,
-                consumption,
-                solar,
+            idle_kwargs = dict(
                 held_until=held_until,
                 limit_kw=limit_kw,
                 fleet_blocks=fleet_blocks,
                 block_matches=self._future_slot_matches_operation_block,
                 blocked_price_slots=blocked_price_slots,
                 tz=now.tzinfo,
+            )
+            intervals = battery_idle_intervals(
+                boundaries, consumption, solar, **idle_kwargs
             )
 
             # Time Slot: inside a configured window the battery holds at the
@@ -4255,6 +4258,28 @@ class PricingManager:
                     for before, after in zip(uncapped, intervals)
                     if before.end <= scalar_end
                 ))
+            # What the panel draws: the sun without the safety margin, which
+            # is a cushion for the decisions and not a prediction, through
+            # the same masks. The plan itself keeps the margin.
+            shown_solar, shown_intervals = solar, intervals
+            if safety > 0.0:
+                shown_solar = solar_timeline(
+                    boundaries,
+                    solar_input,
+                    learned_snapshot,
+                    safety_margin_kwh=0.0,
+                    **solar_kwargs,
+                ).intervals_kwh
+                shown_intervals, _ = time_slot_window_hold(
+                    battery_idle_intervals(
+                        boundaries, consumption, shown_solar, **idle_kwargs
+                    ),
+                    windows,
+                )
+                if discharge_limit_w is not None:
+                    shown_intervals = cap_battery_drain(
+                        shown_intervals, discharge_limit_w / 1000.0
+                    )
             # Peak shaving's SOC band is a peak reserve, not normal-load
             # energy (#627). While it already holds the battery the intervals
             # above carry only the load over the limit, which that band covers.
@@ -4640,13 +4665,16 @@ class PricingManager:
                 )
             )
             plan = evaluation.plan
-            # The sun and the house before the battery-idle masks and the
-            # discharge cap, as (solar, house) by interval start: what the
-            # panel draws. ``plan.intervals`` carry the battery's drain.
+            # The sun (without the safety margin) and the house before the
+            # battery-idle masks and the discharge cap, as (solar, house) by
+            # interval start: what the panel draws. ``plan.intervals`` carry
+            # the battery's drain; ``shown_intervals`` are those intervals
+            # with the unmargined sun, for the panel's own simulation.
             plan.house_forecast = {
-                start: (solar[index], consumption[index])
+                start: (shown_solar[index], consumption[index])
                 for index, (start, _end) in enumerate(boundaries)
             }
+            plan.shown_intervals = tuple(shown_intervals)
             if not diagnostic_only:
                 # What the published projection starts from and is capped at.
                 plan.projection_inputs = (usable, usable + headroom)

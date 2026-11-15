@@ -2265,7 +2265,12 @@ class ChargeDischargeController:
         dto = build_daily_operation_projection(
             DailyOperationProjectionRequest(
                 now=now,
-                plan_intervals=tuple(getattr(plan, "intervals", ()) or ()),
+                # The plan's intervals with the sun before the safety margin.
+                plan_intervals=tuple(
+                    getattr(plan, "shown_intervals", None)
+                    or getattr(plan, "intervals", ())
+                    or ()
+                ),
                 house_forecast=getattr(plan, "house_forecast", None) or {},
                 allocations=tuple(allocations),
                 battery_inputs=tuple(battery_inputs),
