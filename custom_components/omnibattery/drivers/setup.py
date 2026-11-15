@@ -73,6 +73,14 @@ class SetupContext:
     work: dict = field(default_factory=dict)
 
 
+class ReplacesBattery(dict):
+    """Battery data a reconfigure handler returns to *replace* the stored battery.
+
+    A plain ``dict`` is laid over the stored battery, so it cannot drop a key;
+    a handler that must (a stale value that has to go) returns this instead.
+    """
+
+
 StepHandler = Callable[[Any, "dict | None", SetupContext], Awaitable["FlowResult | dict"]]
 
 

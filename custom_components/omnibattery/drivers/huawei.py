@@ -65,6 +65,7 @@ from .huawei_client import (
     decode_u16,
     decode_u32,
 )
+from .huawei_flow import HUAWEI_SETUP
 from .base import (
     BatteryDriver,
     DriverCapabilities,
@@ -454,6 +455,7 @@ class HuaweiSolarDriver(BatteryDriver):
     """One Huawei inverter's attached LUNA2000, read natively and driven by service."""
 
     BRAND = "huawei"
+    SETUP = HUAWEI_SETUP
     TRAITS = DriverTraits(supports_voltage_taper=False, min_soc_range=(0, 30, 10))
     LABEL = "Huawei SUN2000 + LUNA2000"
     MANUFACTURER = "Huawei"
