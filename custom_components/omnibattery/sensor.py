@@ -762,6 +762,10 @@ class WeeklyFullChargeSensor(SensorEntity):
         batteries = self._controller._weekly_charge_status.get("batteries")
         if batteries:
             attrs["batteries"] = batteries
+        # Solar outlook of an active run (#876); absent while unknown.
+        for key in ("solar_sufficient", "energy_needed_kwh", "net_solar_kwh"):
+            if key in self._controller._weekly_charge_status:
+                attrs[key] = self._controller._weekly_charge_status[key]
         return attrs
 
     @property

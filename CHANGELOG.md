@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Weekly Full Charge says whether today's sun can reach 100 %** (#876): during the run, its sensor carries `solar_sufficient` with the kWh still needed and the net solar left, re-evaluated when the forecast changes; with Predictive Charging off, a notification warns once when the sun falls short, so an automation can charge from the grid. The new **Weekly Full Charge Grid Boost** blueprint does that by raising PD Target Grid Power until the run ends.
+
 ### Changed
 
 - **Daily Operation timeline draws the Dynamic Pricing plan itself**: with predictive charging in Dynamic Pricing, the timeline simulated the day again on its own and could drift far from the published plan (sun spread by the hour, no charges booked for tomorrow, no sales). It now shows the plan's own battery level and charges, quarter by quarter, up to the plan's last price (until tomorrow's prices are out, the part after midnight stays empty); Time Slot and the other modes are unchanged.

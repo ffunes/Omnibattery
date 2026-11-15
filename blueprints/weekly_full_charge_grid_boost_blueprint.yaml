@@ -1,0 +1,125 @@
+blueprint:
+  name: "Omnibattery - Weekly Full Charge Grid Boost"
+  description: >
+    Finishes the weekly full charge from the grid when today's sun alone cannot
+    reach 100%. Use it with Predictive Charging off: the integration then has no
+    grid path of its own.
+
+    - When the Weekly Full Charge sensor is charging and reports
+      solar_sufficient = false, PD Target Grid Power is raised to the boost
+      value, so the batteries charge from the grid.
+    - It stays raised until the run ends (state complete or idle), even when
+      the verdict turns true as the batteries fill, and then goes back to the
+      normal value.
+    - It only resets the target it raised itself: a target changed by hand in
+      the meantime is left alone.
+
+    Requires a solar forecast sensor configured in Omnibattery.
+  domain: automation
+  source_url: "https://github.com/ffunes/omnibattery/blob/main/blueprints/weekly_full_charge_grid_boost_blueprint.yaml"
+
+  input:
+    weekly_status_sensor:
+      name: "Weekly Full Charge Sensor"
+      description: "Omnibattery Weekly Full Charge status sensor."
+      default: sensor.omnibattery_weekly_full_charge_status
+      selector:
+        entity:
+          filter:
+            domain: sensor
+
+    target_grid_power_number:
+      name: "PD Target Grid Power Number"
+      description: "Omnibattery PD Target Grid Power number entity."
+      default: number.omnibattery_pd_target_grid_power
+      selector:
+        entity:
+          filter:
+            domain: number
+
+    predictive_charging_switch:
+      name: "Predictive Charging Switch"
+      description: "No boost while this switch is on: Predictive Charging charges from the grid itself."
+      default: switch.omnibattery_predictive_charging
+      selector:
+        entity:
+          filter:
+            domain: switch
+
+    boost_target_w:
+      name: "Grid Target During The Boost"
+      description: >
+        Grid import to hold while finishing the charge. The batteries take this
+        minus the home load, within the integration's power limits.
+      default: 2000
+      selector:
+        number:
+          min: 0
+          max: 15000
+          step: 10
+          unit_of_measurement: W
+          mode: box
+
+    normal_target_w:
+      name: "Normal Grid Target"
+      description: "Grid target restored when the run ends."
+      default: 0
+      selector:
+        number:
+          min: -15000
+          max: 15000
+          step: 10
+          unit_of_measurement: W
+          mode: box
+
+variables:
+  weekly_status_sensor: !input weekly_status_sensor
+  target_grid_power_number: !input target_grid_power_number
+  predictive_charging_switch: !input predictive_charging_switch
+  boost_target_w: !input boost_target_w
+  normal_target_w: !input normal_target_w
+
+trigger:
+  - platform: state
+    entity_id: !input weekly_status_sensor
+    attribute: solar_sufficient
+  - platform: state
+    entity_id: !input weekly_status_sensor
+  - platform: homeassistant
+    event: start
+
+condition: []
+
+mode: restart
+
+action:
+  - variables:
+      run_state: "{{ states(weekly_status_sensor) }}"
+      solar_short: "{{ state_attr(weekly_status_sensor, 'solar_sufficient') == false }}"
+      boosted: "{{ states(target_grid_power_number) | float(none) == boost_target_w | float(0) }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >
+              {{ run_state == 'charging' and solar_short and not boosted
+                 and not is_state(predictive_charging_switch, 'on') }}
+        sequence:
+          - service: number.set_value
+            target:
+              entity_id: !input target_grid_power_number
+            data:
+              value: "{{ boost_target_w | float(0) }}"
+
+      - conditions:
+          - condition: template
+            # Named end states only: unavailable/unknown at a restart is not the end of the run.
+            value_template: "{{ run_state in ['complete', 'idle', 'disabled'] and boosted }}"
+        sequence:
+          - service: number.set_value
+            target:
+              entity_id: !input target_grid_power_number
+            data:
+              value: "{{ normal_target_w | float(0) }}"
+
+    default: []

@@ -59,6 +59,7 @@ def _run(*coordinators):
     manager._bms_cutoff_counts = {}
     manager.is_battery_full = MagicMock(return_value=False)
     manager.is_active = MagicMock(return_value=True)
+    manager.update_solar_outlook = MagicMock()
     manager.save_state = AsyncMock()
     return controller, manager
 

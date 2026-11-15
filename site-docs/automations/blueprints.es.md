@@ -63,6 +63,18 @@ Reinicia Home Assistant después de añadir el `rest_command` y conserva el serv
 
 De forma predeterminada establece `-50 W` mientras carga (una pequeña exportación a red) y `+50 W` mientras descarga (una pequeña importación de red). El umbral de potencia activa ignora el ruido cerca de cero. La automatización se ejecuta cuando la potencia cruza el umbral y cuando se inicia Home Assistant.
 
+## Refuerzo de red para la carga completa semanal
+
+[Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/weekly_full_charge_grid_boost_blueprint.yaml)
+
+- **Finalidad:** completa la carga semanal al 100 % desde la red cuando el sol del día no basta, en instalaciones con la **Carga predictiva** desactivada.
+- **Requiere:** el sensor **Weekly Full Charge**, el número **PD Target Grid Power** y un sensor de previsión solar configurado en Omnibattery.
+- **Controla:** solo el número **PD Target Grid Power**.
+- **Compatible con:** cualquier instalación que use control de seguimiento de red PD.
+- **No hace:** reforzar mientras la **Carga predictiva** está activada, ni restaurar un objetivo cambiado a mano durante la carga.
+
+Mientras la carga semanal está en curso y el atributo `solar_sufficient` del sensor es `false`, sube el objetivo al valor de refuerzo (`2000 W` por defecto; las baterías reciben eso menos el consumo de la casa, dentro de los límites del número). Lo mantiene hasta que la carga termina (`complete` o `idle`), aunque el veredicto pase a `true` al llenarse las baterías, y luego vuelve al valor normal (`0 W` por defecto).
+
 ## Sincronización del límite de peak shaving
 
 [Importar blueprint](https://raw.githubusercontent.com/ffunes/Omnibattery/main/blueprints/peak_shaving_limit_sync_blueprint.yaml)
