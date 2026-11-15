@@ -130,6 +130,14 @@ async def _reconfigure(flow, user_input: dict[str, Any] | None, ctx: SetupContex
 
 
 class _ZendureSetup(DriverSetup):
+    async def reprobe(self, hass: Any, battery_config: dict, host: str) -> bool:
+        from .zendure import ZendureLocalDriver
+
+        port = battery_config.get(CONF_PORT)
+        _LOGGER.info("Probing Zendure device at %s:%s", host, port)
+        result, _ = await ZendureLocalDriver.probe(host, port)
+        return result
+
     def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
         from .zendure import ZENDURE_MODEL_2400AC_PRO, zendure_power_limits
 

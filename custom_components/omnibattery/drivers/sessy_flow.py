@@ -144,6 +144,14 @@ async def _reconfigure(flow, user_input: dict[str, Any] | None, ctx: SetupContex
 
 
 class _SessySetup(DriverSetup):
+    async def reprobe(self, hass: Any, battery_config: dict, host: str) -> bool:
+        return await _probe(
+            host,
+            battery_config.get(CONF_PORT),
+            battery_config.get(CONF_USERNAME, ""),
+            battery_config.get(CONF_PASSWORD, ""),
+        )
+
     def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
         return _SESSY_MAX_CHARGE_POWER_W, _SESSY_MAX_DISCHARGE_POWER_W
 

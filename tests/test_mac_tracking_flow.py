@@ -19,6 +19,8 @@ import types
 import pytest
 
 from custom_components.omnibattery import config_flow as cf
+from custom_components.omnibattery import drivers
+from custom_components.omnibattery.drivers.indevolt_client import IndevoltAuthenticationError
 from custom_components.omnibattery.infra.mac_tracking import CONF_MAC, CONF_TRACK_MAC
 
 MAC_A = "dc:04:5a:14:6b:33"
@@ -266,7 +268,7 @@ def patch_probe(monkeypatch, driver_name, result, calls):
         calls.append((args, kwargs))
         return result
 
-    monkeypatch.setattr(getattr(cf, driver_name), "probe", _probe)
+    monkeypatch.setattr(getattr(drivers, driver_name), "probe", _probe)
 
 
 async def test_a_candidate_that_answers_is_adopted(monkeypatch, no_settle_delay):
@@ -371,7 +373,7 @@ async def test_every_ip_based_brand_is_probed_through_its_own_driver(
         calls.append((args, kwargs))
         return (True, None) if tuple_result else True
 
-    monkeypatch.setattr(getattr(cf, driver_name), "probe", _probe)
+    monkeypatch.setattr(getattr(drivers, driver_name), "probe", _probe)
     flow = make_flow_probing_for_real(hass)
 
     assert await flow._async_apply_dhcp_lease(MAC_A, "192.168.1.180") == "ip_updated"
@@ -380,7 +382,7 @@ async def test_every_ip_based_brand_is_probed_through_its_own_driver(
 
 
 @pytest.mark.parametrize(
-    "answer", [None, cf.IndevoltAuthenticationError("local API set to HTTP Digest")]
+    "answer", [None, IndevoltAuthenticationError("local API set to HTTP Digest")]
 )
 async def test_an_indevolt_that_does_not_answer_over_plain_http_stays_put(
     monkeypatch, no_settle_delay, answer
@@ -397,7 +399,7 @@ async def test_an_indevolt_that_does_not_answer_over_plain_http_stays_put(
             raise answer
         return answer
 
-    monkeypatch.setattr(cf.IndevoltDriver, "probe", _probe)
+    monkeypatch.setattr(drivers.IndevoltDriver, "probe", _probe)
     flow = make_flow_probing_for_real(hass)
 
     assert await flow._async_apply_dhcp_lease(MAC_A, "192.0.2.10") == "candidate_silent"

@@ -246,6 +246,15 @@ async def _reconfigure(flow, user_input: dict[str, Any] | None, ctx: SetupContex
 
 
 class _AnkerSetup(DriverSetup):
+    async def reprobe(self, hass: Any, battery_config: dict, host: str) -> bool:
+        from .anker import AnkerModbusDriver  # local: anker.py imports this module
+
+        port = battery_config.get(CONF_PORT)
+        slave_id = battery_config.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
+        _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
+        result, _ = await AnkerModbusDriver.probe(host, port, slave_id)
+        return result
+
     def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
         return _anker_power_ceilings(battery_data)
 

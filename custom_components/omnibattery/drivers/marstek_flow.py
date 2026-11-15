@@ -315,6 +315,18 @@ async def _reconfigure(flow, user_input: dict[str, Any] | None, ctx: SetupContex
 
 
 class _MarstekSetup(DriverSetup):
+    async def reprobe(self, hass: Any, battery_config: dict, host: str) -> bool:
+        port = battery_config.get(CONF_PORT)
+        version = battery_config.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
+        slave_id = battery_config.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
+        _LOGGER.info("Probing Marstek %s at %s:%s slave %s", version, host, port, slave_id)
+        # Never over serial: a serial-port Marstek is not IP-addressed, so DHCP never
+        # reaches it. The EMS firmware a vD probe reports is discarded here.
+        return await _probe_once(
+            SetupContext(FlowKind.CONFIG, None, None, None),
+            host, port, version, slave_id, None, always_pass_serial=False,
+        )
+
     def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
         battery_version = battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
         ceiling = max_power_for_battery_version(battery_version, battery_data.get("ems_version"))

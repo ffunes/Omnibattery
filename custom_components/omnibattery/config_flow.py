@@ -17,8 +17,6 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_NAME,
     CONF_PORT,
-    CONF_USERNAME,
-    CONF_PASSWORD,
 )
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import device_registry as dr, entity_registry as er
@@ -152,12 +150,6 @@ from .drivers.setup import (
     live_coordinator,
     work_dict,
 )
-from .drivers.marstek import MarstekModbusDriver
-from .drivers.zendure import ZendureLocalDriver
-from .drivers.anker import AnkerModbusDriver
-from .drivers.sessy import SessyLocalDriver
-from .drivers.indevolt import IndevoltDriver
-from .drivers.indevolt_client import IndevoltAuthenticationError
 from .pricing.nordpool import is_official_nordpool_sensor
 from .pricing.calculations import (
     parse_be_electricity_prices,
@@ -1259,63 +1251,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         self._pending_slot_step_a: dict | None = None  # Buffer between slot step A and step B
         self._restore_declined = False  # Set when user skips the config-backup restore
 
-    async def _test_connection(
-        self,
-        host: str,
-        port: int,
-        version: str = "v2",
-        slave_id: int = DEFAULT_SLAVE_ID,
-        brand: str = "marstek",
-        serial_port: str | None = None,
-        username: str = "",
-        password: str = "",
-    ) -> bool:
-        """Test connection to a battery.
-
-        ``username`` and ``password`` are only read for Sessy, whose local API
-        can require authentication: probing it with empty credentials returns a
-        refusal that is indistinguishable from an absent device (#289).
-        """
-        self._last_marstek_ems_version = None
-        if brand == "zendure":
-            _LOGGER.info("Probing Zendure device at %s:%s", host, port)
-            result, _ = await ZendureLocalDriver.probe(host, port)
-        elif brand == "sessy":
-            _LOGGER.info("Probing Sessy device at %s:%s", host, port)
-            result = await SessyLocalDriver.probe(host, port, username, password)
-        elif brand == "anker":
-            _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
-            result, _ = await AnkerModbusDriver.probe(host, port, slave_id)
-        elif brand == "indevolt":
-            _LOGGER.info("Probing Indevolt device at %s:%s", host, port)
-            try:
-                result = await IndevoltDriver.probe(host, port) is not None
-            except (IndevoltAuthenticationError, ValueError):
-                # A local API set to HTTP Digest, or a reply that is not an
-                # Indevolt's, does not count as this battery answering.
-                result = False
-        elif serial_port:
-            _LOGGER.info("Probing Marstek %s over serial %s slave %s", version, serial_port, slave_id)
-            if version == "vD":
-                result, self._last_marstek_ems_version = await MarstekModbusDriver.probe_details(
-                    host, port, version, slave_id, serial_port=serial_port
-                )
-            else:
-                result = await MarstekModbusDriver.probe(
-                    host, port, version, slave_id, serial_port=serial_port
-                )
-        else:
-            _LOGGER.info("Probing Marstek %s at %s:%s slave %s", version, host, port, slave_id)
-            if version == "vD":
-                result, self._last_marstek_ems_version = await MarstekModbusDriver.probe_details(
-                    host, port, version, slave_id
-                )
-            else:
-                result = await MarstekModbusDriver.probe(host, port, version, slave_id)
-        if not result:
-            _LOGGER.error("Failed to connect to %s:%s (brand=%s)", host, port, brand)
-        return result
-
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -2331,16 +2266,17 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         return _is_reachable
 
     async def _async_probe_battery_endpoint(self, battery: dict, host: str) -> bool:
-        """Open a connection to ``host`` using this battery's stored settings."""
-        return await self._test_connection(
-            host,
-            battery.get(CONF_PORT),
-            battery.get(CONF_BATTERY_VERSION, DEFAULT_VERSION),
-            battery.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
-            brand=battery.get("brand", DEFAULT_BRAND),
-            username=battery.get(CONF_USERNAME, ""),
-            password=battery.get(CONF_PASSWORD, ""),
-        )
+        """Re-probe ``host`` with the driver of this battery's brand.
+
+        A brand the registry does not know is probed like the default one, as it
+        always was.
+        """
+        brand = battery.get("brand", DEFAULT_BRAND)
+        setup = registry.setup_for(brand) or registry.setup_for(DEFAULT_BRAND)
+        result = await setup.reprobe(self.hass, battery, host)
+        if not result:
+            _LOGGER.error("Failed to connect to %s:%s (brand=%s)", host, battery.get(CONF_PORT), brand)
+        return result
 
     async def _async_probe_candidate(
         self, entry: ConfigEntry, index: int, battery: dict, host: str

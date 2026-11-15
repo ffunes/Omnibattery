@@ -3,40 +3,6 @@
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
 __init__.py:_async_setup_entry:compare:CONF_BATTERY_VERSION not in battery_config
-config_flow.py:<module>:identifier:AnkerModbusDriver
-config_flow.py:<module>:identifier:IndevoltAuthenticationError
-config_flow.py:<module>:identifier:IndevoltDriver
-config_flow.py:<module>:identifier:MarstekModbusDriver
-config_flow.py:<module>:identifier:SessyLocalDriver
-config_flow.py:<module>:identifier:ZendureLocalDriver
-config_flow.py:<module>:import:drivers.anker
-config_flow.py:<module>:import:drivers.indevolt
-config_flow.py:<module>:import:drivers.indevolt_client
-config_flow.py:<module>:import:drivers.marstek
-config_flow.py:<module>:import:drivers.sessy
-config_flow.py:<module>:import:drivers.zendure
-config_flow.py:<module>:import:infra.indevolt_client
-config_flow.py:MarstekVenusConfigFlow._test_connection:compare:brand == 'anker'
-config_flow.py:MarstekVenusConfigFlow._test_connection:compare:brand == 'indevolt'
-config_flow.py:MarstekVenusConfigFlow._test_connection:compare:brand == 'sessy'
-config_flow.py:MarstekVenusConfigFlow._test_connection:compare:brand == 'zendure'
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:AnkerModbusDriver
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:IndevoltAuthenticationError
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:IndevoltDriver
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:MarstekModbusDriver
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:MarstekModbusDriver
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:MarstekModbusDriver
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:MarstekModbusDriver
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:SessyLocalDriver
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:ZendureLocalDriver
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:_last_marstek_ems_version
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:_last_marstek_ems_version
-config_flow.py:MarstekVenusConfigFlow._test_connection:identifier:_last_marstek_ems_version
-config_flow.py:MarstekVenusConfigFlow._test_connection:literal:anker
-config_flow.py:MarstekVenusConfigFlow._test_connection:literal:indevolt
-config_flow.py:MarstekVenusConfigFlow._test_connection:literal:marstek
-config_flow.py:MarstekVenusConfigFlow._test_connection:literal:sessy
-config_flow.py:MarstekVenusConfigFlow._test_connection:literal:zendure
 config_flow.py:MarstekVenusConfigFlow.async_step_battery_brand:literal:marstek
 config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:marstek
 config_flow.py:OptionsFlowHandler.async_step_battery_brand:literal:marstek

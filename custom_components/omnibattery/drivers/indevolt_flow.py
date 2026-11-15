@@ -233,6 +233,18 @@ async def _reconfigure_request_speed(
 
 
 class _IndevoltSetup(DriverSetup):
+    async def reprobe(self, hass: Any, battery_config: dict, host: str) -> bool:
+        from .indevolt import IndevoltDriver  # local: indevolt.py imports this module
+
+        port = battery_config.get(CONF_PORT)
+        _LOGGER.info("Probing Indevolt device at %s:%s", host, port)
+        try:
+            return await IndevoltDriver.probe(host, port) is not None
+        except (IndevoltAuthenticationError, ValueError):
+            # A local API set to HTTP Digest, or a reply that is not an
+            # Indevolt's, does not count as this battery answering.
+            return False
+
     def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
         return _indevolt_power_ceilings(battery_data)
 
