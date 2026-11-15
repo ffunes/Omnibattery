@@ -189,7 +189,7 @@ async def async_setup_entry(
         # not energy counters — Sessy/Hoymiles have counters but no capacity.
         if not getattr(coordinator.capabilities, "has_nominal_capacity", True):
             entities.append(SyntheticCapacitySensor(coordinator))
-        pack_specs = getattr(coordinator.driver, "pack_field_specs", None)
+        pack_specs = coordinator.driver.pack_field_specs
         if pack_specs:
             data = coordinator.data or {}
             pack_count = sum(1 for i in range(1, 33) if f"pack{i}_soc" in data)

@@ -1514,12 +1514,6 @@ class HuaweiSolarDriver(BatteryDriver):
             self._last_write_monotonic = 0.0
         return ok
 
-    async def set_rs485_control(self, enable: bool) -> bool:
-        return False
-
-    async def get_rs485_control(self) -> Optional[bool]:
-        return None
-
     # --- config-flow probe ---------------------------------------------------
 
     @classmethod

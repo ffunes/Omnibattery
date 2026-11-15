@@ -478,8 +478,8 @@ class ZendureLocalDriver(BatteryDriver):
         """Numeric per-pack sensor fields (see PACK_FIELD_SPECS).
 
         The sensor platform reads this back to build one entity per (pack, field),
-        sized to the live pack count. Absent on the Marstek driver, so the platform
-        getattr's it and skips per-pack entities for brands that don't expose packs.
+        sized to the live pack count. Empty on the base class, so brands that
+        don't expose packs get no per-pack entities.
         """
         return PACK_FIELD_SPECS
 
@@ -902,10 +902,6 @@ class ZendureLocalDriver(BatteryDriver):
         return await self._post_write(
             {"acMode": _AC_MODE_DISCHARGE, "outputLimit": 0, "smartMode": 1}
         )
-
-    async def set_rs485_control(self, enable: bool) -> bool:
-        """No-op: Zendure has no RS485 control mode."""
-        return False
 
     # --- internal HTTP helpers ----------------------------------------------
 

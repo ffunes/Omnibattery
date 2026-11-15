@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Sequence
 
 
 # Optional telemetry key a driver may publish alongside ``battery_power``.
@@ -493,6 +493,89 @@ class BatteryDriver(ABC):
         then keeps the issue. See docs/indevolt-core-changes.md.
         """
         return False
+
+    @abstractmethod
+    async def apply_config(
+        self,
+        *,
+        max_soc_pct: float,
+        min_soc_pct: float,
+        max_charge_power_w: int,
+        max_discharge_power_w: int,
+    ) -> bool:
+        """Write the one-time per-battery configuration (SOC window, power caps).
+
+        Called once from setup, under the coordinator lock. The driver decides
+        which of the values the hardware can hold; return True when nothing that
+        was attempted failed.
+        """
+
+    @abstractmethod
+    async def set_charge_cutoff(self, soc_pct: float) -> bool:
+        """Write the hardware charge ceiling (weekly full charge raises and restores it).
+
+        Return False when the hardware has no such setting or the write failed.
+        """
+
+    @abstractmethod
+    async def standby(self) -> bool:
+        """Idle the battery for teardown (integration unload); True on success."""
+
+    async def set_rs485_control(self, enable: bool) -> bool:
+        """Enable/disable external (RS485) control mode; False when there is none.
+
+        Defaults to False: only drivers whose ``capabilities.has_rs485_control``
+        is True have a mode to toggle.
+        """
+        return False
+
+    async def get_rs485_control(self) -> Optional[bool]:
+        """Read the RS485 control mode back; None when unknown or not applicable."""
+        return None
+
+    @property
+    def pack_field_specs(self) -> Sequence[dict]:
+        """Numeric per-pack sensor fields; the sensor platform builds one entity
+        per (pack, field). Empty for drivers that do not expose individual packs."""
+        return ()
+
+    # --- entity definitions (read by the coordinator and the platforms) ----
+
+    @property
+    def sensor_definitions(self) -> list[dict]:
+        """Sensor entity definitions. Empty unless the driver provides some."""
+        return []
+
+    @property
+    def number_definitions(self) -> list[dict]:
+        """Number entity definitions."""
+        return []
+
+    @property
+    def select_definitions(self) -> list[dict]:
+        """Select entity definitions."""
+        return []
+
+    @property
+    def switch_definitions(self) -> list[dict]:
+        """Switch entity definitions."""
+        return []
+
+    @property
+    def binary_sensor_definitions(self) -> list[dict]:
+        """Binary-sensor entity definitions."""
+        return []
+
+    @property
+    def button_definitions(self) -> list[dict]:
+        """Button entity definitions."""
+        return []
+
+    @property
+    def all_definitions(self) -> list[dict]:
+        """The polled union of the definitions above (the driver decides what
+        that includes; buttons are not polled)."""
+        return []
 
     @abstractmethod
     def net_power_from_data(self, data: dict) -> Optional[int]:

@@ -992,9 +992,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         if model_changed:
             self.zendure_model = detected_model
-            driver_definitions = getattr(self.driver, "all_definitions", None)
-            if driver_definitions is not None:
-                self._def_by_key = {d["key"]: d for d in driver_definitions}
+            self._def_by_key = {d["key"]: d for d in self.driver.all_definitions}
             self.persist_battery_config("zendure_model", detected_model)
         if charge_cap_changed:
             self.device_max_charge_power = driver_caps.max_charge_power_w

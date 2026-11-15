@@ -175,6 +175,7 @@ def test_zendure_model_promotion_updates_device_cap_and_persists_model():
     coordinator._effective_max_discharge_power = 1200
     coordinator.driver = SimpleNamespace(
         model_key="4000mix_ac_plus",
+        all_definitions=[],
         capabilities=SimpleNamespace(
             max_charge_power_w=4000,
             max_discharge_power_w=4000,
