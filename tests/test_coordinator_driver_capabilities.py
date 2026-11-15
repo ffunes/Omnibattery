@@ -10,6 +10,7 @@ from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
 )
 from custom_components.omnibattery.drivers.marstek import MarstekModbusDriver
+from custom_components.omnibattery.drivers.zendure import ZendureLocalDriver
 from tests.conftest import fake_traits
 
 
@@ -158,7 +159,7 @@ def test_venus_d_runtime_firmware_sync_clamps_legacy_config():
     coordinator._effective_max_discharge_power = 2500
     coordinator.persist_battery_config = Mock()
 
-    coordinator._sync_marstek_ems_power_ceiling()
+    coordinator._reconcile_driver("poll")
 
     assert coordinator.device_max_charge_power == 2200
     assert coordinator.device_max_discharge_power == 2200
@@ -180,17 +181,10 @@ def test_zendure_model_promotion_updates_device_cap_and_persists_model():
     coordinator._configured_max_discharge_power = 1200
     coordinator._effective_max_charge_power = 1200
     coordinator._effective_max_discharge_power = 1200
-    coordinator.driver = SimpleNamespace(
-        model_key="4000mix_ac_plus",
-        all_definitions=[],
-        capabilities=SimpleNamespace(
-            max_charge_power_w=4000,
-            max_discharge_power_w=4000,
-        ),
-    )
+    coordinator.driver = ZendureLocalDriver("1.2.3.4", model="4000mix_ac_plus")
     coordinator.persist_battery_config = Mock()
 
-    coordinator._sync_detected_zendure_model()
+    coordinator._reconcile_driver("connect")
 
     assert coordinator.zendure_model == "4000mix_ac_plus"
     assert coordinator.device_max_charge_power == 4000
@@ -215,16 +209,10 @@ def test_zendure_model_promotion_repairs_stale_saved_cap_after_restart():
     coordinator._configured_max_discharge_power = 4000
     coordinator._effective_max_charge_power = 2400
     coordinator._effective_max_discharge_power = 2400
-    coordinator.driver = SimpleNamespace(
-        model_key="4000mix_ac_plus",
-        capabilities=SimpleNamespace(
-            max_charge_power_w=4000,
-            max_discharge_power_w=4000,
-        ),
-    )
+    coordinator.driver = ZendureLocalDriver("1.2.3.4", model="4000mix_ac_plus")
     coordinator.persist_battery_config = Mock()
 
-    coordinator._sync_detected_zendure_model()
+    coordinator._reconcile_driver("connect")
 
     assert coordinator.device_max_charge_power == 4000
     assert coordinator.device_max_discharge_power == 4000
@@ -240,6 +228,7 @@ def test_zendure_reported_inverse_max_power_repairs_stale_configured_cap():
     coordinator = object.__new__(MarstekVenusDataUpdateCoordinator)
     coordinator.brand = "zendure"
     coordinator.name = "SolarFlow"
+    coordinator.driver = ZendureLocalDriver("1.2.3.4")
     coordinator._device_max_charge_power = 4000
     coordinator._device_max_discharge_power = 4000
     coordinator._configured_max_charge_power = 4000
@@ -249,7 +238,7 @@ def test_zendure_reported_inverse_max_power_repairs_stale_configured_cap():
     coordinator.data = {"inverse_max_power": 4000}
     coordinator.persist_battery_config = Mock()
 
-    coordinator._sync_zendure_inverse_max_power()
+    coordinator._reconcile_driver("poll")
 
     assert coordinator.configured_max_discharge_power == 4000
     assert coordinator.effective_max_discharge_power == 4000
@@ -262,6 +251,7 @@ def test_zendure_reported_inverse_max_power_does_not_repersist_matching_cap():
     coordinator = object.__new__(MarstekVenusDataUpdateCoordinator)
     coordinator.brand = "zendure"
     coordinator.name = "SolarFlow"
+    coordinator.driver = ZendureLocalDriver("1.2.3.4")
     coordinator._device_max_charge_power = 4000
     coordinator._device_max_discharge_power = 4000
     coordinator._configured_max_charge_power = 4000
@@ -271,7 +261,7 @@ def test_zendure_reported_inverse_max_power_does_not_repersist_matching_cap():
     coordinator.data = {"inverse_max_power": 4000}
     coordinator.persist_battery_config = Mock()
 
-    coordinator._sync_zendure_inverse_max_power()
+    coordinator._reconcile_driver("poll")
 
     assert coordinator.effective_max_discharge_power == 4000
     coordinator.persist_battery_config.assert_not_called()
@@ -281,6 +271,7 @@ def test_zendure_reported_inverse_max_power_ignores_invalid_cap():
     coordinator = object.__new__(MarstekVenusDataUpdateCoordinator)
     coordinator.brand = "zendure"
     coordinator.name = "SolarFlow"
+    coordinator.driver = ZendureLocalDriver("1.2.3.4")
     coordinator._device_max_charge_power = 4000
     coordinator._device_max_discharge_power = 4000
     coordinator._configured_max_charge_power = 4000
@@ -290,7 +281,7 @@ def test_zendure_reported_inverse_max_power_ignores_invalid_cap():
     coordinator.data = {"inverse_max_power": "unknown"}
     coordinator.persist_battery_config = Mock()
 
-    coordinator._sync_zendure_inverse_max_power()
+    coordinator._reconcile_driver("poll")
 
     assert coordinator.effective_max_discharge_power == 2400
     coordinator.persist_battery_config.assert_not_called()

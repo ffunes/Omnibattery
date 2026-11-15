@@ -234,3 +234,10 @@ async def test_minimal_driver_reaches_every_platform_definition_loop(monkeypatch
     for platform in (binary_sensor, button, number, select, sensor, switch):
         added: list = []
         await platform.async_setup_entry(hass, entry, added.extend)
+
+
+def test_minimal_driver_does_not_implement_reconcile():
+    """The base ``reconcile`` asks for nothing, at every moment."""
+    driver = MinimalDriver()
+    for reason in ("init", "connect", "read_group", "poll"):
+        assert driver.reconcile({}, reason=reason) is None

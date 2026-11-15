@@ -48,9 +48,11 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverReconciliation,
     DriverTraits,
     DELIVERED_AC_POWER_KEY,
     ReadGroup,
+    ReconcileState,
     SetpointResult,
     TelemetrySnapshot,
 )
@@ -393,6 +395,97 @@ class ZendureLocalDriver(BatteryDriver):
 
     def coordinator_attributes(self) -> dict:
         return {"zendure_model": self._model}
+
+    def reconcile(
+        self, data, *, reason, state: ReconcileState | None = None
+    ) -> DriverReconciliation | None:
+        """Promote a legacy entry to the detected model; follow the device's values."""
+        if state is None:
+            return None
+        if reason == "connect":
+            return self._reconcile_detected_model(state)
+        if reason == "poll":
+            return self._reconcile_reported_limits(data, state)
+        return None
+
+    def _reconcile_detected_model(
+        self, state: ReconcileState
+    ) -> DriverReconciliation | None:
+        detected_model = self.model_key
+        if not detected_model:
+            return None
+        caps = self._capabilities
+        model_changed = detected_model != state.attributes.get("zendure_model")
+        charge_cap_changed = state.device_max_charge_power != caps.max_charge_power_w
+        discharge_cap_changed = (
+            state.device_max_discharge_power != caps.max_discharge_power_w
+        )
+        if not (model_changed or charge_cap_changed or discharge_cap_changed):
+            return None
+        persist: dict = {}
+        if model_changed:
+            persist["zendure_model"] = detected_model
+        if charge_cap_changed:
+            persist["device_max_charge_power"] = caps.max_charge_power_w
+        if discharge_cap_changed:
+            persist["device_max_discharge_power"] = caps.max_discharge_power_w
+        return DriverReconciliation(
+            device_max_charge_power=(
+                caps.max_charge_power_w if charge_cap_changed else None
+            ),
+            device_max_discharge_power=(
+                caps.max_discharge_power_w if discharge_cap_changed else None
+            ),
+            attributes={"zendure_model": detected_model} if model_changed else {},
+            persist=persist,
+            definitions_changed=model_changed,
+            message=(
+                "Synchronized Zendure device profile %s (%d W charge / %d W discharge)"
+                % (detected_model, caps.max_charge_power_w, caps.max_discharge_power_w)
+            ),
+        )
+
+    def _reconcile_reported_limits(
+        self, data, state: ReconcileState
+    ) -> DriverReconciliation | None:
+        """Adopt inverseMaxPower as the discharge cap, soc_set/min_soc as SOC limits."""
+        if not data:
+            return None
+        configured_discharge = None
+        persist: dict = {}
+        message = None
+        reported_limit = data.get("inverse_max_power")
+        if reported_limit is not None:
+            try:
+                reported_limit = int(reported_limit)
+            except (TypeError, ValueError):
+                reported_limit = 0
+            if (
+                reported_limit > 0
+                and reported_limit != state.configured_max_discharge_power
+            ):
+                configured_discharge = reported_limit
+                persist["max_discharge_power"] = reported_limit
+                message = "Synchronized Zendure inverseMaxPower %d W → %d W" % (
+                    min(
+                        state.device_max_discharge_power,
+                        state.configured_max_discharge_power,
+                    ),
+                    min(state.device_max_discharge_power, reported_limit),
+                )
+        # Registerless: the device SOC ceiling/floor are soc_set / min_soc, not
+        # charging_/discharging_cutoff_capacity, so adopt them as max_soc/min_soc.
+        max_soc = int(data["soc_set"]) if "soc_set" in data else None
+        min_soc = int(data["min_soc"]) if "min_soc" in data else None
+        if configured_discharge is None and max_soc is None and min_soc is None:
+            return None
+        return DriverReconciliation(
+            configured_max_discharge_power=configured_discharge,
+            max_soc=max_soc,
+            min_soc=min_soc,
+            persist=persist,
+            message=message,
+        )
 
     def __init__(
         self,

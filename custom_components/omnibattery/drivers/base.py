@@ -28,8 +28,8 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Sequence
 
 from ..const import (
     CONF_BATTERY_VERSION,
@@ -385,6 +385,51 @@ class ReadGroup:
     keys: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class ReconcileState:
+    """What the coordinator owns and a driver's ``reconcile`` may need to read.
+
+    The driver never holds a reference to the coordinator; the coordinator hands
+    this snapshot in on every ``reconcile`` call. ``attributes`` holds the
+    current value of each coordinator attribute the driver mirrors (the names
+    in ``BatteryDriver.coordinator_attributes``; None when unset).
+    """
+
+    device_max_charge_power: int
+    device_max_discharge_power: int
+    configured_max_charge_power: int
+    configured_max_discharge_power: int
+    attributes: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DriverReconciliation:
+    """What a driver asks the coordinator to apply after ``reconcile``.
+
+    ``None`` on every optional field means "leave it alone". The coordinator's
+    ``_apply_reconciliation`` applies it in this order: ``attributes``,
+    ``drop_keys``, ``definitions_changed``, the power limits, ``max_soc`` /
+    ``min_soc``, then ``persist`` in insertion order, then ``message``.
+    """
+
+    device_max_charge_power: Optional[int] = None
+    device_max_discharge_power: Optional[int] = None
+    configured_max_charge_power: Optional[int] = None
+    configured_max_discharge_power: Optional[int] = None
+    max_soc: Optional[int] = None
+    min_soc: Optional[int] = None
+    # Coordinator attributes to reassign (``ems_version``, ``zendure_model``...).
+    attributes: dict[str, Any] = field(default_factory=dict)
+    # Per-battery config keys to persist, in order.
+    persist: dict[str, Any] = field(default_factory=dict)
+    # Keys to remove from the coordinator's ``data``.
+    drop_keys: tuple[str, ...] = ()
+    # The coordinator rebuilds its key -> definition index from the driver.
+    definitions_changed: bool = False
+    # Pre-formatted info line the coordinator logs (prefixed with its name).
+    message: Optional[str] = None
+
+
 class BatteryDriver(ABC):
     """Abstract hardware driver for a single physical battery.
 
@@ -450,6 +495,24 @@ class BatteryDriver(ABC):
     def coordinator_attributes(self) -> dict[str, Any]:
         """Brand-owned config values the coordinator mirrors as public attributes."""
         return {}
+
+    def reconcile(
+        self,
+        data: dict,
+        *,
+        reason: Literal["init", "connect", "read_group", "poll"],
+        state: Optional[ReconcileState] = None,
+    ) -> Optional[DriverReconciliation]:
+        """Align coordinator-owned state with what this brand has detected.
+
+        Called by the coordinator at four moments, named by ``reason``: ``init``
+        (end of the constructor's limit setup), ``connect`` (after a successful
+        connect or fresh reconnect), ``read_group`` (after each telemetry group
+        read) and ``poll`` (after each poll's data merge). ``data`` is the
+        coordinator's current telemetry; ``state`` the coordinator-owned values
+        in :class:`ReconcileState`. Returns what to apply, or None (default).
+        """
+        return None
 
     @property
     @abstractmethod

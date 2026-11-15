@@ -46,8 +46,10 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverReconciliation,
     DriverTraits,
     ReadGroup,
+    ReconcileState,
     SetpointResult,
     TelemetrySnapshot,
     resolve_battery_version,
@@ -543,6 +545,76 @@ class MarstekModbusDriver(BatteryDriver):
                 max_discharge_power_w=ceiling,
             )
         return changed
+
+    def reconcile(
+        self, data, *, reason, state: ReconcileState | None = None
+    ) -> DriverReconciliation | None:
+        """Venus D: clamp the device cap at init, follow the EMS firmware on poll."""
+        if self._version != "vD" or state is None:
+            return None
+        if reason == "init":
+            # A stale config entry may still carry the former unconditional
+            # 2500 W device cap.  The firmware-aware driver is authoritative.
+            return DriverReconciliation(
+                device_max_charge_power=min(
+                    state.device_max_charge_power,
+                    self._capabilities.max_charge_power_w,
+                ),
+                device_max_discharge_power=min(
+                    state.device_max_discharge_power,
+                    self._capabilities.max_discharge_power_w,
+                ),
+            )
+        if reason != "poll" or not data:
+            return None
+        ems_version = data.get("ems_version")
+        if ems_version is None:
+            return None
+
+        firmware_changed = str(state.attributes.get("ems_version")) != str(ems_version)
+        changed = self.update_ems_version(ems_version)
+        ceiling = self._capabilities.max_charge_power_w
+        device_changed = (
+            state.device_max_charge_power != ceiling
+            or state.device_max_discharge_power != ceiling
+        )
+        configured_charge = state.configured_max_charge_power
+        configured_discharge = state.configured_max_discharge_power
+        configured_changed = False
+        if configured_charge > ceiling:
+            configured_charge = ceiling
+            configured_changed = True
+        if configured_discharge > ceiling:
+            configured_discharge = ceiling
+            configured_changed = True
+
+        persist: dict = {}
+        message = None
+        if firmware_changed or changed or device_changed or configured_changed:
+            persist = {
+                "ems_version": int(ems_version),
+                "device_max_charge_power": ceiling,
+                "device_max_discharge_power": ceiling,
+            }
+            if configured_changed:
+                persist["max_charge_power"] = configured_charge
+                persist["max_discharge_power"] = configured_discharge
+            if changed or configured_changed or device_changed:
+                message = "Applied Venus D EMS %s power ceiling: %d W" % (
+                    ems_version,
+                    ceiling,
+                )
+        return DriverReconciliation(
+            device_max_charge_power=ceiling,
+            device_max_discharge_power=ceiling,
+            configured_max_charge_power=configured_charge if configured_changed else None,
+            configured_max_discharge_power=(
+                configured_discharge if configured_changed else None
+            ),
+            attributes={"ems_version": ems_version},
+            persist=persist,
+            message=message,
+        )
 
     # --- identity -----------------------------------------------------------
 

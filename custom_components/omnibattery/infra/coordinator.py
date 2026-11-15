@@ -28,6 +28,8 @@ from ..const import (
 )
 from ..drivers.base import (
     DriverContext,
+    DriverReconciliation,
+    ReconcileState,
     SetpointResult,
     resolve_battery_version,
     stored_battery_value,
@@ -543,17 +545,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             if battery_config.get("device_max_discharge_power") is not None
             else self.driver.capabilities.max_discharge_power_w
         )
-        if self.brand == "marstek" and self.battery_version == "vD":
-            # A stale config entry may still carry the former unconditional
-            # 2500 W device cap.  The firmware-aware driver is authoritative.
-            self.device_max_charge_power = min(
-                self.device_max_charge_power,
-                self.driver.capabilities.max_charge_power_w,
-            )
-            self.device_max_discharge_power = min(
-                self.device_max_discharge_power,
-                self.driver.capabilities.max_discharge_power_w,
-            )
+        self._reconcile_driver("init")
         if self.traits.fixed_power_envelope:
             # Sessy has a fixed asymmetric envelope. Clamp malformed legacy
             # entries (for example the former symmetric 5,000 W default) so
@@ -583,27 +575,67 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         """
         return self.driver.capabilities
 
-    def _sync_driver_definitions(self) -> None:
+    def _sync_driver_definitions(self, reason: str | None = None) -> None:
         """Refresh the coordinator's key metadata after driver identity detection.
 
         Some drivers discover the exact product only after connecting. Keep the
         poll-loop definitions aligned with the driver's dynamic definitions so a
         model-specific entity cannot be created or scaled from the pre-connect
-        fallback set.
+        fallback set. With a ``reason`` the driver then reconciles (see
+        ``_reconcile_driver``).
         """
         self._def_by_key = {d["key"]: d for d in self._all_definitions}
-        # A reconnect can refine an Anker identity after an earlier poll, and
-        # DataUpdateCoordinator merges snapshots instead of expiring keys. Drop
-        # PV fields that are no longer part of the model's contract so a stale
-        # compatible-model reading cannot reach totals or the dashboard.
-        if (
-            self.brand == "anker"
-            and not getattr(self.driver, "has_independent_pv", False)
-        ):
+        if reason is not None:
+            self._reconcile_driver(reason)
+
+    def _reconcile_driver(self, reason: str) -> None:
+        """Ask the driver to reconcile at ``reason`` and apply what it returns."""
+        data = getattr(self, "data", None)
+        state = ReconcileState(
+            device_max_charge_power=self.device_max_charge_power,
+            device_max_discharge_power=self.device_max_discharge_power,
+            configured_max_charge_power=self.configured_max_charge_power,
+            configured_max_discharge_power=self.configured_max_discharge_power,
+            attributes={
+                name: getattr(self, name, None)
+                for name in self.driver.coordinator_attributes()
+            },
+        )
+        self._apply_reconciliation(
+            self.driver.reconcile(
+                data if isinstance(data, dict) else {}, reason=reason, state=state
+            )
+        )
+
+    def _apply_reconciliation(self, result: DriverReconciliation | None) -> None:
+        """Apply a driver's reconciliation (order documented on the dataclass)."""
+        if result is None:
+            return
+        for attribute, value in result.attributes.items():
+            setattr(self, attribute, value)
+        if result.drop_keys:
             data = getattr(self, "data", None)
             if isinstance(data, dict):
-                for key in ("solar_power", "pv_power", "third_party_pv_power"):
+                for key in result.drop_keys:
                     data.pop(key, None)
+        if result.definitions_changed:
+            self._def_by_key = {d["key"]: d for d in self.driver.all_definitions}
+        if result.device_max_charge_power is not None:
+            self.device_max_charge_power = result.device_max_charge_power
+        if result.device_max_discharge_power is not None:
+            self.device_max_discharge_power = result.device_max_discharge_power
+        if result.configured_max_charge_power is not None:
+            self.configured_max_charge_power = result.configured_max_charge_power
+        if result.configured_max_discharge_power is not None:
+            self.configured_max_discharge_power = result.configured_max_discharge_power
+        if result.max_soc is not None:
+            self.max_soc = result.max_soc
+        if result.min_soc is not None:
+            self.min_soc = result.min_soc
+        for key, value in result.persist.items():
+            self.persist_battery_config(key, value)
+        if result.message:
+            _LOGGER.info("[%s] %s", self.name, result.message)
 
     def _recompute_effective_power_limits(self) -> None:
         """Recompute the control envelope from device and configured limits."""
@@ -857,124 +889,10 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         if connected:
             sync_definitions = getattr(self, "_sync_driver_definitions", None)
             if sync_definitions is not None:
-                sync_definitions()
-            sync_model = getattr(self, "_sync_detected_zendure_model", None)
-            if sync_model is not None:
-                sync_model()
+                sync_definitions("connect")
             self._is_connected = True
             self._consecutive_failures = 0
         return connected
-
-    def _sync_detected_zendure_model(self) -> None:
-        """Promote legacy Zendure entries when the device reports a new profile."""
-        if getattr(self, "brand", None) != "zendure":
-            return
-        detected_model = getattr(self.driver, "model_key", None)
-        if not detected_model:
-            return
-
-        driver_caps = self.driver.capabilities
-        model_changed = detected_model != getattr(self, "zendure_model", None)
-        charge_cap_changed = (
-            self.device_max_charge_power != driver_caps.max_charge_power_w
-        )
-        discharge_cap_changed = (
-            self.device_max_discharge_power != driver_caps.max_discharge_power_w
-        )
-        if not (model_changed or charge_cap_changed or discharge_cap_changed):
-            return
-
-        if model_changed:
-            self.zendure_model = detected_model
-            self._def_by_key = {d["key"]: d for d in self.driver.all_definitions}
-            self.persist_battery_config("zendure_model", detected_model)
-        if charge_cap_changed:
-            self.device_max_charge_power = driver_caps.max_charge_power_w
-            self.persist_battery_config(
-                "device_max_charge_power", driver_caps.max_charge_power_w
-            )
-        if discharge_cap_changed:
-            self.device_max_discharge_power = driver_caps.max_discharge_power_w
-            self.persist_battery_config(
-                "device_max_discharge_power", driver_caps.max_discharge_power_w
-            )
-        _LOGGER.info(
-            "[%s] Synchronized Zendure device profile %s (%d W charge / %d W discharge)",
-            self.name,
-            detected_model,
-            self.device_max_charge_power,
-            self.device_max_discharge_power,
-        )
-
-    def _sync_zendure_inverse_max_power(self) -> None:
-        """Keep Zendure's reported inverter cap on the canonical control path."""
-        if getattr(self, "brand", None) != "zendure" or not self.data:
-            return
-        reported_limit = self.data.get("inverse_max_power")
-        if reported_limit is None:
-            return
-        try:
-            reported_limit = int(reported_limit)
-        except (TypeError, ValueError):
-            return
-        if reported_limit <= 0:
-            return
-        if reported_limit == self.configured_max_discharge_power:
-            return
-
-        old_limit = self.effective_max_discharge_power
-        self.configured_max_discharge_power = reported_limit
-        self.persist_battery_config("max_discharge_power", reported_limit)
-        _LOGGER.info(
-            "[%s] Synchronized Zendure inverseMaxPower %d W → %d W",
-            self.name,
-            old_limit,
-            self.effective_max_discharge_power,
-        )
-
-    def _sync_marstek_ems_power_ceiling(self) -> None:
-        """Apply the firmware-dependent Venus D power ceiling after polling."""
-        if self.brand != "marstek" or self.battery_version != "vD" or not self.data:
-            return
-        ems_version = self.data.get("ems_version")
-        if ems_version is None:
-            return
-
-        firmware_changed = str(self.ems_version) != str(ems_version)
-        changed = self.driver.update_ems_version(ems_version)
-        ceiling = self.driver.capabilities.max_charge_power_w
-        device_changed = (
-            self.device_max_charge_power != ceiling
-            or self.device_max_discharge_power != ceiling
-        )
-        self.ems_version = ems_version
-        self.device_max_charge_power = ceiling
-        self.device_max_discharge_power = ceiling
-
-        configured_changed = False
-        if self.configured_max_charge_power > ceiling:
-            self.configured_max_charge_power = ceiling
-            configured_changed = True
-        if self.configured_max_discharge_power > ceiling:
-            self.configured_max_discharge_power = ceiling
-            configured_changed = True
-
-        if not (firmware_changed or changed or device_changed or configured_changed):
-            return
-
-        self.persist_battery_config("ems_version", int(ems_version))
-        self.persist_battery_config("device_max_charge_power", ceiling)
-        self.persist_battery_config("device_max_discharge_power", ceiling)
-        if configured_changed:
-            self.persist_battery_config("max_charge_power", self.configured_max_charge_power)
-            self.persist_battery_config("max_discharge_power", self.configured_max_discharge_power)
-        if changed or configured_changed or device_changed:
-            _LOGGER.info(
-                "[%s] Applied Venus D EMS %s power ceiling: %d W",
-                self.name,
-                ems_version,
-                ceiling,
-            )
 
     async def disconnect(self) -> None:
         """Disconnect from the battery via the driver."""
@@ -1037,10 +955,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             if connected:
                 sync_definitions = getattr(self, "_sync_driver_definitions", None)
                 if sync_definitions is not None:
-                    sync_definitions()
-                sync_model = getattr(self, "_sync_detected_zendure_model", None)
-                if sync_model is not None:
-                    sync_model()
+                    sync_definitions("connect")
                 self._consecutive_failures = 0
                 self._is_connected = True
                 self._suspension_reset_time = None
@@ -1392,7 +1307,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                     snapshot = await self.driver.read_telemetry(fetch_keys)
                 sync_definitions = getattr(self, "_sync_driver_definitions", None)
                 if sync_definitions is not None:
-                    sync_definitions()
+                    sync_definitions("read_group")
                 # Yield so a control writer waiting on self.lock can acquire it
                 # before the loop re-enters `async with` (otherwise the tight loop
                 # starves apply_power).
@@ -1542,18 +1457,13 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         if update_backup_discharge is not None:
             update_backup_discharge(updated_data)
 
-        sync_marstek_ceiling = getattr(self, "_sync_marstek_ems_power_ceiling", None)
-        if sync_marstek_ceiling is not None:
-            sync_marstek_ceiling()
-
-        # Zendure names its writable discharge ceiling ``inverseMaxPower``.
-        # Treat the reported value like the canonical max_discharge_power used
-        # by register-backed drivers so an existing 4000 W device setting repairs
-        # a legacy 2400 W config entry immediately after startup, without requiring
-        # the user to move the number entity once after upgrading.
-        sync_inverse_max = getattr(self, "_sync_zendure_inverse_max_power", None)
-        if sync_inverse_max is not None:
-            sync_inverse_max()
+        # The driver follows what the device reports: the firmware-dependent
+        # power ceiling, a reported discharge ceiling that repairs a legacy
+        # config entry, and a device SOC ceiling/floor kept in ``data`` under
+        # keys other than the ``*_cutoff_capacity`` registers.
+        reconcile_driver = getattr(self, "_reconcile_driver", None)
+        if reconcile_driver is not None:
+            reconcile_driver("poll")
 
         # Drivers without a hardware nominal-capacity value (Zendure and Sessy)
         # need the configured value surfaced as battery_total_energy so stored
@@ -1578,21 +1488,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # ceiling and the user's software cap remains authoritative.
         if "charging_cutoff_capacity" in self.data:
             self.max_soc = int(self.data["charging_cutoff_capacity"])
-        # Registerless drivers (Zendure) expose the device SOC ceiling as soc_set
-        # instead of charging_cutoff_capacity. Sync it so coordinator.max_soc tracks
-        # the user-configured ceiling; otherwise it stays pinned at the 100% default
-        # and the full-charge taper machinery stays armed even when the user sets a
-        # lower cap.
-        if "soc_set" in self.data:
-            self.max_soc = int(self.data["soc_set"])
         if "discharging_cutoff_capacity" in self.data:
             self.min_soc = int(self.data["discharging_cutoff_capacity"])
-        # Registerless drivers (Zendure) expose the device discharge floor as min_soc
-        # instead of discharging_cutoff_capacity. Same key-mismatch as soc_set above:
-        # the number entity writes only to the device, so without this sync
-        # coordinator.min_soc stays at the construction default across restarts.
-        if "min_soc" in self.data:
-            self.min_soc = int(self.data["min_soc"])
         for key in _sync_device_reported_limits(self):
             await self._restore_zeroed_power_limit(key)
         _stamp_native_daily_reset_dates(self)

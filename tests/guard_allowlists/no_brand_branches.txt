@@ -771,33 +771,8 @@ frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.battery_version == 'vD'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'marstek'
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:indevolt_request_speed
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:zendure_model
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:marstek
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:identifier:sync_marstek_ceiling
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:identifier:sync_marstek_ceiling
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:identifier:sync_marstek_ceiling
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:literal:marstek
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_detected_zendure_model:compare:getattr(self, 'brand', None) != 'zendure'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_detected_zendure_model:identifier:zendure_model
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_detected_zendure_model:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_detected_zendure_model:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_detected_zendure_model:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_driver_definitions:compare:self.brand == 'anker'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_driver_definitions:literal:anker
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_marstek_ems_power_ceiling:compare:self.battery_version != 'vD'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_marstek_ems_power_ceiling:compare:self.brand != 'marstek'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_marstek_ems_power_ceiling:literal:marstek
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_zendure_inverse_max_power:compare:getattr(self, 'brand', None) != 'zendure'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator._sync_zendure_inverse_max_power:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.async_reconnect_fresh:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.connect:literal:zendure
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_detected_zendure_model
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_marstek_ems_power_ceiling
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator:identifier:_sync_zendure_inverse_max_power
 number.py:<module>:identifier:MarstekArbitrageNumber
 number.py:<module>:identifier:MarstekBackupThresholdNumber
 number.py:<module>:identifier:MarstekChargeHysteresisNumber

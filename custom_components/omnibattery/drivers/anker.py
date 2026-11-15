@@ -29,6 +29,7 @@ from .base import (
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
+    DriverReconciliation,
     DriverTraits,
     DELIVERED_AC_POWER_KEY,
     ReadGroup,
@@ -370,6 +371,21 @@ class AnkerModbusDriver(BatteryDriver):
     def is_solarbank_xe_ac(self) -> bool:
         """Whether the connected unit is a Solarbank XE AC SKU."""
         return self._product_code in _XE_AC_PRODUCT_CODES
+
+    def reconcile(
+        self, data, *, reason, state=None
+    ) -> DriverReconciliation | None:
+        """Drop PV fields a model without independent PV must not keep.
+
+        A reconnect can refine the identity after an earlier poll, and the
+        coordinator merges snapshots instead of expiring keys, so a stale
+        compatible-model reading could otherwise reach totals or the dashboard.
+        """
+        if reason not in ("connect", "read_group") or self.has_independent_pv:
+            return None
+        return DriverReconciliation(
+            drop_keys=("solar_power", "pv_power", "third_party_pv_power")
+        )
 
     @property
     def has_independent_pv(self) -> bool:
