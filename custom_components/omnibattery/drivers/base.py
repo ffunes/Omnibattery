@@ -35,7 +35,9 @@ from ..const import (
     CONF_BATTERY_VERSION,
     DEFAULT_VERSION,
     NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
+    MAX_POWER_BY_VERSION,
     SUPPORTED_VERSIONS,
+    max_power_for_battery_version,
 )
 
 if TYPE_CHECKING:
@@ -150,6 +152,15 @@ class DriverTraits:
     # fixed options (Marstek v2/v3: 800 W or 2500 W), so the user's own limit
     # must survive polling.
     hardware_power_cap_choices: bool = False
+    # The config flow's battery-capacity field: Sessy cannot report one
+    # ("required"), Zendure and Hoymiles can ("optional"), the rest have none.
+    capacity_field: Literal["required", "optional", "none"] = "none"
+    # Offered range of the minimum-SOC control in the config flow: (low, high,
+    # default). Defaults are the Marstek v2 form's.
+    min_soc_range: tuple[int, int, int] = (12, 30, 12)
+    # Low bound of the maximum-SOC control (its high bound and default are 100).
+    # Marstek v3/vA/vD enforce SOC in software, so theirs is lower.
+    max_soc_low: int = 80
 
 
 @dataclass(frozen=True)
@@ -503,6 +514,19 @@ class BatteryDriver(ABC):
             battery_config.get("port"),
             battery_config.get("serial_port"),
         )
+
+    @classmethod
+    def slot_power_ceiling(cls, battery_config: Mapping) -> Optional[int]:
+        """Hardware power ceiling of the time-slot forms; None = the configured max.
+
+        Follows the stored Marstek ``battery_version`` table for any brand, as the
+        config flow always has: it freezes the stale key a brand change in the
+        options flow leaves behind (plan section 8, row #51).
+        """
+        version = battery_config.get(CONF_BATTERY_VERSION)
+        if version in MAX_POWER_BY_VERSION:
+            return max_power_for_battery_version(version, battery_config.get("ems_version"))
+        return None
 
     def coordinator_attributes(self) -> dict[str, Any]:
         """Brand-owned config values the coordinator mirrors as public attributes."""

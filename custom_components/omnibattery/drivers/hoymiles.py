@@ -191,7 +191,9 @@ class HoymilesMqttDriver(BatteryDriver):
     """Push telemetry and external-power control for one Hoymiles system."""
 
     BRAND = "hoymiles"
-    TRAITS = DriverTraits(supports_voltage_taper=False)
+    TRAITS = DriverTraits(
+        supports_voltage_taper=False, capacity_field="optional", min_soc_range=(0, 30, 10)
+    )
     LABEL = "Hoymiles MQTT"
     MANUFACTURER = "Hoymiles"
     DEFAULT_MODEL = "MS-A2"

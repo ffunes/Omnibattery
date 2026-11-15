@@ -374,6 +374,8 @@ class ZendureLocalDriver(BatteryDriver):
         device_owns_initial_config=True,
         ip_addressed=True,
         cutoff_without_inverter_state=True,
+        capacity_field="optional",
+        min_soc_range=(5, 50, 12),
     )
     LABEL = "Zendure SolarFlow"
     MANUFACTURER = "Zendure"

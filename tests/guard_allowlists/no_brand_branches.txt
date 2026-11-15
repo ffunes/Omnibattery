@@ -21,9 +21,7 @@ config_flow.py:<module>:identifier:_ANKER_MAX_POWER_W
 config_flow.py:<module>:identifier:_HOYMILES_MODEL_AUTO
 config_flow.py:<module>:identifier:_HUAWEI_MAX_POWER_W
 config_flow.py:<module>:identifier:_INDEVOLT_DEFAULT_MAX_POWER_W
-config_flow.py:<module>:identifier:_INDEVOLT_DEFAULT_MIN_SOC
 config_flow.py:<module>:identifier:_INDEVOLT_DEFAULT_PORT
-config_flow.py:<module>:identifier:_SESSY_DEFAULT_MIN_SOC
 config_flow.py:<module>:identifier:_SESSY_MAX_CHARGE_POWER_W
 config_flow.py:<module>:identifier:_SESSY_MAX_DISCHARGE_POWER_W
 config_flow.py:<module>:identifier:_anker_apply_probe_caps
@@ -208,66 +206,7 @@ config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection_zendure:lite
 config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection_zendure:literal:zendure
 config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection_zendure:literal:zendure
 config_flow.py:MarstekVenusConfigFlow.async_step_battery_connection_zendure:literal:zendure
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand != 'anker'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'anker'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'anker'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'hoymiles'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'hoymiles'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'hoymiles'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'huawei'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'indevolt'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'marstek'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'sessy'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'sessy'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand == 'zendure'
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand in ('zendure', 'anker', 'sessy', 'hoymiles', 'huawei', 'indevolt')
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand in ('zendure', 'hoymiles')
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand in ('zendure', 'sessy', 'hoymiles')
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:brand not in ('zendure', 'anker', 'sessy', 'hoymiles', 'huawei', 'indevolt')
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:merged.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:compare:self._current_battery_data.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_SESSY_MAX_CHARGE_POWER_W
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_SESSY_MAX_DISCHARGE_POWER_W
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_anker_power_ceilings
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_anker_power_ceilings
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_hoymiles_capacity_default
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_hoymiles_capacity_default
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_hoymiles_power_ceilings
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_huawei_power_ceilings
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_indevolt_power_ceilings
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:identifier:_zendure_power_limits
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:2400ac
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:anker
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:anker
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:anker
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:anker
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:anker
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:hoymiles
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:hoymiles
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:hoymiles
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:hoymiles
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:hoymiles
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:hoymiles
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:hoymiles
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:huawei
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:huawei
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:huawei
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:indevolt
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:indevolt
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:indevolt
 config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:sessy
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:sessy
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:sessy
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:sessy
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:sessy
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:zendure
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:zendure
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:zendure
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:zendure
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:zendure
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:zendure
 config_flow.py:MarstekVenusConfigFlow.async_step_indevolt_mode_notice:identifier:async_step_indevolt_request_speed
 config_flow.py:MarstekVenusConfigFlow.async_step_indevolt_mode_notice:literal:indevolt
 config_flow.py:MarstekVenusConfigFlow.async_step_indevolt_request_speed:identifier:CONF_INDEVOLT_REQUEST_SPEED
@@ -555,71 +494,7 @@ config_flow.py:OptionsFlowHandler.async_step_battery_connection_zendure:literal:
 config_flow.py:OptionsFlowHandler.async_step_battery_connection_zendure:literal:zendure
 config_flow.py:OptionsFlowHandler.async_step_battery_connection_zendure:literal:zendure
 config_flow.py:OptionsFlowHandler.async_step_battery_connection_zendure:literal:zendure
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand != 'anker'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'anker'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'anker'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'hoymiles'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'hoymiles'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'hoymiles'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'hoymiles'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'huawei'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'indevolt'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'marstek'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'sessy'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'sessy'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand == 'zendure'
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand in ('zendure', 'anker', 'sessy', 'hoymiles', 'huawei', 'indevolt')
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand in ('zendure', 'hoymiles')
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand in ('zendure', 'sessy', 'hoymiles')
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:brand not in ('zendure', 'anker', 'sessy', 'hoymiles', 'huawei', 'indevolt')
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:current_battery.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:merged.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:self._current_battery_data.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:compare:self._current_battery_data.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_SESSY_MAX_CHARGE_POWER_W
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_SESSY_MAX_DISCHARGE_POWER_W
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_anker_power_ceilings
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_anker_power_ceilings
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_hoymiles_capacity_default
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_hoymiles_capacity_default
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_hoymiles_capacity_default
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_hoymiles_power_ceilings
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_huawei_power_ceilings
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_indevolt_power_ceilings
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:identifier:_zendure_power_limits
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:2400ac
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:anker
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:anker
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:anker
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:anker
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:anker
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:hoymiles
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:hoymiles
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:hoymiles
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:hoymiles
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:hoymiles
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:hoymiles
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:hoymiles
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:hoymiles
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:huawei
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:huawei
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:huawei
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:indevolt
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:indevolt
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:indevolt
 config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:sessy
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:sessy
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:sessy
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:sessy
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:sessy
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:zendure
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:zendure
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:zendure
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:zendure
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:zendure
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:zendure
 config_flow.py:OptionsFlowHandler.async_step_indevolt_mode_notice:identifier:async_step_indevolt_request_speed
 config_flow.py:OptionsFlowHandler.async_step_indevolt_mode_notice:literal:indevolt
 config_flow.py:OptionsFlowHandler.async_step_indevolt_request_speed:identifier:CONF_INDEVOLT_REQUEST_SPEED
@@ -685,25 +560,69 @@ config_flow.py:_indevolt_request_speed:identifier:CONF_INDEVOLT_REQUEST_SPEED
 config_flow.py:_indevolt_request_speed_schema:identifier:CONF_INDEVOLT_REQUEST_SPEED
 config_flow.py:_indevolt_request_speed_schema:identifier:_indevolt_request_speed
 config_flow.py:_indevolt_request_speed_schema:literal:indevolt
+config_flow.py:_legacy_finalize_limits:compare:brand == 'anker'
+config_flow.py:_legacy_finalize_limits:compare:brand == 'hoymiles'
+config_flow.py:_legacy_finalize_limits:compare:brand in ('zendure', 'anker', 'sessy', 'hoymiles', 'huawei', 'indevolt')
+config_flow.py:_legacy_finalize_limits:compare:brand in ('zendure', 'sessy', 'hoymiles')
+config_flow.py:_legacy_finalize_limits:compare:merged.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
+config_flow.py:_legacy_finalize_limits:identifier:_anker_power_ceilings
+config_flow.py:_legacy_finalize_limits:identifier:_hoymiles_capacity_default
+config_flow.py:_legacy_finalize_limits:literal:anker
+config_flow.py:_legacy_finalize_limits:literal:anker
+config_flow.py:_legacy_finalize_limits:literal:hoymiles
+config_flow.py:_legacy_finalize_limits:literal:hoymiles
+config_flow.py:_legacy_finalize_limits:literal:hoymiles
+config_flow.py:_legacy_finalize_limits:literal:huawei
+config_flow.py:_legacy_finalize_limits:literal:indevolt
+config_flow.py:_legacy_finalize_limits:literal:sessy
+config_flow.py:_legacy_finalize_limits:literal:sessy
+config_flow.py:_legacy_finalize_limits:literal:zendure
+config_flow.py:_legacy_finalize_limits:literal:zendure
+config_flow.py:_legacy_limits_schema:compare:battery_data.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
+config_flow.py:_legacy_limits_schema:compare:battery_data.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
+config_flow.py:_legacy_limits_schema:compare:brand == 'anker'
+config_flow.py:_legacy_limits_schema:compare:brand == 'hoymiles'
+config_flow.py:_legacy_limits_schema:compare:brand == 'marstek'
+config_flow.py:_legacy_limits_schema:compare:brand == 'sessy'
+config_flow.py:_legacy_limits_schema:compare:brand in ('zendure', 'hoymiles')
+config_flow.py:_legacy_limits_schema:compare:brand not in ('zendure', 'anker', 'sessy', 'hoymiles', 'huawei', 'indevolt')
+config_flow.py:_legacy_limits_schema:compare:current.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
+config_flow.py:_legacy_limits_schema:identifier:_hoymiles_capacity_default
+config_flow.py:_legacy_limits_schema:literal:anker
+config_flow.py:_legacy_limits_schema:literal:anker
+config_flow.py:_legacy_limits_schema:literal:hoymiles
+config_flow.py:_legacy_limits_schema:literal:hoymiles
+config_flow.py:_legacy_limits_schema:literal:hoymiles
+config_flow.py:_legacy_limits_schema:literal:huawei
+config_flow.py:_legacy_limits_schema:literal:indevolt
+config_flow.py:_legacy_limits_schema:literal:marstek
+config_flow.py:_legacy_limits_schema:literal:sessy
+config_flow.py:_legacy_limits_schema:literal:sessy
+config_flow.py:_legacy_limits_schema:literal:zendure
+config_flow.py:_legacy_limits_schema:literal:zendure
+config_flow.py:_legacy_power_ceilings:compare:brand == 'anker'
+config_flow.py:_legacy_power_ceilings:compare:brand == 'hoymiles'
+config_flow.py:_legacy_power_ceilings:compare:brand == 'huawei'
+config_flow.py:_legacy_power_ceilings:compare:brand == 'indevolt'
+config_flow.py:_legacy_power_ceilings:compare:brand == 'sessy'
+config_flow.py:_legacy_power_ceilings:compare:brand == 'zendure'
+config_flow.py:_legacy_power_ceilings:identifier:_SESSY_MAX_CHARGE_POWER_W
+config_flow.py:_legacy_power_ceilings:identifier:_SESSY_MAX_DISCHARGE_POWER_W
+config_flow.py:_legacy_power_ceilings:identifier:_anker_power_ceilings
+config_flow.py:_legacy_power_ceilings:identifier:_hoymiles_power_ceilings
+config_flow.py:_legacy_power_ceilings:identifier:_huawei_power_ceilings
+config_flow.py:_legacy_power_ceilings:identifier:_indevolt_power_ceilings
+config_flow.py:_legacy_power_ceilings:identifier:_zendure_power_limits
+config_flow.py:_legacy_power_ceilings:literal:2400ac
+config_flow.py:_legacy_power_ceilings:literal:anker
+config_flow.py:_legacy_power_ceilings:literal:hoymiles
+config_flow.py:_legacy_power_ceilings:literal:huawei
+config_flow.py:_legacy_power_ceilings:literal:indevolt
+config_flow.py:_legacy_power_ceilings:literal:sessy
+config_flow.py:_legacy_power_ceilings:literal:zendure
+config_flow.py:_legacy_power_ceilings:literal:zendure
 config_flow.py:_seed_software_power_limits:compare:brand != 'zendure'
 config_flow.py:_seed_software_power_limits:literal:zendure
-config_flow.py:_soc_selector_limits:compare:brand == 'anker'
-config_flow.py:_soc_selector_limits:compare:brand == 'hoymiles'
-config_flow.py:_soc_selector_limits:compare:brand == 'huawei'
-config_flow.py:_soc_selector_limits:compare:brand == 'indevolt'
-config_flow.py:_soc_selector_limits:compare:brand == 'marstek'
-config_flow.py:_soc_selector_limits:compare:brand == 'sessy'
-config_flow.py:_soc_selector_limits:compare:brand == 'zendure'
-config_flow.py:_soc_selector_limits:identifier:_INDEVOLT_DEFAULT_MIN_SOC
-config_flow.py:_soc_selector_limits:identifier:_SESSY_DEFAULT_MIN_SOC
-config_flow.py:_soc_selector_limits:literal:anker
-config_flow.py:_soc_selector_limits:literal:hoymiles
-config_flow.py:_soc_selector_limits:literal:huawei
-config_flow.py:_soc_selector_limits:literal:indevolt
-config_flow.py:_soc_selector_limits:literal:marstek
-config_flow.py:_soc_selector_limits:literal:sessy
-config_flow.py:_soc_selector_limits:literal:zendure
-config_flow.py:_soc_selector_limits:lookup:REGISTER_MAP.get(battery_version, {})
 config_flow.py:_validate_anker_connection:compare:getattr(coordinator, 'brand', None) == 'anker'
 config_flow.py:_validate_anker_connection:identifier:AnkerModbusDriver
 config_flow.py:_validate_anker_connection:literal:anker

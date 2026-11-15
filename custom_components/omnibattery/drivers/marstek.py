@@ -25,11 +25,13 @@ import math
 from typing import Optional
 
 from ..const import (
+    CONF_BATTERY_VERSION,
     CONF_DC_PV_CONNECTED,
     CONF_RS485_GATEWAY,
     CONF_SERIAL_PORT,
     CONF_SLAVE_ID,
     DEFAULT_SLAVE_ID,
+    DEFAULT_VERSION,
     MESSAGE_WAIT_MS,
     MESSAGE_WAIT_MS_RS485_GATEWAY,
     PACK_MAX_CELL_KEYS,
@@ -320,12 +322,28 @@ class MarstekModbusDriver(BatteryDriver):
 
     @classmethod
     def traits_for(cls, battery_config) -> DriverTraits:
-        # v2/v3 only: their app max-power setting is an 800/2500 W selector.
-        return replace(
+        traits = replace(
             super().traits_for(battery_config),
+            # v2/v3 only: their app max-power setting is an 800/2500 W selector.
             hardware_power_cap_choices=resolve_battery_version(battery_config)
             in ("v2", "v3"),
         )
+        # v3/vA/vD enforce the SOC limits in software, so the 30 % of the v2
+        # register doesn't apply: the config flow offers what the SOC limit
+        # entities offer. Read from the raw stored version, as the form always
+        # has (an unsupported one has no cutoff register either).
+        version = battery_config.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
+        if REGISTER_MAP.get(version, {}).get("discharging_cutoff_capacity") is None:
+            traits = replace(
+                traits,
+                min_soc_range=(
+                    traits.min_soc_range[0],
+                    int(DriverCapabilities.discharge_cutoff_range[1]),
+                    traits.min_soc_range[2],
+                ),
+                max_soc_low=int(DriverCapabilities.charge_cutoff_range[0]),
+            )
+        return traits
 
     @classmethod
     def from_config(cls, battery_config, context: DriverContext) -> "MarstekModbusDriver":

@@ -104,7 +104,6 @@ from .const import (
     CONF_RS485_GATEWAY,
     CONF_INDEVOLT_REQUEST_SPEED,
     DEFAULT_VERSION,
-    REGISTER_MAP,
     MAX_POWER_BY_VERSION,
     max_power_for_battery_version,
     MAX_BATTERIES,
@@ -150,7 +149,7 @@ from .const import (
     DEFAULT_SLOT_SOC_MAX_CEILING,
     MAX_TIME_SLOTS,
 )
-from .drivers.base import DriverCapabilities
+from .drivers.base import DriverTraits
 from .drivers import registry
 from .drivers.registry import DEFAULT_BRAND
 from .drivers.setup import (
@@ -195,10 +194,8 @@ from .pricing.energyzero import (
 _ANKER_MAX_POWER_W = 3500
 _SESSY_MAX_CHARGE_POWER_W = 2200
 _SESSY_MAX_DISCHARGE_POWER_W = 1700
-_SESSY_DEFAULT_MIN_SOC = 5
 _INDEVOLT_DEFAULT_PORT = 8080
 _INDEVOLT_DEFAULT_MAX_POWER_W = 2400
-_INDEVOLT_DEFAULT_MIN_SOC = 20  # Indevolt's own default reserve, for a battery that reports none
 _HOYMILES_MODEL_AUTO = "auto"
 
 
@@ -581,38 +578,20 @@ def _phase_assignment_is_valid(value: Any) -> bool:
 def _soc_selector_limits(
     brand: str, battery_version: str = DEFAULT_VERSION
 ) -> tuple[int, int, int, int, int, int]:
-    """Return minimum and maximum SOC selector bounds and defaults."""
-    max_lo = 80
-    if brand == "zendure":
-        min_lo, min_hi, min_default = 5, 50, 12
-    elif brand == "anker":
-        min_lo, min_hi, min_default = 0, 20, 10
-    elif brand == "sessy":
-        min_lo, min_hi, min_default = 0, 30, _SESSY_DEFAULT_MIN_SOC
-    elif brand == "indevolt":
-        # The minimum SOC is the battery's own reserve, kept in sync both ways
-        # (drivers/indevolt_settings.py). 5% is the API's hard minimum; the
-        # upper bound matches the driver's discharge_cutoff_range, so saving the
-        # form unchanged never clamps (and so rewrites) the device's value.
-        min_lo, min_hi, min_default = 5, 50, _INDEVOLT_DEFAULT_MIN_SOC
-    elif brand == "hoymiles":
-        min_lo, min_hi, min_default = 0, 30, 10
-    elif brand == "huawei":
-        # The inverter keeps its own discharge cutoff as a backstop; this window
-        # is what Omnibattery enforces on top of it.
-        min_lo, min_hi, min_default = 0, 30, 10
-    else:
-        min_lo, min_hi, min_default = 12, 30, 12
-        # v3/vA/vD enforce this in software, so the 30 % of the v2 register
-        # doesn't apply. The form offers what the SOC limit entities offer:
-        # otherwise saving it moves a value set on those entities.
-        if brand == "marstek" and REGISTER_MAP.get(battery_version, {}).get("discharging_cutoff_capacity") is None:
-            min_hi = int(DriverCapabilities.discharge_cutoff_range[1])
-            max_lo = int(DriverCapabilities.charge_cutoff_range[0])
+    """Return minimum and maximum SOC selector bounds and defaults.
 
+    Read from the driver's ``DriverTraits``; a brand that is not registered gets
+    the trait defaults (the Marstek v2 form).
+    """
+    traits = (
+        registry.traits_for_brand(brand, {CONF_BATTERY_VERSION: battery_version})
+        if registry.is_registered(brand)
+        else DriverTraits()
+    )
+    min_lo, min_hi, min_default = traits.min_soc_range
     # Omnibattery enforces the charge ceiling in software. Sessy's reported SOC
     # spans 0–100 %, so the standard 100 % ceiling is valid for this driver.
-    return min_lo, min_hi, min_default, max_lo, 100, 100
+    return min_lo, min_hi, min_default, traits.max_soc_low, 100, 100
 
 
 def _indevolt_connection_schema(defaults: dict, battery_num: int) -> vol.Schema:
@@ -931,6 +910,153 @@ _ALL_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 MAX_CHARGING_WINDOWS = 3
 
 
+def _legacy_power_ceilings(brand: str, battery_data: dict) -> tuple[int, int]:
+    """Power ceilings the limits step offers, per brand (to move into each ``DriverSetup``)."""
+    if brand == "zendure":
+        max_charge_power, max_discharge_power = _zendure_power_limits(
+            battery_data.get("zendure_model", "2400ac_pro")
+        )
+    elif brand == "anker":
+        max_charge_power, max_discharge_power = _anker_power_ceilings(battery_data)
+    elif brand == "sessy":
+        max_charge_power = _SESSY_MAX_CHARGE_POWER_W
+        max_discharge_power = _SESSY_MAX_DISCHARGE_POWER_W
+    elif brand == "indevolt":
+        max_charge_power, max_discharge_power = _indevolt_power_ceilings(battery_data)
+    elif brand == "hoymiles":
+        max_charge_power, max_discharge_power = _hoymiles_power_ceilings(battery_data)
+    elif brand == "huawei":
+        max_charge_power, max_discharge_power = _huawei_power_ceilings(battery_data)
+    else:
+        battery_version = battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
+        max_charge_power = max_discharge_power = max_power_for_battery_version(
+            battery_version, battery_data.get("ems_version")
+        )
+    return max_charge_power, max_discharge_power
+
+
+def _legacy_limits_schema(
+    brand: str, battery_data: dict, base_fields: dict, ctx: SetupContext
+) -> dict:
+    """Brand fields of the limits form (to move into each ``DriverSetup``).
+
+    The two flows build them differently: the config flow always opens on fixed
+    defaults, the options flow on the stored battery's values.
+    """
+    options = ctx.kind is FlowKind.OPTIONS
+    # Options flow: the stored battery with this flow's connection data on top.
+    current = {**ctx.battery, **battery_data} if options and ctx.battery is not None else None
+    fields = dict(base_fields)
+    if brand == "anker":
+        for key in [k for k in fields if str(k.schema) in ("max_charge_power", "max_discharge_power")]:
+            del fields[key]
+    if (
+        brand == "marstek"
+        and battery_data.get(CONF_BATTERY_VERSION) in ("vA", "vD")
+    ):
+        if current is not None:
+            dc_default = current.get(
+                CONF_DC_PV_CONNECTED,
+                current.get(CONF_BATTERY_VERSION) in ("vA", "vD"),
+            )
+        elif options:
+            dc_default = battery_data.get(CONF_BATTERY_VERSION) in ("vA", "vD")
+        else:
+            dc_default = True
+        fields[vol.Required(CONF_DC_PV_CONNECTED, default=dc_default)] = BooleanSelector()
+    if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
+        taper_default = (
+            current.get(
+                CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
+                DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
+            )
+            if current is not None
+            else DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED
+        )
+        fields[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=taper_default)] = bool
+    capacity_default = (
+        _hoymiles_capacity_default(battery_data) if brand == "hoymiles" else 0.0
+    )
+    if current is not None:
+        capacity_default = current.get("battery_capacity_kwh", capacity_default)
+    if brand == "sessy":
+        # Sessy does not report a nominal capacity or identifiable packs.
+        if options:
+            saved_capacity = float(capacity_default)
+            capacity_field = (
+                vol.Required("battery_capacity_kwh", default=saved_capacity)
+                if saved_capacity > 0
+                else vol.Required("battery_capacity_kwh")
+            )
+        else:
+            capacity_field = vol.Required("battery_capacity_kwh")
+        fields[capacity_field] = NumberSelector(
+            NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
+        )
+    elif brand in ("zendure", "hoymiles"):
+        fields[vol.Optional("battery_capacity_kwh", default=capacity_default)] = NumberSelector(
+            NumberSelectorConfig(min=0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
+        )
+    return fields
+
+
+def _legacy_finalize_limits(
+    brand: str, merged: dict, user_input: dict, battery_data: dict, ctx: SetupContext
+) -> None:
+    """Brand values stored by the limits step (to move into each ``DriverSetup``)."""
+    if brand == "anker":
+        # Power caps are device sensors (10036/10038), not setup inputs. The
+        # options flow reads them from the stored battery laid over the new one.
+        source = merged if ctx.kind is FlowKind.OPTIONS else battery_data
+        charge_w, discharge_w = _anker_power_ceilings(source)
+        merged["max_charge_power"] = charge_w
+        merged["max_discharge_power"] = discharge_w
+    _seed_software_power_limits(merged, brand)
+    merged[CONF_DC_PV_CONNECTED] = bool(
+        user_input.get(CONF_DC_PV_CONNECTED, True)
+    ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
+    merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
+        False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt")
+        else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
+    )
+    if brand in ("zendure", "sessy", "hoymiles"):
+        capacity_default = (
+            _hoymiles_capacity_default(battery_data)
+            if brand == "hoymiles" else 0.0
+        )
+        merged["battery_capacity_kwh"] = round(float(user_input.get("battery_capacity_kwh", capacity_default)), 2)
+
+
+class _LegacyLimits:
+    """The limits-step hooks of a brand that has no ``DriverSetup`` yet.
+
+    Same calls as ``DriverSetup``; each delegates to the branches that used to
+    live in the two ``async_step_battery_limits``. Each brand's task moves its
+    branches into its own ``DriverSetup``; the last one empties this.
+    """
+
+    def __init__(self, brand: str) -> None:
+        self.brand = brand
+
+    def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
+        return _legacy_power_ceilings(self.brand, battery_data)
+
+    def limits_schema(self, battery_data: dict, base_fields: dict, ctx: SetupContext) -> dict:
+        return _legacy_limits_schema(self.brand, battery_data, base_fields, ctx)
+
+    def finalize_limits(
+        self, merged: dict, user_input: dict, battery_data: dict, ctx: SetupContext
+    ) -> None:
+        _legacy_finalize_limits(self.brand, merged, user_input, battery_data, ctx)
+
+
+
+def _limits_setup(brand: str):
+    """What the limits step and the slot forms ask: the brand's ``SETUP`` or the legacy branches."""
+    setup = registry.setup_for(brand)
+    return setup if setup is not None else _LegacyLimits(brand)
+
+
 def _normalize_charging_windows(raw) -> list[dict]:
     """Config value (legacy single dict | list | None) → list of window dicts."""
     if not raw:
@@ -1065,9 +1191,9 @@ def _battery_hardware_max(bcfg: dict, power_key: str | None = None) -> int:
     charge and discharge ceilings instead, so falling back to the Marstek v2
     value would incorrectly cap their time-slot overrides at 2500 W.
     """
-    version = bcfg.get(CONF_BATTERY_VERSION)
-    if version in MAX_POWER_BY_VERSION:
-        return max_power_for_battery_version(version, bcfg.get("ems_version"))
+    ceiling = registry.driver_class(bcfg.get("brand", DEFAULT_BRAND)).slot_power_ceiling(bcfg)
+    if ceiling is not None:
+        return ceiling
 
     configured_limits: list[int] = []
     keys = (power_key,) if power_key else ("max_charge_power", "max_discharge_power")
@@ -2434,28 +2560,9 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         errors: dict[str, str] = {}
         battery_num = self.battery_index + 1
         brand = self._current_battery_data.get("brand", "marstek")
-        if brand == "zendure":
-            max_charge_power, max_discharge_power = _zendure_power_limits(
-                self._current_battery_data.get("zendure_model", "2400ac_pro")
-            )
-        elif brand == "anker":
-            max_charge_power, max_discharge_power = _anker_power_ceilings(
-                self._current_battery_data
-            )
-        elif brand == "sessy":
-            max_charge_power = _SESSY_MAX_CHARGE_POWER_W
-            max_discharge_power = _SESSY_MAX_DISCHARGE_POWER_W
-        elif brand == "indevolt":
-            max_charge_power, max_discharge_power = _indevolt_power_ceilings(self._current_battery_data)
-        elif brand == "hoymiles":
-            max_charge_power, max_discharge_power = _hoymiles_power_ceilings(self._current_battery_data)
-        elif brand == "huawei":
-            max_charge_power, max_discharge_power = _huawei_power_ceilings(self._current_battery_data)
-        else:
-            battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
-            max_charge_power = max_discharge_power = max_power_for_battery_version(
-                battery_version, self._current_battery_data.get("ems_version")
-            )
+        limits = _limits_setup(brand)
+        ctx = _setup_context(self, brand)
+        max_charge_power, max_discharge_power = limits.power_ceilings(self._current_battery_data)
         (
             soc_min_lo,
             soc_min_hi,
@@ -2475,19 +2582,15 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 user_input = None
             else:
                 merged = dict(self._current_battery_data)
-                if brand == "anker":
-                    # Power caps are device sensors (10036/10038), not setup inputs.
-                    charge_w, discharge_w = _anker_power_ceilings(self._current_battery_data)
-                    merged["max_charge_power"] = charge_w
-                    merged["max_discharge_power"] = discharge_w
-                else:
-                    merged["max_charge_power"] = int(user_input["max_charge_power"])
-                    merged["max_discharge_power"] = int(user_input["max_discharge_power"])
+                # The form may not offer the power fields (the brand's hook sets them).
+                for key in ("max_charge_power", "max_discharge_power"):
+                    if key in user_input:
+                        merged[key] = int(user_input[key])
                 merged["max_soc"] = int(user_input["max_soc"])
                 merged["min_soc"] = int(user_input["min_soc"])
                 if self.config_data.get(CONF_THREE_PHASE_ENABLED):
                     merged[CONF_BATTERY_PHASE] = normalize_battery_phase(phase)
-                _seed_software_power_limits(merged, brand)
+                limits.finalize_limits(merged, user_input, self._current_battery_data, ctx)
                 # Hysteresis is mandatory; floor the percent against SOC drift.
                 merged["enable_charge_hysteresis"] = True
                 merged["charge_hysteresis_percent"] = max(
@@ -2495,19 +2598,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     int(user_input.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
                 )
                 merged["backup_offgrid_threshold"] = int(user_input.get("backup_offgrid_threshold", 50))
-                merged[CONF_DC_PV_CONNECTED] = bool(
-                    user_input.get(CONF_DC_PV_CONNECTED, True)
-                ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
-                merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt")
-                    else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
-                )
-                if brand in ("zendure", "sessy", "hoymiles"):
-                    capacity_default = (
-                        _hoymiles_capacity_default(self._current_battery_data)
-                        if brand == "hoymiles" else 0.0
-                    )
-                    merged["battery_capacity_kwh"] = round(float(user_input.get("battery_capacity_kwh", capacity_default)), 2)
                 _apply_mac_tracking(user_input, merged)
                 self.battery_configs.append(merged)
                 self.battery_index += 1
@@ -2518,21 +2608,20 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_battery_brand()
 
         _schema: dict = {}
-        if brand != "anker":
-            default_charge = max(
-                100,
-                min(max_charge_power, int(self._current_battery_data.get("max_charge_power", max_charge_power))),
-            )
-            default_discharge = max(
-                100,
-                min(max_discharge_power, int(self._current_battery_data.get("max_discharge_power", max_discharge_power))),
-            )
-            _schema[vol.Required("max_charge_power", default=default_charge)] = NumberSelector(
-                NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
-            )
-            _schema[vol.Required("max_discharge_power", default=default_discharge)] = NumberSelector(
-                NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
-            )
+        default_charge = max(
+            100,
+            min(max_charge_power, int(self._current_battery_data.get("max_charge_power", max_charge_power))),
+        )
+        default_discharge = max(
+            100,
+            min(max_discharge_power, int(self._current_battery_data.get("max_discharge_power", max_discharge_power))),
+        )
+        _schema[vol.Required("max_charge_power", default=default_charge)] = NumberSelector(
+            NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+        )
+        _schema[vol.Required("max_discharge_power", default=default_discharge)] = NumberSelector(
+            NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+        )
         _schema.update({
             vol.Required("max_soc", default=soc_max_default):
                 NumberSelector(NumberSelectorConfig(min=soc_max_lo, max=soc_max_hi, step=1, mode=NumberSelectorMode.SLIDER)),
@@ -2545,28 +2634,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             vol.Required("backup_offgrid_threshold", default=50):
                 NumberSelector(NumberSelectorConfig(min=0, max=2500, step=10, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
         })
-        if (
-            brand == "marstek"
-            and self._current_battery_data.get(CONF_BATTERY_VERSION) in ("vA", "vD")
-        ):
-            _schema[vol.Required(CONF_DC_PV_CONNECTED, default=True)] = BooleanSelector()
-        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
-            _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)] = bool
-        if brand == "sessy":
-            # Sessy does not report a nominal capacity or identifiable packs.
-            _schema[vol.Required("battery_capacity_kwh")] = NumberSelector(
-                NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
-            )
-        elif brand in ("zendure", "hoymiles"):
-            _schema[
-                vol.Optional(
-                    "battery_capacity_kwh",
-                    default=(_hoymiles_capacity_default(self._current_battery_data)
-                             if brand == "hoymiles" else 0.0),
-                )
-            ] = NumberSelector(
-                NumberSelectorConfig(min=0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
-            )
+        _schema = limits.limits_schema(self._current_battery_data, _schema, ctx)
         if self.config_data.get(CONF_THREE_PHASE_ENABLED):
             # Keep the established L1 suggestion for a brand-new setup while
             # allowing the explicit Unassigned option when needed.
@@ -5165,28 +5233,9 @@ class OptionsFlowHandler(OptionsFlow):
         try:
             battery_num = self.battery_index + 1
             brand = self._current_battery_data.get("brand", "marstek")
-            if brand == "zendure":
-                max_charge_power, max_discharge_power = _zendure_power_limits(
-                    self._current_battery_data.get("zendure_model", "2400ac_pro")
-                )
-            elif brand == "anker":
-                max_charge_power, max_discharge_power = _anker_power_ceilings(
-                    self._current_battery_data
-                )
-            elif brand == "sessy":
-                max_charge_power = _SESSY_MAX_CHARGE_POWER_W
-                max_discharge_power = _SESSY_MAX_DISCHARGE_POWER_W
-            elif brand == "indevolt":
-                max_charge_power, max_discharge_power = _indevolt_power_ceilings(self._current_battery_data)
-            elif brand == "hoymiles":
-                max_charge_power, max_discharge_power = _hoymiles_power_ceilings(self._current_battery_data)
-            elif brand == "huawei":
-                max_charge_power, max_discharge_power = _huawei_power_ceilings(self._current_battery_data)
-            else:
-                battery_version = self._current_battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
-                max_charge_power = max_discharge_power = max_power_for_battery_version(
-                    battery_version, self._current_battery_data.get("ems_version")
-                )
+            limits = _limits_setup(brand)
+            ctx = _setup_context(self, brand)
+            max_charge_power, max_discharge_power = limits.power_ceilings(self._current_battery_data)
             (
                 soc_min_lo,
                 soc_min_hi,
@@ -5218,13 +5267,10 @@ class OptionsFlowHandler(OptionsFlow):
                     merged.update(self._current_battery_data)
                 else:
                     merged = dict(self._current_battery_data)
-                if brand == "anker":
-                    charge_w, discharge_w = _anker_power_ceilings(merged)
-                    merged["max_charge_power"] = charge_w
-                    merged["max_discharge_power"] = discharge_w
-                else:
-                    merged["max_charge_power"] = int(user_input["max_charge_power"])
-                    merged["max_discharge_power"] = int(user_input["max_discharge_power"])
+                # The form may not offer the power fields (the brand's hook sets them).
+                for key in ("max_charge_power", "max_discharge_power"):
+                    if key in user_input:
+                        merged[key] = int(user_input[key])
                 merged["max_soc"] = int(user_input["max_soc"])
                 merged["min_soc"] = int(user_input["min_soc"])
                 if self.config_entry.data.get(
@@ -5232,7 +5278,7 @@ class OptionsFlowHandler(OptionsFlow):
                     self.config_data.get(CONF_THREE_PHASE_ENABLED, DEFAULT_THREE_PHASE_ENABLED),
                 ):
                     merged[CONF_BATTERY_PHASE] = normalize_battery_phase(phase)
-                _seed_software_power_limits(merged, brand)
+                limits.finalize_limits(merged, user_input, self._current_battery_data, ctx)
                 # Hysteresis is mandatory; floor the percent against SOC drift.
                 merged["enable_charge_hysteresis"] = True
                 merged["charge_hysteresis_percent"] = max(
@@ -5240,19 +5286,6 @@ class OptionsFlowHandler(OptionsFlow):
                     int(user_input.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
                 )
                 merged["backup_offgrid_threshold"] = int(user_input.get("backup_offgrid_threshold", 50))
-                merged[CONF_DC_PV_CONNECTED] = bool(
-                    user_input.get(CONF_DC_PV_CONNECTED, True)
-                ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
-                merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt")
-                    else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
-                )
-                if brand in ("zendure", "sessy", "hoymiles"):
-                    capacity_default = (
-                        _hoymiles_capacity_default(self._current_battery_data)
-                        if brand == "hoymiles" else 0.0
-                    )
-                    merged["battery_capacity_kwh"] = round(float(user_input.get("battery_capacity_kwh", capacity_default)), 2)
                 _apply_mac_tracking(user_input, merged)
                 self.battery_configs.append(merged)
                 self.battery_index += 1
@@ -5276,19 +5309,6 @@ class OptionsFlowHandler(OptionsFlow):
                         int(current_battery.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
                     ),
                     "backup_offgrid_threshold": current_battery.get("backup_offgrid_threshold", 50),
-                    CONF_DC_PV_CONNECTED: current_battery.get(
-                        CONF_DC_PV_CONNECTED,
-                        current_battery.get(CONF_BATTERY_VERSION) in ("vA", "vD"),
-                    ),
-                    CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED: current_battery.get(
-                        CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-                        DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-                    ),
-                    "battery_capacity_kwh": current_battery.get(
-                        "battery_capacity_kwh",
-                        _hoymiles_capacity_default(self._current_battery_data)
-                        if brand == "hoymiles" else 0.0,
-                    ),
                     CONF_BATTERY_PHASE: normalize_battery_phase(
                         current_battery.get(CONF_BATTERY_PHASE, PHASE_UNASSIGNED)
                     ),
@@ -5313,14 +5333,6 @@ class OptionsFlowHandler(OptionsFlow):
                     "min_soc": self._current_battery_data.get("min_soc", soc_min_default),
                     "charge_hysteresis_percent": DEFAULT_CHARGE_HYSTERESIS_PERCENT,
                     "backup_offgrid_threshold": 50,
-                    CONF_DC_PV_CONNECTED: self._current_battery_data.get(
-                        CONF_BATTERY_VERSION
-                    ) in ("vA", "vD"),
-                    CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED: DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-                    "battery_capacity_kwh": (
-                        _hoymiles_capacity_default(self._current_battery_data)
-                        if brand == "hoymiles" else 0.0
-                    ),
                     CONF_BATTERY_PHASE: PHASE_UNASSIGNED,
                 }
         except Exception as e:
@@ -5328,13 +5340,12 @@ class OptionsFlowHandler(OptionsFlow):
             return self.async_abort(reason="unknown_error")
 
         _schema: dict = {}
-        if brand != "anker":
-            _schema[vol.Required("max_charge_power", default=defaults["max_charge_power"])] = NumberSelector(
-                NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
-            )
-            _schema[vol.Required("max_discharge_power", default=defaults["max_discharge_power"])] = NumberSelector(
-                NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
-            )
+        _schema[vol.Required("max_charge_power", default=defaults["max_charge_power"])] = NumberSelector(
+            NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+        )
+        _schema[vol.Required("max_discharge_power", default=defaults["max_discharge_power"])] = NumberSelector(
+            NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+        )
         _schema.update({
             vol.Required("max_soc", default=max(soc_max_lo, min(soc_max_hi, defaults["max_soc"]))):
                 NumberSelector(NumberSelectorConfig(min=soc_max_lo, max=soc_max_hi, step=1, mode=NumberSelectorMode.SLIDER)),
@@ -5345,32 +5356,7 @@ class OptionsFlowHandler(OptionsFlow):
             vol.Required("backup_offgrid_threshold", default=defaults["backup_offgrid_threshold"]):
                 NumberSelector(NumberSelectorConfig(min=0, max=2500, step=10, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
         })
-        if (
-            brand == "marstek"
-            and self._current_battery_data.get(CONF_BATTERY_VERSION) in ("vA", "vD")
-        ):
-            _schema[
-                vol.Required(
-                    CONF_DC_PV_CONNECTED,
-                    default=defaults[CONF_DC_PV_CONNECTED],
-                )
-            ] = BooleanSelector()
-        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
-            _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=defaults[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED])] = bool
-        if brand == "sessy":
-            saved_capacity = float(defaults["battery_capacity_kwh"])
-            capacity_field = (
-                vol.Required("battery_capacity_kwh", default=saved_capacity)
-                if saved_capacity > 0
-                else vol.Required("battery_capacity_kwh")
-            )
-            _schema[capacity_field] = NumberSelector(
-                NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
-            )
-        elif brand in ("zendure", "hoymiles"):
-            _schema[vol.Optional("battery_capacity_kwh", default=defaults["battery_capacity_kwh"])] = NumberSelector(
-                NumberSelectorConfig(min=0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
-            )
+        _schema = limits.limits_schema(self._current_battery_data, _schema, ctx)
         if self.config_entry.data.get(
             CONF_THREE_PHASE_ENABLED,
             self.config_data.get(CONF_THREE_PHASE_ENABLED, DEFAULT_THREE_PHASE_ENABLED),

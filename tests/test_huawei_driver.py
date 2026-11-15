@@ -2395,12 +2395,16 @@ def test_the_options_limits_use_the_probed_hardware_not_a_marstek_default():
     from custom_components.omnibattery.config_flow import (
         MarstekVenusConfigFlow,
         OptionsFlowHandler,
+        _legacy_power_ceilings,
     )
 
+    # Both flows ask the brand's hook; Huawei's branch is still the legacy one.
     for flow in (MarstekVenusConfigFlow, OptionsFlowHandler):
         source = inspect.getsource(flow.async_step_battery_limits)
-        assert '_huawei_power_ceilings' in source, flow.__name__
-        assert 'brand == "huawei"' in source, flow.__name__
+        assert 'limits.power_ceilings(' in source, flow.__name__
+    source = inspect.getsource(_legacy_power_ceilings)
+    assert '_huawei_power_ceilings' in source
+    assert 'brand == "huawei"' in source
 
 
 def test_reconfiguring_a_huawei_battery_offers_the_huawei_form():

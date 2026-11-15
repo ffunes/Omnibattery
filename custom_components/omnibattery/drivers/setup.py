@@ -36,7 +36,7 @@ from homeassistant.data_entry_flow import FlowResult, FlowResultType
 
 from ..const import DOMAIN
 
-# Ceiling used by the default ``power_ceilings`` (wired in T6.2, unused today).
+# Ceiling used by the default ``power_ceilings``.
 _DEFAULT_CEILING_W = 2500
 
 
@@ -74,8 +74,10 @@ class DriverSetup:
     """A brand's config flow: its steps plus the hooks the shared steps will call.
 
     ``steps`` maps step id -> handler; the handler decides the next step. The
-    five methods below are not called yet (T6.2 wires them); their defaults
-    describe a brand that adds nothing to the shared limits step.
+    five methods below are what the shared ``battery_limits`` step (config and
+    options flow) and the time-slot forms ask of a brand; their defaults describe
+    a brand that adds nothing to them. ``ctx`` is the :class:`SetupContext` of the
+    flow that is running (``ctx.kind`` tells config from options).
     """
 
     def __init__(
@@ -92,20 +94,28 @@ class DriverSetup:
         """(max charge W, max discharge W) offered by the limits step."""
         return _DEFAULT_CEILING_W, _DEFAULT_CEILING_W
 
-    def limits_schema(self, battery_data: dict, base_fields: dict) -> dict:
-        """The limits form fields; may add and remove fields. Default: unchanged."""
+    def limits_schema(self, battery_data: dict, base_fields: dict, ctx: SetupContext) -> dict:
+        """The limits form fields; may add and remove fields. Default: unchanged.
+
+        ``base_fields`` are the shared fields (power, SOC, hysteresis, backup
+        threshold); the brand's own fields go after them. The phase and MAC
+        fields are added by the flow afterwards.
+        """
         return base_fields
 
-    def finalize_limits(self, merged: dict) -> None:
-        """Adjust the battery dict right before it is stored. Default: nothing."""
+    def finalize_limits(
+        self, merged: dict, user_input: dict, battery_data: dict, ctx: SetupContext
+    ) -> None:
+        """Adjust the battery dict right before it is stored. Default: nothing.
+
+        ``merged`` already holds the shared values (the power limits from the form
+        when it has those fields, SOC, hysteresis, backup threshold, phase);
+        ``battery_data`` is the battery as the connection steps left it.
+        """
 
     async def reprobe(self, hass: Any, battery_config: dict, host: str) -> bool:
         """Re-probe a stored battery at a new IP (DHCP). Default: not supported."""
         return False
-
-    def slot_power_ceiling(self, battery_config: dict) -> int | None:
-        """Hardware power ceiling for time slots, ``None`` = use the configured max."""
-        return None
 
 
 def is_flow_result(value: Any) -> bool:
@@ -125,6 +135,7 @@ def live_coordinator(flow: Any, entry: ConfigEntry | None, index: int) -> Any | 
     """The loaded coordinator of battery ``index`` of ``entry``, or ``None``."""
     if entry is None:
         return None
-    data = (flow.hass.data.get(DOMAIN) or {}).get(entry.entry_id) or {}
+    data = (getattr(flow.hass, "data", None) or {}).get(DOMAIN) or {}
+    data = data.get(getattr(entry, "entry_id", None)) or {}
     coordinators = data.get("coordinators") or []
     return coordinators[index] if index < len(coordinators) else None

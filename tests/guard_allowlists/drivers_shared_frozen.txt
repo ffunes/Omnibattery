@@ -16,3 +16,6 @@ drivers/base.py:BatteryDriver.traits_for:version:vD  # §8 #11 dc_pv por versió
 drivers/base.py:BatteryDriver.traits_for:version:vD  # §8 #14 soc_decimals por versión
 # The coordinator validates battery_version for every brand (section 8, T1.1).
 drivers/base.py:resolve_battery_version:version:SUPPORTED_VERSIONS  # §8 T1.1 battery_version en no-Marstek
+# Time-slot ceiling by the stored Marstek version for any brand (row #51; moved
+# here from config_flow._battery_hardware_max, where it was not detected).
+drivers/base.py:BatteryDriver.slot_power_ceiling:version:config_key ems_version  # §8 #51 por versión (deriva OF)

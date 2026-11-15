@@ -568,7 +568,9 @@ class IndevoltDriver(BatteryDriver):
     """Monitor and control one Indevolt battery through its local HTTP API."""
 
     BRAND = "indevolt"
-    TRAITS = DriverTraits(supports_voltage_taper=False, ip_addressed=True)
+    TRAITS = DriverTraits(
+        supports_voltage_taper=False, ip_addressed=True, min_soc_range=(5, 50, 20)
+    )
     LABEL = "Indevolt SolidFlex / PowerFlex"
     MANUFACTURER = "Indevolt"
     DEFAULT_MODEL = "Indevolt"

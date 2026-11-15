@@ -31,4 +31,4 @@ jobs:
       # some other file is skipped by tests/conftest.py in the step above and
       # says so ("needs the HA test plugin"); add its file here.
       - name: Run Home Assistant flow tests
-        run: pytest -o addopts="" tests/test_config_backup.py tests/test_domain_migration.py tests/test_system_uid_migration.py tests/test_config_entry_snapshots.py tests/test_config_flow_special_paths.py tests/test_driver_setup_spike.py
+        run: pytest -o addopts="" tests/test_config_backup.py tests/test_domain_migration.py tests/test_system_uid_migration.py tests/test_config_entry_snapshots.py tests/test_config_flow_special_paths.py tests/test_driver_setup_spike.py tests/test_driver_setup_limits.py

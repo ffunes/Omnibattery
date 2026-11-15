@@ -305,7 +305,9 @@ class AnkerModbusDriver(BatteryDriver):
     """Modbus TCP driver for Anker SOLIX Solarbank Max AC / 4 E5000 Pro / XE AC."""
 
     BRAND = "anker"
-    TRAITS = DriverTraits(supports_voltage_taper=False, ip_addressed=True)
+    TRAITS = DriverTraits(
+        supports_voltage_taper=False, ip_addressed=True, min_soc_range=(0, 20, 10)
+    )
     LABEL = "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"
     MANUFACTURER = "Anker"
     DEFAULT_MODEL = "Solarbank Max AC"
