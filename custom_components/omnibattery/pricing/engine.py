@@ -1804,6 +1804,9 @@ class PricingManager:
         """Return whether Smart Pre-discharge protects this solar-risk window."""
         if not self._smart_predischarge_enabled():
             return False
+        room = self._plan_room()
+        if room is not None:
+            return any(slot.start < risk.end and risk.start < slot.end for risk in room.risk)
         plan = getattr(self._controller, "_curtailment_plan", None)
         return bool(
             plan
@@ -2498,16 +2501,24 @@ class PricingManager:
         charge target is reduced or stopped.  A missing measurement never shrinks
         the forecast reserve.
         """
+        room = self._plan_room()
         risk_slots = [
-            slot for slot in getattr(plan, "risk_slots", []) if slot.end > now
+            slot
+            for slot in (room.risk if room is not None else getattr(plan, "risk_slots", []))
+            if slot.end > now
         ]
-        forecast_reserves = getattr(plan, "solar_reserve_by_slot", {}) or {}
+        # With the plan deciding, its own per-slot reserve (the cap's measure,
+        # no solar margin, no measured scaling: the plan re-plans on those).
+        forecast_reserves = (
+            room.reserve if room is not None else getattr(plan, "solar_reserve_by_slot", {}) or {}
+        )
         forecast_solar = getattr(plan, "solar_forecast_by_slot", {}) or {}
         forecast_consumption = getattr(plan, "consumption_forecast_by_slot", {}) or {}
-        actual_mapping = self._curtailment_actual_solar_mapping(plan)
+        actual_mapping = None if room is not None else self._curtailment_actual_solar_mapping(plan)
         actual_total_ratio: float | None = None
         if (
-            actual_mapping is None
+            room is None
+            and actual_mapping is None
             and risk_slots
             and not getattr(plan, "solar_forecast_is_remaining", False)
         ):
@@ -2567,9 +2578,9 @@ class PricingManager:
                 # already-capped forecast reserve by the observed surplus ratio.
                 reserve += fallback_reserve * actual_surplus / forecast_surplus
 
-        if risk_slots:
+        if risk_slots and room is None:
             reserve += max(0.0, float(getattr(plan, "headroom_margin_kwh", 0.0) or 0.0))
-        else:
+        elif not risk_slots:
             reserve = 0.0
 
         current_headroom = sum(
@@ -2934,12 +2945,16 @@ class PricingManager:
         if not self._smart_predischarge_enabled():
             self.clear_curtailment_runtime("feature_disabled")
             return
+        room = self._plan_room()
         plan = getattr(self._controller, "_curtailment_plan", None)
-        if plan is None:
+        # The module's own plan stops only its own decisions: with the
+        # optimizer deciding (``room``) an order for tomorrow's risk must run
+        # even when today's module plan has none.
+        if room is None and plan is None:
             self.clear_curtailment_runtime("no_plan", preserve_plan=True)
             self._set_curtailment_runtime("fail_safe", "no_plan")
             return
-        if plan.status == "fail_safe":
+        if room is None and plan.status == "fail_safe":
             self.clear_curtailment_runtime(plan.reason, preserve_plan=True)
             self._set_curtailment_runtime("fail_safe", plan.reason)
             return
@@ -2963,6 +2978,9 @@ class PricingManager:
         if current_price is None or not math.isfinite(float(current_price)):
             self.clear_curtailment_runtime("invalid_price", preserve_plan=True)
             self._set_curtailment_runtime("fail_safe", "invalid_price")
+            return
+        if room is not None:
+            self._refresh_plan_room(room, plan)
             return
         if plan.status == "no_risk":
             self.clear_curtailment_runtime(plan.reason, preserve_plan=True)
@@ -3047,6 +3065,86 @@ class PricingManager:
         )
         self._controller._curtailment_active = True
         self._set_curtailment_runtime("predischarging", "selected_discharge_slot", target_export)
+
+    def _plan_room(self) -> PlanRoom | None:
+        """The optimizer's Smart Pre-Discharge, while predictive charging still
+        runs in Dynamic Pricing (after a mode switch the module decides)."""
+        controller = self._controller
+        room = getattr(controller, "_dp_plan_room", None)
+        if (
+            room is None
+            or not getattr(controller, "predictive_charging_enabled", False)
+            or getattr(controller, "predictive_charging_mode", None) != PREDICTIVE_MODE_DYNAMIC_PRICING
+        ):
+            return None
+        return room
+
+    def _refresh_plan_room(self, room: PlanRoom, plan: CurtailmentPlan | None) -> None:
+        """Execute the plan's risk and room orders with the module's guards.
+
+        In a risk slot the grid is held at 0 W (as the module does). In a room
+        slot the grid goes to -kW while the fleet's reading is at least the
+        whole percent of the order's level (the sale's rule: the plan stops
+        there, the reading truncates, so at most one step past it); the
+        reserve's floor blocks, a battery that may not discharge, capacity
+        protection and the global manual mode release it.
+        """
+        controller = self._controller
+        now = self._now()
+        snapshots = self._curtailment_battery_snapshots()
+        for coordinator in controller.coordinators:
+            controller.remove_discharge_block("curtailment_negative_window", coordinator=coordinator)
+            controller.remove_discharge_block("curtailment_floor", coordinator=coordinator)
+        controller.remove_setpoint_override("curtailment_predischarge")
+        controller._curtailment_active = False
+        self._update_curtailment_opportunistic_diagnostics(
+            plan or CurtailmentPlan(status="planned", reason="plan"), snapshots, now
+        )
+        if any(slot.start <= now < slot.end for slot in room.risk):
+            self._refresh_curtailment_floor_blocks(snapshots)
+            overrides = getattr(controller, "_setpoint_overrides", {}) or {}
+            if overrides.get("curtailment_negative_window") != (6, 0.0):
+                controller.set_setpoint_override("curtailment_negative_window", 0.0, priority=6)
+            self._set_curtailment_runtime("protected_window", "negative_injection_window")
+            return
+        controller.remove_setpoint_override("curtailment_negative_window")
+        slot = next((s for s in room.orders if s.start <= now < s.end), None)
+        if slot is None:
+            self._set_curtailment_runtime("planned", "plan")
+            return
+        self._refresh_curtailment_floor_blocks(snapshots)
+        power_kw, level = room.orders[slot]
+        ref = getattr(controller, "_dp_last_eval_soc", None)
+        capacity = getattr(controller, "_dp_eval_projection_capacity_kwh", 0.0) or 0.0
+        coords = [
+            c for c in controller.coordinators
+            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+        ]
+        if ref is None or capacity <= 0 or not coords:
+            self._set_curtailment_runtime("planned", "no_projection")
+            return
+        # ponytail: plain mean SOC, like the sale and the SOC-drop trigger
+        # (unequal fleets drift; the energy-weighted reading is the upgrade).
+        current = sum(float(c.data.get("battery_soc", 0) or 0) for c in coords) / len(coords)
+        if current < math.floor(ref + level / capacity * 100.0 + 1e-6):
+            self._set_curtailment_runtime("target_reached", "plan_level")
+            return
+        max_power = sum(
+            snapshot.max_discharge_power_w
+            for snapshot in snapshots
+            if snapshot.eligible and snapshot.can_discharge
+        )
+        if (
+            max_power <= 0
+            or getattr(controller, "_capacity_protection_active", False)
+            or getattr(controller, "manual_mode_enabled", False)
+        ):
+            self._set_curtailment_runtime("shortfall", "no_live_discharge_capacity")
+            return
+        target = -min(power_kw * 1000.0, max_power)
+        controller.set_setpoint_override("curtailment_predischarge", target, priority=5)
+        controller._curtailment_active = True
+        self._set_curtailment_runtime("predischarging", "plan_room", target)
 
     # =========================================================================
     # DYNAMIC PRICING: Evaluation and notification methods
