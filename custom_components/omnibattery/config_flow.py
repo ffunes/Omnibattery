@@ -192,8 +192,6 @@ from .pricing.energyzero import (
 )
 
 _ANKER_MAX_POWER_W = 3500
-_SESSY_MAX_CHARGE_POWER_W = 2200
-_SESSY_MAX_DISCHARGE_POWER_W = 1700
 _INDEVOLT_DEFAULT_PORT = 8080
 _INDEVOLT_DEFAULT_MAX_POWER_W = 2400
 _HOYMILES_MODEL_AUTO = "auto"
@@ -918,9 +916,6 @@ def _legacy_power_ceilings(brand: str, battery_data: dict) -> tuple[int, int]:
         )
     elif brand == "anker":
         max_charge_power, max_discharge_power = _anker_power_ceilings(battery_data)
-    elif brand == "sessy":
-        max_charge_power = _SESSY_MAX_CHARGE_POWER_W
-        max_discharge_power = _SESSY_MAX_DISCHARGE_POWER_W
     elif brand == "indevolt":
         max_charge_power, max_discharge_power = _indevolt_power_ceilings(battery_data)
     elif brand == "hoymiles":
@@ -964,7 +959,7 @@ def _legacy_limits_schema(
         else:
             dc_default = True
         fields[vol.Required(CONF_DC_PV_CONNECTED, default=dc_default)] = BooleanSelector()
-    if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
+    if brand not in ("zendure", "anker", "hoymiles", "huawei", "indevolt"):
         taper_default = (
             current.get(
                 CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -979,21 +974,7 @@ def _legacy_limits_schema(
     )
     if current is not None:
         capacity_default = current.get("battery_capacity_kwh", capacity_default)
-    if brand == "sessy":
-        # Sessy does not report a nominal capacity or identifiable packs.
-        if options:
-            saved_capacity = float(capacity_default)
-            capacity_field = (
-                vol.Required("battery_capacity_kwh", default=saved_capacity)
-                if saved_capacity > 0
-                else vol.Required("battery_capacity_kwh")
-            )
-        else:
-            capacity_field = vol.Required("battery_capacity_kwh")
-        fields[capacity_field] = NumberSelector(
-            NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
-        )
-    elif brand in ("zendure", "hoymiles"):
+    if brand in ("zendure", "hoymiles"):
         fields[vol.Optional("battery_capacity_kwh", default=capacity_default)] = NumberSelector(
             NumberSelectorConfig(min=0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
         )
@@ -1016,10 +997,10 @@ def _legacy_finalize_limits(
         user_input.get(CONF_DC_PV_CONNECTED, True)
     ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
     merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-        False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt")
+        False if brand in ("zendure", "anker", "hoymiles", "huawei", "indevolt")
         else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
     )
-    if brand in ("zendure", "sessy", "hoymiles"):
+    if brand in ("zendure", "hoymiles"):
         capacity_default = (
             _hoymiles_capacity_default(battery_data)
             if brand == "hoymiles" else 0.0
@@ -1999,8 +1980,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_battery_connection_anker()
             if brand == "hoymiles":
                 return await self.async_step_battery_connection_hoymiles()
-            if brand == "sessy":
-                return await self.async_step_battery_connection_sessy()
             if brand == "indevolt":
                 return await self.async_step_battery_connection_indevolt()
             if brand == "huawei":
@@ -2172,35 +2151,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             errors=errors,
             description_placeholders=placeholders,
         )
-
-    async def async_step_battery_connection_sessy(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Configure a Sessy through its local dongle HTTP API."""
-        errors = {}
-        if user_input is not None:
-            host, port = user_input[CONF_HOST], int(user_input.get(CONF_PORT, 80))
-            username = user_input[CONF_USERNAME]
-            password = user_input[CONF_PASSWORD]
-            _LOGGER.info("Probing Sessy device at %s:%s", host, port)
-            if await SessyLocalDriver.probe(host, port, username, password):
-                self._current_battery_data.update({
-                    CONF_NAME: user_input[CONF_NAME],
-                    CONF_HOST: host,
-                    CONF_PORT: port,
-                    CONF_USERNAME: username,
-                    CONF_PASSWORD: password,
-                    "brand": "sessy",
-                })
-                return await self.async_step_battery_limits()
-            errors["base"] = "cannot_connect"
-        return self.async_show_form(step_id="battery_connection_sessy", data_schema=vol.Schema({
-            vol.Required(CONF_NAME, default=f"Sessy {self.battery_index + 1}"): str,
-            vol.Required(CONF_HOST): str,
-            vol.Optional(CONF_PORT, default=80): int,
-            vol.Required(CONF_USERNAME): str,
-            vol.Required(CONF_PASSWORD): TextSelector(
-                TextSelectorConfig(type=TextSelectorType.PASSWORD)
-            ),
-        }), errors=errors, description_placeholders={"battery_num": str(self.battery_index + 1)})
 
     async def async_step_battery_connection_indevolt(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure an Indevolt battery through its local HTTP API (read-only probe)."""
@@ -3314,8 +3264,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             return await self.async_step_reconfigure_battery_esphome(user_input)
         if current.get("brand", "marstek") == "anker":
             return await self.async_step_reconfigure_battery_anker(user_input)
-        if current.get("brand", "marstek") == "sessy":
-            return await self.async_step_reconfigure_battery_sessy(user_input)
         if current.get("brand", "marstek") == "indevolt":
             return await self.async_step_reconfigure_battery_indevolt(user_input)
         if current.get("brand", "marstek") == "hoymiles":
@@ -3483,74 +3431,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     vol.Required(CONF_PORT, default=defaults[CONF_PORT]): int,
                 }
             ),
-            errors=errors,
-            description_placeholders={"battery_num": str(battery_num)},
-        )
-
-    async def async_step_reconfigure_battery_sessy(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Update connection settings for a Sessy battery during reconfiguration."""
-        entry = self._get_reconfigure_entry()
-        current_batteries = entry.data.get("batteries", [])
-        battery_num = self.battery_index + 1
-        current = (
-            current_batteries[self.battery_index]
-            if self.battery_index < len(current_batteries)
-            else {}
-        )
-        errors = {}
-
-        if user_input is not None:
-            new_host = user_input[CONF_HOST]
-            new_port = int(user_input.get(CONF_PORT, 80))
-            username = user_input[CONF_USERNAME]
-            password = user_input[CONF_PASSWORD]
-            _LOGGER.info("Probing Sessy device at %s:%s", new_host, new_port)
-            if not await SessyLocalDriver.probe(
-                new_host, new_port, username, password
-            ):
-                errors["base"] = "cannot_connect"
-            else:
-                old_host = current.get(CONF_HOST)
-                old_port = current.get(CONF_PORT)
-                if old_host and old_port and (old_host != new_host or old_port != new_port):
-                    self._migrate_battery_registry_ids(
-                        entry, old_host, old_port, new_host, new_port
-                    )
-
-                updated = dict(current)
-                updated.update({
-                    CONF_NAME: user_input[CONF_NAME],
-                    CONF_HOST: new_host,
-                    CONF_PORT: new_port,
-                    CONF_USERNAME: username,
-                    CONF_PASSWORD: password,
-                    "brand": "sessy",
-                })
-                self._reconfigure_batteries.append(updated)
-                self.battery_index += 1
-                if self.battery_index >= len(current_batteries):
-                    return self.async_update_reload_and_abort(
-                        entry, data_updates={"batteries": self._reconfigure_batteries}
-                    )
-                return await self.async_step_reconfigure_battery()
-
-        return self.async_show_form(
-            step_id="reconfigure_battery_sessy",
-            data_schema=vol.Schema({
-                vol.Required(CONF_NAME, default=current.get(CONF_NAME, f"Sessy {battery_num}")): str,
-                vol.Required(CONF_HOST, default=current.get(CONF_HOST, "")): str,
-                vol.Required(CONF_PORT, default=current.get(CONF_PORT, 80)): int,
-                vol.Required(
-                    CONF_USERNAME, default=current.get(CONF_USERNAME, "")
-                ): str,
-                vol.Required(
-                    CONF_PASSWORD, default=current.get(CONF_PASSWORD, "")
-                ): TextSelector(
-                    TextSelectorConfig(type=TextSelectorType.PASSWORD)
-                ),
-            }),
             errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
         )
@@ -4545,8 +4425,6 @@ class OptionsFlowHandler(OptionsFlow):
                 return await self.async_step_battery_connection_esphome()
             if brand == "anker":
                 return await self.async_step_battery_connection_anker()
-            if brand == "sessy":
-                return await self.async_step_battery_connection_sessy()
             if brand == "indevolt":
                 return await self.async_step_battery_connection_indevolt()
             if brand == "huawei":
@@ -4719,59 +4597,6 @@ class OptionsFlowHandler(OptionsFlow):
                     vol.Optional(CONF_PORT, default=defaults[CONF_PORT]): int,
                 }
             ),
-            errors=errors,
-            description_placeholders={"battery_num": str(battery_num)},
-        )
-
-    async def async_step_battery_connection_sessy(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Configure a Sessy through its local dongle HTTP API."""
-        errors = {}
-        battery_num = self.battery_index + 1
-        current_batteries = self.config_entry.data.get("batteries", [])
-        current_battery = (
-            current_batteries[self.battery_index]
-            if self.battery_index < len(current_batteries)
-            else {}
-        )
-
-        if user_input is not None:
-            host = user_input[CONF_HOST]
-            port = int(user_input.get(CONF_PORT, 80))
-            username = user_input[CONF_USERNAME]
-            password = user_input[CONF_PASSWORD]
-            _LOGGER.info("Probing Sessy device at %s:%s", host, port)
-            if await SessyLocalDriver.probe(host, port, username, password):
-                self._current_battery_data.update({
-                    CONF_NAME: user_input[CONF_NAME],
-                    CONF_HOST: host,
-                    CONF_PORT: port,
-                    CONF_USERNAME: username,
-                    CONF_PASSWORD: password,
-                    "brand": "sessy",
-                })
-                return await self.async_step_battery_limits()
-            errors["base"] = "cannot_connect"
-
-        return self.async_show_form(
-            step_id="battery_connection_sessy",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_NAME,
-                    default=current_battery.get(CONF_NAME, f"Sessy {battery_num}"),
-                ): str,
-                vol.Required(CONF_HOST, default=current_battery.get(CONF_HOST, "")): str,
-                vol.Optional(CONF_PORT, default=current_battery.get(CONF_PORT, 80)): int,
-                vol.Required(
-                    CONF_USERNAME,
-                    default=current_battery.get(CONF_USERNAME, ""),
-                ): str,
-                vol.Required(
-                    CONF_PASSWORD,
-                    default=current_battery.get(CONF_PASSWORD, ""),
-                ): TextSelector(
-                    TextSelectorConfig(type=TextSelectorType.PASSWORD)
-                ),
-            }),
             errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
         )

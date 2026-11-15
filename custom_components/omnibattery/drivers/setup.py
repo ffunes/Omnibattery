@@ -34,7 +34,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult, FlowResultType
 
-from ..const import DOMAIN
+from ..const import CONF_DC_PV_CONNECTED, DOMAIN
 
 # Ceiling used by the default ``power_ceilings``.
 _DEFAULT_CEILING_W = 2500
@@ -116,6 +116,18 @@ class DriverSetup:
     async def reprobe(self, hass: Any, battery_config: dict, host: str) -> bool:
         """Re-probe a stored battery at a new IP (DHCP). Default: not supported."""
         return False
+
+
+def saved_dc_pv_connected(driver_cls: Any, merged: dict, user_input: dict) -> bool:
+    """The ``dc_pv_connected`` value the limits step stores for a battery.
+
+    The user's choice where the driver's traits for the stored config have an
+    optional DC PV input, otherwise False. The base traits follow the stored
+    version for any brand, which keeps the options-flow drift of plan section 8.
+    """
+    if not driver_cls.traits_for(merged).optional_dc_pv_input:
+        return False
+    return bool(user_input.get(CONF_DC_PV_CONNECTED, True))
 
 
 def is_flow_result(value: Any) -> bool:

@@ -28,7 +28,7 @@ from custom_components.omnibattery.config_flow import (
     _battery_hardware_max,
     _build_slot_step_b_schema,
     _install_driver_steps,
-    _legacy_limits_schema,
+    _limits_setup,
     _soc_selector_limits,
 )
 from custom_components.omnibattery.const import REGISTER_MAP
@@ -190,7 +190,7 @@ def _field_names(fields: dict) -> dict:
 @pytest.mark.parametrize("kind", [FlowKind.CONFIG, FlowKind.OPTIONS])
 def test_legacy_capacity_field_follows_the_trait(brand, kind):
     ctx = SetupContext(kind=kind, battery=None, entry=None, coordinator=None)
-    fields = _field_names(_legacy_limits_schema(brand, {"brand": brand}, {}, ctx))
+    fields = _field_names(_limits_setup(brand).limits_schema({"brand": brand}, {}, ctx))
     field = fields.get("battery_capacity_kwh")
     expected = registry.DRIVERS[brand].TRAITS.capacity_field
     if expected == "none":

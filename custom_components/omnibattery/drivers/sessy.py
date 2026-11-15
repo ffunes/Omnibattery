@@ -23,6 +23,7 @@ from .base import (
     SetpointResult,
     TelemetrySnapshot,
 )
+from .sessy_flow import SESSY_SETUP
 
 _LOGGER = logging.getLogger(__name__)
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
@@ -61,6 +62,7 @@ class SessyLocalDriver(BatteryDriver):
     """Poll and control one Sessy dongle using its documented local API."""
 
     BRAND = "sessy"
+    SETUP = SESSY_SETUP
     TRAITS = DriverTraits(supports_voltage_taper=False, keeps_stored_taper_flag=True, fixed_power_envelope=True, ip_addressed=True,
                     capacity_field="required", min_soc_range=(0, 30, 5))
     LABEL = "Sessy"

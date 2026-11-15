@@ -435,6 +435,7 @@ async def test_reconfigure_routes_sessy_to_its_http_form(monkeypatch):
         },
     )
     flow = MarstekVenusConfigFlow()
+    flow.context = {"source": "reconfigure"}
     flow.battery_index = 0
     flow._reconfigure_batteries = []
     flow._get_reconfigure_entry = lambda: entry
