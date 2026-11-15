@@ -187,6 +187,7 @@ class CapacityProtectionStatusSensor(BinarySensorEntity):
     _unrecorded_attributes = frozenset({
         "avg_soc", "estimated_house_load_w",
         "original_target_w", "adjusted_target_w",
+        "cap_requested_w", "cap_delivered_w",
     })
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
@@ -218,6 +219,11 @@ class CapacityProtectionStatusSensor(BinarySensorEntity):
             "excluded_devices_enabled": (
                 self.controller.capacity_protection_excluded_devices
             ),
+            # #506: whether the grid import cap is acting, what the battery
+            # must deliver to keep the meter under it, and what it delivers.
+            "grid_import_cap_active": status.get("grid_import_cap_active", False),
+            "cap_requested_w": status.get("cap_requested_w", 0),
+            "cap_delivered_w": status.get("cap_delivered_w", 0),
             "avg_soc": status.get("avg_soc"),
             "soc_threshold": status.get("soc_threshold"),
             "estimated_house_load_w": status.get("estimated_house_load"),

@@ -4172,8 +4172,8 @@ class PricingManager:
                 0.0,
                 float(getattr(self._controller, "max_contracted_power", 0.0) or 0.0),
             ) / 1000.0
-            # A no-discharge window blocks the battery outright, peaks
-            # included, so the grid carries all of that interval's load.
+            # A no-discharge window idles the battery, but not for the load
+            # above the grid import cap, which overrides it (#506).
             # ponytail: fleet-wide ("all") windows only; a per-battery window
             # leaves the rest of the fleet discharging, so it is not projected.
             configured = getattr(

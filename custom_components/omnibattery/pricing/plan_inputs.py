@@ -231,7 +231,9 @@ def battery_idle_intervals(
     """Planning intervals with the battery idled where nothing may discharge.
 
     ``held_until`` (peak shaving conserving now) trims each earlier
-    interval's load to the part above ``limit_kw``; ``fleet_blocks`` are the
+    interval's load to the part above ``limit_kw`` (the grid import cap,
+    which also leaves that part to the battery inside a no-discharge window
+    or a price block); ``fleet_blocks`` are the
     fleet-wide no-discharge windows, matched with ``block_matches(interval,
     block)``; ``blocked_price_slots`` are the price slots at or below the
     discharge-control threshold (``None`` when that control is inactive) and
@@ -256,18 +258,30 @@ def battery_idle_intervals(
         )
         for index, (start, end) in enumerate(boundaries)
     ]
-    # A no-discharge window blocks the battery outright, peaks
-    # included, so the grid carries all of that interval's load.
+    def blocked(item: EnergyInterval) -> EnergyInterval:
+        # A no-discharge window idles the battery except for the load above
+        # the grid import cap, which the cap still makes it cover (#506).
+        hours = (item.end - item.start).total_seconds() / 3600.0
+        if limit_kw <= 0 or (held_until is not None and item.start < held_until):
+            # No cap; or the reserve hold already left only the excess.
+            return item if limit_kw > 0 else item.with_battery_idle()
+        return EnergyInterval(
+            item.start,
+            item.end,
+            max(0.0, item.consumption_kwh - item.solar_kwh - limit_kw * hours),
+            max(0.0, item.solar_kwh - item.consumption_kwh),
+        )
+
     if fleet_blocks:
         intervals = [
-            item.with_battery_idle()
+            blocked(item)
             if any(block_matches(item, block) for block in fleet_blocks)
             else item
             for item in intervals
         ]
     # Price-based discharge control idles the battery whenever the
     # slot price is at or below its threshold (#594), so those
-    # intervals drain nothing either.
+    # intervals drain only the load above the cap.
     if blocked_price_slots is not None:
 
         def wall(value: datetime) -> datetime:
@@ -277,7 +291,7 @@ def battery_idle_intervals(
             return value.astimezone(tz).replace(tzinfo=None)
 
         intervals = [
-            item.with_battery_idle()
+            blocked(item)
             if any(
                 wall(slot.start) <= wall(item.start) < wall(slot.end)
                 for slot in blocked_price_slots
