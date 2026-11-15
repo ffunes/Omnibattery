@@ -32,6 +32,8 @@ from ..const import (
     CONF_SLAVE_ID,
     DEFAULT_SLAVE_ID,
     DEFAULT_VERSION,
+    NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
+    SUPPORTED_VERSIONS,
     MESSAGE_WAIT_MS,
     MESSAGE_WAIT_MS_RS485_GATEWAY,
     PACK_MAX_CELL_KEYS,
@@ -59,7 +61,6 @@ from .base import (
     ReconcileState,
     SetpointResult,
     TelemetrySnapshot,
-    resolve_battery_version,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -341,6 +342,23 @@ def _derive_register_blocks(definitions: list[dict]) -> list[dict]:
     return blocks
 
 
+def resolve_battery_version(battery_config, name: str | None = None) -> str:
+    """The stored ``battery_version``, or the default when absent or unsupported.
+
+    Logs an unsupported value when ``name`` is given (the coordinator passes it, so
+    the error is reported once per battery whichever driver is built).
+    """
+    version = battery_config.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
+    if version not in SUPPORTED_VERSIONS:
+        if name is not None:
+            _LOGGER.error(
+                "[%s] Unsupported battery version: %s. Defaulting to %s",
+                name, version, DEFAULT_VERSION,
+            )
+        return DEFAULT_VERSION
+    return version
+
+
 class MarstekModbusDriver(BatteryDriver):
     """Modbus-TCP driver for a single Marstek battery."""
 
@@ -354,8 +372,19 @@ class MarstekModbusDriver(BatteryDriver):
 
     @classmethod
     def traits_for(cls, battery_config) -> DriverTraits:
+        version = resolve_battery_version(battery_config)
+        # The same stored versions couple their packs and let the BMS own the
+        # cutoff; two traits because a driver may have one without the other.
+        coupled_packs = version in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS
         traits = replace(
-            super().traits_for(battery_config),
+            cls.TRAITS,
+            optional_dc_pv_input=version in ("vA", "vD"),
+            bms_owns_top_cutoff=coupled_packs,
+            sequential_pack_fill=coupled_packs,
+            soc_decimals=1 if version in ("v3", "vA", "vD") else None,
+            # A stored serial port is a serial link, not an IP address.
+            ip_addressed=cls.TRAITS.ip_addressed
+            and not (battery_config.get("serial_port") or "").strip(),
             # v2/v3 only: their app max-power setting is an 800/2500 W selector.
             hardware_power_cap_choices=resolve_battery_version(battery_config)
             in ("v2", "v3"),
@@ -376,6 +405,18 @@ class MarstekModbusDriver(BatteryDriver):
                 max_soc_low=int(DriverCapabilities.charge_cutoff_range[0]),
             )
         return traits
+
+    @classmethod
+    def link_key(cls, battery_config) -> tuple:
+        return (
+            battery_config.get("host"),
+            battery_config.get("port"),
+            battery_config.get("serial_port"),
+        )
+
+    @classmethod
+    def model_version(cls, battery_config, name: str | None = None) -> str:
+        return resolve_battery_version(battery_config, name)
 
     @classmethod
     def from_config(cls, battery_config, context: DriverContext) -> "MarstekModbusDriver":

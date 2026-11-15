@@ -169,7 +169,7 @@ EXPECTED = {
         {"_host": "192.0.2.10", "_port": 80, "_base_url": "http://192.0.2.10",
          "_model": "2400ac_pro"},
         {
-            "battery_version": "v2", "dc_pv_connected": False,
+            "battery_version": None, "dc_pv_connected": False,
             "full_charge_voltage_taper_enabled": False,
             "needs_software_power_cap": False, "needs_software_max_charge": True,
             "needs_software_max_discharge": False, "needs_software_manual_control": True,
@@ -182,7 +182,7 @@ EXPECTED = {
         EsphomeEntityDriver,
         {"_device_id": "a1b2c3d4e5f6"},
         {
-            "battery_version": "v2", "dc_pv_connected": False,
+            "battery_version": None, "dc_pv_connected": False,
             # ESPHome is the one non-Marstek brand outside the coordinator taper-off
             # list: the stored value is kept.
             "full_charge_voltage_taper_enabled": True,
@@ -198,7 +198,7 @@ EXPECTED = {
         AnkerModbusDriver,
         {"_host": "192.0.2.10", "_port": 502, "_slave_id": 2},
         {
-            "battery_version": "v2", "dc_pv_connected": False,
+            "battery_version": None, "dc_pv_connected": False,
             "full_charge_voltage_taper_enabled": False,
             "needs_software_power_cap": False, "needs_software_max_charge": True,
             "needs_software_max_discharge": True, "needs_software_manual_control": True,
@@ -212,7 +212,7 @@ EXPECTED = {
         SessyLocalDriver,
         {"_base_url": "http://192.0.2.10", "_headers": {"Authorization": "Basic dXNlcjpwdw=="}},
         {
-            "battery_version": "v2", "dc_pv_connected": False,
+            "battery_version": None, "dc_pv_connected": False,
             # The coordinator taper-off list omits Sessy (D3): the stored True stays.
             "full_charge_voltage_taper_enabled": True,
             "needs_software_power_cap": False, "needs_software_max_charge": True,
@@ -226,7 +226,7 @@ EXPECTED = {
         IndevoltDriver,
         {"_host": "192.0.2.10", "_port": 8080, "_slot_s": 2.0, "_name": "indevolt battery"},
         {
-            "battery_version": "v2", "dc_pv_connected": False,
+            "battery_version": None, "dc_pv_connected": False,
             "full_charge_voltage_taper_enabled": False,
             "needs_software_power_cap": False, "needs_software_max_charge": False,
             "needs_software_max_discharge": False, "needs_software_manual_control": True,
@@ -239,7 +239,7 @@ EXPECTED = {
         HuaweiSolarDriver,
         {"_battery_device_id": "dev123", "_direct_write": True},
         {
-            "battery_version": "v2", "dc_pv_connected": False,
+            "battery_version": None, "dc_pv_connected": False,
             "full_charge_voltage_taper_enabled": False,
             "needs_software_power_cap": False, "needs_software_max_charge": True,
             "needs_software_max_discharge": True, "needs_software_manual_control": True,
@@ -253,7 +253,7 @@ EXPECTED = {
         {"device_id": "device-id-1", "_model_raw": "MS-A2",
          "_configured_max_charge_w": 2000, "_configured_max_discharge_w": 2000},
         {
-            "battery_version": "v2", "dc_pv_connected": False,
+            "battery_version": None, "dc_pv_connected": False,
             "full_charge_voltage_taper_enabled": False,
             "needs_software_power_cap": False, "needs_software_max_charge": True,
             "needs_software_max_discharge": True, "needs_software_manual_control": True,
@@ -354,17 +354,16 @@ async def test_device_info_publishes_the_mac_only_when_given():
 
 
 # --------------------------------------------------------------------------- #
-# battery_version: validated for every brand, "v2" for the non-Marstek ones.
+# battery_version: Marstek only (fixed: plan section 8 T1.1); None for the other brands.
 # --------------------------------------------------------------------------- #
 
 
 @pytest.mark.parametrize("brand", [b for b in EXPECTED if b != "marstek"])
-async def test_non_marstek_brands_report_battery_version_v2(brand):
-    assert _build_coordinator(BRAND_CONFIGS[brand]).battery_version == "v2"
-    # The version key is honoured for every brand, so a stale Marstek version on a
-    # non-Marstek entry is kept (no brand check) without changing the driver.
+async def test_non_marstek_brands_report_no_battery_version(brand):
+    # fixed: plan section 8 #11 #12 #14 (T1.1): a stale Marstek version on another brand is ignored.
+    assert _build_coordinator(BRAND_CONFIGS[brand]).battery_version is None
     stale = _build_coordinator({**BRAND_CONFIGS[brand], "battery_version": "v3"})
-    assert stale.battery_version == "v3"
+    assert stale.battery_version is None
     assert type(stale.driver) is EXPECTED[brand][0]
 
 
@@ -484,7 +483,7 @@ async def test_zendure_with_mppt_has_dc_pv_connected_forced_false():
     coordinator = _build_coordinator(config)
     assert coordinator.driver.capabilities.has_mppt_pv is True
     assert coordinator.dc_pv_connected is False
-    assert coordinator.battery_version == "v2"
+    assert coordinator.battery_version is None  # fixed: plan section 8 T1.1
     assert coordinator.device_max_charge_power == 4000
 
 

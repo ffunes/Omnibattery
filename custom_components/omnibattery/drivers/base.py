@@ -29,15 +29,12 @@ import enum
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Sequence
 
 from ..const import (
     CONF_BATTERY_VERSION,
-    DEFAULT_VERSION,
-    NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
     MAX_POWER_BY_VERSION,
-    SUPPORTED_VERSIONS,
 )
 
 if TYPE_CHECKING:
@@ -231,23 +228,6 @@ def stored_battery_value(coordinator: Any, key: str) -> Any:
     return None
 
 
-def resolve_battery_version(battery_config: Mapping, name: str | None = None) -> str:
-    """The stored ``battery_version``, or the default when absent or unsupported.
-
-    Logs an unsupported value when ``name`` is given (the coordinator passes it, so
-    the error is reported once per battery whichever driver is built).
-    """
-    version = battery_config.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
-    if version not in SUPPORTED_VERSIONS:
-        if name is not None:
-            _LOGGER.error(
-                "[%s] Unsupported battery version: %s. Defaulting to %s",
-                name, version, DEFAULT_VERSION,
-            )
-        return DEFAULT_VERSION
-    return version
-
-
 @dataclass(frozen=True)
 class CellVoltageProfile:
     """Per-cell voltage levels the top-of-charge logic acts on (a cell chemistry).
@@ -313,8 +293,8 @@ class DriverTraits:
     """Class-level traits the shared code needs before a driver is connected.
 
     Unlike :class:`DriverCapabilities` (per instance, refined after ``connect``),
-    these are fixed per brand, or derived from the stored battery config by
-    :meth:`BatteryDriver.traits_for`.
+    these are fixed per brand, or derived from the stored battery config by the
+    brand's own :meth:`BatteryDriver.traits_for`.
     """
 
     # The 100 % charge voltage taper switch exists (needs per-cell voltages).
@@ -329,24 +309,23 @@ class DriverTraits:
     optional_dc_pv_input: bool = False
     # Initial SOC/power config is not written at setup: the device holds it.
     device_owns_initial_config: bool = False
-    # Addressed by IP, so its address can drift (see ``traits_for``).
+    # Addressed by IP, so its address can drift.
     ip_addressed: bool = False
     # The BMS owns the top-of-charge cutoff (coupled-pack Marstek vA/vD): software
-    # must not treat a refused charge near 100 % as a fault. Derived by
-    # ``traits_for`` from the resolved stored version for any brand.
+    # must not treat a refused charge near 100 % as a fault. Marstek derives it
+    # from its stored version in its own ``traits_for``.
     bms_owns_top_cutoff: bool = False
     # The battery couples several packs and fills them in sequence (coupled-pack
     # Marstek vA/vD), so its aggregate SOC and cell-voltage reading describe one
     # pack and the control layer judges the top of charge on the per-pack SOC
-    # keys (``battery_soc_pack_*``). Derived by ``traits_for`` from the resolved
-    # stored version for any brand, like ``bms_owns_top_cutoff``.
+    # keys (``battery_soc_pack_*``). Derived like ``bms_owns_top_cutoff``.
     sequential_pack_fill: bool = False
     # A top-of-charge cutoff can be told from idle without ``inverter_state``
     # (Zendure's local API does not publish it); the commanded setpoint and
     # SOC >= 99 stand in for it.
     cutoff_without_inverter_state: bool = False
     # Decimals of the aggregate SOC; None keeps the sensor definition's own.
-    # Derived by ``traits_for`` from the resolved stored version for any brand.
+    # Marstek derives it from its stored version in its own ``traits_for``.
     soc_decimals: Optional[int] = None
     # The device's max-power setting is only a hardware ceiling chosen from
     # fixed options (Marstek v2/v3: 800 W or 2500 W), so the user's own limit
@@ -696,25 +675,15 @@ class BatteryDriver(ABC):
     def traits_for(cls, battery_config: Mapping) -> DriverTraits:
         """Traits of this brand for one stored battery config.
 
-        ``optional_dc_pv_input``, ``bms_owns_top_cutoff``, ``sequential_pack_fill``
-        and ``soc_decimals`` follow the resolved stored version for any brand, and a stored
-        ``serial_port`` is never IP-addressed: all freeze today's behaviour,
-        including the stale keys left behind by a brand change in the options
-        flow (plan section 8).
+        The brand's fixed ``TRAITS``; a brand whose traits follow its own stored
+        keys (Marstek's version and serial port) overrides this.
         """
-        version = resolve_battery_version(battery_config)
-        # The same stored versions couple their packs and let the BMS own the
-        # cutoff; two traits because a driver may have one without the other.
-        coupled_packs = version in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS
-        return replace(
-            cls.TRAITS,
-            optional_dc_pv_input=version in ("vA", "vD"),
-            bms_owns_top_cutoff=coupled_packs,
-            sequential_pack_fill=coupled_packs,
-            soc_decimals=1 if version in ("v3", "vA", "vD") else None,
-            ip_addressed=cls.TRAITS.ip_addressed
-            and not (battery_config.get("serial_port") or "").strip(),
-        )
+        return cls.TRAITS
+
+    @classmethod
+    def model_version(cls, battery_config: Mapping, name: str | None = None) -> str | None:
+        """Hardware version a brand distinguishes in its stored config; None if none."""
+        return None
 
     @classmethod
     @abstractmethod
@@ -732,16 +701,10 @@ class BatteryDriver(ABC):
         """Identity of the physical link a battery sits on.
 
         Batteries with the same key are set up one after another (they share one
-        connection slot); different keys connect concurrently. A stored
-        ``serial_port`` is its own link for any brand: it freezes today's grouping,
-        including the stale key a brand change in the options flow leaves behind
-        (plan section 8).
+        connection slot); different keys connect concurrently. A brand with a
+        serial link of its own (Marstek) overrides this.
         """
-        return (
-            battery_config.get("host"),
-            battery_config.get("port"),
-            battery_config.get("serial_port"),
-        )
+        return (battery_config.get("host"), battery_config.get("port"), None)
 
     @classmethod
     def slot_power_ceiling(cls, battery_config: Mapping) -> Optional[int]:

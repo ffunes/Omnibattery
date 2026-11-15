@@ -350,10 +350,12 @@ async def test_reconnect_records_failed_rs485_reenable():
     assert coordinator._last_rs485_reenable_success is False
 
 
-def test_t32_traits_follow_the_stored_version_for_any_brand():
-    # Stale keys (plan section 8): a non-Marstek brand keeps the version-derived traits.
-    assert fake_traits("zendure", "vD").bms_owns_top_cutoff is True
-    assert fake_traits("zendure", "vD").soc_decimals == 1
+def test_t32_traits_follow_the_stored_version_only_for_marstek():
+    # fixed: plan section 8 #11 #12 #14 (T1.1): a stale version on another brand is ignored.
+    assert fake_traits("zendure", "vD").bms_owns_top_cutoff is False
+    assert fake_traits("zendure", "vD").soc_decimals is None
+    assert fake_traits("marstek", "vD").bms_owns_top_cutoff is True
+    assert fake_traits("marstek", "vD").soc_decimals == 1
     assert fake_traits("zendure", "v2").soc_decimals is None
     assert fake_traits("zendure", "v2").cutoff_without_inverter_state is True
     assert fake_traits("marstek", "v3").cutoff_without_inverter_state is False

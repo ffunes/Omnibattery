@@ -17,6 +17,8 @@ from types import SimpleNamespace
 from custom_components.omnibattery import _migrate_missing_battery_version
 from custom_components.omnibattery import config_flow
 from custom_components.omnibattery.drivers import registry
+from custom_components.omnibattery.tracking import solar_profile
+from custom_components.omnibattery.tracking.solar_profile import SolarProfileTracker
 from tests.test_driver_construction_characterization import (  # noqa: F401
     BRAND_CONFIGS,
     _build_coordinator,
@@ -58,6 +60,42 @@ def _safe(fn):
         return f"raises {type(err).__name__}"
 
 
+def _fingerprint_model(real):
+    """The ``model`` the real ``configuration_fingerprint`` hashes for this coordinator.
+
+    Runs the real method on a stand-in carrying the coordinator's own version
+    attributes, with a connected PV input forced so the source is included, and
+    reads the model out of the payload it is about to hash.
+    """
+    coordinator = SimpleNamespace(
+        device_key="x",
+        capabilities=SimpleNamespace(has_mppt_pv=True),
+        dc_pv_connected=True,
+        data={},
+        battery_version=real.battery_version,
+    )
+    if hasattr(real, "stored_battery_version"):
+        coordinator.stored_battery_version = real.stored_battery_version
+    tracker = SolarProfileTracker.__new__(SolarProfileTracker)
+    tracker._hass = SimpleNamespace(config=SimpleNamespace(time_zone="UTC"))
+    tracker._config_entry = SimpleNamespace(data={})
+    tracker._controller = SimpleNamespace(solar_production_sensor=None, coordinators=[coordinator])
+    captured = []
+    real_dumps = solar_profile.json.dumps
+
+    def spy(payload, *args, **kwargs):
+        if isinstance(payload, dict) and "mppt" in payload:
+            captured.append(payload["mppt"][0]["model"])
+        return real_dumps(payload, *args, **kwargs)
+
+    solar_profile.json.dumps = spy
+    try:
+        tracker.configuration_fingerprint()
+    finally:
+        solar_profile.json.dumps = real_dumps
+    return captured[0]
+
+
 def _row(brand, version, serial):
     cfg = _base_config(brand)
     for key, val in (("battery_version", version), ("serial_port", serial)):
@@ -80,7 +118,7 @@ def _row(brand, version, serial):
         "slot_ceiling_charge": _safe(lambda: config_flow._battery_hardware_max(cfg, "max_charge_power")),
         "slot_ceiling_discharge": _safe(lambda: config_flow._battery_hardware_max(cfg, "max_discharge_power")),
         "coordinator_battery_version": _safe(lambda: coord().battery_version),
-        "fingerprint_model": _safe(lambda: getattr(coord(), "battery_version", None)),
+        "fingerprint_model": _safe(lambda: _fingerprint_model(coord())),
     }
 
 

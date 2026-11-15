@@ -650,11 +650,11 @@ async def test_options_brand_change_keeps_the_previous_brands_keys(flow_env, old
     assert_snapshot(f"{SNAP}_drift_options_{old_id}_to_{new_id}", stored)
 
 
-async def test_options_brand_change_from_marstek_vd_stores_dc_pv_on_a_non_marstek_battery(flow_env):
-    """Plan section 8 / 2.3: the save only looks at the stale ``battery_version``.
+async def test_options_brand_change_from_marstek_vd_keeps_dc_pv_on_a_non_marstek_battery(flow_env):
+    """Fixed: plan section 8 #11 (T1.1): a stale ``battery_version`` no longer counts.
 
-    The Zendure form has no DC-PV field, so the missing answer defaults to True and
-    is written to a battery that is not a Marstek (and had it False before).
+    The Zendure form has no DC-PV field; the stored answer (False) is kept instead of
+    the old default True that the stale vD version used to write.
     """
     old = CASES["marstek_vd"]
     assert old.existing["dc_pv_connected"] is True
@@ -664,7 +664,7 @@ async def test_options_brand_change_from_marstek_vd_stores_dc_pv_on_a_non_marste
     stored = run.batteries[0]
     assert stored["brand"] == "zendure"
     assert stored["battery_version"] == "vD"
-    assert stored["dc_pv_connected"] is True
+    assert stored["dc_pv_connected"] is False
 
 
 # --------------------------------------------------------------------------- 6b. registry migration

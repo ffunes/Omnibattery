@@ -13,6 +13,7 @@ from homeassistant.util import dt as dt_util
 
 from ..const import (
     CONF_BATTERY_MANUAL_MODE_ENABLED,
+    CONF_BATTERY_VERSION,
     CONF_DC_PV_CONNECTED,
     CONF_SLAVE_ID,
     DEFAULT_CHARGE_HYSTERESIS_PERCENT,
@@ -33,7 +34,6 @@ from ..drivers.base import (
     ReconcileState,
     SetpointResult,
     canonical_key,
-    resolve_battery_version,
     stored_battery_value,
 )
 from ..drivers.registry import DEFAULT_BRAND, driver_class, is_registered, traits_for_brand
@@ -353,10 +353,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         if not self.traits.supports_voltage_taper and not self.traits.keeps_stored_taper_flag:
             full_charge_voltage_taper_enabled = False
 
-        # Validate and store battery version
-        # The version is validated for every brand (a stale one on a non-Marstek
-        # entry is kept), so the coordinator resolves it itself.
-        self.battery_version = resolve_battery_version(battery_config, name)
+        # Hardware version of the brands that distinguish one (None otherwise).
+        self.battery_version = driver_cls.model_version(battery_config, name)
+        # Raw stored value, kept only for the solar-profile fingerprint (it must
+        # stay stable for configs of other brands that carry a stale version).
+        self.stored_battery_version = battery_config.get(CONF_BATTERY_VERSION)
 
         self._backup_discharge_store = backup_discharge_store
         self._backup_discharge_store_key = backup_discharge_store_key
@@ -370,7 +371,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             and self.traits.optional_dc_pv_input
         )
 
-        _LOGGER.info("[%s] Initialized as %s battery", name, self.battery_version)
+        _LOGGER.info("[%s] Initialized as %s battery", name, self.battery_version or self.brand)
 
         # Power limits are deliberately kept as three separate concepts:
         # ``device_max_*`` is the physical/device envelope, ``configured_max_*``

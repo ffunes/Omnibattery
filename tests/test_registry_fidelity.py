@@ -38,10 +38,12 @@ async def test_unknown_brand_on_vd_does_not_follow_the_ems_ceiling():
 
 
 @pytest.mark.parametrize("brand", list(DRIVERS))
-def test_a_stored_serial_port_is_its_own_setup_link_for_every_brand(brand):
+def test_a_stored_serial_port_is_its_own_setup_link_only_for_marstek(brand):
+    # fixed: plan section 8 #11 #12 #14 (T1.1): a stale serial_port on another brand is ignored.
     cls = DRIVERS[brand]
     base = {**ZENDURE, "brand": brand}
-    assert cls.link_key(base) != cls.link_key({**base, "serial_port": "/dev/ttyUSB0"})
+    same = cls.link_key(base) == cls.link_key({**base, "serial_port": "/dev/ttyUSB0"})
+    assert same is (brand != "marstek")
 
 
 async def test_sessy_weekly_hours_still_book_a_taper_tail():

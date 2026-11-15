@@ -4,7 +4,7 @@
   "battery_version": "vD",
   "brand": "zendure",
   "charge_hysteresis_percent": 5,
-  "dc_pv_connected": true,
+  "dc_pv_connected": false,
   "ems_version": 140,
   "enable_charge_hysteresis": true,
   "full_charge_voltage_taper_enabled": false,

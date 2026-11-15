@@ -24,7 +24,9 @@ from homeassistant.util import dt as dt_util
 
 from ..const import (
     DEFAULT_SOLAR_PROFILE_MODE,
+    DEFAULT_VERSION,
     DOMAIN,
+    SUPPORTED_VERSIONS,
     normalize_solar_profile_mode,
 )
 from ..pricing.solar_timeline import PROGRESS_BIN_COUNT
@@ -623,9 +625,15 @@ class SolarProfileTracker:
                 capacity = None
             if capacity is not None and (not math.isfinite(capacity) or capacity <= 0.0):
                 capacity = None
+            model = getattr(coordinator, "battery_version", None)
+            if model is None and hasattr(coordinator, "stored_battery_version"):
+                # Brands without a version keep fingerprinting the stored one
+                # (default when absent or unsupported), so learned profiles stay.
+                raw = coordinator.stored_battery_version
+                model = raw if raw in SUPPORTED_VERSIONS else DEFAULT_VERSION
             source = {
                 "id": getattr(coordinator, "device_key", None) or getattr(coordinator, "name", None) or str(coordinator),
-                "model": getattr(coordinator, "battery_version", None),
+                "model": model,
                 "channels": channels,
                 "capacity_kwh": capacity,
             }

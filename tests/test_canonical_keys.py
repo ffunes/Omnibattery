@@ -121,10 +121,10 @@ def test_other_brands_do_not_fill_packs_in_sequence(brand):
 
 
 @pytest.mark.parametrize("brand", [b for b in BRAND_CONFIGS if b != "marstek"])
-def test_a_stale_version_key_still_follows_the_stored_version(brand):
-    """Frozen like ``bms_owns_top_cutoff``: the stored version decides, for any brand."""
+def test_a_stale_version_key_is_ignored_by_other_brands(brand):
+    """Fixed: plan section 8 #12 (T1.1): only Marstek reads the stored version."""
     traits = traits_for_brand(brand, {**BRAND_CONFIGS[brand], "battery_version": "vD"})
-    assert traits.sequential_pack_fill is True
+    assert traits.sequential_pack_fill is False
 
 
 # ---------------------------------------------------------------------------

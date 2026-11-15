@@ -811,13 +811,13 @@
    }
   },
   "anker|version=<absent>|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -828,7 +828,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -843,7 +843,7 @@
    }
   },
   "anker|version=<absent>|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -875,13 +875,13 @@
    }
   },
   "anker|version=v2|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -892,7 +892,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -907,7 +907,7 @@
    }
   },
   "anker|version=v2|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -939,13 +939,13 @@
    }
   },
   "anker|version=v3|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -956,7 +956,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -966,12 +966,12 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "anker|version=v3|serial=<absent>": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": true,
    "link_key": [
@@ -998,29 +998,29 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "anker|version=vA|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -1028,14 +1028,14 @@
      20,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "anker|version=vA|serial=<absent>": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": true,
    "link_key": [
@@ -1046,7 +1046,7 @@
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -1060,46 +1060,14 @@
      20,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "anker|version=vD|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vD",
-   "fingerprint_model": "vD",
-   "is_ip_addressed": false,
-   "link_key": [
-    "192.0.2.10",
-    502,
-    "/dev/ttyUSB0"
-   ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
-   "traits": {
-    "bms_owns_top_cutoff": true,
-    "capacity_field": "none",
-    "cutoff_without_inverter_state": false,
-    "device_owns_initial_config": false,
-    "fixed_power_envelope": false,
-    "hardware_power_cap_choices": false,
-    "ip_addressed": false,
-    "keeps_stored_taper_flag": false,
-    "max_soc_low": 80,
-    "min_soc_range": [
-     0,
-     20,
-     10
-    ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
-    "supports_voltage_taper": false
-   }
-  },
-  "anker|version=vD|serial=<absent>": {
-   "coordinator_battery_version": "vD",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vD",
    "is_ip_addressed": true,
    "link_key": [
@@ -1110,7 +1078,7 @@
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 2200,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -1124,20 +1092,52 @@
      20,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
+    "supports_voltage_taper": false
+   }
+  },
+  "anker|version=vD|serial=<absent>": {
+   "coordinator_battery_version": null,
+   "fingerprint_model": "vD",
+   "is_ip_addressed": true,
+   "link_key": [
+    "192.0.2.10",
+    502,
+    null
+   ],
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 2200,
+   "traits": {
+    "bms_owns_top_cutoff": false,
+    "capacity_field": "none",
+    "cutoff_without_inverter_state": false,
+    "device_owns_initial_config": false,
+    "fixed_power_envelope": false,
+    "hardware_power_cap_choices": false,
+    "ip_addressed": true,
+    "keeps_stored_taper_flag": false,
+    "max_soc_low": 80,
+    "min_soc_range": [
+     0,
+     20,
+     10
+    ],
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "anker|version=zz|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -1148,7 +1148,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -1163,7 +1163,7 @@
    }
   },
   "anker|version=zz|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -1195,13 +1195,13 @@
    }
   },
   "esphome|version=<absent>|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "a1b2c3d4e5f6",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -1227,7 +1227,7 @@
    }
   },
   "esphome|version=<absent>|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -1259,13 +1259,13 @@
    }
   },
   "esphome|version=v2|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "a1b2c3d4e5f6",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -1291,7 +1291,7 @@
    }
   },
   "esphome|version=v2|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -1323,13 +1323,13 @@
    }
   },
   "esphome|version=v3|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": false,
    "link_key": [
     "a1b2c3d4e5f6",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -1350,12 +1350,12 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": true
    }
   },
   "esphome|version=v3|serial=<absent>": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": false,
    "link_key": [
@@ -1382,23 +1382,23 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": true
    }
   },
   "esphome|version=vA|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": false,
    "link_key": [
     "a1b2c3d4e5f6",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -1412,14 +1412,14 @@
      30,
      12
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": true
    }
   },
   "esphome|version=vA|serial=<absent>": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": false,
    "link_key": [
@@ -1430,7 +1430,7 @@
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -1444,46 +1444,14 @@
      30,
      12
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": true
    }
   },
   "esphome|version=vD|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vD",
-   "fingerprint_model": "vD",
-   "is_ip_addressed": false,
-   "link_key": [
-    "a1b2c3d4e5f6",
-    0,
-    "/dev/ttyUSB0"
-   ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
-   "traits": {
-    "bms_owns_top_cutoff": true,
-    "capacity_field": "none",
-    "cutoff_without_inverter_state": false,
-    "device_owns_initial_config": false,
-    "fixed_power_envelope": false,
-    "hardware_power_cap_choices": false,
-    "ip_addressed": false,
-    "keeps_stored_taper_flag": false,
-    "max_soc_low": 80,
-    "min_soc_range": [
-     12,
-     30,
-     12
-    ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
-    "supports_voltage_taper": true
-   }
-  },
-  "esphome|version=vD|serial=<absent>": {
-   "coordinator_battery_version": "vD",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vD",
    "is_ip_addressed": false,
    "link_key": [
@@ -1494,7 +1462,7 @@
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 2200,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -1508,20 +1476,52 @@
      30,
      12
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
+    "supports_voltage_taper": true
+   }
+  },
+  "esphome|version=vD|serial=<absent>": {
+   "coordinator_battery_version": null,
+   "fingerprint_model": "vD",
+   "is_ip_addressed": false,
+   "link_key": [
+    "a1b2c3d4e5f6",
+    0,
+    null
+   ],
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 2200,
+   "traits": {
+    "bms_owns_top_cutoff": false,
+    "capacity_field": "none",
+    "cutoff_without_inverter_state": false,
+    "device_owns_initial_config": false,
+    "fixed_power_envelope": false,
+    "hardware_power_cap_choices": false,
+    "ip_addressed": false,
+    "keeps_stored_taper_flag": false,
+    "max_soc_low": 80,
+    "min_soc_range": [
+     12,
+     30,
+     12
+    ],
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": true
    }
   },
   "esphome|version=zz|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "a1b2c3d4e5f6",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -1547,7 +1547,7 @@
    }
   },
   "esphome|version=zz|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -1579,13 +1579,13 @@
    }
   },
   "hoymiles|version=<absent>|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "device-id-1",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -1611,7 +1611,7 @@
    }
   },
   "hoymiles|version=<absent>|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -1643,13 +1643,13 @@
    }
   },
   "hoymiles|version=v2|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "device-id-1",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -1675,7 +1675,7 @@
    }
   },
   "hoymiles|version=v2|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -1707,13 +1707,13 @@
    }
   },
   "hoymiles|version=v3|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": false,
    "link_key": [
     "device-id-1",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -1734,12 +1734,12 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "hoymiles|version=v3|serial=<absent>": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": false,
    "link_key": [
@@ -1766,23 +1766,23 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "hoymiles|version=vA|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": false,
    "link_key": [
     "device-id-1",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -1796,14 +1796,14 @@
      30,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "hoymiles|version=vA|serial=<absent>": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": false,
    "link_key": [
@@ -1814,7 +1814,7 @@
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -1828,46 +1828,14 @@
      30,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "hoymiles|version=vD|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vD",
-   "fingerprint_model": "vD",
-   "is_ip_addressed": false,
-   "link_key": [
-    "device-id-1",
-    0,
-    "/dev/ttyUSB0"
-   ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
-   "traits": {
-    "bms_owns_top_cutoff": true,
-    "capacity_field": "optional",
-    "cutoff_without_inverter_state": false,
-    "device_owns_initial_config": false,
-    "fixed_power_envelope": false,
-    "hardware_power_cap_choices": false,
-    "ip_addressed": false,
-    "keeps_stored_taper_flag": false,
-    "max_soc_low": 80,
-    "min_soc_range": [
-     0,
-     30,
-     10
-    ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
-    "supports_voltage_taper": false
-   }
-  },
-  "hoymiles|version=vD|serial=<absent>": {
-   "coordinator_battery_version": "vD",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vD",
    "is_ip_addressed": false,
    "link_key": [
@@ -1878,7 +1846,7 @@
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 2200,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -1892,20 +1860,52 @@
      30,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
+    "supports_voltage_taper": false
+   }
+  },
+  "hoymiles|version=vD|serial=<absent>": {
+   "coordinator_battery_version": null,
+   "fingerprint_model": "vD",
+   "is_ip_addressed": false,
+   "link_key": [
+    "device-id-1",
+    0,
+    null
+   ],
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 2200,
+   "traits": {
+    "bms_owns_top_cutoff": false,
+    "capacity_field": "optional",
+    "cutoff_without_inverter_state": false,
+    "device_owns_initial_config": false,
+    "fixed_power_envelope": false,
+    "hardware_power_cap_choices": false,
+    "ip_addressed": false,
+    "keeps_stored_taper_flag": false,
+    "max_soc_low": 80,
+    "min_soc_range": [
+     0,
+     30,
+     10
+    ],
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "hoymiles|version=zz|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "device-id-1",
     0,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -1931,7 +1931,7 @@
    }
   },
   "hoymiles|version=zz|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -1963,13 +1963,13 @@
    }
   },
   "huawei|version=<absent>|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 5000,
    "slot_ceiling_discharge": 5000,
@@ -1995,7 +1995,7 @@
    }
   },
   "huawei|version=<absent>|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -2027,13 +2027,13 @@
    }
   },
   "huawei|version=v2|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -2059,7 +2059,7 @@
    }
   },
   "huawei|version=v2|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -2091,13 +2091,13 @@
    }
   },
   "huawei|version=v3|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": false,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -2118,12 +2118,12 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "huawei|version=v3|serial=<absent>": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": false,
    "link_key": [
@@ -2150,23 +2150,23 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "huawei|version=vA|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": false,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -2180,14 +2180,14 @@
      30,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "huawei|version=vA|serial=<absent>": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": false,
    "link_key": [
@@ -2198,7 +2198,7 @@
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -2212,46 +2212,14 @@
      30,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "huawei|version=vD|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vD",
-   "fingerprint_model": "vD",
-   "is_ip_addressed": false,
-   "link_key": [
-    "192.0.2.10",
-    502,
-    "/dev/ttyUSB0"
-   ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
-   "traits": {
-    "bms_owns_top_cutoff": true,
-    "capacity_field": "none",
-    "cutoff_without_inverter_state": false,
-    "device_owns_initial_config": false,
-    "fixed_power_envelope": false,
-    "hardware_power_cap_choices": false,
-    "ip_addressed": false,
-    "keeps_stored_taper_flag": false,
-    "max_soc_low": 80,
-    "min_soc_range": [
-     0,
-     30,
-     10
-    ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
-    "supports_voltage_taper": false
-   }
-  },
-  "huawei|version=vD|serial=<absent>": {
-   "coordinator_battery_version": "vD",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vD",
    "is_ip_addressed": false,
    "link_key": [
@@ -2262,7 +2230,7 @@
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 2200,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -2276,20 +2244,52 @@
      30,
      10
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
+    "supports_voltage_taper": false
+   }
+  },
+  "huawei|version=vD|serial=<absent>": {
+   "coordinator_battery_version": null,
+   "fingerprint_model": "vD",
+   "is_ip_addressed": false,
+   "link_key": [
+    "192.0.2.10",
+    502,
+    null
+   ],
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 2200,
+   "traits": {
+    "bms_owns_top_cutoff": false,
+    "capacity_field": "none",
+    "cutoff_without_inverter_state": false,
+    "device_owns_initial_config": false,
+    "fixed_power_envelope": false,
+    "hardware_power_cap_choices": false,
+    "ip_addressed": false,
+    "keeps_stored_taper_flag": false,
+    "max_soc_low": 80,
+    "min_soc_range": [
+     0,
+     30,
+     10
+    ],
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "huawei|version=zz|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
     "192.0.2.10",
     502,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 5000,
    "slot_ceiling_discharge": 5000,
@@ -2315,7 +2315,7 @@
    }
   },
   "huawei|version=zz|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": false,
    "link_key": [
@@ -2347,13 +2347,13 @@
    }
   },
   "indevolt|version=<absent>|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     8080,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -2364,7 +2364,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -2379,7 +2379,7 @@
    }
   },
   "indevolt|version=<absent>|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -2411,13 +2411,13 @@
    }
   },
   "indevolt|version=v2|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     8080,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -2428,7 +2428,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -2443,7 +2443,7 @@
    }
   },
   "indevolt|version=v2|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -2475,13 +2475,13 @@
    }
   },
   "indevolt|version=v3|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     8080,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -2492,7 +2492,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -2502,12 +2502,12 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "indevolt|version=v3|serial=<absent>": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": true,
    "link_key": [
@@ -2534,29 +2534,29 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "indevolt|version=vA|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     8080,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -2564,14 +2564,14 @@
      50,
      20
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "indevolt|version=vA|serial=<absent>": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": true,
    "link_key": [
@@ -2582,7 +2582,7 @@
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -2596,46 +2596,14 @@
      50,
      20
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "indevolt|version=vD|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vD",
-   "fingerprint_model": "vD",
-   "is_ip_addressed": false,
-   "link_key": [
-    "192.0.2.10",
-    8080,
-    "/dev/ttyUSB0"
-   ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
-   "traits": {
-    "bms_owns_top_cutoff": true,
-    "capacity_field": "none",
-    "cutoff_without_inverter_state": false,
-    "device_owns_initial_config": false,
-    "fixed_power_envelope": false,
-    "hardware_power_cap_choices": false,
-    "ip_addressed": false,
-    "keeps_stored_taper_flag": false,
-    "max_soc_low": 80,
-    "min_soc_range": [
-     5,
-     50,
-     20
-    ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
-    "supports_voltage_taper": false
-   }
-  },
-  "indevolt|version=vD|serial=<absent>": {
-   "coordinator_battery_version": "vD",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vD",
    "is_ip_addressed": true,
    "link_key": [
@@ -2646,7 +2614,7 @@
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 2200,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "none",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -2660,20 +2628,52 @@
      50,
      20
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
+    "supports_voltage_taper": false
+   }
+  },
+  "indevolt|version=vD|serial=<absent>": {
+   "coordinator_battery_version": null,
+   "fingerprint_model": "vD",
+   "is_ip_addressed": true,
+   "link_key": [
+    "192.0.2.10",
+    8080,
+    null
+   ],
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 2200,
+   "traits": {
+    "bms_owns_top_cutoff": false,
+    "capacity_field": "none",
+    "cutoff_without_inverter_state": false,
+    "device_owns_initial_config": false,
+    "fixed_power_envelope": false,
+    "hardware_power_cap_choices": false,
+    "ip_addressed": true,
+    "keeps_stored_taper_flag": false,
+    "max_soc_low": 80,
+    "min_soc_range": [
+     5,
+     50,
+     20
+    ],
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "indevolt|version=zz|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     8080,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -2684,7 +2684,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -2699,7 +2699,7 @@
    }
   },
   "indevolt|version=zz|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -3115,13 +3115,13 @@
    }
   },
   "sessy|version=<absent>|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 1700,
@@ -3132,7 +3132,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": true,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": true,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3147,7 +3147,7 @@
    }
   },
   "sessy|version=<absent>|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -3179,13 +3179,13 @@
    }
   },
   "sessy|version=v2|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -3196,7 +3196,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": true,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": true,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3211,7 +3211,7 @@
    }
   },
   "sessy|version=v2|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -3243,13 +3243,13 @@
    }
   },
   "sessy|version=v3|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -3260,7 +3260,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": true,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": true,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3270,12 +3270,12 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "sessy|version=v3|serial=<absent>": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": true,
    "link_key": [
@@ -3302,29 +3302,29 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "sessy|version=vA|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "required",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
     "fixed_power_envelope": true,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": true,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3332,14 +3332,14 @@
      30,
      5
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "sessy|version=vA|serial=<absent>": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": true,
    "link_key": [
@@ -3350,7 +3350,7 @@
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "required",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -3364,46 +3364,14 @@
      30,
      5
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "sessy|version=vD|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vD",
-   "fingerprint_model": "vD",
-   "is_ip_addressed": false,
-   "link_key": [
-    "192.0.2.10",
-    80,
-    "/dev/ttyUSB0"
-   ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
-   "traits": {
-    "bms_owns_top_cutoff": true,
-    "capacity_field": "required",
-    "cutoff_without_inverter_state": false,
-    "device_owns_initial_config": false,
-    "fixed_power_envelope": true,
-    "hardware_power_cap_choices": false,
-    "ip_addressed": false,
-    "keeps_stored_taper_flag": true,
-    "max_soc_low": 80,
-    "min_soc_range": [
-     0,
-     30,
-     5
-    ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
-    "supports_voltage_taper": false
-   }
-  },
-  "sessy|version=vD|serial=<absent>": {
-   "coordinator_battery_version": "vD",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vD",
    "is_ip_addressed": true,
    "link_key": [
@@ -3414,7 +3382,7 @@
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 2200,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "required",
     "cutoff_without_inverter_state": false,
     "device_owns_initial_config": false,
@@ -3428,20 +3396,52 @@
      30,
      5
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
+    "supports_voltage_taper": false
+   }
+  },
+  "sessy|version=vD|serial=<absent>": {
+   "coordinator_battery_version": null,
+   "fingerprint_model": "vD",
+   "is_ip_addressed": true,
+   "link_key": [
+    "192.0.2.10",
+    80,
+    null
+   ],
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 2200,
+   "traits": {
+    "bms_owns_top_cutoff": false,
+    "capacity_field": "required",
+    "cutoff_without_inverter_state": false,
+    "device_owns_initial_config": false,
+    "fixed_power_envelope": true,
+    "hardware_power_cap_choices": false,
+    "ip_addressed": true,
+    "keeps_stored_taper_flag": true,
+    "max_soc_low": 80,
+    "min_soc_range": [
+     0,
+     30,
+     5
+    ],
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "sessy|version=zz|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 1700,
@@ -3452,7 +3452,7 @@
     "device_owns_initial_config": false,
     "fixed_power_envelope": true,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": true,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3467,7 +3467,7 @@
    }
   },
   "sessy|version=zz|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -3499,13 +3499,13 @@
    }
   },
   "zendure|version=<absent>|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -3516,7 +3516,7 @@
     "device_owns_initial_config": true,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3531,7 +3531,7 @@
    }
   },
   "zendure|version=<absent>|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -3563,13 +3563,13 @@
    }
   },
   "zendure|version=v2|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -3580,7 +3580,7 @@
     "device_owns_initial_config": true,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3595,7 +3595,7 @@
    }
   },
   "zendure|version=v2|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [
@@ -3627,13 +3627,13 @@
    }
   },
   "zendure|version=v3|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2500,
    "slot_ceiling_discharge": 2500,
@@ -3644,7 +3644,7 @@
     "device_owns_initial_config": true,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3654,12 +3654,12 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "zendure|version=v3|serial=<absent>": {
-   "coordinator_battery_version": "v3",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v3",
    "is_ip_addressed": true,
    "link_key": [
@@ -3686,29 +3686,29 @@
     ],
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
-    "soc_decimals": 1,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "zendure|version=vA|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
     "cutoff_without_inverter_state": true,
     "device_owns_initial_config": true,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3716,14 +3716,14 @@
      50,
      12
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "zendure|version=vA|serial=<absent>": {
-   "coordinator_battery_version": "vA",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vA",
    "is_ip_addressed": true,
    "link_key": [
@@ -3734,7 +3734,7 @@
    "slot_ceiling_charge": 1500,
    "slot_ceiling_discharge": 1500,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
     "cutoff_without_inverter_state": true,
     "device_owns_initial_config": true,
@@ -3748,46 +3748,14 @@
      50,
      12
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "zendure|version=vD|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "vD",
-   "fingerprint_model": "vD",
-   "is_ip_addressed": false,
-   "link_key": [
-    "192.0.2.10",
-    80,
-    "/dev/ttyUSB0"
-   ],
-   "slot_ceiling_charge": 2200,
-   "slot_ceiling_discharge": 2200,
-   "traits": {
-    "bms_owns_top_cutoff": true,
-    "capacity_field": "optional",
-    "cutoff_without_inverter_state": true,
-    "device_owns_initial_config": true,
-    "fixed_power_envelope": false,
-    "hardware_power_cap_choices": false,
-    "ip_addressed": false,
-    "keeps_stored_taper_flag": false,
-    "max_soc_low": 80,
-    "min_soc_range": [
-     5,
-     50,
-     12
-    ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
-    "supports_voltage_taper": false
-   }
-  },
-  "zendure|version=vD|serial=<absent>": {
-   "coordinator_battery_version": "vD",
+   "coordinator_battery_version": null,
    "fingerprint_model": "vD",
    "is_ip_addressed": true,
    "link_key": [
@@ -3798,7 +3766,7 @@
    "slot_ceiling_charge": 2200,
    "slot_ceiling_discharge": 2200,
    "traits": {
-    "bms_owns_top_cutoff": true,
+    "bms_owns_top_cutoff": false,
     "capacity_field": "optional",
     "cutoff_without_inverter_state": true,
     "device_owns_initial_config": true,
@@ -3812,20 +3780,52 @@
      50,
      12
     ],
-    "optional_dc_pv_input": true,
-    "sequential_pack_fill": true,
-    "soc_decimals": 1,
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
+    "supports_voltage_taper": false
+   }
+  },
+  "zendure|version=vD|serial=<absent>": {
+   "coordinator_battery_version": null,
+   "fingerprint_model": "vD",
+   "is_ip_addressed": true,
+   "link_key": [
+    "192.0.2.10",
+    80,
+    null
+   ],
+   "slot_ceiling_charge": 2200,
+   "slot_ceiling_discharge": 2200,
+   "traits": {
+    "bms_owns_top_cutoff": false,
+    "capacity_field": "optional",
+    "cutoff_without_inverter_state": true,
+    "device_owns_initial_config": true,
+    "fixed_power_envelope": false,
+    "hardware_power_cap_choices": false,
+    "ip_addressed": true,
+    "keeps_stored_taper_flag": false,
+    "max_soc_low": 80,
+    "min_soc_range": [
+     5,
+     50,
+     12
+    ],
+    "optional_dc_pv_input": false,
+    "sequential_pack_fill": false,
+    "soc_decimals": null,
     "supports_voltage_taper": false
    }
   },
   "zendure|version=zz|serial=/dev/ttyUSB0": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
-   "is_ip_addressed": false,
+   "is_ip_addressed": true,
    "link_key": [
     "192.0.2.10",
     80,
-    "/dev/ttyUSB0"
+    null
    ],
    "slot_ceiling_charge": 2000,
    "slot_ceiling_discharge": 2000,
@@ -3836,7 +3836,7 @@
     "device_owns_initial_config": true,
     "fixed_power_envelope": false,
     "hardware_power_cap_choices": false,
-    "ip_addressed": false,
+    "ip_addressed": true,
     "keeps_stored_taper_flag": false,
     "max_soc_low": 80,
     "min_soc_range": [
@@ -3851,7 +3851,7 @@
    }
   },
   "zendure|version=zz|serial=<absent>": {
-   "coordinator_battery_version": "v2",
+   "coordinator_battery_version": null,
    "fingerprint_model": "v2",
    "is_ip_addressed": true,
    "link_key": [

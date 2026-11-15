@@ -12108,7 +12108,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
                 max_discharge_power = int(battery_config["max_discharge_power"])
 
                 _LOGGER.info("Writing initial configuration for %s (%s): max_soc=%d%%, min_soc=%d%%, max_charge=%dW, max_discharge=%dW",
-                           battery_config[CONF_NAME], coordinator.battery_version,
+                           battery_config[CONF_NAME], coordinator.battery_version or coordinator.brand,
                            battery_config["max_soc"], battery_config["min_soc"],
                            max_charge_power, max_discharge_power)
 
