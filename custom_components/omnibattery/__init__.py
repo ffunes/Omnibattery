@@ -76,6 +76,8 @@ from .const import (
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
     CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY,
     DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY,
+    CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT,
+    DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT,
     CONF_ENABLE_CHARGE_DELAY,
     CONF_DELAY_SAFETY_MARGIN_MIN,
     DEFAULT_DELAY_SAFETY_MARGIN_MIN,
@@ -1309,6 +1311,9 @@ class ChargeDischargeController:
         self._delay_soc_setpoint = config_entry.data.get(CONF_DELAY_SOC_SETPOINT, DEFAULT_DELAY_SOC_SETPOINT)
         self._weekly_full_charge_skip_delay = config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
+        )
+        self._weekly_full_charge_skip_recent = config_entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT
         )
         # None until the user sets one: the default then follows the fleet.
         self._predictive_safety_margin_stored: float | None = config_entry.data.get(
@@ -3176,6 +3181,7 @@ class ChargeDischargeController:
             _rounded(getattr(self, "predischarge_reserve_soc", None)),
             bool(getattr(self, "weekly_full_charge_enabled", False)),
             getattr(self, "weekly_full_charge_day", None),
+            bool(getattr(self, "_weekly_full_charge_skip_recent", False)),
             bool(getattr(self, "discharge_reserve_enabled", False)),
             bool(getattr(self, "capacity_protection_enabled", False)),
             _rounded(getattr(self, "capacity_protection_limit", None)),
@@ -3319,6 +3325,9 @@ class ChargeDischargeController:
         self.temp_limit_apply_discharge = self.config_entry.data.get(CONF_TEMP_LIMIT_APPLY_DISCHARGE, DEFAULT_TEMP_LIMIT_APPLY_DISCHARGE)
         self._weekly_full_charge_skip_delay = self.config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
+        )
+        self._weekly_full_charge_skip_recent = self.config_entry.data.get(
+            CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT
         )
         self._predictive_safety_margin_stored = self.config_entry.data.get(
             CONF_PREDICTIVE_SAFETY_MARGIN_KWH
@@ -4012,7 +4021,14 @@ class ChargeDischargeController:
         if not getattr(self, "weekly_full_charge_enabled", False):
             return False
         target = WEEKDAY_MAP.get(getattr(self, "weekly_full_charge_day", None))
-        return target is not None and (now.weekday() + 1) % 7 == target
+        if target is None or (now.weekday() + 1) % 7 != target:
+            return False
+        # A run that will be skipped for a recent full charge needs no room.
+        manager = getattr(self, "_weekly_charge_mgr", None)
+        skipped = getattr(manager, "recent_full_charge_before", None)
+        return not (
+            callable(skipped) and skipped(now.date() + timedelta(days=1)) is not None
+        )
 
     def _reported_battery_capacity_kwh(self) -> dict:
         """Each battery's capacity as its coordinator reports it, by name."""
@@ -12080,6 +12096,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
     await consumption_tracker.load_daily_energy()
 
     # Restore weekly charge completion state from previous session
+    await controller._weekly_charge_mgr.load_last_full()
     await controller._weekly_charge_mgr.load_state()
     await controller._charge_delay_mgr.load_state()
     # Restore solar T_start if not already restored by weekly charge state (date-based check)

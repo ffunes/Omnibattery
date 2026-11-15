@@ -1579,6 +1579,9 @@
       "weekly_full_charge_delay": {
         "name": "Wekelijkse Volledige Lading Vertragen"
       },
+      "weekly_full_charge_skip_recent": {
+        "name": "Wekelijkse volledige lading overslaan na een recente volledige lading"
+      },
       "capacity_protection": {
         "name": "Piekbegrenzing"
       },
@@ -1750,7 +1753,8 @@
           "idle": "Inactief",
           "disabled": "Uitgeschakeld",
           "charging": "Laden naar 100%",
-          "complete": "Voltooid"
+          "complete": "Voltooid",
+          "skipped": "Overgeslagen"
         }
       },
       "charge_delay_status": {

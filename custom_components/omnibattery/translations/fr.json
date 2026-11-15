@@ -1579,6 +1579,9 @@
       "weekly_full_charge_delay": {
         "name": "Retarder la Charge Complète Hebdomadaire"
       },
+      "weekly_full_charge_skip_recent": {
+        "name": "Ignorer la charge complète hebdomadaire après une charge complète récente"
+      },
       "capacity_protection": {
         "name": "Écrêtement de Pointe"
       },
@@ -1750,7 +1753,8 @@
           "idle": "Inactif",
           "disabled": "Désactivé",
           "charging": "Charge à 100%",
-          "complete": "Terminé"
+          "complete": "Terminé",
+          "skipped": "Ignorée"
         }
       },
       "charge_delay_status": {

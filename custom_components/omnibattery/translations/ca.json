@@ -1579,6 +1579,9 @@
       "weekly_full_charge_delay": {
         "name": "Retardar Càrrega Setmanal Completa"
       },
+      "weekly_full_charge_skip_recent": {
+        "name": "Ometre la càrrega setmanal completa després d'una càrrega completa recent"
+      },
       "capacity_protection": {
         "name": "Reducció de Pics"
       },
@@ -1750,7 +1753,8 @@
           "idle": "Inactiu",
           "disabled": "Desactivat",
           "charging": "Carregant al 100%",
-          "complete": "Completat"
+          "complete": "Completat",
+          "skipped": "Omesa"
         }
       },
       "charge_delay_status": {

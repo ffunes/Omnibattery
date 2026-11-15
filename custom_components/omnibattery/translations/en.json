@@ -1591,6 +1591,9 @@
       "weekly_full_charge_delay": {
         "name": "Delay Weekly Full Charge"
       },
+      "weekly_full_charge_skip_recent": {
+        "name": "Skip Weekly Full Charge After a Recent Full Charge"
+      },
       "capacity_protection": {
         "name": "Peak Shaving"
       },
@@ -1747,7 +1750,8 @@
           "idle": "Idle",
           "disabled": "Disabled",
           "charging": "Charging to 100%",
-          "complete": "Complete"
+          "complete": "Complete",
+          "skipped": "Skipped"
         }
       },
       "charge_delay_status": {

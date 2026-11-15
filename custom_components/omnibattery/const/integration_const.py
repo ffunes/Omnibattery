@@ -286,6 +286,11 @@ CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY = "weekly_full_charge_skip_delay"
 # the solar charge delay and charges immediately on its target day. The runtime
 # switch flips this so the weekly charge can instead wait for the delay to unlock.
 DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY = True
+# Skip the weekly full charge when every battery already reached 100% within
+# WEEKLY_FULL_CHARGE_RECENT_DAYS before the run day (off by default).
+CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT = "weekly_full_charge_skip_recent"
+DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT = False
+WEEKLY_FULL_CHARGE_RECENT_DAYS = 5
 CONF_ENABLE_BALANCE_MONITOR = "enable_balance_monitor"
 
 # Cell Balance Monitor

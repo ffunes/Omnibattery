@@ -27,6 +27,7 @@ from .const import (
     CONF_ENABLE_WEEKLY_FULL_CHARGE,
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
     CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY,
+    CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     CONF_MANUAL_MODE_ENABLED,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
@@ -107,6 +108,7 @@ async def async_setup_entry(
         # Weekly full charge enable/disable (system-level, always present so it can
         # be turned on from the dashboard even if configured off at setup).
         entities.append(WeeklyFullChargeEnableSwitch(hass, entry, controller))
+        entities.append(WeeklyFullChargeSkipRecentSwitch(hass, entry, controller))
         entities.append(VacationModeSwitch(hass, entry, controller))
 
     # Keep mode-specific predictive controls registered while the master switch
@@ -2224,6 +2226,62 @@ class WeeklyFullChargeEnableSwitch(SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Disable the weekly full charge."""
         self._set_enabled(False)
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class WeeklyFullChargeSkipRecentSwitch(SwitchEntity):
+    """Skip the weekly full charge after a recent full charge.
+
+    ON  = no weekly run when every battery reached 100% in the
+          WEEKLY_FULL_CHARGE_RECENT_DAYS days before the run day.
+    OFF = the weekly full charge runs every week (default).
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the skip-after-recent-full-charge switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "weekly_full_charge_skip_recent"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}weekly_full_charge_skip_recent"
+        self.entity_id = system_entity_id("switch", "weekly_full_charge_skip_recent")
+        self._attr_icon = "mdi:calendar-remove"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True when a recent full charge skips the weekly run."""
+        return bool(getattr(self.controller, "_weekly_full_charge_skip_recent", False))
+
+    async def _set(self, enabled: bool) -> None:
+        self.controller._weekly_full_charge_skip_recent = enabled
+        new_data = dict(self.entry.data)
+        new_data[CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info(
+            "Weekly Full Charge: skip after a recent full charge %s",
+            "ENABLED" if enabled else "DISABLED",
+        )
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Skip the weekly run after a recent full charge."""
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Run the weekly full charge every week."""
+        await self._set(False)
 
     @property
     def device_info(self):

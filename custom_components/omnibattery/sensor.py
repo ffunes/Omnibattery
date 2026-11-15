@@ -747,6 +747,7 @@ class WeeklyFullChargeSensor(SensorEntity):
             "Disabled": "disabled",
             "Charging to 100%": "charging",
             "Complete": "complete",
+            "Skipped": "skipped",
         }.get(state, "idle")
 
     @property
@@ -762,6 +763,22 @@ class WeeklyFullChargeSensor(SensorEntity):
         batteries = self._controller._weekly_charge_status.get("batteries")
         if batteries:
             attrs["batteries"] = batteries
+        attrs["skip_after_recent_full_charge"] = bool(
+            getattr(self._controller, "_weekly_full_charge_skip_recent", False)
+        )
+        last_full = getattr(
+            getattr(self._controller, "_weekly_charge_mgr", None),
+            "last_full_charge_at",
+            None,
+        )
+        attrs["last_full_charge"] = (
+            last_full.isoformat(timespec="minutes") if last_full else None
+        )
+        skipped_for = self._controller._weekly_charge_status.get(
+            "skipped_for_full_charge_at"
+        )
+        if skipped_for:
+            attrs["skipped_for_full_charge_at"] = skipped_for
         return attrs
 
     @property

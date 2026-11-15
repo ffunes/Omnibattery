@@ -2,6 +2,10 @@
 
 ## [1.6.1b2] - 2026-11-11
 
+### Added
+
+- **Weekly full charge: skip it after a recent full charge** (opt-in): a new switch in the panel's Weekly full charge card. When it is on, the weekly run is skipped if every battery already reached 100% (or a confirmed BMS cutoff) in the 5 days before the full charge day, because that charge balanced the cells already. The planner then plans no fill to 100% the evening before either. The integration remembers when the fleet was last full across restarts, starting with this update; the Weekly full charge status sensor shows it (`last_full_charge`) and reads "Skipped" for a skipped run. A run that already raised the charge cutoff always finishes.
+
 ### Fixed
 
 - **Daily operation timeline no longer fills the recorder** (#850): its attributes change on every publish (about once a minute), so each write stored a new attributes row. From Home Assistant 2024.7 the sensor's attributes are no longer recorded; the panel reads the live state, so the Daily operation card is unchanged. The card also updates at once again when an interval closes, instead of up to a minute later. Thanks to @mhjansen79.

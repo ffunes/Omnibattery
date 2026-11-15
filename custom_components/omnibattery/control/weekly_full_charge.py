@@ -30,6 +30,7 @@ from ..const import (
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
     NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
     WEEKDAY_MAP,
+    WEEKLY_FULL_CHARGE_RECENT_DAYS,
 )
 
 if TYPE_CHECKING:
@@ -51,6 +52,9 @@ _BMS_CUTOFF_REQUIRED_CYCLES = NORMAL_BALANCE_RECAL_CUTOFF_CYCLES
 # controller's clock, not by reading age: a driver that serves a cached device
 # state makes every poll look fresh.
 _BMS_CUTOFF_CONFIRM_S = 10
+# The last full charge is kept up to date every cycle the fleet is full, but
+# written to storage at most this often.
+_LAST_FULL_SAVE_INTERVAL = timedelta(hours=1)
 
 
 class WeeklyFullChargeManager:
@@ -77,6 +81,13 @@ class WeeklyFullChargeManager:
         # Edge-trigger guard so the "already completed" debug line logs once per
         # completion, not once per is_active() call (called per-battery per-cycle).
         self._already_complete_logged = False
+        # When every automatic battery last stood at 100% (or a confirmed BMS
+        # cutoff), kept in its own store whatever the weekly feature's state.
+        self._last_full_store = Store(
+            hass, 1, f"{DOMAIN}.{config_entry.entry_id}.last_full_charge"
+        )
+        self._last_full_at: datetime | None = None
+        self._last_full_saved_at: datetime | None = None
 
     def _create_background_task(self, coroutine, name: str) -> asyncio.Task | None:
         """Create persistence work through the owning entry controller."""
@@ -300,6 +311,92 @@ class WeeklyFullChargeManager:
         # in taper zone), so the count is 0 outside those conditions.
         return self._bms_cutoff_counts.get(coordinator.name, 0) >= _BMS_CUTOFF_REQUIRED_CYCLES
 
+    @property
+    def last_full_charge_at(self) -> datetime | None:
+        """When every automatic battery last stood full, or None."""
+        return getattr(self, "_last_full_at", None)
+
+    def _fleet_full(self) -> bool:
+        """Every automatic battery with data is full, without side effects.
+
+        Unlike is_battery_full() this never prepares a BMS-cutoff retry: it is
+        asked every cycle, outside a weekly run too.
+        """
+        batteries = [
+            coordinator
+            for coordinator in getattr(self._controller, "coordinators", ()) or ()
+            if getattr(coordinator, "data", None)
+            and not getattr(coordinator, "battery_manual_mode_enabled", False)
+        ]
+        if not batteries:
+            return False
+        for coordinator in batteries:
+            try:
+                soc = float(coordinator.data.get("battery_soc", 0) or 0)
+            except (TypeError, ValueError):
+                return False
+            if soc_vs_ceiling(coordinator, soc) < 100 and not self.is_bms_cutoff_confirmed(
+                coordinator
+            ):
+                return False
+        return True
+
+    def note_full_charge(self, now: datetime | None = None) -> None:
+        """Remember the moment while every automatic battery is full."""
+        if not self._fleet_full():
+            return
+        now = now or datetime.now()
+        self._last_full_at = now
+        saved = getattr(self, "_last_full_saved_at", None)
+        if saved is None or not timedelta(0) <= now - saved < _LAST_FULL_SAVE_INTERVAL:
+            self._last_full_saved_at = now
+            self._create_background_task(
+                self._save_last_full(), "omnibattery_last_full_charge_save"
+            )
+
+    async def _save_last_full(self) -> None:
+        if self.last_full_charge_at is None or not hasattr(self, "_last_full_store"):
+            return
+        try:
+            await self._last_full_store.async_save(
+                {"last_full_at": self._last_full_at.isoformat()}
+            )
+        except Exception as err:  # noqa: BLE001 - losing it only means one more weekly run
+            _LOGGER.error("Weekly Full Charge: Failed to save the last full charge: %s", err)
+
+    async def load_last_full(self) -> None:
+        """Restore the last full charge, independent of the weekly feature."""
+        try:
+            data = await self._last_full_store.async_load()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.error("Weekly Full Charge: Failed to load the last full charge: %s", err)
+            return
+        try:
+            stored = datetime.fromisoformat(str((data or {}).get("last_full_at")))
+        except (TypeError, ValueError):
+            return
+        if self.last_full_charge_at is None or stored > self.last_full_charge_at:
+            self._last_full_at = stored
+            self._last_full_saved_at = stored
+
+    def recent_full_charge_before(self, run_day: date) -> datetime | None:
+        """The full charge that makes the run on ``run_day`` unnecessary, or None.
+
+        Only with the skip switch on: the fleet stood full on or after the
+        start of the day WEEKLY_FULL_CHARGE_RECENT_DAYS before ``run_day``.
+        Judged against the run day, not the clock, so a run is skipped or not
+        for its whole window.
+        """
+        if not getattr(self._controller, "_weekly_full_charge_skip_recent", False):
+            return None
+        last = self.last_full_charge_at
+        if last is None:
+            return None
+        since = datetime.combine(run_day, datetime.min.time()) - timedelta(
+            days=WEEKLY_FULL_CHARGE_RECENT_DAYS
+        )
+        return last if last >= since else None
+
     def is_bms_cutoff_confirmed(self, coordinator: Any) -> bool:
         """Return only the debounced BMS-cutoff state, independent of SOC."""
         return self._bms_cutoff_counts.get(coordinator.name, 0) >= _BMS_CUTOFF_REQUIRED_CYCLES
@@ -395,6 +492,7 @@ class WeeklyFullChargeManager:
             ctrl._force_full_charge = False
             ctrl._weekly_charge_status["state"] = "Idle"
             ctrl._weekly_charge_status.pop("completion_reason", None)
+            ctrl._weekly_charge_status.pop("skipped_for_full_charge_at", None)
             # Save the cleared state asynchronously (don't await to avoid blocking)
             self._create_background_task(
                 self.save_state(), "omnibattery_weekly_charge_state_save"
@@ -411,6 +509,33 @@ class WeeklyFullChargeManager:
 
         if not in_window:
             return False
+
+        # A full charge in the days before the run already balanced the cells.
+        # Never cut a run short that raised the cutoff: it finishes as before.
+        status = ctrl._weekly_charge_status
+        if (
+            not ctrl.weekly_full_charge_complete
+            and not ctrl.weekly_full_charge_registers_written
+        ):
+            run_day = now.date() if current_weekday == target_weekday else (
+                now.date() - timedelta(days=1)
+            )
+            recent = self.recent_full_charge_before(run_day)
+            if recent is not None:
+                if status.get("state") != "Skipped":
+                    _LOGGER.info(
+                        "Weekly Full Charge: Skipped, every battery was full at %s",
+                        recent.isoformat(timespec="minutes"),
+                    )
+                status["state"] = "Skipped"
+                status["skipped_for_full_charge_at"] = recent.isoformat(
+                    timespec="minutes"
+                )
+                return False
+        if status.get("state") == "Skipped":
+            # The switch was turned off during the window: the run goes ahead.
+            status["state"] = "Idle"
+            status.pop("skipped_for_full_charge_at", None)
 
         if ctrl.weekly_full_charge_complete:
             if not self._already_complete_logged:
@@ -641,6 +766,7 @@ class WeeklyFullChargeManager:
         # Always tick BMS-cutoff counters unconditionally — _get_available_batteries()
         # reads is_battery_full() later in the same cycle for the normal max_soc=100% case.
         self.tick_bms_cutoff()
+        self.note_full_charge()
 
         # Mid-charge abort: day changed (or feature disabled) while registers were already at 100%.
         # Restore hardware cutoff to max_soc before anything else.

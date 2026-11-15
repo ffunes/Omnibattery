@@ -1579,6 +1579,9 @@
       "weekly_full_charge_delay": {
         "name": "Wöchentliche Vollladung verzögern"
       },
+      "weekly_full_charge_skip_recent": {
+        "name": "Wöchentliche Vollladung nach kürzlicher Vollladung überspringen"
+      },
       "capacity_protection": {
         "name": "Spitzenlastkappung"
       },
@@ -1750,7 +1753,8 @@
           "idle": "Bereit",
           "disabled": "Deaktiviert",
           "charging": "Lädt auf 100%",
-          "complete": "Abgeschlossen"
+          "complete": "Abgeschlossen",
+          "skipped": "Übersprungen"
         }
       },
       "charge_delay_status": {
