@@ -339,7 +339,7 @@ Three tests fail when shared code learns a brand, so a pull request that adds a 
 
 - `tests/test_no_brand_branches.py` scans shared Python and the panel for brand or model names, comparisons with `brand` or `battery_version`, and imports of a brand module.
 - `tests/test_no_native_keys.py` forbids shared code from reading a brand's native keys and codes, such as a vendor-specific SOC key or an inverter-state number.
-- `tests/test_driver_shared_modules_frozen.py` keeps `drivers/base.py` and the other shared driver modules from gaining new brand knowledge.
+- `tests/test_driver_shared_modules_frozen.py` keeps `drivers/base.py` and the other shared driver modules free of brand knowledge: a brand's version or connection keys are read only by its own driver.
 
 Their allowlists live in `tests/guard_allowlists/` and may only shrink. What remains are a few permanent exceptions, such as the migration of old stored data. The acceptance check for this design: a dummy driver added through exactly the files above (driver, setup module, registry entry, translations) passed the whole suite with no other file changed.
 

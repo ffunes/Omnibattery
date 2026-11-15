@@ -339,7 +339,7 @@ Tres tests fallan cuando el código compartido aprende una marca, así que un pu
 
 - `tests/test_no_brand_branches.py` recorre el Python compartido y el panel buscando nombres de marca o modelo, comparaciones con `brand` o `battery_version` e imports de un módulo de marca.
 - `tests/test_no_native_keys.py` impide que el código compartido lea claves y códigos propios de una marca, como una clave de SOC específica de un fabricante o un número de estado del inversor.
-- `tests/test_driver_shared_modules_frozen.py` evita que `drivers/base.py` y los demás módulos compartidos de drivers ganen conocimiento nuevo de marcas.
+- `tests/test_driver_shared_modules_frozen.py` mantiene `drivers/base.py` y los demás módulos compartidos de drivers sin conocimiento de marcas: las claves de versión o de conexión de una marca solo las lee su propio driver.
 
 Sus listas de excepciones están en `tests/guard_allowlists/` y solo pueden menguar. Lo que queda son unas pocas excepciones permanentes, como la migración de datos guardados antiguos. La comprobación de aceptación de este diseño: un driver ficticio añadido exactamente con los archivos anteriores (driver, módulo de configuración, entrada del registro, traducciones) pasó toda la suite sin cambiar ningún otro archivo.
 
