@@ -25,6 +25,7 @@ import math
 from typing import Optional
 
 from ..const import (
+    CONF_DC_PV_CONNECTED,
     CONF_RS485_GATEWAY,
     CONF_SERIAL_PORT,
     CONF_SLAVE_ID,
@@ -338,7 +339,17 @@ class MarstekModbusDriver(BatteryDriver):
             serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
             ems_version=battery_config.get("ems_version"),
             rs485_gateway=battery_config.get(CONF_RS485_GATEWAY, False),
+            dc_pv_connected=bool(
+                battery_config.get(CONF_DC_PV_CONNECTED, True)
+                and cls.traits_for(battery_config).optional_dc_pv_input
+            ),
         )
+
+    def obsolete_entity_suffixes(self) -> tuple[str, ...]:
+        """Venus A/D whose MPPT inputs are declared unused own no PV entities."""
+        if self.capabilities.has_mppt_pv and not self._dc_pv_connected:
+            return ("solar_power", "battery_cell_power")
+        return ()
 
     @classmethod
     def link_key(cls, battery_config) -> tuple:
@@ -370,6 +381,7 @@ class MarstekModbusDriver(BatteryDriver):
         serial_port: Optional[str] = None,
         ems_version: object = None,
         rs485_gateway: bool = False,
+        dc_pv_connected: bool = True,
     ) -> None:
         """Build the driver.
 
@@ -388,6 +400,7 @@ class MarstekModbusDriver(BatteryDriver):
         self._ems_version = ems_version
         self._serial_port = serial_port
         self._rs485_gateway = bool(rs485_gateway)
+        self._dc_pv_connected = bool(dc_pv_connected)
         self._is_v3_family = version in _V3_FAMILY
         self._slave_id = slave_id
 

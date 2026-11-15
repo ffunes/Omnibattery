@@ -399,6 +399,12 @@ class AnkerModbusDriver(BatteryDriver):
         """
         return self._product_code in _INDEPENDENT_PV_PRODUCT_CODES
 
+    OBSOLETE_ENTITY_LEGACY_PREFIXES = True
+
+    def obsolete_entity_suffixes(self) -> tuple[str, ...]:
+        """Models without an independent PV source never own ``solar_power``."""
+        return () if self.has_independent_pv else ("solar_power",)
+
     def _field_specs_for_model(self) -> list[dict]:
         """Return the register fields that are meaningful for this model."""
         if self.has_independent_pv:

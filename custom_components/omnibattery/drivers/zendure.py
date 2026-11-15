@@ -196,7 +196,7 @@ def _decikelvin_to_c(raw: float) -> float:
 
 # Per-pack telemetry from packData[] is exposed as `pack{N}_{suffix}` logical
 # keys (N is 1-based). They are not in SENSOR_DEFINITIONS — the platform builds
-# one ZendurePackSensor per (pack, spec) from PACK_FIELD_SPECS at setup, sized to
+# one PackFieldSensor per (pack, spec) from PACK_FIELD_SPECS at setup, sized to
 # the real pack count — so the driver pre-scales the values here (the coordinator
 # only scales keys that have a definition). Matches this regex; preserved through
 # the read_telemetry key filter even though no definition lists them.
@@ -234,7 +234,7 @@ def _reported_capacity_kwh(packs: list[dict], pack_count: int | None) -> float |
     return round(sum(capacities), 2)
 
 # Numeric per-pack sensor fields. Each becomes a sensor entity per pack; sn /
-# model / state ride along as attributes on the SoC sensor (see ZendurePackSensor).
+# model / state ride along as attributes on the SoC sensor (see PackFieldSensor).
 PACK_FIELD_SPECS: list[dict] = [
     {"suffix": "soc",              "name": "SOC",              "unit": "%",  "device_class": "battery",     "precision": 0, "icon": "mdi:battery"},
     {"suffix": "voltage",          "name": "Voltage",          "unit": "V",  "device_class": "voltage",     "precision": 2},

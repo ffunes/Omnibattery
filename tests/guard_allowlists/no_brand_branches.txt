@@ -794,13 +794,6 @@ number.py:async_setup_entry:identifier:MarstekSoftMaxChargeNumber
 number.py:async_setup_entry:identifier:MarstekSoftMaxDischargeNumber
 select.py:<module>:identifier:MarstekManualForceModeSelect
 select.py:async_setup_entry:identifier:MarstekManualForceModeSelect
-sensor.py:<module>:identifier:ZendurePackSensor
-sensor.py:_remove_obsolete_solar_entities:compare:getattr(coordinator, 'brand', None) != 'anker'
-sensor.py:_remove_obsolete_solar_entities:compare:getattr(coordinator, 'brand', None) == 'marstek'
-sensor.py:_remove_obsolete_solar_entities:literal:anker
-sensor.py:_remove_obsolete_solar_entities:literal:marstek
-sensor.py:async_setup_entry:identifier:ZendurePackSensor
-sensors/calculated_sensors.py:<module>:identifier:ZendurePackSensor
 switch.py:ManualModeSwitch.async_turn_on:literal:anker
 switch.py:ManualModeSwitch.async_turn_on:literal:anker
 tracking/balance_monitor.py:BalanceMonitor._evaluate:literal:marstek

@@ -68,6 +68,16 @@ def redact_keys() -> frozenset[str]:
     return frozenset(keys)
 
 
+def is_registered(brand: str | None) -> bool:
+    """True when ``brand`` has its own driver (not the ``DEFAULT_BRAND`` fallback).
+
+    The sensor platform used to clean obsolete entities only for brands it named,
+    so a battery whose brand fell back to the default class was never cleaned;
+    this keeps that (plan section 8, T4.2).
+    """
+    return brand in DRIVERS
+
+
 def is_ip_addressed(battery_config: Mapping) -> bool:
     """True when this stored battery's driver says it is addressed by IP.
 

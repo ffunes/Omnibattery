@@ -976,7 +976,7 @@ class SyntheticCapacitySensor(CoordinatorEntity, SensorEntity):
         return self.coordinator.battery_device_info
 
 
-class ZendurePackSensor(CoordinatorEntity, SensorEntity):
+class PackFieldSensor(CoordinatorEntity, SensorEntity):
     """Per-pack telemetry sensor (one per pack × field).
 
     The driver pre-scales packData[] into pack{N}_{suffix} keys; this entity reads

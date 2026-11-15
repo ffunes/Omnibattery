@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Sequence
 
@@ -777,6 +777,20 @@ class BatteryDriver(ABC):
         """Numeric per-pack sensor fields; the sensor platform builds one entity
         per (pack, field). Empty for drivers that do not expose individual packs."""
         return ()
+
+    def obsolete_entity_suffixes(self) -> Iterable[str]:
+        """Entity key suffixes that no longer belong to this battery.
+
+        Read by the sensor platform after the model is detected; it removes the
+        registry entries ``<prefix>_<suffix>`` of this battery. Empty by default.
+        The prefix is ``device_key``, plus the legacy ``host`` and ``name``
+        prefixes when ``OBSOLETE_ENTITY_LEGACY_PREFIXES`` is set.
+        """
+        return ()
+
+    # Entities of this brand were once keyed on host or name instead of
+    # device_key, so obsolete ones are looked up under those prefixes too.
+    OBSOLETE_ENTITY_LEGACY_PREFIXES: bool = False
 
     # --- entity definitions (read by the coordinator and the platforms) ----
 
