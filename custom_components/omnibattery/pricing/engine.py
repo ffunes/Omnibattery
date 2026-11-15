@@ -4011,7 +4011,6 @@ class PricingManager:
                     plan=plan,
                     inputs={
                         "total_required_kwh": required,
-                        "uncapped_required_kwh": uncapped_required,
                         "effective_power_kw": power_kw,
                         "headroom_kwh": headroom,
                         "usable_initial_kwh": usable,
