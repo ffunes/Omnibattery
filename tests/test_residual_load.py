@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from custom_components.omnibattery.control import residual_load
+from tests.conftest import _FakeMarstekDriver
 from custom_components.omnibattery.control.residual_load import (
     apply_guards,
     feedforward_candidate_w,
@@ -56,6 +57,7 @@ def _battery(
         is_available=available,
         capabilities=SimpleNamespace(has_mppt_pv=mppt_pv),
         dc_pv_connected=True,
+        driver=_FakeMarstekDriver(),
     )
 
 

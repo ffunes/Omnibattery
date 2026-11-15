@@ -62,6 +62,40 @@ _LOGGER = logging.getLogger(__name__)
 DELIVERED_AC_POWER_KEY = "ac_delivered_power"
 
 
+class AcSource(enum.Enum):
+    """Where ``BatteryDriver.ac_contribution_w`` may read a battery's AC contribution.
+
+    REGISTER: the device's own AC-side reading, ``ac_register_power_w`` (only the
+    drivers that publish one override it). PORT: ``DELIVERED_AC_POWER_KEY``. CELL:
+    ``battery_power``, which on a battery with PV on its own DC bus is not what
+    crosses the AC port. A source that reads None is skipped.
+    """
+
+    REGISTER = "register"
+    PORT = "port"
+    CELL = "cell"
+
+
+# The five places that need the AC contribution disagree on which source comes
+# first and on which they accept (plan section 8, T7.4; pinned by
+# tests/test_ac_contribution_characterization.py). Each order below reproduces one
+# of them exactly. Diferencia conservada, decidir: the only reachable divergence
+# between drivers is Anker with independent PV, which publishes both a register
+# (the negated pack power) and the AC port (pack minus PV), and the two orders
+# read different ones.
+#: Controller (``_coordinator_delivered_power``) and phase limiter: register first.
+AC_REGISTER_FIRST = (AcSource.REGISTER, AcSource.PORT, AcSource.CELL)
+#: Consumption tracker: the AC port first.
+AC_PORT_FIRST = (AcSource.PORT, AcSource.REGISTER, AcSource.CELL)
+#: Residual-load reconstruction on a battery with connected MPPT PV: the cell power
+#: is refused there, so a battery with neither AC source reads as unreadable.
+AC_PORT_FIRST_NO_CELL = (AcSource.PORT, AcSource.REGISTER)
+#: Daily-operation diary: only the device's own AC-side reading, no fallback.
+AC_REGISTER_ONLY = (AcSource.REGISTER,)
+#: Phase limiter when it has no controller to ask: no AC port.
+AC_REGISTER_THEN_CELL = (AcSource.REGISTER, AcSource.CELL)
+
+
 class InverterStatus(enum.Enum):
     """Canonical operating state of a battery's inverter.
 
@@ -952,6 +986,39 @@ class BatteryDriver(ABC):
         configured value is the only one. A driver whose device holds its own
         Target SOC overrides this.
         """
+        return None
+
+    def ac_register_power_w(self, data: dict) -> Optional[float]:
+        """The device's own AC-side reading in +charge / -discharge watts, or None.
+
+        None means the driver publishes no such reading (the default). A driver
+        whose telemetry carries one overrides this and converts its sign; it
+        raises ``TypeError``/``ValueError`` on a value that is not a number, like
+        the other sources.
+        """
+        return None
+
+    def ac_contribution_w(
+        self, data: dict, order: Sequence[AcSource] = AC_REGISTER_FIRST
+    ) -> Optional[float]:
+        """What the battery puts on (-) or takes from (+) the AC bus, in watts.
+
+        The first source in ``order`` that reads something wins; None when none
+        does. Which sources and in which order is the caller's explicit choice:
+        the sites that need it disagree and each keeps its own (see the
+        ``AC_*`` orders above, "diferencia conservada, decidir (plan section 8,
+        T7.4)"). A value that is not a number raises ``TypeError`` or
+        ``ValueError`` rather than falling through to the next source.
+        """
+        for source in order:
+            if source is AcSource.REGISTER:
+                value = self.ac_register_power_w(data)
+            elif source is AcSource.PORT:
+                value = data.get(DELIVERED_AC_POWER_KEY)
+            else:
+                value = data.get("battery_power")
+            if value is not None:
+                return float(value)
         return None
 
     @property

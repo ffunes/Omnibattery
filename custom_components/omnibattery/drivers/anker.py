@@ -814,6 +814,11 @@ class AnkerModbusDriver(BatteryDriver):
         self._client.unit_id = self._slave_id
         return await self._client.async_write_register(address, int(value))
 
+    def ac_register_power_w(self, data: dict):
+        # ``ac_power`` is +discharge / -charge; the query speaks +charge.
+        value = data.get("ac_power")
+        return None if value is None else -float(value)
+
     def net_power_from_data(self, data: dict) -> Optional[int]:
         try:
             mode = int(round(float(data["operating_mode"])))

@@ -32,7 +32,7 @@ from homeassistant.util import dt as dt_util
 
 from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN, MISSING_DAY_FLEET_SHARE
 from ..infra.entity_naming import is_omnibattery_solar_entity
-from ..drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
+from ..drivers.base import AC_PORT_FIRST, has_connected_mppt_pv
 from .backfill import BackfillToken, RecorderBackfillCoordinator, local_day_bounds
 from .consumption_profile import (
     ConsumptionForecast,
@@ -80,20 +80,13 @@ def coordinator_ac_power_w(coordinator: Any) -> float | None:
     data = getattr(coordinator, "data", None)
     if not data:
         return None
-    value = data.get(DELIVERED_AC_POWER_KEY)
-    if value is not None:
-        value = -value
-    else:
-        value = data.get("ac_power")
-    if value is None:
-        battery_power = data.get("battery_power")
-        if battery_power is None:
-            return None
-        value = -battery_power
     try:
-        parsed = float(value)
+        contribution = coordinator.driver.ac_contribution_w(data, AC_PORT_FIRST)
     except (TypeError, ValueError):
         return None
+    if contribution is None:
+        return None
+    parsed = -contribution
     return parsed if math.isfinite(parsed) else None
 
 

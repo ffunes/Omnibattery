@@ -1232,6 +1232,11 @@ class IndevoltDriver(BatteryDriver):
         self._send(values, applied)
         return SetpointResult(True, applied, False, applied={"control_status": self.control_status})
 
+    def ac_register_power_w(self, data: dict):
+        # ``ac_power`` is +discharge / -charge; the query speaks +charge.
+        value = data.get("ac_power")
+        return None if value is None else -float(value)
+
     def net_power_from_data(self, data: dict) -> Optional[int]:
         """The commanded net power while owned; None makes the core write again."""
         if self._state is not ControlState.OWNED:

@@ -44,7 +44,8 @@ from custom_components.omnibattery.drivers import anker, esphome, huawei, indevo
 from custom_components.omnibattery.tracking.non_responsive_tracker import (
     NonResponsiveTracker,
 )
-from tests.conftest import FakeCoordinator
+from custom_components.omnibattery.drivers.base import BatteryDriver
+from tests.conftest import FakeCoordinator, _FakeMarstekDriver
 from tests.test_aggregate_power import _sensor
 from tests.test_daily_operation_manager import _runtime_controller
 from tests.test_driver_construction_characterization import (
@@ -131,6 +132,23 @@ class _Recorder:
         pass
 
 
+class _AcRegister:
+    """A brand's driver reading ``ac_power`` as Marstek's register.
+
+    The runtime-decision test feeds ``ac_power`` to every brand to exercise the
+    backup-mode branch, though only some brands publish it.
+    """
+
+    ac_contribution_w = BatteryDriver.ac_contribution_w
+    ac_register_power_w = staticmethod(_FakeMarstekDriver.ac_register_power_w)
+
+    def __init__(self, driver):
+        self._driver = driver
+
+    def __getattr__(self, name):
+        return getattr(self._driver, name)
+
+
 class _Hashable(SimpleNamespace):
     """A coordinator stand-in usable as a dict key (the controller keys by it)."""
 
@@ -210,7 +228,7 @@ async def test_backup_function_active_in_bypass(brand, value):
 @pytest.mark.parametrize(("brand", "value"), CASES, ids=IDS)
 async def test_daily_operation_runtime_decision(brand, value):
     coord = SimpleNamespace(
-        driver=_coordinator(brand).driver,
+        driver=_AcRegister(_coordinator(brand).driver),
         capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
         data=_data(value, ac_power=300, ac_offgrid_power=100, mppt1_power=0),
     )

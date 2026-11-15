@@ -46,7 +46,11 @@ from ..const import (
     SURPLUS_GUARD_HYSTERESIS_W,
     SURPLUS_GUARD_MIN_HOLD_S,
 )
-from ..drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
+from ..drivers.base import (
+    AC_PORT_FIRST,
+    AC_PORT_FIRST_NO_CELL,
+    has_connected_mppt_pv,
+)
 from ..energy import effective_total_discharging_energy
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,16 +81,9 @@ def _battery_ac_power_w(coordinator):
     """
     if not getattr(coordinator, "is_available", False) or not coordinator.data:
         return None
-    delivered = coordinator.data.get(DELIVERED_AC_POWER_KEY)
-    if delivered is not None:
-        return -float(delivered)
-    ac = coordinator.data.get("ac_power")
-    if ac is not None:
-        return float(ac)
-    battery_power = coordinator.data.get("battery_power")
-    if battery_power is None or has_connected_mppt_pv(coordinator):
-        return None
-    return -float(battery_power)
+    order = AC_PORT_FIRST_NO_CELL if has_connected_mppt_pv(coordinator) else AC_PORT_FIRST
+    contribution = coordinator.driver.ac_contribution_w(coordinator.data, order)
+    return None if contribution is None else -contribution
 
 
 def uncovered_load_w(controller, grid_w):

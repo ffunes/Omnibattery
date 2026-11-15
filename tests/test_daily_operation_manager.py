@@ -186,6 +186,7 @@ def test_runtime_diary_anker_aggregate_pv_is_not_added_to_pack_power():
 
 def test_runtime_diary_ignores_max_ac_derived_solar_for_charge_source():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(
             has_mppt_pv=False, has_solar_telemetry=False
         ),
@@ -203,12 +204,14 @@ def test_runtime_diary_ignores_max_ac_derived_solar_for_charge_source():
 def test_runtime_diary_keeps_charge_history_without_inventing_solar():
     coordinators = [
         SimpleNamespace(
+            driver=_FakeMarstekDriver(),
             capabilities=SimpleNamespace(
                 has_mppt_pv=False, has_solar_telemetry=False
             ),
             data={"battery_power": 1000},
         ),
         SimpleNamespace(
+            driver=_FakeMarstekDriver(),
             capabilities=SimpleNamespace(
                 has_mppt_pv=False, has_solar_telemetry=False
             ),
@@ -228,6 +231,7 @@ def test_runtime_diary_keeps_charge_history_without_inventing_solar():
 
 def test_runtime_diary_classifies_ac_charge_from_live_external_solar():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(
             has_mppt_pv=False, has_solar_telemetry=False
         ),
@@ -246,6 +250,7 @@ def test_runtime_diary_classifies_ac_charge_from_live_external_solar():
 
 def test_runtime_diary_keeps_grid_label_during_post_window_ac_tail_at_night():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(
             has_mppt_pv=False, has_solar_telemetry=False
         ),
@@ -264,6 +269,7 @@ def test_runtime_diary_keeps_grid_label_during_post_window_ac_tail_at_night():
 
 def test_runtime_diary_classifies_grid_charge_from_hourly_balance():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
         data={"ac_power": -600},
     )
@@ -284,6 +290,7 @@ def test_runtime_diary_classifies_grid_charge_from_hourly_balance():
 
 def test_runtime_diary_classifies_discharge_from_hourly_balance():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
         data={"ac_power": 600},
     )
@@ -342,6 +349,7 @@ def test_runtime_diary_ignores_stale_delay_on_weekly_full_charge_day():
 
 def test_runtime_diary_omits_delay_and_setpoint_context_on_weekly_full_charge_day():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
         data={"battery_power": 1000},
     )
@@ -362,6 +370,7 @@ def test_runtime_diary_omits_delay_and_setpoint_context_on_weekly_full_charge_da
 
 def test_runtime_diary_omits_setpoint_context_when_charge_delay_is_off():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
         data={"battery_power": 1000},
     )
@@ -400,6 +409,7 @@ def test_runtime_delay_boundary_is_removed_when_delay_stops():
 def test_runtime_diary_reports_capacity_weighted_total_soc():
     coordinators = [
         SimpleNamespace(
+            driver=_FakeMarstekDriver(),
             capabilities=SimpleNamespace(
                 has_mppt_pv=False, has_solar_telemetry=False
             ),
@@ -410,6 +420,7 @@ def test_runtime_diary_reports_capacity_weighted_total_soc():
             },
         ),
         SimpleNamespace(
+            driver=_FakeMarstekDriver(),
             capabilities=SimpleNamespace(
                 has_mppt_pv=False, has_solar_telemetry=False
             ),

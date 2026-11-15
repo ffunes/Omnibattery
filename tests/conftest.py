@@ -131,6 +131,13 @@ class _FakeMarstekDriver:
     backup_enabled = BatteryDriver.backup_enabled
     is_self_managed = BatteryDriver.is_self_managed
     device_max_soc = BatteryDriver.device_max_soc
+    ac_contribution_w = BatteryDriver.ac_contribution_w
+
+    @staticmethod
+    def ac_register_power_w(data: dict):
+        # Marstek's ``ac_power`` is +discharge; the query speaks +charge.
+        value = data.get("ac_power")
+        return None if value is None else -float(value)
 
     @property
     def control_dependency_keys(self) -> frozenset:

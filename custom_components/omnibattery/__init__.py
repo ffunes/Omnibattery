@@ -243,7 +243,12 @@ from .const import (
 from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager, _plan_owns_delay
 from .control.residual_load import apply_guards, guards_pending
-from .drivers.base import DELIVERED_AC_POWER_KEY, InverterStatus, has_connected_mppt_pv
+from .drivers.base import (
+    AC_REGISTER_ONLY,
+    DELIVERED_AC_POWER_KEY,
+    InverterStatus,
+    has_connected_mppt_pv,
+)
 from .drivers.registry import DEFAULT_BRAND, driver_class
 from .control.discharge_reserve import (
     RESERVE_SOC_TOLERANCE_PCT,
@@ -1768,7 +1773,10 @@ class ChargeDischargeController:
                     direct_pv_w = value
 
             cell_power = parsed
-            ac_power = self._daily_operation_float(data.get("ac_power"), math.nan)
+            register_w = coordinator.driver.ac_contribution_w(data, AC_REGISTER_ONLY)
+            ac_power = self._daily_operation_float(
+                None if register_w is None else -register_w, math.nan
+            )
             if math.isfinite(ac_power) and (has_mppt or has_aggregate_pv):
                 offgrid_power = 0.0
                 if coordinator.driver.inverter_status(data) is InverterStatus.BACKUP:
@@ -8429,25 +8437,10 @@ class ChargeDischargeController:
         data = getattr(coordinator, "data", None)
         if not data:
             return None
-        ac = data.get("ac_power")
-        if ac is not None:
-            try:
-                return -float(ac)
-            except (TypeError, ValueError):
-                return None
-        delivered = data.get(DELIVERED_AC_POWER_KEY)
-        if delivered is not None:
-            try:
-                return float(delivered)
-            except (TypeError, ValueError):
-                return None
-        battery_power = data.get("battery_power")
-        if battery_power is not None:
-            try:
-                return float(battery_power)
-            except (TypeError, ValueError):
-                return None
-        return None
+        try:
+            return coordinator.driver.ac_contribution_w(data)
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _manual_battery_commanded_power(coordinator) -> float:

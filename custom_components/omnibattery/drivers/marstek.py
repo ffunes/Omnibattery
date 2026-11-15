@@ -1125,6 +1125,11 @@ class MarstekModbusDriver(BatteryDriver):
             else _VENUS_E_POWER_CAP_HIGH_W
         )
 
+    def ac_register_power_w(self, data: dict):
+        # ``ac_power`` is +discharge / -charge; the query speaks +charge.
+        value = data.get("ac_power")
+        return None if value is None else -float(value)
+
     def net_power_from_data(self, data: dict):
         force = data.get("force_mode")
         charge = data.get("set_charge_power")

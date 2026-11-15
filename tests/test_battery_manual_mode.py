@@ -361,6 +361,7 @@ def test_power_distribution_drops_manual_battery_before_selection():
 
 def test_manual_grid_feedback_uses_ac_power_not_dc_solar_power():
     manual = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         battery_manual_mode_enabled=True,
         data={"ac_power": -700, "battery_power": 1000},
     )

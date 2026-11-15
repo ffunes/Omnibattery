@@ -477,6 +477,7 @@ def test_weekly_full_charge_bypasses_delay_and_setpoint_projection_markers():
 
 def test_external_solar_does_not_hide_grid_charge_during_net_import():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
         data={"ac_power": -600},
     )
@@ -512,6 +513,7 @@ def test_external_solar_does_not_hide_grid_charge_during_net_import():
 
 def test_external_solar_charge_uses_net_interval_energy_not_power_samples():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
         data={"ac_power": -600},
     )
@@ -548,6 +550,7 @@ def test_external_solar_charge_uses_net_interval_energy_not_power_samples():
 
 def test_external_solar_charge_becomes_grid_after_material_import_energy():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
         data={"ac_power": -600},
     )
