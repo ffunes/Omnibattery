@@ -10,8 +10,8 @@ Step ids carry no brand suffix (``battery_connection`` / ``reconfigure_battery``
 ``reconfigure_battery`` is also the shared flow's dispatcher method, so the shared
 flow never generates a method for it: its dispatcher calls this handler directly.
 
-The EMS firmware a vD probe reports lives in ``ctx.work["ems_version"]`` (it was
-``flow._last_marstek_ems_version``). The two probes differ on purpose: in the options
+The EMS firmware a vD probe reports lives in ``ctx.work["ems_version"]``, not on
+the flow instance. The two probes differ on purpose: in the options
 flow the live coordinator of the same host/slave is closed before probing and reopened
 after (a v3 accepts a single Modbus TCP connection), in the config flow (add and
 reconfigure) nothing is closed.

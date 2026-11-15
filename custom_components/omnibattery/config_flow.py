@@ -32,9 +32,6 @@ from homeassistant.helpers.selector import (
     SelectSelectorConfig,
     SelectSelectorMode,
     BooleanSelector,
-    TextSelector,
-    TextSelectorConfig,
-    TextSelectorType,
     Selector,
 )
 
@@ -707,13 +704,6 @@ def _battery_hardware_max(bcfg: dict, power_key: str | None = None) -> int:
         return max(configured_limits)
 
     return int(MAX_POWER_BY_VERSION.get(DEFAULT_VERSION, 2500))
-
-
-def _max_system_hardware_power(battery_configs: list[dict]) -> int:
-    """Highest hardware power cap across configured batteries (W)."""
-    if not battery_configs:
-        return 2500
-    return max(_battery_hardware_max(b) for b in battery_configs)
 
 
 def _scoped_battery_index(scope: str) -> int | None:
@@ -1447,7 +1437,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             step_id="battery_brand",
             data_schema=vol.Schema(
                 {
-                    vol.Required("brand", default="marstek"):
+                    vol.Required("brand", default=DEFAULT_BRAND):
                         SelectSelector(SelectSelectorConfig(
                             options=_brand_selector_options(),
                             mode=SelectSelectorMode.DROPDOWN,
@@ -1463,7 +1453,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         """Step 3c: Power and SOC limits for the current battery."""
         errors: dict[str, str] = {}
         battery_num = self.battery_index + 1
-        brand = self._current_battery_data.get("brand", "marstek")
+        brand = self._current_battery_data.get("brand", DEFAULT_BRAND)
         limits = _limits_setup(brand)
         ctx = _setup_context(self, brand)
         max_charge_power, max_discharge_power = limits.power_ceilings(self._current_battery_data)
@@ -2704,7 +2694,7 @@ class OptionsFlowHandler(OptionsFlow):
             if self.battery_index < len(current_batteries)
             else {}
         )
-        current_brand = current_battery.get("brand", "marstek")
+        current_brand = current_battery.get("brand", DEFAULT_BRAND)
 
         if user_input is not None:
             brand = user_input["brand"]
@@ -2736,7 +2726,7 @@ class OptionsFlowHandler(OptionsFlow):
         errors: dict[str, str] = {}
         try:
             battery_num = self.battery_index + 1
-            brand = self._current_battery_data.get("brand", "marstek")
+            brand = self._current_battery_data.get("brand", DEFAULT_BRAND)
             limits = _limits_setup(brand)
             ctx = _setup_context(self, brand)
             max_charge_power, max_discharge_power = limits.power_ceilings(self._current_battery_data)

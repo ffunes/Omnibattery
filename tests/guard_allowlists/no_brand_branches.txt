@@ -3,10 +3,6 @@
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
 __init__.py:_async_setup_entry:compare:CONF_BATTERY_VERSION not in battery_config
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_brand:literal:marstek
-config_flow.py:MarstekVenusConfigFlow.async_step_battery_limits:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_brand:literal:marstek
-config_flow.py:OptionsFlowHandler.async_step_battery_limits:literal:marstek
 const/integration_const.py:<module>:identifier:CONF_INDEVOLT_REQUEST_SPEED
 const/integration_const.py:<module>:literal:indevolt
 const/integration_const.py:max_power_for_battery_version:compare:battery_version != 'vD'

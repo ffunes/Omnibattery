@@ -7,8 +7,8 @@ the function. It is the same class object, so patching ``HuaweiSolarDriver.probe
 ``scan_slave_ids`` or ``find_emma_slave_id`` works as before.
 
 The state the steps share (``pending``, ``candidates``, ``reconfigure_current``) lives
-in ``ctx.work``. ``candidates`` is read with a default of ``[]``, as the old
-``getattr(self, "_huawei_candidates", [])`` did.
+in ``ctx.work``. ``candidates`` is read with a default of ``[]``; no ``_huawei_*`` attribute
+exists on the flow instance.
 """
 from __future__ import annotations
 
