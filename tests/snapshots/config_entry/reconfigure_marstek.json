@@ -1,0 +1,23 @@
+{
+  "backup_offgrid_threshold": 50,
+  "battery_version": "v3",
+  "brand": "marstek",
+  "charge_hysteresis_percent": 5,
+  "dc_pv_connected": false,
+  "ems_version": null,
+  "enable_charge_hysteresis": true,
+  "full_charge_voltage_taper_enabled": false,
+  "host": "192.0.2.12",
+  "kept_runtime_key": "kept",
+  "mac": "",
+  "max_charge_power": 1500,
+  "max_discharge_power": 1500,
+  "max_soc": 95,
+  "min_soc": 15,
+  "name": "Venus 1 moved",
+  "port": 502,
+  "rs485_gateway": false,
+  "serial_port": "",
+  "slave_id": 1,
+  "track_mac": false
+}

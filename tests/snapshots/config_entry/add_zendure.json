@@ -1,0 +1,20 @@
+{
+  "backup_offgrid_threshold": 50,
+  "battery_capacity_kwh": 0.0,
+  "brand": "zendure",
+  "charge_hysteresis_percent": 2,
+  "dc_pv_connected": false,
+  "enable_charge_hysteresis": true,
+  "full_charge_voltage_taper_enabled": false,
+  "host": "192.0.2.30",
+  "mac": "",
+  "max_charge_power": 2400,
+  "max_discharge_power": 2400,
+  "max_soc": 100,
+  "min_soc": 12,
+  "name": "Zendure 1",
+  "port": 80,
+  "track_mac": false,
+  "user_max_charge_power": 2400,
+  "zendure_model": "2400ac_plus"
+}

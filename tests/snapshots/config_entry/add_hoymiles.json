@@ -1,0 +1,23 @@
+{
+  "backup_offgrid_threshold": 50,
+  "battery_capacity_kwh": 2.24,
+  "brand": "hoymiles",
+  "charge_hysteresis_percent": 2,
+  "dc_pv_connected": false,
+  "device_id": "hm_dev_1",
+  "device_max_charge_power": 1000,
+  "device_max_discharge_power": 1000,
+  "enable_charge_hysteresis": true,
+  "full_charge_voltage_taper_enabled": false,
+  "host": "hm_dev_1",
+  "hoymiles_model": "ms_a2",
+  "hoymiles_model_label": "MS-A2",
+  "mac": "",
+  "max_charge_power": 1000,
+  "max_discharge_power": 1000,
+  "max_soc": 100,
+  "min_soc": 10,
+  "name": "Hoymiles 1",
+  "port": 0,
+  "track_mac": false
+}

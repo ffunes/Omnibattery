@@ -1,0 +1,21 @@
+{
+  "backup_offgrid_threshold": 50,
+  "battery_capacity_kwh": 5.2,
+  "brand": "sessy",
+  "charge_hysteresis_percent": 5,
+  "dc_pv_connected": false,
+  "enable_charge_hysteresis": true,
+  "full_charge_voltage_taper_enabled": false,
+  "host": "192.0.2.51",
+  "kept_runtime_key": "kept",
+  "mac": "",
+  "max_charge_power": 1500,
+  "max_discharge_power": 1500,
+  "max_soc": 95,
+  "min_soc": 15,
+  "name": "Sessy 1 edited",
+  "password": "sessy-pass",
+  "port": 80,
+  "track_mac": false,
+  "username": "sessy-user"
+}

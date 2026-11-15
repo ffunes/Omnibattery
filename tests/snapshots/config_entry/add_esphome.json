@@ -1,0 +1,18 @@
+{
+  "backup_offgrid_threshold": 50,
+  "brand": "esphome",
+  "charge_hysteresis_percent": 2,
+  "dc_pv_connected": false,
+  "enable_charge_hysteresis": true,
+  "esphome_device_id": "esphome_device_id_1",
+  "full_charge_voltage_taper_enabled": true,
+  "host": "esphome_device_id_1",
+  "mac": "",
+  "max_charge_power": 2500,
+  "max_discharge_power": 2500,
+  "max_soc": 100,
+  "min_soc": 12,
+  "name": "LilyGo 1",
+  "port": 0,
+  "track_mac": false
+}
