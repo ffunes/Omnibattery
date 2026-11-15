@@ -5633,6 +5633,13 @@ class PricingManager:
         schedule: Optional[DynamicPricingSchedule]
     ) -> None:
         """Send persistent notification for dynamic pricing evaluation."""
+        controller = self._controller
+        orders = {
+            "holds": getattr(controller, "_dp_plan_holds", None),
+            "exports": getattr(controller, "_dp_plan_exports", None),
+            "sales": getattr(controller, "_dp_plan_sales", None),
+            "solar_delay": bool(getattr(controller, "_dp_plan_solar_delay", False)),
+        }
         title, message = notifications.format_dynamic_pricing_notification(
             decision_data,
             schedule,
@@ -5643,6 +5650,8 @@ class PricingManager:
             max_contracted_power=self._controller.max_contracted_power,
             max_charge_capacity=self._controller.max_charge_capacity,
             peak_limit=self._peak_shaving_limit(),
+            plan_orders=orders,
+            arbitrage_margin=getattr(controller, "min_arbitrage_margin", None),
         )
         targets = getattr(schedule, "slot_energy_targets_kwh", None) or {}
         slots = getattr(schedule, "selected_slots", None) or []
@@ -5650,7 +5659,14 @@ class PricingManager:
             (s.start, s.end, None if targets.get(s) is None else round(targets[s], 2))
             for s in slots
         ) + ((decision_data.get("chronological_plan_reason"),) if slots else ())
-        key = (title, plan)
+        # A plan that only changes its holds, exports or sales is a new plan.
+        shown = (
+            tuple(sorted(s.start for s in orders["holds"] or ())),
+            tuple(sorted(s.start for s in orders["exports"] or ())),
+            tuple(sorted((s.start, round(float(kw), 1)) for s, kw in (orders["sales"] or {}).items())),
+            orders["solar_delay"],
+        )
+        key = (title, plan, shown)
         if key == self._last_dp_notification_key:
             _LOGGER.debug("Dynamic Pricing plan unchanged, notification not re-sent")
             return
