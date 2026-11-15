@@ -4640,6 +4640,13 @@ class PricingManager:
                 )
             )
             plan = evaluation.plan
+            # The sun and the house before the battery-idle masks and the
+            # discharge cap, as (solar, house) by interval start: what the
+            # panel draws. ``plan.intervals`` carry the battery's drain.
+            plan.house_forecast = {
+                start: (solar[index], consumption[index])
+                for index, (start, _end) in enumerate(boundaries)
+            }
             if not diagnostic_only:
                 # What the published projection starts from and is capped at.
                 plan.projection_inputs = (usable, usable + headroom)
@@ -6241,9 +6248,15 @@ class PricingManager:
         controller._dp_eval_projection_capacity_kwh = self._fleet_capacity_kwh()
         # The panel draws the optimizer's own quarters (step 11).
         ends = dict(controller._dp_eval_projection)
+        house = getattr(plan, "house_forecast", None) or {}
         controller._dp_eval_rows = (
             tuple(
-                (i.start, i.end, i.solar_kwh, i.grid_load_kwh, ends[i.end])
+                (
+                    i.start,
+                    i.end,
+                    *house.get(i.start, (i.solar_kwh, i.grid_load_kwh)),
+                    ends[i.end],
+                )
                 for i in plan.intervals
                 if i.end in ends
             )

@@ -820,3 +820,42 @@ def test_active_slot_projects_only_what_is_left_of_its_quota():
     assert result["intervals"][-1]["stored_energy_end_kwh"] == pytest.approx(
         5.5 + 0.5, abs=1e-6
     )
+
+
+def test_house_line_keeps_the_load_while_the_plan_idles_the_battery():
+    """Inside a Time Slot window the plan idles the battery (drain 0, solar
+    net of the house); the chart still draws the house and the whole sun."""
+    now = datetime(2026, 11, 15, 23, 45, tzinfo=MADRID)
+    midnight = now + timedelta(minutes=15)
+    window = midnight + timedelta(minutes=15)
+    intervals = [
+        ProjectionIntervalInput(now, midnight, consumption_kwh=0.1),
+        # 0.2 kWh house, 0.05 kWh sun: idled to (0, 0).
+        ProjectionIntervalInput(midnight, window, consumption_kwh=0.0),
+    ]
+    batteries = [BatteryProjectionInput("a", 5, 10, 0, 100, 4000, 4000)]
+    result = build_daily_operation_projection(
+        DailyOperationProjectionRequest(
+            now=now,
+            plan_intervals=tuple(intervals),
+            allocations=(),
+            battery_inputs=tuple(batteries),
+            mode="time_slot",
+            decision_data={},
+            house_forecast={now: (0.0, 0.1), midnight: (0.05, 0.2)},
+        )
+    )
+
+    today, tomorrow = result["intervals"][0], result["extended_intervals"][0]
+    assert today["consumption_kwh"] == pytest.approx(0.1)
+    assert today["battery_to_home_kwh"] == pytest.approx(0.1)
+    assert tomorrow["consumption_kwh"] == pytest.approx(0.2)
+    assert tomorrow["consumption_forecast_kwh"] == pytest.approx(0.2)
+    assert tomorrow["solar_kwh"] == pytest.approx(0.05)
+    assert tomorrow["solar_to_home_kwh"] == pytest.approx(0.05)
+    assert tomorrow["grid_to_home_kwh"] == pytest.approx(0.15)
+    # The battery still sits the window out.
+    assert tomorrow["battery_to_home_kwh"] == pytest.approx(0.0)
+    assert tomorrow["stored_energy_end_kwh"] == pytest.approx(
+        today["stored_energy_end_kwh"]
+    )

@@ -2266,6 +2266,7 @@ class ChargeDischargeController:
             DailyOperationProjectionRequest(
                 now=now,
                 plan_intervals=tuple(getattr(plan, "intervals", ()) or ()),
+                house_forecast=getattr(plan, "house_forecast", None) or {},
                 allocations=tuple(allocations),
                 battery_inputs=tuple(battery_inputs),
                 mode=mode,

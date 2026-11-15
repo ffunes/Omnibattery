@@ -79,6 +79,11 @@ class DailyOperationProjectionRequest:
     # arrives later, which the claims above cannot: they come from what is
     # stored now. Must be side-effect free.
     reserve_floor: Callable[[datetime, float, float], float | None] | None = None
+    # (solar kWh, house kWh) of each plan interval by its start, before the
+    # planner idles the battery (a Time Slot window, a no-discharge window, a
+    # price block, peak shaving) or caps its drain: ``plan_intervals`` carry
+    # what the battery sees, this is what the chart draws.
+    house_forecast: Mapping[datetime, tuple[float, float]] = MappingProxyType({})
 
     def __post_init__(self) -> None:
         """Detach every collection from its controller-owned source."""
@@ -86,6 +91,9 @@ class DailyOperationProjectionRequest:
         object.__setattr__(self, "allocations", tuple(self.allocations))
         object.__setattr__(self, "battery_inputs", tuple(self.battery_inputs))
         object.__setattr__(self, "reserve_claims", tuple(self.reserve_claims))
+        object.__setattr__(
+            self, "house_forecast", MappingProxyType(dict(self.house_forecast))
+        )
         object.__setattr__(
             self,
             "decision_data",
@@ -199,13 +207,32 @@ def build_daily_operation_projection(
             return _QUARTER_S / covered_s
         return 1.0
 
-    full_forecasts = [
-        (
-            _finite(getattr(interval, "solar_kwh", 0.0)) * _full_quarter_factor(interval),
-            _finite(getattr(interval, "consumption_kwh", 0.0))
-            * _full_quarter_factor(interval),
+    def _house(interval: Any) -> tuple[float, float]:
+        """(solar, house) of the whole interval, never below the plan's own."""
+        planned = (
+            _finite(getattr(interval, "solar_kwh", 0.0)),
+            _finite(getattr(interval, "consumption_kwh", 0.0)),
         )
+        real = request.house_forecast.get(interval.start) or planned
+        return (
+            max(planned[0], _finite(real[0])),
+            max(planned[1], _finite(real[1])),
+        )
+
+    full_forecasts = [
+        tuple(value * _full_quarter_factor(interval) for value in _house(interval))
         for interval, _remaining_start, _remaining_ratio in remaining_intervals
+    ]
+    # What the simulation did not see: the house load the grid carries while
+    # the battery is idle or capped, and the sun that load takes first.
+    unseen = [
+        (
+            (_house(interval)[0] - _finite(getattr(interval, "solar_kwh", 0.0)))
+            * remaining_ratio,
+            (_house(interval)[1] - _finite(getattr(interval, "consumption_kwh", 0.0)))
+            * remaining_ratio,
+        )
+        for interval, _remaining_start, remaining_ratio in remaining_intervals
     ]
     delay_projection = None
     delay_starts_at = (
@@ -374,6 +401,11 @@ def build_daily_operation_projection(
         if flow_index < len(full_forecasts):
             item["solar_forecast_kwh"] += full_forecasts[flow_index][0]
             item["consumption_forecast_kwh"] += full_forecasts[flow_index][1]
+            unseen_solar, unseen_house = unseen[flow_index]
+            item["solar_kwh"] += unseen_solar
+            item["consumption_kwh"] += unseen_house
+            item["solar_to_home_kwh"] += unseen_solar
+            item["grid_to_home_kwh"] += max(0.0, unseen_house - unseen_solar)
         item["action_mask"] |= int(getattr(flow, "action_mask", 0) or 0)
         item["context_mask"] |= int(getattr(flow, "context_mask", 0) or 0)
         if getattr(flow, "grid_charge_decision", None) == GRID_CHARGE_SCHEDULED:

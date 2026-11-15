@@ -28,6 +28,7 @@
 
 ### Fixed
 
+- **Daily Operation timeline: the house forecast no longer drops to 0 while the battery is held**: wherever the plan keeps the battery from covering the house (a Time Slot window, a no-discharge window, a price-blocked slot, a peak-shaving hold, a load above the discharge power) the chart drew only what the battery would deliver as the home consumption. It now draws the forecast house load and sun, with the rest of the load on the grid; the projected battery level is unchanged.
 - **A battery that is not a Marstek no longer follows a stored Marstek version**: after switching a battery slot to another brand, a leftover Venus model or serial port no longer changes its SOC decimals, DC PV input, balance cutoff or IP tracking; the Time Slot power sliders of other brands go up to their own configured maximum instead of 2500 W; and setup no longer writes a Marstek version into every battery.
 - **Dynamic Pricing: the planner no longer sells at a negative export price**: in a long negative-price window it could sell the battery and the sun at a loss to make room for charging; exports at a negative price stay with Smart Pre-Discharge.
 - **Dynamic Pricing: a charge with sun in the same quarter is no longer judged dear**: the arbitrage margin, and with Negative Price Charging off the negative price counted as 0, were applied to the solar energy stored during the charge too, so profitable or free top-ups were skipped. They now count only the energy bought from the grid.

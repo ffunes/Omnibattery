@@ -2108,6 +2108,77 @@ def test_extended_projection_adapter_is_read_only_for_dashboard_callers():
         result.diagnostics["chronological_source"] = "mutated"
 
 
+def test_time_slot_window_plan_keeps_the_house_load_for_the_panel():
+    """The plan idles the battery inside a window; ``house_forecast`` still
+    carries the load, or the Daily Operation house line drops to 0 there."""
+    madrid = ZoneInfo("Europe/Madrid")
+    now = datetime(2026, 11, 15, 22, 0, tzinfo=madrid)
+    midnight = now.replace(hour=0) + timedelta(days=1)
+    forecast = ConsumptionForecast(
+        9.6, [0.1] * INTERVAL_COUNT, "profile", True
+    )
+    tracker = SimpleNamespace(
+        consumption_profile=SimpleNamespace(),
+        forecast_consumption_between=lambda *_args, **_kwargs: forecast,
+    )
+    ctrl = _controller(
+        _consumption_tracker=tracker,
+        solar_profile_mode="off",
+        _predictive_safety_margin_kwh=0.0,
+        coordinators=[],
+        _is_battery_manual_owned=lambda _coordinator: False,
+        max_contracted_power=0.0,
+        max_charge_capacity=0.0,
+        predictive_charging_mode=PREDICTIVE_MODE_TIME_SLOT,
+    )
+    manager = _mgr(ctrl)
+    window = PriceSlot(midnight, midnight + timedelta(hours=8), 0.0)
+    manager._time_slot_price_slots_for_horizon = lambda *_args: [window]
+
+    plan = manager.build_extended_chronological_projection(
+        now=now,
+        slots=[window],
+        base_decision_data={"solar_forecast_input": SolarForecastInput(0.0, "none")},
+        price_ceiling=None,
+        horizon_end=midnight + timedelta(hours=12),
+    ).plan
+
+    inside = [i for i in plan.intervals if window.start <= i.start < window.end]
+    assert len(inside) == 32
+    assert all(i.consumption_kwh == 0.0 for i in inside)
+    assert all(plan.house_forecast[i.start][1] > 0.0 for i in inside)
+    assert all(
+        plan.house_forecast[i.start] == (i.solar_kwh, i.consumption_kwh)
+        for i in plan.intervals
+        if i not in inside
+    )
+
+
+def test_plan_rows_for_the_panel_carry_the_house_not_the_battery_drain():
+    """Dynamic Pricing: a quarter the plan idles the battery in (price block)
+    is drawn with the house load and the whole sun."""
+    from custom_components.omnibattery.pricing.chronological import EnergyInterval
+
+    start = datetime(2026, 11, 16, 0, 0)
+    end = start + timedelta(minutes=15)
+    held = EnergyInterval(start, end, 0.2, 0.05).with_battery_idle()
+    plan = SimpleNamespace(
+        intervals=[held],
+        allocations=[],
+        trajectory=((end, 5.0),),
+        projection_inputs=(5.0, 10.0),
+        house_forecast={start: (0.05, 0.2)},
+    )
+    controller = SimpleNamespace()
+    pricing_engine.PricingManager._store_eval_projection(
+        SimpleNamespace(_controller=controller, _fleet_capacity_kwh=lambda: 10.0),
+        plan,
+    )
+
+    assert (held.solar_kwh, held.consumption_kwh) == (0.0, 0.0)
+    assert controller._dp_eval_rows == ((start, end, 0.05, 0.2, 0.0),)
+
+
 def test_extended_projection_survives_the_autumn_dst_change():
     """The repeated 02:00 hour must not make the projection fall back."""
     madrid = ZoneInfo("Europe/Madrid")
