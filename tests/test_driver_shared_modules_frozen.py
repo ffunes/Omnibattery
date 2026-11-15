@@ -25,7 +25,7 @@ from custom_components.omnibattery.const import SUPPORTED_VERSIONS
 from custom_components.omnibattery.drivers.registry import DRIVERS
 from tests import _guard_common
 from tests._guard_common import PACKAGE, UPDATE_ENV
-from tests.test_no_brand_branches import _Scanner, scan_python_source
+from tests.test_no_brand_branches import ALLOWED_DRIVER_MODULES, _Scanner, scan_python_source
 
 FROZEN_FILE = _guard_common.ALLOWLIST_DIR / "drivers_shared_frozen.txt"
 _VERSIONS = frozenset(SUPPORTED_VERSIONS)
@@ -58,6 +58,15 @@ class _VersionScanner(_Scanner):
     def visit_alias(self, node):  # noqa: N802
         if _VERSIONS_NAME_RE.match(node.name):
             self._add("version", node.name)
+
+    def visit_ImportFrom(self, node):  # noqa: N802
+        # A sibling import (``from .marstek import …``) has no ``drivers`` segment,
+        # so the brand scanner cannot see it; any non-shared sibling is a brand's.
+        if node.level == 1 and node.module:
+            first = node.module.split(".")[0]
+            if first not in ALLOWED_DRIVER_MODULES:
+                self._add("version", f"import drivers.{first}")
+        super().visit_ImportFrom(node)
 
 
 def scan() -> list[str]:
