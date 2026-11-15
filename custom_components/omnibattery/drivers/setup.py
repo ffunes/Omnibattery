@@ -31,8 +31,14 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.data_entry_flow import FlowResult, FlowResultType
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+)
 
 from ..const import CONF_DC_PV_CONNECTED, DOMAIN
 
@@ -128,6 +134,30 @@ def saved_dc_pv_connected(driver_cls: Any, merged: dict, user_input: dict) -> bo
     if not driver_cls.traits_for(merged).optional_dc_pv_input:
         return False
     return bool(user_input.get(CONF_DC_PV_CONNECTED, True))
+
+
+def optional_capacity_field(
+    fields: dict, battery_data: dict, ctx: SetupContext, default: float
+) -> dict:
+    """``fields`` plus an optional ``battery_capacity_kwh`` box (0 = let the device report it).
+
+    Options flow: the default is the capacity already stored for this slot (the
+    stored battery with this flow's connection data on top), else ``default``.
+    """
+    capacity_default = default
+    if ctx.kind is FlowKind.OPTIONS and ctx.battery is not None:
+        capacity_default = (ctx.battery | battery_data).get("battery_capacity_kwh", default)
+    fields[vol.Optional("battery_capacity_kwh", default=capacity_default)] = NumberSelector(
+        NumberSelectorConfig(
+            min=0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX
+        )
+    )
+    return fields
+
+
+def saved_optional_capacity(user_input: dict, default: float) -> float:
+    """The ``battery_capacity_kwh`` the limits step stores for an optional-capacity brand."""
+    return round(float(user_input.get("battery_capacity_kwh", default)), 2)
 
 
 def is_flow_result(value: Any) -> bool:

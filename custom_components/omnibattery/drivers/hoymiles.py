@@ -28,6 +28,7 @@ from .base import (
     SetpointResult,
     TelemetrySnapshot,
 )
+from .hoymiles_flow import HOYMILES_SETUP
 
 _LOGGER = logging.getLogger(__name__)
 _DEFAULT_MAX_POWER_W = 1000
@@ -191,6 +192,7 @@ class HoymilesMqttDriver(BatteryDriver):
     """Push telemetry and external-power control for one Hoymiles system."""
 
     BRAND = "hoymiles"
+    SETUP = HOYMILES_SETUP
     TRAITS = DriverTraits(
         supports_voltage_taper=False, capacity_field="optional", min_soc_range=(0, 30, 10)
     )

@@ -13,17 +13,19 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.selector import (
-    NumberSelector,
-    NumberSelectorConfig,
-    NumberSelectorMode,
-)
 
 from ..const import (
     CONF_DC_PV_CONNECTED,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
 )
-from .setup import DriverSetup, FlowKind, SetupContext, saved_dc_pv_connected
+from .setup import (
+    DriverSetup,
+    FlowKind,
+    SetupContext,
+    optional_capacity_field,
+    saved_dc_pv_connected,
+    saved_optional_capacity,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -138,16 +140,7 @@ class _ZendureSetup(DriverSetup):
 
         Options flow: the default is the capacity already stored for this slot.
         """
-        fields = dict(base_fields)
-        capacity_default = 0.0
-        if ctx.kind is FlowKind.OPTIONS and ctx.battery is not None:
-            capacity_default = (ctx.battery | battery_data).get("battery_capacity_kwh", capacity_default)
-        fields[vol.Optional("battery_capacity_kwh", default=capacity_default)] = NumberSelector(
-            NumberSelectorConfig(
-                min=0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX
-            )
-        )
-        return fields
+        return optional_capacity_field(dict(base_fields), battery_data, ctx, 0.0)
 
     def finalize_limits(
         self, merged: dict, user_input: dict, battery_data: dict, ctx: SetupContext
@@ -158,7 +151,7 @@ class _ZendureSetup(DriverSetup):
         merged["user_max_charge_power"] = int(merged["max_charge_power"])
         merged[CONF_DC_PV_CONNECTED] = saved_dc_pv_connected(ZendureLocalDriver, merged, user_input)
         merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = False
-        merged["battery_capacity_kwh"] = round(float(user_input.get("battery_capacity_kwh", 0.0)), 2)
+        merged["battery_capacity_kwh"] = saved_optional_capacity(user_input, 0.0)
 
 
 ZENDURE_SETUP = _ZendureSetup(

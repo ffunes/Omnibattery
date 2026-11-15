@@ -11,8 +11,8 @@ from custom_components.omnibattery.drivers.hoymiles import (
     hoymiles_capacity_kwh,
     hoymiles_model_profile,
 )
-from custom_components.omnibattery.config_flow import (
-    MarstekVenusConfigFlow,
+from custom_components.omnibattery.config_flow import MarstekVenusConfigFlow
+from custom_components.omnibattery.drivers.hoymiles_flow import (
     _hoymiles_apply_probe_caps,
     _hoymiles_power_ceilings,
 )
