@@ -359,7 +359,8 @@ def test_t32_traits_follow_the_stored_version_only_for_marstek():
     assert fake_traits("zendure", "v2").soc_decimals is None
     assert fake_traits("zendure", "v2").cutoff_without_inverter_state is True
     assert fake_traits("marstek", "v3").cutoff_without_inverter_state is False
-    # Power-cap choices: Marstek v2/v3 only, and not for an unknown brand (frozen defect).
+    # Power-cap choices: Marstek v2/v3 only; an unknown brand is served by the Marstek driver.
+    # fixed: plan section 8 T1.1 (unregistered brand served entirely by the default driver).
     assert fake_traits("marstek", "v3").hardware_power_cap_choices is True
     assert fake_traits("zendure", "v3").hardware_power_cap_choices is False
-    assert fake_traits("acme", "v3").hardware_power_cap_choices is False
+    assert fake_traits("acme", "v3").hardware_power_cap_choices is True

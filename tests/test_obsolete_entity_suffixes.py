@@ -98,8 +98,8 @@ async def test_platform_cleans_marstek_only_under_its_device_key(monkeypatch):
     sensor._remove_obsolete_solar_entities(MagicMock(), SimpleNamespace(entry_id="e1"), [known])
     assert removed == ["sensor.a"]
 
-    # A brand that fell back to the Marstek driver was never cleaned (plan section 8).
+    # fixed: plan section 8 T4.2: a brand that fell back to the Marstek driver is cleaned too.
     removed.clear()
     unknown = SimpleNamespace(**{**vars(known), "brand": "acme"})
     sensor._remove_obsolete_solar_entities(MagicMock(), SimpleNamespace(entry_id="e1"), [unknown])
-    assert removed == []
+    assert removed == ["sensor.a"]

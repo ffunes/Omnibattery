@@ -46,7 +46,6 @@ from .drivers.base import (
     KEY_TOTAL_DISCHARGING_ENERGY,
     has_connected_mppt_pv,
 )
-from .drivers.registry import is_registered
 from .energy import (
     BACKUP_DISCHARGING_ENERGY_KEY,
     effective_total_discharging_energy,
@@ -85,8 +84,6 @@ def _remove_obsolete_solar_entities(
 
     registry = er.async_get(hass)
     for coordinator in coordinators:
-        if not is_registered(coordinator.brand):
-            continue
         driver = coordinator.driver
         prefixes = (
             (coordinator.device_key, coordinator.host, coordinator.name)

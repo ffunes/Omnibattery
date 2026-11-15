@@ -137,7 +137,6 @@ from .const import (
     DEFAULT_SLOT_SOC_MAX_CEILING,
     MAX_TIME_SLOTS,
 )
-from .drivers.base import DriverTraits
 from .drivers import registry
 from .drivers.registry import DEFAULT_BRAND
 from .drivers.setup import (
@@ -523,14 +522,9 @@ def _soc_selector_limits(
 ) -> tuple[int, int, int, int, int, int]:
     """Return minimum and maximum SOC selector bounds and defaults.
 
-    Read from the driver's ``DriverTraits``; a brand that is not registered gets
-    the trait defaults (the Marstek v2 form).
+    Read from the driver's ``DriverTraits`` (an unregistered brand: the default driver's).
     """
-    traits = (
-        registry.traits_for_brand(brand, {CONF_BATTERY_VERSION: battery_version})
-        if registry.is_registered(brand)
-        else DriverTraits()
-    )
+    traits = registry.traits_for_brand(brand, {CONF_BATTERY_VERSION: battery_version})
     min_lo, min_hi, min_default = traits.min_soc_range
     # Omnibattery enforces the charge ceiling in software. Sessy's reported SOC
     # spans 0–100 %, so the standard 100 % ceiling is valid for this driver.

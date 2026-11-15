@@ -400,10 +400,9 @@ async def test_an_unknown_brand_falls_into_the_marstek_driver_branch():
     assert coordinator.battery_device_info["model"] == "Venus E v3"
     # The taper is only forced off for the named brands, so it stays on.
     assert coordinator.full_charge_voltage_taper_enabled is True
-    # needs_software_power_cap compares the brand string, so an unknown brand
-    # (running a Marstek v3 driver) does NOT get the Marstek software cap.
+    # fixed: plan section 8 T1.1: an unknown brand (running a Marstek v3 driver) gets the Marstek software cap.
     assert coordinator.brand == "acme"
-    assert coordinator.needs_software_power_cap is False
+    assert coordinator.needs_software_power_cap is True
 
 
 # --------------------------------------------------------------------------- #

@@ -76,7 +76,8 @@ def _old_soc_selector_limits(brand, battery_version="v2"):
         min_lo, min_hi, min_default = 0, 30, 10
     else:
         min_lo, min_hi, min_default = 12, 30, 12
-        if brand == "marstek" and REGISTER_MAP.get(battery_version, {}).get("discharging_cutoff_capacity") is None:
+        # fixed: plan section 8 T1.1: an unregistered brand is served by the Marstek driver.
+        if (brand == "marstek" or brand not in BRANDS) and REGISTER_MAP.get(battery_version, {}).get("discharging_cutoff_capacity") is None:
             min_hi = int(DriverCapabilities.discharge_cutoff_range[1])
             max_lo = int(DriverCapabilities.charge_cutoff_range[0])
     return min_lo, min_hi, min_default, max_lo, 100, 100

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from dataclasses import replace
 
 from .anker import AnkerModbusDriver
 from .base import BatteryDriver, DriverTraits
@@ -53,17 +52,10 @@ def setup_for(brand: str | None):
 def traits_for_brand(brand: str | None, battery_config: Mapping) -> DriverTraits:
     """Traits of the driver class that serves ``brand`` for this stored config.
 
-    An unregistered brand is served by the ``DEFAULT_BRAND`` class, but its
-    ``hardware_power_cap_choices`` is forced off: the coordinator has always
-    compared ``brand == "marstek"`` literally, so an unknown brand storing
-    ``battery_version: v3`` builds the Marstek v3 driver without the power-cap
-    choices (plan section 8, T1.1). This freezes that defect; remove it with the fix.
+    An unregistered brand is served by the ``DEFAULT_BRAND`` class.
     """
     cls = DRIVERS.get(brand) if brand is not None else None
-    traits = (cls or DRIVERS[DEFAULT_BRAND]).traits_for(battery_config)
-    if cls is None:
-        traits = replace(traits, hardware_power_cap_choices=False)
-    return traits
+    return (cls or DRIVERS[DEFAULT_BRAND]).traits_for(battery_config)
 
 
 def redact_keys() -> frozenset[str]:
@@ -77,9 +69,7 @@ def redact_keys() -> frozenset[str]:
 def is_registered(brand: str | None) -> bool:
     """True when ``brand`` has its own driver (not the ``DEFAULT_BRAND`` fallback).
 
-    The sensor platform used to clean obsolete entities only for brands it named,
-    so a battery whose brand fell back to the default class was never cleaned;
-    this keeps that (plan section 8, T4.2).
+    The config flow uses it to pick the default brand's setup for an unknown brand.
     """
     return brand in DRIVERS
 
@@ -87,8 +77,7 @@ def is_registered(brand: str | None) -> bool:
 def is_ip_addressed(battery_config: Mapping) -> bool:
     """True when this stored battery's driver says it is addressed by IP.
 
-    Unlike ``driver_class``, an unknown brand is not IP-addressed (it does not
-    fall back to ``DEFAULT_BRAND``); an entry without ``brand`` is the default.
+    An unknown brand is served by ``DEFAULT_BRAND``; an entry without ``brand`` is the default.
     """
-    cls = DRIVERS.get(battery_config.get("brand", DEFAULT_BRAND))
-    return cls is not None and cls.traits_for(battery_config).ip_addressed
+    cls = driver_class(battery_config.get("brand", DEFAULT_BRAND))
+    return cls.traits_for(battery_config).ip_addressed

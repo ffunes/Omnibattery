@@ -36,7 +36,7 @@ from ..drivers.base import (
     canonical_key,
     stored_battery_value,
 )
-from ..drivers.registry import DEFAULT_BRAND, driver_class, is_registered, traits_for_brand
+from ..drivers.registry import DEFAULT_BRAND, driver_class, traits_for_brand
 from ..backup_discharge_store import BackupDischargeEnergyStore
 from ..energy import BackupDischargeAccumulator
 from .alarm_notifier import AlarmNotifier
@@ -578,13 +578,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             self._reconcile_driver(reason)
 
     def _reconcile_driver(self, reason: str) -> None:
-        """Ask the driver to reconcile at ``reason`` and apply what it returns.
-
-        A brand that fell back to the default driver is not reconciled: every
-        sync this replaced was gated on the stored brand (plan section 8, T4.1).
-        """
-        if not is_registered(self.brand):
-            return
+        """Ask the driver to reconcile at ``reason`` and apply what it returns."""
         data = getattr(self, "data", None)
         state = ReconcileState(
             device_max_charge_power=self.device_max_charge_power,

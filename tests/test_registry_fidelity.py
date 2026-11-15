@@ -19,22 +19,24 @@ def _no_ha_runtime(monkeypatch):
     monkeypatch.setattr(DataUpdateCoordinator, "__init__", lambda *_a, **_k: None)
 
 
-async def test_unknown_brand_on_vd_is_not_clamped_at_init():
+async def test_unknown_brand_on_vd_is_clamped_at_init():
+    # fixed: plan section 8 T4.1: an unknown brand is served by the Marstek driver, clamp included.
     config = {**MARSTEK, "brand": "acme", "battery_version": "vD",
               "device_max_charge_power": 2500, "device_max_discharge_power": 2500}
     coordinator = _build_coordinator(config)
-    assert coordinator.device_max_charge_power == 2500
-    assert coordinator.device_max_discharge_power == 2500
+    assert coordinator.device_max_charge_power == 2200
+    assert coordinator.device_max_discharge_power == 2200
 
 
-async def test_unknown_brand_on_vd_does_not_follow_the_ems_ceiling():
+async def test_unknown_brand_on_vd_follows_the_ems_ceiling():
+    # fixed: plan section 8 T4.1: the EMS reconcile applies to an unknown brand.
     config = {**MARSTEK, "brand": "acme", "battery_version": "vD",
               "device_max_charge_power": 2500, "device_max_discharge_power": 2500}
     coordinator = _build_coordinator(config)
     coordinator.data = {"ems_version": 999}
     coordinator._reconcile_driver("poll")
     assert coordinator.device_max_charge_power == 2500
-    assert coordinator.ems_version is None
+    assert coordinator.ems_version == 999
 
 
 @pytest.mark.parametrize("brand", list(DRIVERS))
