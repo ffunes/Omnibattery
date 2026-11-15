@@ -17,8 +17,8 @@ from custom_components.omnibattery.drivers.indevolt_settings import (
     FLASH_WRITES_KEY,
     SYNCED_PREFIX,
     YEARLY_ALLOWANCE,
-    stored_battery_value,
 )
+from custom_components.omnibattery.drivers.base import stored_battery_value
 from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
     _sync_device_reported_limits,

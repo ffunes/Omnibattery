@@ -2,25 +2,7 @@
 # occurrence, format path:symbol:kind:detail. It may only SHRINK: delete lines
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
-__init__.py:_async_setup_entry._setup_battery:compare:battery_config.get(CONF_BATTERY_VERSION) in ('vA', 'vD')
-__init__.py:_async_setup_entry._setup_battery:identifier:CONF_INDEVOLT_REQUEST_SPEED
-__init__.py:_async_setup_entry._setup_battery:identifier:esphome_device_id
-__init__.py:_async_setup_entry._setup_battery:identifier:hoymiles_model
-__init__.py:_async_setup_entry._setup_battery:identifier:huawei_battery_device_id
-__init__.py:_async_setup_entry._setup_battery:identifier:huawei_direct_write
-__init__.py:_async_setup_entry._setup_battery:identifier:huawei_emma_slave_id
-__init__.py:_async_setup_entry._setup_battery:identifier:indevolt_request_speed
-__init__.py:_async_setup_entry._setup_battery:identifier:zendure_model
-__init__.py:_async_setup_entry._setup_battery:literal:2400ac
-__init__.py:_async_setup_entry._setup_battery:literal:emma
-__init__.py:_async_setup_entry._setup_battery:literal:esphome
-__init__.py:_async_setup_entry._setup_battery:literal:hoymiles
-__init__.py:_async_setup_entry._setup_battery:literal:huawei
-__init__.py:_async_setup_entry._setup_battery:literal:huawei
-__init__.py:_async_setup_entry._setup_battery:literal:huawei
-__init__.py:_async_setup_entry._setup_battery:literal:zendure
 __init__.py:_async_setup_entry:compare:CONF_BATTERY_VERSION not in battery_config
-__init__.py:_async_setup_entry:identifier:CONF_INDEVOLT_REQUEST_SPEED
 __init__.py:_device_owns_initial_config:compare:brand == 'zendure'
 __init__.py:_device_owns_initial_config:literal:zendure
 config_flow.py:<module>:identifier:AnkerModbusDriver
@@ -798,81 +780,19 @@ frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 infra/anker_modbus_client.py:<module>:identifier:AnkerModbusClient
 infra/anker_modbus_client.py:<module>:import:infra.modbus_client
-infra/coordinator.py:<module>:identifier:AnkerModbusDriver
-infra/coordinator.py:<module>:identifier:EsphomeEntityDriver
-infra/coordinator.py:<module>:identifier:HoymilesMqttDriver
-infra/coordinator.py:<module>:identifier:HuaweiSolarDriver
-infra/coordinator.py:<module>:identifier:IndevoltDriver
-infra/coordinator.py:<module>:identifier:IndevoltNotifier
-infra/coordinator.py:<module>:identifier:MarstekModbusDriver
-infra/coordinator.py:<module>:identifier:SessyLocalDriver
-infra/coordinator.py:<module>:identifier:ZENDURE_MODEL_2400AC_PRO
-infra/coordinator.py:<module>:identifier:ZendureLocalDriver
-infra/coordinator.py:<module>:import:drivers.anker
-infra/coordinator.py:<module>:import:drivers.esphome
-infra/coordinator.py:<module>:import:drivers.hoymiles
-infra/coordinator.py:<module>:import:drivers.huawei
-infra/coordinator.py:<module>:import:drivers.indevolt
-infra/coordinator.py:<module>:import:drivers.indevolt_settings
-infra/coordinator.py:<module>:import:drivers.marstek
-infra/coordinator.py:<module>:import:drivers.sessy
-infra/coordinator.py:<module>:import:drivers.zendure
-infra/coordinator.py:<module>:import:infra.indevolt_client
-infra/coordinator.py:<module>:import:infra.indevolt_notify
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:battery_version not in SUPPORTED_VERSIONS
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.battery_version == 'vD'
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.battery_version in ('vA', 'vD')
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'anker'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'esphome'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'hoymiles'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'huawei'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'indevolt'
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'marstek'
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'sessy'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'sessy'
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand == 'zendure'
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:compare:self.brand in ('zendure', 'anker', 'hoymiles', 'huawei', 'indevolt')
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:AnkerModbusDriver
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:EsphomeEntityDriver
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:HoymilesMqttDriver
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:HuaweiSolarDriver
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:IndevoltDriver
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:IndevoltNotifier
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:MarstekModbusDriver
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:SessyLocalDriver
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:ZENDURE_MODEL_2400AC_PRO
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:ZendureLocalDriver
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:esphome_device_id
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:esphome_device_id
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:hoymiles_model
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:hoymiles_model
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:huawei_battery_device_id
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:huawei_battery_device_id
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:huawei_direct_write
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:huawei_direct_write
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:huawei_emma_slave_id
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:huawei_emma_slave_id
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:indevolt_request_speed
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:indevolt_request_speed
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:indevolt_request_speed
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:indevolt_request_speed
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:zendure_model
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:zendure_model
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:zendure_model
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:zendure_model
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:anker
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:anker
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:esphome
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:hoymiles
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:hoymiles
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:huawei
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:huawei
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:indevolt
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:indevolt
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:marstek
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:sessy
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:zendure
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:literal:zendure
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:identifier:sync_marstek_ceiling
 infra/coordinator.py:MarstekVenusDataUpdateCoordinator._async_update_data_impl:identifier:sync_marstek_ceiling

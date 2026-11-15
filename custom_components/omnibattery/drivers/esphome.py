@@ -33,6 +33,7 @@ from homeassistant.util import dt as dt_util, slugify
 from .base import (
     BatteryDriver,
     DriverCapabilities,
+    DriverContext,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -400,6 +401,19 @@ class EsphomeEntityDriver(BatteryDriver):
     LABEL = "Marstek via LilyGo RS485 (ESPHome)"
     MANUFACTURER = "Marstek"
     DEFAULT_MODEL = "Venus"
+
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "EsphomeEntityDriver":
+        # Marstek behind a LilyGo RS485 bridge: telemetry/control go through the
+        # ESPHome integration's HA entities. host carries the ESPHome device
+        # registry id (stable identity for device_key / persistence);
+        # esphome_device_id is the explicit config field.
+        return cls(
+            context.hass,
+            battery_config.get("esphome_device_id") or battery_config["host"],
+            max_charge_power_w=context.max_charge_power_w,
+            max_discharge_power_w=context.max_discharge_power_w,
+        )
 
     def __init__(
         self,

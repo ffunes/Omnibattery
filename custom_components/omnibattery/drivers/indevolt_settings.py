@@ -89,25 +89,6 @@ class SettingsNotifier(Protocol):
     def flash_writes_resumed(self) -> None: ...
 
 
-def stored_battery_value(coordinator: Any, key: str) -> Any:
-    """Read one key of this coordinator's battery config (None when unknown)."""
-    entry = getattr(coordinator, "_config_entry", None)
-    data = getattr(entry, "data", None)
-    # Home Assistant hands out entry data as a read-only MappingProxyType, not a dict.
-    if not isinstance(data, Mapping):
-        return None
-    for battery in data.get("batteries", []):
-        if not isinstance(battery, Mapping):
-            continue
-        if (
-            battery.get("host") == coordinator.host
-            and battery.get("port") == coordinator.port
-            and battery.get("slave_id", 1) == getattr(coordinator, "slave_id", 1)
-        ):
-            return battery.get(key)
-    return None
-
-
 class IndevoltSettings:
     """Two-way sync of the Indevolt user settings for one battery."""
 

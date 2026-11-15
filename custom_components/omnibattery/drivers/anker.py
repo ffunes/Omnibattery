@@ -28,6 +28,7 @@ from ..infra.modbus_client import decode_registers
 from .base import (
     BatteryDriver,
     DriverCapabilities,
+    DriverContext,
     DELIVERED_AC_POWER_KEY,
     ReadGroup,
     SetpointResult,
@@ -305,6 +306,16 @@ class AnkerModbusDriver(BatteryDriver):
     LABEL = "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"
     MANUFACTURER = "Anker"
     DEFAULT_MODEL = "Solarbank Max AC"
+
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "AnkerModbusDriver":
+        return cls(
+            battery_config["host"],
+            battery_config["port"],
+            battery_config.get("slave_id", 1),
+            max_charge_power_w=context.max_charge_power_w,
+            max_discharge_power_w=context.max_discharge_power_w,
+        )
 
     def __init__(
         self,

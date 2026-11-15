@@ -16,8 +16,6 @@ from homeassistant.const import (
     CONF_HOST,
     CONF_NAME,
     CONF_PORT,
-    CONF_USERNAME,
-    CONF_PASSWORD,
 )
 from homeassistant.core import CoreState, HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import (
@@ -241,17 +239,14 @@ from .const import (
     IDLE_RUNAWAY_POWER_W,
     IDLE_RUNAWAY_GRACE_S,
     DISCHARGE_MIN_SOC_REENTRY_MARGIN,
-    CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-    DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     MIN_CHARGE_HYSTERESIS_PERCENT,
-    DEFAULT_CHARGE_HYSTERESIS_PERCENT,
     DEBUG_CONTROL_LOOP_DETAIL,
 )
 from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager, _plan_owns_delay
 from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
-from .drivers.registry import DEFAULT_BRAND
+from .drivers.registry import DEFAULT_BRAND, driver_class
 from .control.discharge_reserve import (
     RESERVE_SOC_TOLERANCE_PCT,
     DischargeReserveManager,
@@ -11906,15 +11901,9 @@ async def _setup_batteries_per_link(batteries, setup_battery):
     port) stay sequential: concurrent connects would fight over the one TCP
     slot and stretch the retry ladder. Returns coordinators in config order.
     """
-    from .const import CONF_SERIAL_PORT
-
     links: dict[tuple, list] = {}
     for battery_index, battery_config in enumerate(batteries):
-        link = (
-            battery_config.get(CONF_HOST),
-            battery_config.get(CONF_PORT),
-            battery_config.get(CONF_SERIAL_PORT),
-        )
+        link = driver_class(battery_config.get("brand", DEFAULT_BRAND)).link_key(battery_config)
         links.setdefault(link, []).append((battery_index, battery_config))
 
     ready: dict = {}
@@ -11974,10 +11963,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
     await _async_register_frontend_panel(hass, entry)
 
     # Migration: Add default version for existing installations
-    from .const import (
-        CONF_BATTERY_VERSION, DEFAULT_VERSION, CONF_SLAVE_ID, DEFAULT_SLAVE_ID,
-        CONF_SERIAL_PORT, CONF_RS485_GATEWAY, CONF_INDEVOLT_REQUEST_SPEED,
-    )
+    from .const import CONF_BATTERY_VERSION, DEFAULT_VERSION
 
     for battery_config in entry.data["batteries"]:
         if CONF_BATTERY_VERSION not in battery_config:
@@ -12036,50 +12022,10 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
     async def _setup_battery(battery_index, battery_config):
         coordinator = MarstekVenusDataUpdateCoordinator(
             hass,
-            name=battery_config[CONF_NAME],
-            host=battery_config[CONF_HOST],
-            port=battery_config[CONF_PORT],
-            slave_id=battery_config.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
+            battery_config,
             consumption_sensor=entry.data["consumption_sensor"],
-            battery_version=battery_config.get(CONF_BATTERY_VERSION, DEFAULT_VERSION),
-            max_charge_power=battery_config["max_charge_power"],
-            max_discharge_power=battery_config["max_discharge_power"],
-            device_max_charge_power=battery_config.get("device_max_charge_power"),
-            device_max_discharge_power=battery_config.get("device_max_discharge_power"),
-            ems_version=battery_config.get("ems_version"),
-            max_soc=battery_config["max_soc"],
-            min_soc=battery_config["min_soc"],
-            charge_hysteresis_percent=battery_config.get(
-                "charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT
-            ),
-            backup_offgrid_threshold=battery_config.get("backup_offgrid_threshold", 50),
-            allow_charge=battery_config.get("allow_charge", True),
-            allow_discharge=battery_config.get("allow_discharge", True),
-            full_charge_voltage_taper_enabled=battery_config.get(
-                CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-                DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-            ),
             backup_discharge_store=backup_discharge_store,
             backup_discharge_store_key=f"{entry.entry_id}:{battery_index}",
-            brand=battery_config.get("brand", DEFAULT_BRAND),
-            zendure_model=battery_config.get("zendure_model", "2400ac_pro"),
-            hoymiles_model=battery_config.get("hoymiles_model"),
-            serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
-            rs485_gateway=battery_config.get(CONF_RS485_GATEWAY, False),
-            indevolt_request_speed=battery_config.get(CONF_INDEVOLT_REQUEST_SPEED),
-            esphome_device_id=battery_config.get("esphome_device_id"),
-            huawei_battery_device_id=battery_config.get("huawei_battery_device_id"),
-            huawei_direct_write=battery_config.get("huawei_direct_write", False),
-            huawei_emma_slave_id=battery_config.get("huawei_emma_slave_id"),
-            username=battery_config.get(CONF_USERNAME, ""),
-            password=battery_config.get(CONF_PASSWORD, ""),
-            battery_manual_mode_enabled=battery_config.get(
-                CONF_BATTERY_MANUAL_MODE_ENABLED, False
-            ),
-            dc_pv_connected=battery_config.get(
-                CONF_DC_PV_CONNECTED,
-                battery_config.get(CONF_BATTERY_VERSION) in ("vA", "vD"),
-            ),
             mac=entry_macs[battery_index],
         )
         # Physical phase is metadata for the safety limiter only.  It is never

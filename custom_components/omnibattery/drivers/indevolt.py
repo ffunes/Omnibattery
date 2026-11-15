@@ -43,6 +43,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol
 
+from ..const import CONF_INDEVOLT_REQUEST_SPEED
 from ..infra.indevolt_client import (
     ACTION_CHARGE,
     ACTION_DISCHARGE,
@@ -63,7 +64,9 @@ from ..infra.indevolt_client import (
     Transport,
     normal_slot,
     pacing_levels,
+    slot_for_request_speed,
 )
+from ..infra.indevolt_notify import IndevoltNotifier
 from ..infra.mac_tracking import normalise_mac
 from .indevolt_settings import BY_KEY as SETTING_BY_KEY
 from .indevolt_settings import (
@@ -78,6 +81,7 @@ from .base import (
     DELIVERED_AC_POWER_KEY,
     BatteryDriver,
     DriverCapabilities,
+    DriverContext,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -567,6 +571,32 @@ class IndevoltDriver(BatteryDriver):
     MANUFACTURER = "Indevolt"
     DEFAULT_MODEL = "Indevolt"
 
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "IndevoltDriver":
+        host = battery_config["host"]
+        port = battery_config["port"]
+        request_speed = battery_config.get(CONF_INDEVOLT_REQUEST_SPEED)
+        # The driver paces all device traffic itself; polls read its cache.
+        driver = cls(
+            host,
+            port=port,
+            max_charge_power_w=context.max_charge_power_w,
+            max_discharge_power_w=context.max_discharge_power_w,
+            # Notification ids stay keyed on host and port, not on the device key.
+            notifier=IndevoltNotifier(context.hass, context.name, f"{host}_{port}"),
+            # The settings sync stores what it adopted from or wrote to the
+            # device in this battery's config.
+            persist=context.persist,
+            stored=context.stored,
+            slot_s=slot_for_request_speed(request_speed),
+            name=context.name,
+        )
+        driver._request_speed = request_speed
+        return driver
+
+    def coordinator_attributes(self) -> dict:
+        return {"indevolt_request_speed": self._request_speed}
+
     def __init__(
         self,
         host: str,
@@ -591,6 +621,7 @@ class IndevoltDriver(BatteryDriver):
         self._clock = clock
         self._sleep = sleep
         self._slot_s = slot_s
+        self._request_speed: str | None = None
         self._name = name
         self._control_enabled = control_enabled
         self._notifier = notifier

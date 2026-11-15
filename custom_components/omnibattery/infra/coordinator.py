@@ -5,12 +5,18 @@ import time
 from collections import deque
 from datetime import timedelta, datetime
 
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers import device_registry as dr, entity_registry
 from homeassistant.util import dt as dt_util
 
 from ..const import (
+    CONF_BATTERY_MANUAL_MODE_ENABLED,
+    CONF_DC_PV_CONNECTED,
+    CONF_SLAVE_ID,
+    DEFAULT_CHARGE_HYSTERESIS_PERCENT,
+    DEFAULT_SLAVE_ID,
     DOMAIN,
     SCAN_INTERVAL,
     DEBUG_POLL_SENSOR_SKIPS,
@@ -20,19 +26,13 @@ from ..const import (
     BURST_POLL_WINDOW_S,
     BURST_POLL_INTERVAL_S,
 )
-from ..drivers.esphome import EsphomeEntityDriver
-from ..drivers.marstek import MarstekModbusDriver
-from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
-from ..drivers.anker import AnkerModbusDriver
-from ..drivers.sessy import SessyLocalDriver
-from ..drivers.indevolt import IndevoltDriver
-from ..drivers.indevolt_settings import stored_battery_value
-from .indevolt_client import slot_for_request_speed
-from .indevolt_notify import IndevoltNotifier
-from ..drivers.hoymiles import HoymilesMqttDriver
-from ..drivers.huawei import HuaweiSolarDriver
-from ..drivers.base import SetpointResult
-from ..drivers.registry import DEFAULT_BRAND
+from ..drivers.base import (
+    DriverContext,
+    SetpointResult,
+    resolve_battery_version,
+    stored_battery_value,
+)
+from ..drivers.registry import DEFAULT_BRAND, driver_class
 from ..backup_discharge_store import BackupDischargeEnergyStore
 from ..energy import BackupDischargeAccumulator
 from .alarm_notifier import AlarmNotifier
@@ -321,35 +321,14 @@ def _schedule_setup_reload_if_deferred(coordinator) -> None:
 class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
     """Manages polling for data from a single Marstek Venus battery."""
 
-    def __init__(self, hass: HomeAssistant, name: str, host: str, port: int, consumption_sensor: str,
-                 battery_version: str = "v2", slave_id: int = 1,
-                 max_charge_power: int = 2500, max_discharge_power: int = 2500,
-                 max_soc: int = 100, min_soc: int = 12,
-                 charge_hysteresis_percent: int = 2,
-                 backup_offgrid_threshold: int = 50,
-                 allow_charge: bool = True, allow_discharge: bool = True,
-                 full_charge_voltage_taper_enabled: bool = DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-                 brand: str = DEFAULT_BRAND,
-                 zendure_model: str = ZENDURE_MODEL_2400AC_PRO,
-                 hoymiles_model: str | None = None,
-                 serial_port: str | None = None,
-                 rs485_gateway: bool = False,
-                 indevolt_request_speed: str | None = None,
-                 esphome_device_id: str | None = None,
-                 huawei_battery_device_id: str | None = None,
-                 huawei_direct_write: bool = False,
-                 huawei_emma_slave_id: int | None = None,
-                 username: str = "",
-                 password: str = "",
-                 battery_manual_mode_enabled: bool = False,
-                 dc_pv_connected: bool = True,
-                 device_max_charge_power: int | None = None,
-                 device_max_discharge_power: int | None = None,
-                 ems_version: object = None,
+    def __init__(self, hass: HomeAssistant, battery_config: dict, consumption_sensor: str,
                  mac: str | None = None,
                  backup_discharge_store: BackupDischargeEnergyStore | None = None,
                  backup_discharge_store_key: str | None = None) -> None:
         """Initialize the data update coordinator."""
+        name = battery_config[CONF_NAME]
+        host = battery_config[CONF_HOST]
+        port = battery_config[CONF_PORT]
         super().__init__(
             hass,
             _LOGGER,
@@ -359,37 +338,33 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.name = name
         self.host = host
         self.port = port
-        self.slave_id = slave_id
+        self.slave_id = battery_config.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID)
         # Permanent hardware address, stored only when the user opted this
         # battery into MAC tracking. Publishing it in the device registry is
         # what lets Home Assistant's DHCP discovery report an address change.
         self.mac = normalise_mac(mac)
         # Physical phase metadata used only by the optional safety limiter.
         self.phase = ""
-        # Serial device path when the battery is reached over Modbus RTU instead
-        # of TCP (discussion #350); None = TCP. host/port still identify the
-        # battery (device_key, naming); the link uses this path. Marstek only.
-        self.serial_port = serial_port
-        # Marstek reached through an RS485 gateway instead of its own Modbus
-        # TCP server: drops the inter-message wait (issue #411).
-        self.rs485_gateway = bool(rs485_gateway)
-        # Indevolt request speed (infra/indevolt_client.REQUEST_SPEED_SLOT_S); None or an
-        # unknown value gets the driver's default slot.
-        self.indevolt_request_speed = indevolt_request_speed
+        # Brand-owned values the driver mirrors back (serial port, request speed,
+        # ...); these are the defaults for a brand that has none of them.
+        self.serial_port = None
+        self.rs485_gateway = False
+        self.indevolt_request_speed = None
+        self.ems_version = None
+        self.zendure_model = None
         self.consumption_sensor = consumption_sensor
-        self.brand = brand
-        self.ems_version = ems_version
-        self.zendure_model = zendure_model
+        self.brand = battery_config.get("brand", DEFAULT_BRAND)
+        full_charge_voltage_taper_enabled = battery_config.get(
+            CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
+            DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
+        )
         if self.brand in ("zendure", "anker", "hoymiles", "huawei", "indevolt"):
             full_charge_voltage_taper_enabled = False
 
         # Validate and store battery version
-        from ..const import SUPPORTED_VERSIONS, DEFAULT_VERSION
-        if battery_version not in SUPPORTED_VERSIONS:
-            _LOGGER.error("[%s] Unsupported battery version: %s. Defaulting to %s", name, battery_version, DEFAULT_VERSION)
-            self.battery_version = DEFAULT_VERSION
-        else:
-            self.battery_version = battery_version
+        # The version is validated for every brand (a stale one on a non-Marstek
+        # entry is kept), so the coordinator resolves it itself.
+        self.battery_version = resolve_battery_version(battery_config, name)
 
         self._backup_discharge_store = backup_discharge_store
         self._backup_discharge_store_key = backup_discharge_store_key
@@ -399,7 +374,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # capability. Only Venus A/D expose those inputs; existing callers keep
         # the historical connected default until config-entry migration runs.
         self.dc_pv_connected = bool(
-            dc_pv_connected and self.battery_version in ("vA", "vD")
+            battery_config.get(CONF_DC_PV_CONNECTED, True)
+            and self.battery_version in ("vA", "vD")
         )
 
         _LOGGER.info("[%s] Initialized as %s battery", name, self.battery_version)
@@ -410,8 +386,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # that control and UI code may actually use.  The old ``max_*`` names
         # remain read/write aliases for the effective value for compatibility
         # with existing integrations and persisted state.
-        initial_charge_limit = _normalise_power_limit(max_charge_power)
-        initial_discharge_limit = _normalise_power_limit(max_discharge_power)
+        initial_charge_limit = _normalise_power_limit(battery_config["max_charge_power"])
+        initial_discharge_limit = _normalise_power_limit(battery_config["max_discharge_power"])
         self._device_max_charge_power = initial_charge_limit
         self._device_max_discharge_power = initial_discharge_limit
         self._configured_max_charge_power = initial_charge_limit
@@ -419,14 +395,17 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self._effective_max_charge_power = initial_charge_limit
         self._effective_max_discharge_power = initial_discharge_limit
         self._power_limit_restored_at: dict[str, float] = {}
-        self.max_soc = max_soc
-        self.min_soc = min_soc
+        self.max_soc = battery_config["max_soc"]
+        self.min_soc = battery_config["min_soc"]
         # Hysteresis is mandatory; floor the percent so SOC drift can't shrink the
         # deadband below the chatter-safe minimum (see MIN_CHARGE_HYSTERESIS_PERCENT).
         from ..const import MIN_CHARGE_HYSTERESIS_PERCENT
         self.enable_charge_hysteresis = True
-        self.charge_hysteresis_percent = max(MIN_CHARGE_HYSTERESIS_PERCENT, int(charge_hysteresis_percent))
-        self.backup_offgrid_threshold = backup_offgrid_threshold
+        self.charge_hysteresis_percent = max(
+            MIN_CHARGE_HYSTERESIS_PERCENT,
+            int(battery_config.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
+        )
+        self.backup_offgrid_threshold = battery_config.get("backup_offgrid_threshold", 50)
         # User-set nominal capacity (kWh) for drivers that don't report it
         # (has_nominal_capacity=False, e.g. Zendure and Sessy). Injected into data as
         # battery_total_energy each poll so stored_energy / predictive / pricing
@@ -435,7 +414,9 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # Per-battery manual-control ownership and software setpoints for drivers
         # without force_mode / set_*_power registers (e.g. Zendure). The
         # controller asserts these via apply_setpoint each cycle. Persisted.
-        self.battery_manual_mode_enabled = bool(battery_manual_mode_enabled)
+        self.battery_manual_mode_enabled = bool(
+            battery_config.get(CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+        )
         self.manual_force_mode = "None"
         self.manual_set_charge_power = 0
         self.manual_set_discharge_power = 0
@@ -448,8 +429,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self.commanded_discharge_power = 0
         # ``user_max_*`` is retained below as a compatibility alias for the
         # normalized configured limit.  It is no longer a second source of truth.
-        self.allow_charge = allow_charge
-        self.allow_discharge = allow_discharge
+        self.allow_charge = battery_config.get("allow_charge", True)
+        self.allow_discharge = battery_config.get("allow_discharge", True)
         setattr(self, CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, full_charge_voltage_taper_enabled)
         self._hysteresis_active = False  # Tracks if battery reached max_soc (for hysteresis)
         self._hysteresis_base_soc = None  # SOC that triggered hysteresis (used as threshold base)
@@ -510,91 +491,20 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # packet correction; the coordinator and platform setups read the
         # per-platform definition lists back from it (see the passthrough
         # properties below) instead of branching on the version string.
-        if self.brand == "zendure":
-            # Zendure's charge/discharge caps are read-only device traits, not
-            # writable registers. The capability must stay the hardware ceiling
-            # (driver default) — feeding the user-tunable max_charge_power here
-            # would trap the soft-max slider's native_max at the saved value and
-            # re-clamp the apply path below it. The user's runtime ceiling is
-            # enforced via coordinator.max_charge_power instead (soft-max entity
-            # + device chargeMaxLimit sync).
-            self.driver = ZendureLocalDriver(
-                self.host,
-                port=self.port,
-                model=zendure_model,
-            )
-        elif self.brand == "esphome":
-            # Marstek behind a LilyGo RS485 bridge: telemetry/control go through
-            # the ESPHome integration's HA entities. host carries the ESPHome
-            # device registry id (stable identity for device_key / persistence);
-            # esphome_device_id is the explicit config field.
-            self.driver = EsphomeEntityDriver(
-                hass,
-                esphome_device_id or self.host,
+        self.driver = driver_class(self.brand).from_config(
+            battery_config,
+            DriverContext(
+                hass=hass,
+                name=name,
+                device_key=self.device_key,
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
-            )
-        elif self.brand == "anker":
-            self.driver = AnkerModbusDriver(
-                self.host,
-                self.port,
-                self.slave_id,
-                max_charge_power_w=self.configured_max_charge_power,
-                max_discharge_power_w=self.configured_max_discharge_power,
-            )
-        elif self.brand == "sessy":
-            self.driver = SessyLocalDriver(
-                self.host, port=self.port,
-                username=username,
-                password=password,
-                max_charge_power_w=self.configured_max_charge_power,
-                max_discharge_power_w=self.configured_max_discharge_power,
-            )
-        elif self.brand == "indevolt":
-            # The driver paces all device traffic itself; polls read its cache.
-            self.driver = IndevoltDriver(
-                self.host, port=self.port,
-                max_charge_power_w=self.configured_max_charge_power,
-                max_discharge_power_w=self.configured_max_discharge_power,
-                notifier=IndevoltNotifier(hass, name, f"{self.host}_{self.port}"),
-                # The settings sync stores what it adopted from or wrote to the
-                # device in this battery's config.
                 persist=self.persist_battery_config,
                 stored=lambda key: stored_battery_value(self, key),
-                slot_s=slot_for_request_speed(self.indevolt_request_speed),
-                name=name,
-            )
-        elif self.brand == "huawei":
-            # Telemetry is read natively over Modbus; set-points go out through
-            # the huawei_solar integration, which owns the battery device named
-            # here. Both halves address the same inverter.
-            self.driver = HuaweiSolarDriver(
-                hass,
-                self.host,
-                port=self.port,
-                slave_id=self.slave_id,
-                battery_device_id=huawei_battery_device_id or "",
-                direct_write=huawei_direct_write,
-                emma_slave_id=huawei_emma_slave_id,
-                max_charge_power_w=self.configured_max_charge_power,
-                max_discharge_power_w=self.configured_max_discharge_power,
-            )
-        elif self.brand == "hoymiles":
-            self.driver = HoymilesMqttDriver(
-                hass, self.host,
-                model=hoymiles_model,
-                max_charge_power_w=self.configured_max_charge_power,
-                max_discharge_power_w=self.configured_max_discharge_power,
-            )
-        else:
-            self.driver = MarstekModbusDriver(
-                self.host, self.port, self.battery_version, self.slave_id,
-                max_charge_power_w=self.configured_max_charge_power,
-                max_discharge_power_w=self.configured_max_discharge_power,
-                serial_port=self.serial_port,
-                ems_version=self.ems_version,
-                rs485_gateway=self.rs485_gateway,
-            )
+            ),
+        )
+        for attribute, value in self.driver.coordinator_attributes().items():
+            setattr(self, attribute, value)
 
         # The driver declares whether its native discharge counter omits a power
         # path and owns the interpretation of the telemetry needed to measure it.
@@ -622,13 +532,13 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # Hoymiles/Anker) also expose a configured or effective value through
         # their public capability object.
         self.device_max_charge_power = (
-            device_max_charge_power
-            if device_max_charge_power is not None
+            battery_config.get("device_max_charge_power")
+            if battery_config.get("device_max_charge_power") is not None
             else self.driver.capabilities.max_charge_power_w
         )
         self.device_max_discharge_power = (
-            device_max_discharge_power
-            if device_max_discharge_power is not None
+            battery_config.get("device_max_discharge_power")
+            if battery_config.get("device_max_discharge_power") is not None
             else self.driver.capabilities.max_discharge_power_w
         )
         if self.brand == "marstek" and self.battery_version == "vD":

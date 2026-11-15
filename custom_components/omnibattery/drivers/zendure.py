@@ -47,6 +47,7 @@ import aiohttp
 from .base import (
     BatteryDriver,
     DriverCapabilities,
+    DriverContext,
     DELIVERED_AC_POWER_KEY,
     ReadGroup,
     SetpointResult,
@@ -368,6 +369,23 @@ class ZendureLocalDriver(BatteryDriver):
     LABEL = "Zendure SolarFlow"
     MANUFACTURER = "Zendure"
     DEFAULT_MODEL = "Zendure"
+
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "ZendureLocalDriver":
+        # Zendure's caps are read-only device traits, not writable registers. The
+        # capability must stay the hardware ceiling (driver default) - feeding the
+        # user-tunable max_charge_power here would trap the soft-max slider's
+        # native_max at the saved value and re-clamp the apply path below it. The
+        # user's runtime ceiling is enforced via coordinator.max_charge_power
+        # instead (soft-max entity + device chargeMaxLimit sync).
+        return cls(
+            battery_config["host"],
+            port=battery_config["port"],
+            model=battery_config.get("zendure_model", ZENDURE_MODEL_2400AC_PRO),
+        )
+
+    def coordinator_attributes(self) -> dict:
+        return {"zendure_model": self._model}
 
     def __init__(
         self,

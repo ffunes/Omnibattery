@@ -283,13 +283,17 @@ def test_coordinator_clamps_legacy_sessy_power_limits_before_allocation(monkeypa
 
     coordinator = MarstekVenusDataUpdateCoordinator(
         MagicMock(),
-        "Garage Sessy",
-        "sessy.local",
-        80,
+        {
+            "name": "Garage Sessy",
+            "host": "sessy.local",
+            "port": 80,
+            "brand": "sessy",
+            "max_charge_power": 5000,
+            "max_discharge_power": 5000,
+            "max_soc": 100,
+            "min_soc": 12,
+        },
         "sensor.grid_power",
-        brand="sessy",
-        max_charge_power=5000,
-        max_discharge_power=5000,
     )
 
     assert coordinator.max_charge_power == 2200

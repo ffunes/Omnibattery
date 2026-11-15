@@ -10,16 +10,18 @@ poll, take a power command and shut down without an ``AttributeError``.
 """
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from custom_components.omnibattery.const import DOMAIN
+from custom_components.omnibattery.drivers import registry
 from custom_components.omnibattery.drivers.base import (
     BatteryDriver,
     DriverCapabilities,
+    DriverContext,
     ReadGroup,
     SetpointResult,
 )
@@ -34,6 +36,10 @@ class MinimalDriver(BatteryDriver):
     def __init__(self) -> None:
         self._connected = False
         self.calls: list[str] = []
+
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "MinimalDriver":
+        return cls()
 
     @property
     def capabilities(self) -> DriverCapabilities:
@@ -103,61 +109,40 @@ class MinimalDriver(BatteryDriver):
         return True
 
 
-def _build_coordinator(driver: BatteryDriver) -> MarstekVenusDataUpdateCoordinator:
-    """Build a real coordinator around ``driver``.
+@pytest.fixture
+def build_coordinator(monkeypatch):
+    """Build a real coordinator whose driver the registry constructs.
 
-    Isolated on purpose: the driver registry does not exist yet, so the coordinator
-    is created with ``object.__new__`` and the driver injected. In T2.2 this helper
-    becomes a registry construction (``driver_class(brand).from_config(...)``) and
-    nothing else in this file has to change.
+    ``MinimalDriver`` is registered under the brand ``"minimal"``; the coordinator
+    does what ``_setup_battery`` does: ``driver_class(brand).from_config(...)``.
+    Only the Home Assistant machinery that needs a running instance is stubbed.
     """
-    coordinator = object.__new__(MarstekVenusDataUpdateCoordinator)
-    coordinator.hass = MagicMock()
-    coordinator.name = "minimal"
-    coordinator.host = "192.0.2.1"
-    coordinator.port = 502
-    coordinator.slave_id = 1
-    coordinator.brand = "minimal"
-    coordinator.battery_version = "v2"
-    coordinator.driver = driver
-    coordinator.data = {}
-    coordinator.lock = asyncio.Lock()
-    coordinator._device_max_charge_power = 800
-    coordinator._device_max_discharge_power = 800
-    coordinator._configured_max_charge_power = 800
-    coordinator._configured_max_discharge_power = 800
-    coordinator._effective_max_charge_power = 800
-    coordinator._effective_max_discharge_power = 800
-    coordinator._power_limit_restored_at = {}
-    coordinator.max_soc = 100
-    coordinator.min_soc = 12
-    coordinator.dc_pv_connected = False
-    coordinator.enable_charge_hysteresis = True
-    coordinator.battery_capacity_kwh = 0.0
-    coordinator.rs485_user_disabled = False
-    coordinator._is_shutting_down = False
-    coordinator._is_connected = False
-    coordinator._consecutive_failures = 0
-    coordinator._max_failures_before_reconnect = 3
-    coordinator._max_failures_before_suspend = 5
-    coordinator._suspension_reset_time = None
-    coordinator._last_write_failure_reason = None
-    coordinator._last_rs485_reenable_success = None
-    coordinator.reload_entry_when_reachable = False
-    coordinator._last_update_times = {}
-    coordinator._key_update_times = {}
-    coordinator._critical_group_failures = {}
-    coordinator.boost_fast_poll_until = 0.0
-    coordinator._backup_discharge_accumulator = None
-    coordinator._alarm_notifier = SimpleNamespace(
-        check=lambda *args, **kwargs: _done()
-    )
-    # No entity is registered or disabled, so nothing is skipped in the poll.
-    coordinator._entity_registry = SimpleNamespace(
-        async_get_entity_id=lambda *args: None, entities={}
-    )
-    coordinator._sync_driver_definitions()
-    return coordinator
+    monkeypatch.setitem(registry.DRIVERS, "minimal", MinimalDriver)
+    monkeypatch.setattr(DataUpdateCoordinator, "__init__", lambda *_a, **_k: None)
+
+    def _build() -> MarstekVenusDataUpdateCoordinator:
+        coordinator = MarstekVenusDataUpdateCoordinator(
+            MagicMock(),
+            {
+                "name": "minimal", "host": "192.0.2.1", "port": 502, "brand": "minimal",
+                "max_charge_power": 800, "max_discharge_power": 800,
+                "max_soc": 100, "min_soc": 12,
+            },
+            "sensor.grid_power",
+        )
+        # Set by the stubbed DataUpdateCoordinator.__init__.
+        coordinator.hass = MagicMock()
+        coordinator.data = {}
+        coordinator._alarm_notifier = SimpleNamespace(
+            check=lambda *args, **kwargs: _done()
+        )
+        # No entity is registered or disabled, so nothing is skipped in the poll.
+        coordinator._entity_registry = SimpleNamespace(
+            async_get_entity_id=lambda *args: None, entities={}
+        )
+        return coordinator
+
+    return _build
 
 
 async def _done() -> None:
@@ -188,9 +173,10 @@ def test_minimal_driver_has_empty_definitions_and_no_packs():
 
 
 @pytest.mark.asyncio
-async def test_minimal_driver_runs_the_coordinator_lifecycle():
-    driver = MinimalDriver()
-    coordinator = _build_coordinator(driver)
+async def test_minimal_driver_runs_the_coordinator_lifecycle(build_coordinator):
+    coordinator = build_coordinator()
+    driver = coordinator.driver
+    assert type(driver) is MinimalDriver
 
     # Startup: connect, RS485 re-assert, first read, one-time config write.
     assert await coordinator.connect() is True
@@ -225,7 +211,7 @@ async def test_minimal_driver_runs_the_coordinator_lifecycle():
 
 
 @pytest.mark.asyncio
-async def test_minimal_driver_reaches_every_platform_definition_loop(monkeypatch):
+async def test_minimal_driver_reaches_every_platform_definition_loop(monkeypatch, build_coordinator):
     """Each platform reads its definition list (and per-pack fields) off the driver."""
     from custom_components.omnibattery import (
         binary_sensor,
@@ -236,7 +222,7 @@ async def test_minimal_driver_reaches_every_platform_definition_loop(monkeypatch
         switch,
     )
 
-    coordinator = _build_coordinator(MinimalDriver())
+    coordinator = build_coordinator()
     coordinator.data = {"battery_soc": 50, "battery_power": 0}
     entry = SimpleNamespace(entry_id="entry", data={}, options={})
     hass = MagicMock()

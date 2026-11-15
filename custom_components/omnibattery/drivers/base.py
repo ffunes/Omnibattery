@@ -25,9 +25,18 @@ in incrementally; see ``docs/plans/driver_abstraction.md`` for the phase plan.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
+
+from ..const import CONF_BATTERY_VERSION, DEFAULT_VERSION, SUPPORTED_VERSIONS
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # Optional telemetry key a driver may publish alongside ``battery_power``.
@@ -41,6 +50,59 @@ from typing import Optional, Sequence
 # ``battery_power``. Drivers that cannot measure it simply omit the key and the
 # control layer keeps judging delivery from the cells alone.
 DELIVERED_AC_POWER_KEY = "ac_delivered_power"
+
+
+@dataclass(frozen=True)
+class DriverContext:
+    """What the coordinator hands a driver's ``from_config`` besides the stored config.
+
+    The power limits arrive already normalised by the coordinator; ``persist`` and
+    ``stored`` are bound to this battery's entry in the config entry.
+    """
+
+    hass: "HomeAssistant"
+    name: str
+    device_key: str
+    max_charge_power_w: int
+    max_discharge_power_w: int
+    persist: Callable[[str, Any], None]
+    stored: Callable[[str], Any]
+
+
+def stored_battery_value(coordinator: Any, key: str) -> Any:
+    """Read one key of this coordinator's battery config (None when unknown)."""
+    entry = getattr(coordinator, "_config_entry", None)
+    data = getattr(entry, "data", None)
+    # Home Assistant hands out entry data as a read-only MappingProxyType, not a dict.
+    if not isinstance(data, Mapping):
+        return None
+    for battery in data.get("batteries", []):
+        if not isinstance(battery, Mapping):
+            continue
+        if (
+            battery.get("host") == coordinator.host
+            and battery.get("port") == coordinator.port
+            and battery.get("slave_id", 1) == getattr(coordinator, "slave_id", 1)
+        ):
+            return battery.get(key)
+    return None
+
+
+def resolve_battery_version(battery_config: Mapping, name: str | None = None) -> str:
+    """The stored ``battery_version``, or the default when absent or unsupported.
+
+    Logs an unsupported value when ``name`` is given (the coordinator passes it, so
+    the error is reported once per battery whichever driver is built).
+    """
+    version = battery_config.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
+    if version not in SUPPORTED_VERSIONS:
+        if name is not None:
+            _LOGGER.error(
+                "[%s] Unsupported battery version: %s. Defaulting to %s",
+                name, version, DEFAULT_VERSION,
+            )
+        return DEFAULT_VERSION
+    return version
 
 
 @dataclass(frozen=True)
@@ -297,6 +359,30 @@ class BatteryDriver(ABC):
     # Config keys of this brand to redact from diagnostics. The generic keys
     # live here; ``registry.redact_keys()`` unions every registered class.
     REDACT_KEYS: frozenset[str] = frozenset({"host", "serial", "ip_address", "mac"})
+
+    @classmethod
+    @abstractmethod
+    def from_config(
+        cls, battery_config: Mapping, context: DriverContext
+    ) -> "BatteryDriver":
+        """Build this brand's driver from one battery's stored config.
+
+        Reads exactly the config keys the brand owns, with their defaults;
+        ``context`` carries what the coordinator owns (see :class:`DriverContext`).
+        """
+
+    @classmethod
+    def link_key(cls, battery_config: Mapping) -> tuple:
+        """Identity of the physical link a battery sits on.
+
+        Batteries with the same key are set up one after another (they share one
+        connection slot); different keys connect concurrently.
+        """
+        return (battery_config.get("host"), battery_config.get("port"))
+
+    def coordinator_attributes(self) -> dict[str, Any]:
+        """Brand-owned config values the coordinator mirrors as public attributes."""
+        return {}
 
     @property
     @abstractmethod

@@ -22,6 +22,7 @@ from .base import (
     DELIVERED_AC_POWER_KEY,
     BatteryDriver,
     DriverCapabilities,
+    DriverContext,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -192,6 +193,16 @@ class HoymilesMqttDriver(BatteryDriver):
     LABEL = "Hoymiles MQTT"
     MANUFACTURER = "Hoymiles"
     DEFAULT_MODEL = "MS-A2"
+
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "HoymilesMqttDriver":
+        return cls(
+            context.hass,
+            battery_config["host"],
+            model=battery_config.get("hoymiles_model"),
+            max_charge_power_w=context.max_charge_power_w,
+            max_discharge_power_w=context.max_discharge_power_w,
+        )
 
     def __init__(self, hass: HomeAssistant, device_id: str, *, model: str | None = None,
                  max_charge_power_w: int | None = None,

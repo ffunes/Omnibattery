@@ -68,6 +68,7 @@ from ..infra.huawei_modbus_client import (
 from .base import (
     BatteryDriver,
     DriverCapabilities,
+    DriverContext,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -455,6 +456,23 @@ class HuaweiSolarDriver(BatteryDriver):
     LABEL = "Huawei SUN2000 + LUNA2000"
     MANUFACTURER = "Huawei"
     DEFAULT_MODEL = "Venus"
+
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "HuaweiSolarDriver":
+        # Telemetry is read natively over Modbus; set-points go out through the
+        # huawei_solar integration, which owns the battery device named here.
+        # Both halves address the same inverter.
+        return cls(
+            context.hass,
+            battery_config["host"],
+            port=battery_config["port"],
+            slave_id=battery_config.get("slave_id", 1),
+            battery_device_id=battery_config.get("huawei_battery_device_id") or "",
+            direct_write=battery_config.get("huawei_direct_write", False),
+            emma_slave_id=battery_config.get("huawei_emma_slave_id"),
+            max_charge_power_w=context.max_charge_power_w,
+            max_discharge_power_w=context.max_discharge_power_w,
+        )
 
     def __init__(
         self,

@@ -14,7 +14,14 @@ from typing import Optional
 
 import aiohttp
 
-from .base import BatteryDriver, DriverCapabilities, ReadGroup, SetpointResult, TelemetrySnapshot
+from .base import (
+    BatteryDriver,
+    DriverCapabilities,
+    DriverContext,
+    ReadGroup,
+    SetpointResult,
+    TelemetrySnapshot,
+)
 
 _LOGGER = logging.getLogger(__name__)
 _HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
@@ -57,6 +64,17 @@ class SessyLocalDriver(BatteryDriver):
     MANUFACTURER = "Sessy"
     DEFAULT_MODEL = "Sessy"
     REDACT_KEYS = frozenset({"username", "password"})
+
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "SessyLocalDriver":
+        return cls(
+            battery_config["host"],
+            port=battery_config["port"],
+            username=battery_config.get("username", ""),
+            password=battery_config.get("password", ""),
+            max_charge_power_w=context.max_charge_power_w,
+            max_discharge_power_w=context.max_discharge_power_w,
+        )
 
     def __init__(
         self,

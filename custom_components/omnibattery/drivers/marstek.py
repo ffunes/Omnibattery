@@ -25,6 +25,10 @@ import math
 from typing import Optional
 
 from ..const import (
+    CONF_RS485_GATEWAY,
+    CONF_SERIAL_PORT,
+    CONF_SLAVE_ID,
+    DEFAULT_SLAVE_ID,
     MESSAGE_WAIT_MS,
     MESSAGE_WAIT_MS_RS485_GATEWAY,
     PACK_MAX_CELL_KEYS,
@@ -40,9 +44,11 @@ from ..infra.modbus_client import BLOCK_REFUSED, MarstekModbusClient, decode_reg
 from .base import (
     BatteryDriver,
     DriverCapabilities,
+    DriverContext,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
+    resolve_battery_version,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -306,6 +312,36 @@ class MarstekModbusDriver(BatteryDriver):
     DEFAULT_MODEL = "Venus"
     REDACT_KEYS = frozenset({"serial_port"})
 
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "MarstekModbusDriver":
+        return cls(
+            battery_config["host"],
+            battery_config["port"],
+            resolve_battery_version(battery_config),
+            battery_config.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
+            max_charge_power_w=context.max_charge_power_w,
+            max_discharge_power_w=context.max_discharge_power_w,
+            serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
+            ems_version=battery_config.get("ems_version"),
+            rs485_gateway=battery_config.get(CONF_RS485_GATEWAY, False),
+        )
+
+    @classmethod
+    def link_key(cls, battery_config) -> tuple:
+        # A serial port is its own link, whatever host/port the entry carries.
+        return (
+            battery_config.get("host"),
+            battery_config.get("port"),
+            battery_config.get(CONF_SERIAL_PORT),
+        )
+
+    def coordinator_attributes(self) -> dict:
+        return {
+            "serial_port": self._serial_port,
+            "rs485_gateway": self._rs485_gateway,
+            "ems_version": self._ems_version,
+        }
+
     def __init__(
         self,
         host: str,
@@ -336,6 +372,8 @@ class MarstekModbusDriver(BatteryDriver):
         """
         self._version = version
         self._ems_version = ems_version
+        self._serial_port = serial_port
+        self._rs485_gateway = bool(rs485_gateway)
         self._is_v3_family = version in _V3_FAMILY
         self._slave_id = slave_id
 

@@ -7,9 +7,9 @@ behaviour changed.
 
 ``_build_coordinator`` is the ONLY place that knows how a ``battery_config`` dict
 becomes a coordinator. It mirrors ``_setup_battery`` in ``__init__.py`` (the
-``MarstekVenusDataUpdateCoordinator(...)`` kwargs and the assignments right after
-it). When T2.2 replaces that mapping with ``from_config(battery_config, ...)``,
-only this helper may change, never the assertions.
+``MarstekVenusDataUpdateCoordinator(hass, battery_config, ...)`` call and the
+assignments right after it); T2.2 moved the per-brand mapping into each driver's
+``from_config``, so only this helper changed, never the assertions.
 """
 
 from __future__ import annotations
@@ -75,52 +75,13 @@ def _build_coordinator(battery_config, *, hass=None, mac=None, battery_index=0, 
         data={"consumption_sensor": "sensor.grid_power", "batteries": [battery_config]},
     )
     kwargs = dict(
-        name=battery_config[CONF_NAME],
-        host=battery_config[CONF_HOST],
-        port=battery_config[CONF_PORT],
-        slave_id=battery_config.get(CONF_SLAVE_ID, DEFAULT_SLAVE_ID),
         consumption_sensor=entry.data["consumption_sensor"],
-        battery_version=battery_config.get(CONF_BATTERY_VERSION, DEFAULT_VERSION),
-        max_charge_power=battery_config["max_charge_power"],
-        max_discharge_power=battery_config["max_discharge_power"],
-        device_max_charge_power=battery_config.get("device_max_charge_power"),
-        device_max_discharge_power=battery_config.get("device_max_discharge_power"),
-        ems_version=battery_config.get("ems_version"),
-        max_soc=battery_config["max_soc"],
-        min_soc=battery_config["min_soc"],
-        charge_hysteresis_percent=battery_config.get(
-            "charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT
-        ),
-        backup_offgrid_threshold=battery_config.get("backup_offgrid_threshold", 50),
-        allow_charge=battery_config.get("allow_charge", True),
-        allow_discharge=battery_config.get("allow_discharge", True),
-        full_charge_voltage_taper_enabled=battery_config.get(
-            CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-            DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-        ),
         backup_discharge_store=None,
         backup_discharge_store_key=f"{entry.entry_id}:{battery_index}",
-        brand=battery_config.get("brand", "marstek"),
-        zendure_model=battery_config.get("zendure_model", "2400ac_pro"),
-        hoymiles_model=battery_config.get("hoymiles_model"),
-        serial_port=battery_config.get(CONF_SERIAL_PORT) or None,
-        rs485_gateway=battery_config.get(CONF_RS485_GATEWAY, False),
-        indevolt_request_speed=battery_config.get(CONF_INDEVOLT_REQUEST_SPEED),
-        esphome_device_id=battery_config.get("esphome_device_id"),
-        huawei_battery_device_id=battery_config.get("huawei_battery_device_id"),
-        huawei_direct_write=battery_config.get("huawei_direct_write", False),
-        huawei_emma_slave_id=battery_config.get("huawei_emma_slave_id"),
-        username=battery_config.get(CONF_USERNAME, ""),
-        password=battery_config.get(CONF_PASSWORD, ""),
-        battery_manual_mode_enabled=battery_config.get(CONF_BATTERY_MANUAL_MODE_ENABLED, False),
-        dc_pv_connected=battery_config.get(
-            CONF_DC_PV_CONNECTED,
-            battery_config.get(CONF_BATTERY_VERSION) in ("vA", "vD"),
-        ),
         mac=mac,
     )
     kwargs.update(overrides)
-    coordinator = MarstekVenusDataUpdateCoordinator(hass, **kwargs)
+    coordinator = MarstekVenusDataUpdateCoordinator(hass, battery_config, **kwargs)
     coordinator.hass = hass  # DataUpdateCoordinator.__init__ (stubbed here) sets it
     coordinator.phase = normalize_battery_phase(battery_config.get(CONF_BATTERY_PHASE))
     coordinator._config_entry = entry
