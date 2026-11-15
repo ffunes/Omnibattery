@@ -28,7 +28,12 @@ SNAPSHOT = Path(__file__).parent / "snapshots" / "frozen_defects_table.json"
 ABSENT = "<absent>"
 VERSIONS = (ABSENT, "v2", "v3", "vA", "vD", "zz")
 SERIAL_PORTS = (ABSENT, "/dev/ttyUSB0")
-BRANDS = (*registry.DRIVERS, "acme", "<missing>")
+# The eight brands of the refactor, fixed: a brand registered later (plan T8.3)
+# must not have to edit this table.
+BRANDS = (
+    "marstek", "zendure", "esphome", "anker", "sessy", "indevolt", "hoymiles", "huawei",
+    "acme", "<missing>",
+)
 
 
 def _base_config(brand):
