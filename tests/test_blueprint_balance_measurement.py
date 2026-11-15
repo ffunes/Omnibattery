@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from custom_components.omnibattery.const import DOMAIN
+from custom_components.omnibattery.drivers.base import DEFAULT_BALANCE_BASELINE
 from custom_components.omnibattery.tracking.balance_monitor import BalanceMonitor
 from custom_components.omnibattery.tracking.blueprint_measurement import (
     async_register_blueprint_balance_measurement_listener,
@@ -28,6 +29,7 @@ def _coordinator(*, manual=True, data=None):
     return SimpleNamespace(
         name="Battery 1",
         device_key="192.0.2.10_502",
+        capabilities=SimpleNamespace(balance_baseline=DEFAULT_BALANCE_BASELINE),
         battery_manual_mode_enabled=manual,
         data=data if data is not None else {
             "max_cell_voltage": 3.545,

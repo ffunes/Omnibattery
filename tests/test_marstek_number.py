@@ -127,7 +127,11 @@ async def test_zendure_inverse_max_power_updates_effective_discharge_limit():
     coordinator.persist_battery_config = Mock()
 
     entity = object.__new__(MarstekVenusNumber)
-    entity.definition = {"key": "inverse_max_power", "max": 4000}
+    entity.definition = {
+        "key": "inverse_max_power",
+        "canonical_key": "max_discharge_power",
+        "max": 4000,
+    }
     entity.coordinator = coordinator
     entity.hass = SimpleNamespace(data={})
     entity._scale = 1.0

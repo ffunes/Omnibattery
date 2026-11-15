@@ -313,6 +313,7 @@ class _PackCoord:
         self.brand = None
         self.driver = _FakeMarstekDriver()
         self.capabilities = SimpleNamespace(cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE)
+        self.traits = SimpleNamespace(sequential_pack_fill=True)
         self.commanded_charge_power = 200
         self.data = {"battery_power": 0, "inverter_state": 1, **data}
 

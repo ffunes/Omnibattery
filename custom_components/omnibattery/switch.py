@@ -55,6 +55,7 @@ from .const import (
     CONF_THREE_PHASE_ENABLED,
     NOTIFICATION_ID_PREFIX,
 )
+from .drivers.base import KEY_RS485_CONTROL_MODE
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import (
     english_entity_id,
@@ -255,7 +256,7 @@ class MarstekVenusSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs) -> None:
         """Turn the switch on."""
-        if self.definition["key"] == "rs485_control_mode":
+        if self.definition["key"] == KEY_RS485_CONTROL_MODE:
             was_off = self.is_on is False
             self.coordinator.set_rs485_user_disabled(False)
 
@@ -293,7 +294,7 @@ class MarstekVenusSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         """Turn the switch off."""
-        if self.definition["key"] == "rs485_control_mode":
+        if self.definition["key"] == KEY_RS485_CONTROL_MODE:
             self.coordinator.set_rs485_user_disabled(True)
 
             success = await self.coordinator.set_rs485_control(False)
@@ -1608,9 +1609,9 @@ class ManualModeSwitch(SwitchEntity):
                     "All batteries have been set to idle (0W). "
                     "You can now manually control each battery using the "
                     "'Set Forcible Charge/Discharge Power' controls, or — "
-                    "for Anker — select another operating mode in the "
-                    "official Anker Solix integration without OmniBattery "
-                    "reverting it.\n\n"
+                    "for batteries whose own integration offers more "
+                    "operating modes — select another mode there without "
+                    "OmniBattery reverting it.\n\n"
                     "Turn off Manual Mode to resume automatic control."
                 ),
                 "notification_id": f"{NOTIFICATION_ID_PREFIX}manual_mode_active",

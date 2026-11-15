@@ -36,7 +36,3 @@ number.py:async_setup_entry:identifier:MarstekSoftMaxChargeNumber
 number.py:async_setup_entry:identifier:MarstekSoftMaxDischargeNumber
 select.py:<module>:identifier:MarstekManualForceModeSelect
 select.py:async_setup_entry:identifier:MarstekManualForceModeSelect
-switch.py:ManualModeSwitch.async_turn_on:literal:anker
-switch.py:ManualModeSwitch.async_turn_on:literal:anker
-tracking/balance_monitor.py:BalanceMonitor._evaluate:literal:marstek
-tracking/balance_monitor.py:BalanceMonitor._maybe_notify:literal:marstek

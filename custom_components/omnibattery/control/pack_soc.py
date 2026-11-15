@@ -180,6 +180,8 @@ def control_vmax(coordinator):
     battery that publishes no per-pack SOC, which is every model except Venus
     A/D, so their behaviour is unchanged. Also None for a driver that declares
     no cell-voltage profile: there are no levels to judge the reading against.
+    The per-pack SOC is only consulted for a driver whose traits declare
+    ``sequential_pack_fill`` (coupled packs filled in sequence).
     """
     if cell_voltage_profile(coordinator) is None:
         return None
@@ -189,6 +191,6 @@ def control_vmax(coordinator):
     except (KeyError, TypeError, ValueError):
         return None
     packs = pack_socs(coordinator)
-    if packs and min(packs) < _PACK_TOP_SOC:
+    if packs and coordinator.traits.sequential_pack_fill and min(packs) < _PACK_TOP_SOC:
         return None
     return vmax

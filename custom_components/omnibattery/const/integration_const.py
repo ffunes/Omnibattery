@@ -298,17 +298,9 @@ BALANCE_STORAGE_VERSION = 1
 # settled WAIT_MEASURE interval. The integration reads its own coordinator
 # telemetry when handling this event; the blueprint does not provide voltages.
 EVENT_BLUEPRINT_BALANCE_MEASUREMENT_READY = "omnibattery_balance_measurement_ready"
-# Marstek cells ship from the factory with a sizeable top-of-charge imbalance
-# (commonly ~170-180 mV). At 3.55 V the LiFePO4 curve is very steep, so this
-# factory spread is normal — not a fault. The status thresholds below are
-# absolute raw-delta values chosen to sit above that factory baseline, so a
-# fresh battery reads green. The baseline offset is subtracted only in the
-# rising-trend magnitude gate, so steady factory-level readings do not trip a
-# trend alert (slope is unaffected — subtracting a constant does not change it).
-BALANCE_BASELINE_OFFSET_MV = 180  # mV — factory top-of-charge imbalance, used by the trend gate
-BALANCE_THRESHOLD_YELLOW = 200    # mV — raw delta above this: yellow
-BALANCE_THRESHOLD_ORANGE = 230    # mV — raw delta above this: orange
-BALANCE_THRESHOLD_RED = 250       # mV — raw delta above this: red
+# The factory-spread offset and the yellow/orange/red thresholds belong to the
+# driver: see ``drivers.base.BalanceBaseline`` and
+# ``DriverCapabilities.balance_baseline``.
 BALANCE_HISTORY_MAX = 52         # ~1 year of weekly readings
 BALANCE_RED_CONSECUTIVE_ALERT = 2
 BALANCE_TREND_ALERT_AVG_MV = 40.0   # baseline-corrected avg must exceed this (raw avg > 220 mV) to fire a rising-trend alert

@@ -2,6 +2,4 @@
 # occurrence, format path:symbol:kind:detail. It may only SHRINK: delete lines
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.needs_software_max_discharge:key:inverse_max_power
-number.py:MarstekVenusNumber.async_set_native_value:key:inverse_max_power
 sensors/aggregate_sensors.py:SystemAlarmSensor.__init__:key:alarm_status

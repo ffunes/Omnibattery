@@ -41,7 +41,11 @@ from .const import (
     DEFAULT_SLOT_ALLOW_DISCHARGE,
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
-from .drivers.base import has_connected_mppt_pv
+from .drivers.base import (
+    KEY_BATTERY_SOC,
+    KEY_TOTAL_DISCHARGING_ENERGY,
+    has_connected_mppt_pv,
+)
 from .drivers.registry import is_registered
 from .energy import (
     BACKUP_DISCHARGING_ENERGY_KEY,
@@ -344,7 +348,7 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
             return None
         key = self.definition["key"]
         value = self.coordinator.data.get(key)
-        if key == "total_discharging_energy":
+        if key == KEY_TOTAL_DISCHARGING_ENERGY:
             corrected = effective_total_discharging_energy(self.coordinator.data)
             if corrected is not None:
                 value = round(corrected, self.definition.get("precision", 2))
@@ -391,7 +395,7 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
         (Marstek version / Zendure product) rides along here on the always-present
         battery_soc entity the panel already reads.
         """
-        if self.definition["key"] == "total_discharging_energy":
+        if self.definition["key"] == KEY_TOTAL_DISCHARGING_ENERGY:
             backup = self.coordinator.data.get(BACKUP_DISCHARGING_ENERGY_KEY)
             if backup is None:
                 return None
@@ -401,7 +405,7 @@ class MarstekVenusSensor(CoordinatorEntity, SensorEntity):
                 ),
                 "backup_discharging_energy": backup,
             }
-        if self.definition["key"] != "battery_soc":
+        if self.definition["key"] != KEY_BATTERY_SOC:
             return None
         model = getattr(self.coordinator.driver, "model_label", None)
         attributes = {"model": model} if model else {}

@@ -61,6 +61,55 @@ _LOGGER = logging.getLogger(__name__)
 # control layer keeps judging delivery from the cells alone.
 DELIVERED_AC_POWER_KEY = "ac_delivered_power"
 
+# --- canonical keys ----------------------------------------------------------
+# Logical keys the platforms treat specially. They are the vocabulary the first
+# drivers (Marstek registers) gave to the entities, and a driver that wants the
+# behaviour publishes its control or telemetry under the same key. The values
+# are entity ``unique_id`` suffixes and translation keys: they must not change.
+
+#: Switch that turns the device's external (RS485/Modbus) control mode on or off.
+#: Its on/off goes through ``set_rs485_control`` and a readback, not a plain write.
+KEY_RS485_CONTROL_MODE = "rs485_control_mode"
+#: Select with the options ``None`` / ``Charge`` / ``Discharge``. The chosen option
+#: is remembered as the manual force mode so the control loop can re-assert it.
+KEY_FORCE_MODE = "force_mode"
+#: Number of the manual charge setpoint in watts (the register-backed twin of the
+#: software manual setpoint). Its slider is capped to the configured charge limit.
+KEY_SET_CHARGE_POWER = "set_charge_power"
+#: Number of the manual discharge setpoint in watts; see ``KEY_SET_CHARGE_POWER``.
+KEY_SET_DISCHARGE_POWER = "set_discharge_power"
+#: Number holding the maximum charge power the device accepts, in watts. Where the
+#: device only has a hardware selector (``hardware_power_cap_choices``) the user's
+#: software limit is shown and written instead.
+KEY_MAX_CHARGE_POWER = "max_charge_power"
+#: Number holding the maximum discharge power; see ``KEY_MAX_CHARGE_POWER``. A
+#: device that publishes this limit under another key declares the alias with the
+#: ``canonical_key`` field of its number definition.
+KEY_MAX_DISCHARGE_POWER = "max_discharge_power"
+#: Number of the device's own charge cut-off SOC in percent; writing it moves the
+#: coordinator's maximum SOC.
+KEY_CHARGING_CUTOFF_CAPACITY = "charging_cutoff_capacity"
+#: Number of the device's own discharge cut-off SOC in percent; writing it moves
+#: the coordinator's minimum SOC.
+KEY_DISCHARGING_CUTOFF_CAPACITY = "discharging_cutoff_capacity"
+#: Sensor of the state of charge in percent. The platform attaches the model label
+#: and the aggregate-solar and DC-PV flags to it for the panel.
+KEY_BATTERY_SOC = "battery_soc"
+#: Sensor of the lifetime discharged energy in kWh; the platform corrects it with
+#: the backup-discharge energy the integration measured.
+KEY_TOTAL_DISCHARGING_ENERGY = "total_discharging_energy"
+
+#: Field of an entity definition that names the canonical key the entity stands
+#: for when its own ``key`` (which fixes the ``unique_id``) differs from it. Absent
+#: means the entity's key is already the canonical one.
+CANONICAL_KEY_FIELD = "canonical_key"
+
+
+def canonical_key(definition: Mapping) -> str:
+    """The canonical key an entity definition stands for (its own key by default)."""
+    return definition.get(CANONICAL_KEY_FIELD, definition["key"])
+
+
 # Telemetry keys that directly govern control safety, in the canonical
 # vocabulary every driver imitates. During non-responsive recovery a successful
 # read of unrelated groups must not hide a frozen group that carries one of these
@@ -72,10 +121,10 @@ CRITICAL_CONTROL_KEYS = frozenset({
     "ac_power",
     "battery_power",
     "battery_soc",
-    "force_mode",
+    KEY_FORCE_MODE,
     "inverter_state",
-    "set_charge_power",
-    "set_discharge_power",
+    KEY_SET_CHARGE_POWER,
+    KEY_SET_DISCHARGE_POWER,
 })
 
 
@@ -232,6 +281,35 @@ LFP_CELL_VOLTAGE_PROFILE = CellVoltageProfile(
 
 
 @dataclass(frozen=True)
+class BalanceBaseline:
+    """How the balance monitor judges a cell-voltage spread, in millivolts.
+
+    Cells can leave the factory with a sizeable top-of-charge spread that is
+    normal, not a fault. The three thresholds are absolute raw-delta values placed
+    above it, so a fresh battery reads green; ``offset_mv`` is subtracted only
+    where a reading is judged against the stored history (the rising-trend gate
+    and the status of a stored reading).
+    """
+
+    # Factory top-of-charge spread, subtracted before judging stored readings.
+    offset_mv: float
+    # Raw (or, for stored readings, offset-corrected) spread at which the status
+    # turns yellow, orange and red.
+    yellow_mv: float
+    orange_mv: float
+    red_mv: float
+
+
+# The baseline of every driver today: the figures measured on Marstek cells
+# (commonly ~170-180 mV at 3.55 V, where the LiFePO4 curve is steep). A driver
+# whose cells ship with another spread declares its own; ``None`` = no baseline,
+# the monitor then records the reading without judging it.
+DEFAULT_BALANCE_BASELINE = BalanceBaseline(
+    offset_mv=180, yellow_mv=200, orange_mv=230, red_mv=250
+)
+
+
+@dataclass(frozen=True)
 class DriverTraits:
     """Class-level traits the shared code needs before a driver is connected.
 
@@ -258,6 +336,12 @@ class DriverTraits:
     # must not treat a refused charge near 100 % as a fault. Derived by
     # ``traits_for`` from the resolved stored version for any brand.
     bms_owns_top_cutoff: bool = False
+    # The battery couples several packs and fills them in sequence (coupled-pack
+    # Marstek vA/vD), so its aggregate SOC and cell-voltage reading describe one
+    # pack and the control layer judges the top of charge on the per-pack SOC
+    # keys (``battery_soc_pack_*``). Derived by ``traits_for`` from the resolved
+    # stored version for any brand, like ``bms_owns_top_cutoff``.
+    sequential_pack_fill: bool = False
     # A top-of-charge cutoff can be told from idle without ``inverter_state``
     # (Zendure's local API does not publish it); the commanded setpoint and
     # SOC >= 99 stand in for it.
@@ -430,6 +514,10 @@ class DriverCapabilities:
     # ``solar_power`` key: a model may publish channel keys without having
     # ``has_mppt_pv``, and the core only ever sums the keys listed here.
     mppt_power_keys: tuple[str, ...] = ()
+
+    # How the balance monitor judges the driver's cell-voltage spread. None = no
+    # baseline: the reading is recorded but not judged and raises no alert.
+    balance_baseline: Optional[BalanceBaseline] = DEFAULT_BALANCE_BASELINE
 
 
 def mppt_power_keys(coordinator) -> tuple[str, ...]:
@@ -609,17 +697,21 @@ class BatteryDriver(ABC):
     def traits_for(cls, battery_config: Mapping) -> DriverTraits:
         """Traits of this brand for one stored battery config.
 
-        ``optional_dc_pv_input``, ``bms_owns_top_cutoff`` and ``soc_decimals``
-        follow the resolved stored version for any brand, and a stored
+        ``optional_dc_pv_input``, ``bms_owns_top_cutoff``, ``sequential_pack_fill``
+        and ``soc_decimals`` follow the resolved stored version for any brand, and a stored
         ``serial_port`` is never IP-addressed: all freeze today's behaviour,
         including the stale keys left behind by a brand change in the options
         flow (plan section 8).
         """
         version = resolve_battery_version(battery_config)
+        # The same stored versions couple their packs and let the BMS own the
+        # cutoff; two traits because a driver may have one without the other.
+        coupled_packs = version in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS
         return replace(
             cls.TRAITS,
             optional_dc_pv_input=version in ("vA", "vD"),
-            bms_owns_top_cutoff=version in NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
+            bms_owns_top_cutoff=coupled_packs,
+            sequential_pack_fill=coupled_packs,
             soc_decimals=1 if version in ("v3", "vA", "vD") else None,
             ip_addressed=cls.TRAITS.ip_addressed
             and not (battery_config.get("serial_port") or "").strip(),

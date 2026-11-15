@@ -28,9 +28,11 @@ from ..const import (
 )
 from ..drivers.base import (
     DriverContext,
+    KEY_MAX_DISCHARGE_POWER,
     DriverReconciliation,
     ReconcileState,
     SetpointResult,
+    canonical_key,
     resolve_battery_version,
     stored_battery_value,
 )
@@ -790,11 +792,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         """True when max_discharge_power has no writable number entity.
 
         Anker exposes 10038 as a read-only sensor and still needs a soft-max
-        number. Zendure exposes inverse_max_power as a writable number, so it
-        reports False.
+        number. A number that stands for the discharge limit under another key
+        (``canonical_key``, Zendure's) counts as writable, so it reports False.
         """
-        writable_keys = {d["key"] for d in self.number_definitions}
-        if {"max_discharge_power", "inverse_max_power"} & writable_keys:
+        writable_keys = {canonical_key(d) for d in self.number_definitions}
+        if KEY_MAX_DISCHARGE_POWER in writable_keys:
             return False
         return True
 

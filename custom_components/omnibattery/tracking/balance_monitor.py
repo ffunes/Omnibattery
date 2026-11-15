@@ -1,4 +1,4 @@
-"""Cell balance monitor for Marstek Venus batteries."""
+"""Cell balance monitor for the batteries that publish per-cell voltage."""
 from __future__ import annotations
 
 import logging
@@ -10,19 +10,15 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.helpers.storage import Store
 
 from ..control.pack_soc import pack_cell_deltas, worst_pack_delta
+from ..drivers.base import BalanceBaseline
 from ..const import (
-    BALANCE_BASELINE_OFFSET_MV,
     BALANCE_HISTORY_MAX,
     BALANCE_NOTIFY_COOLDOWN_DAYS,
     BALANCE_RED_CONSECUTIVE_ALERT,
     BALANCE_STORAGE_KEY,
     BALANCE_STORAGE_VERSION,
-    BALANCE_THRESHOLD_ORANGE,
-    BALANCE_THRESHOLD_RED,
-    BALANCE_THRESHOLD_YELLOW,
     BALANCE_TREND_ALERT_AVG_MV,
     DOMAIN,
-    NOTIFICATION_ID_PREFIX,
 )
 
 if TYPE_CHECKING:
@@ -328,16 +324,19 @@ class BalanceMonitor:
         bat["readings"].append(entry)
         bat["readings"] = bat["readings"][-BALANCE_HISTORY_MAX:]
 
-        status = self._status_for_delta(delta_mv)
+        baseline = (
+            coordinator.capabilities.balance_baseline if coordinator is not None else None
+        )
+        status = self._status_for_delta(delta_mv, baseline)
         issues: list[str] = []
         severe = False
         if reading_type == "top_balance_measurement" and coordinator is not None:
-            status, severe = self._evaluate(delta_mv, bat, issues)
+            status, severe = self._evaluate(delta_mv, bat, issues, baseline)
 
         comparable = self._is_comparable_reading(entry)
         trend = self._trend(host)
         if reading_type == "top_balance_measurement" and coordinator is not None:
-            self._check_trend_alert(trend, issues)
+            self._check_trend_alert(trend, issues, baseline)
             if issues:
                 self._maybe_notify(host, coordinator.name, bat, issues, severe)
 
@@ -347,15 +346,21 @@ class BalanceMonitor:
         return status
 
     def _evaluate(
-        self, delta_mv: float, bat: dict, issues: list[str]
+        self,
+        delta_mv: float,
+        bat: dict,
+        issues: list[str],
+        baseline: BalanceBaseline | None,
     ) -> tuple[str, bool]:
-        if delta_mv < BALANCE_THRESHOLD_YELLOW:
+        if baseline is None:
+            return "unknown", False
+        if delta_mv < baseline.yellow_mv:
             status = "green"
             bat["consecutive_red"] = 0
-        elif delta_mv < BALANCE_THRESHOLD_ORANGE:
+        elif delta_mv < baseline.orange_mv:
             status = "yellow"
             bat["consecutive_red"] = 0
-        elif delta_mv < BALANCE_THRESHOLD_RED:
+        elif delta_mv < baseline.red_mv:
             status = "orange"
             bat["consecutive_red"] = 0
         else:
@@ -373,7 +378,7 @@ class BalanceMonitor:
             issues.append(
                 f"High cell imbalance ({delta_mv:.0f} mV) for "
                 f"{bat['consecutive_red']} consecutive full charges. Consider "
-                f"running the Marstek active-balance blueprint for this battery "
+                f"running an active-balance blueprint for this battery "
                 f"to rebalance the cells."
             )
 
@@ -401,11 +406,15 @@ class BalanceMonitor:
 
         return {"trend": trend, "avg_4w": round(avg, 1), "slope": slope}
 
-    def _check_trend_alert(self, trend: dict, issues: list[str]) -> None:
+    def _check_trend_alert(
+        self, trend: dict, issues: list[str], baseline: BalanceBaseline | None
+    ) -> None:
+        if baseline is None:
+            return
         if (
             trend["trend"] == "rising"
             and trend["avg_4w"] is not None
-            and self._effective_delta(trend["avg_4w"]) > BALANCE_TREND_ALERT_AVG_MV
+            and self._effective_delta(trend["avg_4w"], baseline) > BALANCE_TREND_ALERT_AVG_MV
         ):
             issues.append(
                 f"Rising imbalance trend: +{trend['slope']:.1f} mV/reading, "
@@ -429,7 +438,7 @@ class BalanceMonitor:
         title = f"{icon} Cell balance — {name}"
         message = "\n".join(f"• {line}" for line in issues)
         coroutine = self._notify(
-            f"{NOTIFICATION_ID_PREFIX}marstek_balance_{host}", title, message
+            f"marstek_venus_marstek_balance_{host}", title, message
         )
         create = getattr(self._controller, "_create_entry_background_task", None)
         if callable(create):
@@ -468,7 +477,7 @@ class BalanceMonitor:
                 continue
             entity.on_reading(delta_mv, status, trend["trend"], trend.get("avg_4w"), last_ts)
 
-    def get_initial_state(self, host: str) -> dict:
+    def get_initial_state(self, host: str, baseline: BalanceBaseline | None) -> dict:
         """Return state derived from store — used by sensors at startup."""
         delta_readings = self._comparable_readings(host)
         if not delta_readings:
@@ -483,7 +492,7 @@ class BalanceMonitor:
         trend = self._trend(host)
         return {
             "delta_mV": last["delta_mV"],
-            "status": self._status_for_delta(last["delta_mV"]),
+            "status": self._status_for_delta(last["delta_mV"], baseline),
             "trend": trend["trend"],
             "avg_4w": trend.get("avg_4w"),
             "last_ts": last["ts"],
@@ -521,23 +530,26 @@ class BalanceMonitor:
         ]
 
     @staticmethod
-    def _effective_delta(delta_mv: float) -> float:
-        """Subtract the factory baseline imbalance, floored at 0.
+    def _effective_delta(delta_mv: float, baseline: BalanceBaseline) -> float:
+        """Subtract the driver's factory baseline imbalance, floored at 0.
 
-        Marstek cells ship with a large top-of-charge spread that is normal, not
-        a fault. Used only by the rising-trend magnitude gate so steady
-        factory-level readings do not trip a trend alert. Status thresholds are
-        absolute and applied to the raw delta directly.
+        Some cells ship with a large top-of-charge spread that is normal, not
+        a fault. Used by the rising-trend magnitude gate so steady
+        factory-level readings do not trip a trend alert, and for the status of
+        a stored reading. The status of a fresh measurement is absolute and
+        applied to the raw delta directly.
         """
-        return max(0.0, delta_mv - BALANCE_BASELINE_OFFSET_MV)
+        return max(0.0, delta_mv - baseline.offset_mv)
 
-    def _status_for_delta(self, delta_mv: float) -> str:
-        effective_mv = self._effective_delta(delta_mv)
-        if effective_mv < BALANCE_THRESHOLD_YELLOW:
+    def _status_for_delta(self, delta_mv: float, baseline: BalanceBaseline | None) -> str:
+        if baseline is None:
+            return "unknown"
+        effective_mv = self._effective_delta(delta_mv, baseline)
+        if effective_mv < baseline.yellow_mv:
             return "green"
-        if effective_mv < BALANCE_THRESHOLD_ORANGE:
+        if effective_mv < baseline.orange_mv:
             return "yellow"
-        if effective_mv < BALANCE_THRESHOLD_RED:
+        if effective_mv < baseline.red_mv:
             return "orange"
         return "red"
 

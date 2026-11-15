@@ -45,6 +45,7 @@ from typing import Any, Optional
 import aiohttp
 
 from .base import (
+    KEY_MAX_DISCHARGE_POWER,
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
@@ -329,6 +330,7 @@ NUMBER_DEFINITIONS: list[dict] = [
      "device_class": "battery", "min": 5,    "max": 50,  "step": 1,
      "scale": 1, "precision": 0, "scan_interval": "low",  "enabled_by_default": True},
     {"key": "inverse_max_power","name": "Max Inverter Output",  "unit": "W",
+     "canonical_key": KEY_MAX_DISCHARGE_POWER,
      "device_class": "power",   "min": 100,  "max": 2400,"step": 10,
      "scale": 1, "precision": 0, "scan_interval": "low",  "enabled_by_default": True},
 ]

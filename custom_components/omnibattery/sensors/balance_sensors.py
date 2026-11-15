@@ -39,7 +39,7 @@ async def async_setup_entry(
             continue
 
         host = coordinator.device_key
-        init = monitor.get_initial_state(host)
+        init = monitor.get_initial_state(host, coordinator.capabilities.balance_baseline)
 
         delta = CellDeltaSensor(coordinator, init, monitor)
         status = BalanceStatusSensor(coordinator, init)

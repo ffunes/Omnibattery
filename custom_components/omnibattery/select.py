@@ -32,6 +32,7 @@ from .const import (
     normalize_battery_phase,
     pd_profile_from_params,
 )
+from .drivers.base import KEY_FORCE_MODE
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
 from .infra.manual_control import assert_manual_control
@@ -204,7 +205,7 @@ class MarstekVenusSelect(CoordinatorEntity, SelectEntity):
         assert_manual_control(self.hass, self.coordinator, self.definition["key"])
         value = self._options_map[option]
         await self.coordinator.write_control(self.definition["key"], value, do_refresh=True)
-        if self.definition["key"] == "force_mode":
+        if self.definition["key"] == KEY_FORCE_MODE:
             # Remember the intent: some v3 firmwares drop forced mode during a
             # Modbus stall and the manual loop re-asserts it (issue #477).
             self.coordinator.manual_force_mode = option

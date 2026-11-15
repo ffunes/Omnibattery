@@ -241,6 +241,7 @@ def test_only_the_two_impossible_pairs_are_dropped():
 @pytest.mark.asyncio
 async def test_recorded_measurement_follows_the_worst_pack():
     """The three call sites all pass 37007/37008; the monitor must override."""
+    from custom_components.omnibattery.drivers.base import DEFAULT_BALANCE_BASELINE
     from custom_components.omnibattery.tracking.balance_monitor import BalanceMonitor
 
     monitor = BalanceMonitor.__new__(BalanceMonitor)
@@ -253,6 +254,7 @@ async def test_recorded_measurement_follows_the_worst_pack():
     coord = SimpleNamespace(
         device_key="1.2.3.4_502",
         name="Venus D",
+        capabilities=SimpleNamespace(balance_baseline=DEFAULT_BALANCE_BASELINE),
         data={
             "max_cell_voltage": 3.363, "min_cell_voltage": 3.353,
             "max_cell_voltage_pack_1": 3.363, "min_cell_voltage_pack_1": 3.353,

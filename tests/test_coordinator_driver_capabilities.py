@@ -22,7 +22,9 @@ def test_only_zendure_owns_initial_config():
 
 def test_inverse_max_power_is_a_hardware_discharge_limit():
     coordinator = SimpleNamespace(
-        number_definitions=[{"key": "inverse_max_power"}],
+        number_definitions=[
+            {"key": "inverse_max_power", "canonical_key": "max_discharge_power"}
+        ],
         sensor_definitions=[],
     )
 
