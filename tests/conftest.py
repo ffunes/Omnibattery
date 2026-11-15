@@ -21,7 +21,7 @@ import time
 import pytest
 
 from custom_components.omnibattery.const import BURST_POLL_WINDOW_S
-from custom_components.omnibattery.drivers import DriverCapabilities
+from custom_components.omnibattery.drivers import BatteryDriver, DriverCapabilities
 from custom_components.omnibattery.drivers.registry import traits_for_brand
 
 
@@ -126,6 +126,8 @@ class _FakeMarstekDriver:
         if force == 2:  # _FORCE_DISCHARGE
             return -int(round(float(discharge)))
         return 0
+
+    inverter_status = BatteryDriver.inverter_status
 
     @property
     def control_dependency_keys(self) -> frozenset:

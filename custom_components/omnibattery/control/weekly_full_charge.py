@@ -34,6 +34,7 @@ from ..const import (
     NOTIFICATION_ID_PREFIX,
     WEEKDAY_MAP,
 )
+from ..drivers.base import InverterStatus
 from ..solar_forecast import read_remaining_solar_kwh
 
 if TYPE_CHECKING:
@@ -42,8 +43,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Inverter state raw value for "Standby" (BMS has cut off, no active charge/discharge).
-_INVERTER_STATE_STANDBY = 1
 # Battery power below this (W) is treated as "not charging" for BMS-cutoff detection.
 _BMS_CUTOFF_POWER_W = 10
 # Refusal samples (one per control cycle) required before declaring completion at
@@ -174,6 +173,7 @@ class WeeklyFullChargeManager:
             if soc >= 99 or in_taper_zone:
                 power = c.data.get("battery_power", None)
                 inv_state = c.data.get("inverter_state", None)
+                inverter = c.driver.inverter_status(c.data)
                 # A real top-of-charge cutoff only counts when we are actually
                 # commanding the battery to charge but it refuses (≤10 W +
                 # Standby). A battery that is merely idle — not allocated charge
@@ -187,7 +187,7 @@ class WeeklyFullChargeManager:
                     and commanded > _BMS_CUTOFF_POWER_W
                     and power <= _BMS_CUTOFF_POWER_W
                     and (
-                        inv_state == _INVERTER_STATE_STANDBY
+                        inverter is InverterStatus.STANDBY
                         # Zendure's local API has no inverter_state field.  Its
                         # commanded setpoint is the equivalent idle guard, and
                         # the SOC >= 99 gate above prevents lower-SOC false hits.

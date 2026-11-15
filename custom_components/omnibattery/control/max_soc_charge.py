@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.util import dt as dt_util
 
 from .pack_soc import control_vmax
+from ..drivers.base import InverterStatus
 from ..const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -38,7 +39,6 @@ from ..const import (
     NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
     NORMAL_BALANCE_RECAL_CUTOFF_CYCLES,
     NORMAL_BALANCE_RECAL_CUTOFF_POWER_W,
-    NORMAL_BALANCE_RECAL_INVERTER_STANDBY,
     NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
     NORMAL_BALANCE_RECAL_SOC_THRESHOLD,
     NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
@@ -410,15 +410,14 @@ class MaxSocChargeManager:
         full-charge path.
         """
         power = data.get("battery_power")
-        inv = data.get("inverter_state")
+        inv = coordinator.driver.inverter_status(data)
         commanded = getattr(coordinator, "commanded_charge_power", 0) or 0
         try:
             return (
                 power is not None
-                and inv is not None
+                and inv is InverterStatus.STANDBY
                 and commanded > NORMAL_BALANCE_RECAL_CUTOFF_POWER_W
                 and float(power) <= NORMAL_BALANCE_RECAL_CUTOFF_POWER_W
-                and int(inv) == NORMAL_BALANCE_RECAL_INVERTER_STANDBY
             )
         except (TypeError, ValueError):
             return False

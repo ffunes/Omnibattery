@@ -209,8 +209,6 @@ from .const import (
     DEFAULT_HOURLY_BALANCE_TARGET_NET_WH,
     DEFAULT_HOURLY_BALANCE_MAX_OFFSET_W,
     NORMAL_BALANCE_PAUSE_CELL_VOLTAGE,
-    NORMAL_BALANCE_RECAL_INVERTER_STANDBY,
-    INVERTER_STATE_AC_BYPASS,
     NORMAL_BALANCE_RECAL_RETRY_CELL_VOLTAGE,
     BMS_DISCHARGE_CUTOFF_SOC,
     LOW_SOC_REFUSAL_CONFIRM_S,
@@ -245,7 +243,7 @@ from .const import (
 from .infra.lifecycle import is_reload_pending
 from .control.charge_delay import ChargeDelayManager, _plan_owns_delay
 from .control.residual_load import apply_guards, guards_pending
-from .drivers.base import DELIVERED_AC_POWER_KEY, has_connected_mppt_pv
+from .drivers.base import DELIVERED_AC_POWER_KEY, InverterStatus, has_connected_mppt_pv
 from .drivers.registry import DEFAULT_BRAND, driver_class
 from .control.discharge_reserve import (
     RESERVE_SOC_TOLERANCE_PCT,
@@ -638,17 +636,6 @@ def _backup_switch_enabled(value) -> bool:
     if isinstance(value, str):
         return value in ("Off-grid", "Ready")
     return value == 0
-
-
-def _inverter_in_ac_bypass(value) -> bool:
-    """Whether the reported inverter state is the grid-bypass state.
-
-    Register drivers and the ESPHome driver publish the raw code (6 = Bypass).
-    Other drivers publish labels or their own codes, which never match.
-    """
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    return value == INVERTER_STATE_AC_BYPASS
 
 
 def _delivered_toward(data: dict, cell_power: float, *, is_charge: bool) -> float:
@@ -1803,7 +1790,7 @@ class ChargeDischargeController:
             ac_power = self._daily_operation_float(data.get("ac_power"), math.nan)
             if math.isfinite(ac_power) and (has_mppt or has_aggregate_pv):
                 offgrid_power = 0.0
-                if data.get("inverter_state") == 4:
+                if coordinator.driver.inverter_status(data) is InverterStatus.BACKUP:
                     candidate = self._daily_operation_float(
                         data.get("ac_offgrid_power"), math.nan
                     )
@@ -5119,9 +5106,9 @@ class ChargeDischargeController:
         # register groups, and a failed read leaves the old value in place, so a
         # stale Bypass must not hide a fresh port load: only trust it when both
         # came from the same poll.
-        if _inverter_in_ac_bypass(
-            coordinator.data.get("inverter_state")
-        ) and coordinator.readings_from_same_poll(
+        if coordinator.driver.inverter_status(
+            coordinator.data
+        ) is InverterStatus.BYPASS and coordinator.readings_from_same_poll(
             "inverter_state", "ac_offgrid_power"
         ):
             ac_offgrid = 0
@@ -8234,14 +8221,10 @@ class ChargeDischargeController:
         # ACK'd but no power: separate a battery sitting in standby
         # (likely dropped RS485 control) from one that is awake but
         # still refusing.
-        inv_state = coordinator.data.get("inverter_state") if coordinator.data else None
-        try:
-            is_standby = (
-                inv_state is not None
-                and int(inv_state) == NORMAL_BALANCE_RECAL_INVERTER_STANDBY
-            )
-        except (TypeError, ValueError):
-            is_standby = False
+        is_standby = (
+            coordinator.driver.inverter_status(coordinator.data or {})
+            is InverterStatus.STANDBY
+        )
         # Skip non-responsive recording when the BMS is legitimately
         # refusing discharge: either at/near the configured min-SOC, or
         # anywhere below the low-SOC protective floor where the BMS may

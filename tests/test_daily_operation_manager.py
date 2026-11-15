@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from custom_components.omnibattery import ChargeDischargeController
+from tests.conftest import _FakeMarstekDriver
 from custom_components.omnibattery.pricing.daily_timeline import (
     BatteryProjectionInput,
     ProjectionIntervalInput,
@@ -128,6 +129,7 @@ def _runtime_controller(coordinators, *, grid_active=False, solar_power_kw=None)
 
 def test_runtime_diary_detects_dc_coupled_solar_charge_while_ac_is_exporting():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
         data={
             "ac_power": 265,
@@ -151,6 +153,7 @@ def test_runtime_diary_detects_dc_coupled_solar_charge_while_ac_is_exporting():
 
 def test_runtime_diary_composes_grid_and_dc_solar_charge():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
         data={"ac_power": -200, "mppt1_power": 800},
     )
@@ -167,6 +170,7 @@ def test_runtime_diary_composes_grid_and_dc_solar_charge():
 def test_runtime_diary_anker_aggregate_pv_is_not_added_to_pack_power():
     # Anker SB4: ac_power = -pack power, which already includes PV (#738).
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=True),
         data={"ac_power": -300, "solar_power": 500},
     )

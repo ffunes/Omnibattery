@@ -16,6 +16,7 @@ import pytest
 from homeassistant.util import dt as dt_util
 
 from custom_components.omnibattery import ChargeDischargeController
+from tests.conftest import _FakeMarstekDriver
 
 INVERTER_BACKUP = 4
 INVERTER_BYPASS = 6
@@ -26,6 +27,7 @@ class _Coord:
 
     name = "Venus"
     backup_offgrid_threshold = 50
+    driver = _FakeMarstekDriver()
 
     def __init__(self, data, *, same_poll=True):
         self.data = data
@@ -167,6 +169,7 @@ def _polling_coordinator(read_groups, read_telemetry):
             read_groups=read_groups,
             read_telemetry=read_telemetry,
             control_dependency_keys=set(),
+            inverter_status=_FakeMarstekDriver().inverter_status,
         ),
         _def_by_key={k: {"key": k} for k in keys},
         _get_entity_type=lambda definition, fallback_key=None: "sensor",

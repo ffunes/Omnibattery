@@ -26,7 +26,7 @@ from ..const import (
     CONF_BATTERY_MANUAL_MODE_ENABLED,
     pd_profile_from_params,
 )
-from ..drivers.base import DELIVERED_AC_POWER_KEY
+from ..drivers.base import DELIVERED_AC_POWER_KEY, InverterStatus
 from ..infra.coordinator import MarstekVenusDataUpdateCoordinator
 from ..infra.entity_naming import system_entity_id
 from ..tracking.consumption_tracker import (
@@ -416,7 +416,7 @@ class MarstekVenusAggregateSensor(RestoreEntity, SensorEntity):
                 # (inverter_state == 4, grid down). With the grid present it's fed
                 # by passthrough, so counting it would inflate discharge / eat charge.
                 aco = 0.0
-                if data.get("inverter_state") == 4:
+                if coordinator.driver.inverter_status(data) is InverterStatus.BACKUP:
                     aco = data.get("ac_offgrid_power") or 0.0
                 total += -ac - aco + mppt
                 has_data = True

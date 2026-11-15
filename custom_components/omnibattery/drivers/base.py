@@ -25,6 +25,7 @@ in incrementally; see ``docs/plans/driver_abstraction.md`` for the phase plan.
 
 from __future__ import annotations
 
+import enum
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
@@ -59,6 +60,24 @@ _LOGGER = logging.getLogger(__name__)
 # ``battery_power``. Drivers that cannot measure it simply omit the key and the
 # control layer keeps judging delivery from the cells alone.
 DELIVERED_AC_POWER_KEY = "ac_delivered_power"
+
+
+class InverterStatus(enum.Enum):
+    """Canonical operating state of a battery's inverter.
+
+    The vocabulary behind the ``inverter_state`` telemetry key, in the numeric
+    codes the key carries. ``BatteryDriver.inverter_status`` turns whatever a
+    driver publishes into one of these (or ``None`` when it cannot say), and the
+    control layer compares members, never raw codes.
+    """
+
+    SLEEP = 0
+    STANDBY = 1
+    CHARGE = 2
+    DISCHARGE = 3
+    BACKUP = 4  # grid down: the backup port is fed from the cells
+    OTA_UPGRADE = 5
+    BYPASS = 6  # grid passed through to the backup port; the cells supply nothing
 
 
 @dataclass(frozen=True)
@@ -887,6 +906,23 @@ class BatteryDriver(ABC):
         (Marstek: force_mode + set_charge/discharge_power; Zendure: ac_mode +
         input/output_limit).
         """
+
+    def inverter_status(self, data: dict) -> Optional[InverterStatus]:
+        """The inverter's operating state in the canonical vocabulary.
+
+        Reads ``inverter_state`` from the telemetry cache as the numeric codes of
+        ``InverterStatus``. Returns None when the driver publishes no state, a
+        state that is not a code (a text label) or a code outside the vocabulary:
+        None means "cannot tell", never "idle". A driver whose telemetry uses
+        another encoding overrides this.
+        """
+        raw = data.get("inverter_state")
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            return None
+        try:
+            return InverterStatus(raw)
+        except ValueError:
+            return None
 
     @property
     @abstractmethod

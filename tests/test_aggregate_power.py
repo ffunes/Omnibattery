@@ -15,7 +15,7 @@ from custom_components.omnibattery.sensors.aggregate_sensors import (
 from custom_components.omnibattery.tracking.consumption_tracker import (
     HOME_CONSUMPTION_HOLD_S,
 )
-from tests.conftest import FakeCoordinator
+from tests.conftest import FakeCoordinator, _FakeMarstekDriver
 
 
 def _sensor(coordinators, key):
@@ -233,6 +233,7 @@ def test_cell_power_max_ac_does_not_add_derived_solar_power():
     # the cells. The aggregate must use only the AC battery flow for this model.
     max_ac = SimpleNamespace(
         is_available=True,
+        driver=_FakeMarstekDriver(),
         data={"ac_power": -200, "solar_power": 800},
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
     )
@@ -247,6 +248,7 @@ def test_cell_power_anker_sb4_does_not_double_count_pv_issue_738():
     # not pack + PV = 4650 W.
     sb4 = SimpleNamespace(
         is_available=True,
+        driver=_FakeMarstekDriver(),
         data={"ac_power": -2110, "battery_power": 2110, "solar_power": 2540},
         capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=True),
     )
@@ -258,6 +260,7 @@ def test_cell_power_anker_sb4_does_not_double_count_pv_issue_738():
 def test_cell_power_uses_ac_power_when_venus_mppt_inputs_are_unused():
     venus_d = SimpleNamespace(
         is_available=True,
+        driver=_FakeMarstekDriver(),
         data={
             "ac_power": -783,
             "battery_power": 712,

@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from custom_components.omnibattery import ChargeDischargeController
+from tests.conftest import _FakeMarstekDriver
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.chronological import SlotAllocation
 from custom_components.omnibattery.pricing.daily_timeline import (
@@ -595,6 +596,7 @@ def test_external_solar_charge_becomes_grid_after_material_import_energy():
 
 def test_direct_solar_and_ac_draw_are_both_reported_during_net_import():
     coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
         capabilities=SimpleNamespace(has_mppt_pv=True, has_solar_telemetry=True),
         data={"ac_power": -600, "mppt1_power": 800},
     )
