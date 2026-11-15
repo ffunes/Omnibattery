@@ -5983,6 +5983,7 @@ class PricingManager:
         controller = self._controller
         inputs = getattr(plan, "projection_inputs", None)
         controller._dp_eval_projection = None
+        controller._dp_eval_rows = None
         if inputs is None:
             return
         usable, capacity = inputs
@@ -5995,6 +5996,18 @@ class PricingManager:
             (end, energy - usable) for end, energy in trajectory
         )
         controller._dp_eval_projection_capacity_kwh = self._fleet_capacity_kwh()
+        # The panel draws the optimizer's own quarters (step 11).
+        ends = dict(controller._dp_eval_projection)
+        controller._dp_eval_rows = (
+            tuple(
+                (i.start, i.end, i.solar_kwh, i.grid_load_kwh, ends[i.end])
+                for i in plan.intervals
+                if i.end in ends
+            )
+            if getattr(plan, "trajectory", None)
+            else None
+        )
+        controller._dp_eval_efficiency = getattr(plan, "charge_efficiency", None)
 
     def projected_soc_now(self, at: datetime | None = None) -> float | None:
         """Fleet SOC the published plan projects for now (or ``at``): the SOC at
