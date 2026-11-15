@@ -106,7 +106,7 @@ async def async_setup_entry(
     for coordinator in coordinators:
         for definition in coordinator.number_definitions:
             entities.append(MarstekVenusNumber(coordinator, definition))
-        entities.append(MarstekBackupThresholdNumber(coordinator))
+        entities.append(BackupThresholdNumber(coordinator))
 
         # For batteries without hardware SOC cutoff registers (v3/vA/vD), expose
         # software-enforced max/min SOC as live-editable entities. The PD controller
@@ -125,23 +125,23 @@ async def async_setup_entry(
                 entities.append(SoftSocLimitNumber(coordinator, "min"))
 
         if coordinator.enable_charge_hysteresis:
-            entities.append(MarstekChargeHysteresisNumber(coordinator))
+            entities.append(ChargeHysteresisNumber(coordinator))
 
         # Drivers without force_mode/set_*_power registers (Zendure) get
         # software manual-power setpoints; the controller applies them via
         # apply_setpoint while global manual mode or individual battery manual
         # ownership is active.
         if coordinator.needs_software_manual_control:
-            entities.append(MarstekManualSetPowerNumber(coordinator, "charge"))
-            entities.append(MarstekManualSetPowerNumber(coordinator, "discharge"))
+            entities.append(ManualSetPowerNumber(coordinator, "charge"))
+            entities.append(ManualSetPowerNumber(coordinator, "discharge"))
 
         # Drivers whose max_charge_power is not a writable register (Zendure
         # chargeMaxLimit telemetry, Anker 10036 read-only sensor) get a software
         # charge-power ceiling under the device/hardware cap.
         if coordinator.needs_software_max_charge:
-            entities.append(MarstekSoftMaxChargeNumber(coordinator))
+            entities.append(SoftMaxChargeNumber(coordinator))
         if coordinator.needs_software_max_discharge:
-            entities.append(MarstekSoftMaxDischargeNumber(coordinator))
+            entities.append(SoftMaxDischargeNumber(coordinator))
 
     # Add config numbers (system-level, PD parameters). Conditional entities are
     # gated on their feature key being present (enabled OR disabled) — the panel
@@ -167,7 +167,7 @@ async def async_setup_entry(
             continue
         if condition in dynamic_pricing_only and not is_dynamic_pricing:
             continue
-        entities.append(MarstekConfigNumberEntity(hass, entry, definition))
+        entities.append(ConfigNumberEntity(hass, entry, definition))
 
     # Dynamic-pricing charge ceiling / discharge floor as live entities (#408),
     # so automations can rewrite them. Scoped to dynamic-pricing mode (the
@@ -176,10 +176,10 @@ async def async_setup_entry(
         entry.data.get("enable_predictive_charging")
         and entry.data.get(CONF_PREDICTIVE_CHARGING_MODE) == PREDICTIVE_MODE_DYNAMIC_PRICING
     ):
-        entities.append(MarstekPriceThresholdNumber(hass, entry, "charge"))
-        entities.append(MarstekPriceThresholdNumber(hass, entry, "discharge"))
-        entities.append(MarstekArbitrageNumber(hass, entry, "margin"))
-        entities.append(MarstekArbitrageNumber(hass, entry, "efficiency"))
+        entities.append(PriceThresholdNumber(hass, entry, "charge"))
+        entities.append(PriceThresholdNumber(hass, entry, "discharge"))
+        entities.append(ArbitrageNumber(hass, entry, "margin"))
+        entities.append(ArbitrageNumber(hass, entry, "efficiency"))
         entities.append(SmartPredischargeNumber(hass, entry, "threshold"))
         entities.append(SmartPredischargeNumber(hass, entry, "reserve"))
 
@@ -498,7 +498,7 @@ def config_number_bounds(definition: dict, data) -> tuple[float, float]:
     )
 
 
-class MarstekConfigNumberEntity(NumberEntity):
+class ConfigNumberEntity(NumberEntity):
     """Number entity for system-level configuration parameters (PD controller, etc.)."""
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, definition: dict) -> None:
@@ -600,7 +600,7 @@ class MarstekConfigNumberEntity(NumberEntity):
         }
 
 
-class MarstekArbitrageNumber(NumberEntity):
+class ArbitrageNumber(NumberEntity):
     """Minimum arbitrage margin and round-trip efficiency for the charge gate.
 
     The margin is unset by default, which leaves grid-charge slot selection
@@ -683,7 +683,7 @@ class MarstekArbitrageNumber(NumberEntity):
         }
 
 
-class MarstekPriceThresholdNumber(NumberEntity):
+class PriceThresholdNumber(NumberEntity):
     """Live-editable dynamic-pricing charge ceiling / discharge floor (#408).
 
     Mirrors the optional config-flow value into ``config_entry.data`` so an
@@ -1072,7 +1072,7 @@ class SoftSocLimitNumber(CoordinatorEntity, NumberEntity):
         return self.coordinator.battery_device_info
 
 
-class MarstekBackupThresholdNumber(CoordinatorEntity, NumberEntity):
+class BackupThresholdNumber(CoordinatorEntity, NumberEntity):
     """Number entity for the per-battery backup offgrid load threshold.
 
     This value has no Modbus register — it is a software-only config parameter
@@ -1114,7 +1114,7 @@ class MarstekBackupThresholdNumber(CoordinatorEntity, NumberEntity):
         return self.coordinator.battery_device_info
 
 
-class MarstekManualSetPowerNumber(CoordinatorEntity, NumberEntity):
+class ManualSetPowerNumber(CoordinatorEntity, NumberEntity):
     """Manual charge/discharge power setpoint for drivers without force_mode /
     set_*_power registers (Zendure).
 
@@ -1206,7 +1206,7 @@ class MarstekManualSetPowerNumber(CoordinatorEntity, NumberEntity):
         return self.coordinator.battery_device_info
 
 
-class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
+class SoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
     """Software charge-power ceiling when max_charge_power is not writable
     (Zendure chargeMaxLimit telemetry, Anker input 10036 sensor).
 
@@ -1274,7 +1274,7 @@ class MarstekSoftMaxChargeNumber(CoordinatorEntity, NumberEntity):
         return self.coordinator.battery_device_info
 
 
-class MarstekSoftMaxDischargeNumber(CoordinatorEntity, NumberEntity):
+class SoftMaxDischargeNumber(CoordinatorEntity, NumberEntity):
     """Software discharge-power ceiling when max_discharge_power has no writable
     register (Anker input 10038 sensor, or other telemetry-only drivers).
     """
@@ -1336,7 +1336,7 @@ class MarstekSoftMaxDischargeNumber(CoordinatorEntity, NumberEntity):
         return self.coordinator.battery_device_info
 
 
-class MarstekChargeHysteresisNumber(CoordinatorEntity, NumberEntity):
+class ChargeHysteresisNumber(CoordinatorEntity, NumberEntity):
     """Number entity for the per-battery charge hysteresis percentage.
 
     This value is stored in config_entry.data and read by the PD controller at runtime.

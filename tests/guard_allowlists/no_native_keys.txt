@@ -2,4 +2,5 @@
 # occurrence, format path:symbol:kind:detail. It may only SHRINK: delete lines
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
+# PERMANENT exception (do not delete). Plan 3.5: clave del unique_id estable marstek_venus_system_alarm_status.
 sensors/aggregate_sensors.py:SystemAlarmSensor.__init__:key:alarm_status

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from custom_components.omnibattery.number import (
-    MarstekManualSetPowerNumber,
+    ManualSetPowerNumber,
     MarstekVenusNumber,
     SoftSocLimitNumber,
 )
@@ -206,7 +206,7 @@ async def test_venus_e_max_power_write_keeps_hardware_selector_in_data():
     ],
 )
 def test_software_manual_slider_uses_configured_power_limit(kind, limit):
-    entity = object.__new__(MarstekManualSetPowerNumber)
+    entity = object.__new__(ManualSetPowerNumber)
     entity._kind = kind
     entity._hardware_max = 2500
     entity.coordinator = SimpleNamespace(

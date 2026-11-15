@@ -61,7 +61,7 @@ async def async_setup_entry(
         # mode; the controller applies it via apply_setpoint while global manual
         # mode or this battery's individual manual ownership is active.
         if coordinator.needs_software_manual_control:
-            entities.append(MarstekManualForceModeSelect(coordinator))
+            entities.append(ManualForceModeSelect(coordinator))
 
     # Add weekly full charge day select (system-level, always present: the enable
     # switch is always available, so the day must be pickable before enabling —
@@ -461,7 +461,7 @@ class PdTuningProfileSelect(SelectEntity):
 MANUAL_FORCE_MODE_OPTIONS = ["None", "Charge", "Discharge"]
 
 
-class MarstekManualForceModeSelect(CoordinatorEntity, SelectEntity):
+class ManualForceModeSelect(CoordinatorEntity, SelectEntity):
     """Software force mode for drivers without a force_mode register.
 
     Stores the choice on the coordinator; while the global Manual Mode switch or

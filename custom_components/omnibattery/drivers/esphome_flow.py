@@ -21,8 +21,8 @@ from ..const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_VERSION,
-    max_power_for_battery_version,
 )
+from .marstek import max_power_for_battery_version
 from .setup import DriverSetup, FlowKind, SetupContext, saved_dc_pv_connected
 
 _LOGGER = logging.getLogger(__name__)

@@ -38,7 +38,6 @@ from ..const import (
     NORMAL_BALANCE_BMS_CUTOFF_VERSIONS,
     MAX_POWER_BY_VERSION,
     SUPPORTED_VERSIONS,
-    max_power_for_battery_version,
 )
 
 if TYPE_CHECKING:
@@ -754,6 +753,8 @@ class BatteryDriver(ABC):
         """
         version = battery_config.get(CONF_BATTERY_VERSION)
         if version in MAX_POWER_BY_VERSION:
+            from .marstek import max_power_for_battery_version
+
             return max_power_for_battery_version(version, battery_config.get("ems_version"))
         return None
 

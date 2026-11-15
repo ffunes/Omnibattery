@@ -23,10 +23,9 @@ from homeassistant.helpers.selector import (
 from ..const import (
     CONF_DC_PV_CONNECTED,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-    CONF_INDEVOLT_REQUEST_SPEED,
 )
 from ..infra.mac_tracking import CONF_MAC
-from .indevolt_client import DEFAULT_REQUEST_SPEED, REQUEST_SPEED_SLOT_S, IndevoltAuthenticationError
+from .indevolt_client import CONF_INDEVOLT_REQUEST_SPEED, DEFAULT_REQUEST_SPEED, REQUEST_SPEED_SLOT_S, IndevoltAuthenticationError
 from .indevolt_settings import SYNCED_PREFIX as INDEVOLT_SYNCED_PREFIX
 from .setup import DriverSetup, FlowKind, SetupContext, saved_dc_pv_connected
 

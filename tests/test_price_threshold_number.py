@@ -1,6 +1,6 @@
 """Validation tests for the live price-threshold number entities (#408, #612).
 
-Cover the ordering guard in ``MarstekPriceThresholdNumber.async_set_native_value``
+Cover the ordering guard in ``PriceThresholdNumber.async_set_native_value``
 (charge ceiling must stay <= discharge floor). Only the *rejecting* paths are
 exercised: a valid write reaches ``async_write_ha_state``, which needs the entity
 added to a running hass. No HA runtime is required to prove the guard fires.
@@ -16,13 +16,13 @@ from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.omnibattery.const import effective_price_threshold
 from custom_components.omnibattery.number import (
-    MarstekBackupThresholdNumber,
-    MarstekPriceThresholdNumber,
+    BackupThresholdNumber,
+    PriceThresholdNumber,
 )
 
 
 def _entity(kind, data):
-    return MarstekPriceThresholdNumber(SimpleNamespace(), SimpleNamespace(data=data), kind)
+    return PriceThresholdNumber(SimpleNamespace(), SimpleNamespace(data=data), kind)
 
 
 def test_discharge_floor_below_charge_ceiling_rejected():
@@ -69,7 +69,7 @@ def test_effective_price_threshold(data, expected):
 
 
 def test_backup_offgrid_threshold_range_matches_configuration_flow():
-    entity = MarstekBackupThresholdNumber(
+    entity = BackupThresholdNumber(
         SimpleNamespace(device_key="test_502", name="Test battery")
     )
 

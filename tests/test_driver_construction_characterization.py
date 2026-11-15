@@ -34,7 +34,6 @@ from custom_components.omnibattery.const import (
     CONF_BATTERY_VERSION,
     CONF_DC_PV_CONNECTED,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
-    CONF_INDEVOLT_REQUEST_SPEED,
     CONF_RS485_GATEWAY,
     CONF_SERIAL_PORT,
     CONF_SLAVE_ID,
@@ -55,7 +54,7 @@ from custom_components.omnibattery.drivers.zendure import ZendureLocalDriver
 from custom_components.omnibattery.infra.coordinator import (
     MarstekVenusDataUpdateCoordinator,
 )
-from custom_components.omnibattery.drivers.indevolt_client import SLOT_S
+from custom_components.omnibattery.drivers.indevolt_client import CONF_INDEVOLT_REQUEST_SPEED, SLOT_S
 
 
 @pytest.fixture(autouse=True)

@@ -103,6 +103,10 @@ MIN_REPLY_GAP_S = 0.2
 # gap instead of a full second. Reads stay at 2s, as at Fast. Its first step
 # back is Fast, with the 1s floor.
 MAXIMUM_LEVEL = PacingLevel(2.0, 1.0, MIN_REPLY_GAP_S, from_reply=True)
+# Per-battery Indevolt request speed (maximum / fast / normal / conservative): how
+# often the driver may talk to the battery. The slot per speed, the default and
+# the floors live below; backoff applies on top of every speed.
+CONF_INDEVOLT_REQUEST_SPEED = "indevolt_request_speed"
 # The slot of a speed is its write interval and, for every speed but Maximum,
 # also its read interval. The speed names describe the pace, not the default:
 # the default can move to another speed later without renaming what users

@@ -10,7 +10,7 @@ worth of power. Its bounds now follow the *configured* system power envelope:
 narrowed by the optional system-wide cap when that feature is on.
 
 Same lightweight style as ``test_price_threshold_number.py``: ``SimpleNamespace``
-stand-ins for hass/entry, no HA runtime. ``MarstekConfigNumberEntity.__init__``
+stand-ins for hass/entry, no HA runtime. ``ConfigNumberEntity.__init__``
 only calls the pure ``system_entity_id`` helper, so direct construction is safe,
 and every case asserts through the real properties rather than the bare helper.
 """
@@ -33,7 +33,7 @@ from custom_components.omnibattery.const import (
     effective_system_power,
     total_battery_power,
 )
-from custom_components.omnibattery.number import MarstekConfigNumberEntity
+from custom_components.omnibattery.number import ConfigNumberEntity
 
 TARGET_DEF = next(
     d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_TARGET_GRID_POWER
@@ -52,7 +52,7 @@ def _bat(charge, discharge):
 
 
 def _entity(data, definition=TARGET_DEF):
-    return MarstekConfigNumberEntity(
+    return ConfigNumberEntity(
         SimpleNamespace(), SimpleNamespace(data=data), definition
     )
 

@@ -2,37 +2,10 @@
 # occurrence, format path:symbol:kind:detail. It may only SHRINK: delete lines
 # as the refactor removes the code that produces them. Regenerate with
 # OMNIBATTERY_UPDATE_ALLOWLIST=1 and check that the diff only deletes.
-__init__.py:_async_setup_entry:compare:CONF_BATTERY_VERSION not in battery_config
-const/integration_const.py:<module>:identifier:CONF_INDEVOLT_REQUEST_SPEED
-const/integration_const.py:<module>:literal:indevolt
-const/integration_const.py:max_power_for_battery_version:compare:battery_version != 'vD'
-const/integration_const.py:max_power_for_battery_version:lookup:MAX_POWER_BY_VERSION.get(battery_version, 2500)
+# PERMANENT exceptions (do not delete). D5: panel fuera del refactor (deuda en la guia de drivers).
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
 frontend/marstek-panel.js:<js>:js:venus
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:indevolt_request_speed
-infra/coordinator.py:MarstekVenusDataUpdateCoordinator.__init__:identifier:zendure_model
-number.py:<module>:identifier:MarstekArbitrageNumber
-number.py:<module>:identifier:MarstekBackupThresholdNumber
-number.py:<module>:identifier:MarstekChargeHysteresisNumber
-number.py:<module>:identifier:MarstekConfigNumberEntity
-number.py:<module>:identifier:MarstekManualSetPowerNumber
-number.py:<module>:identifier:MarstekPriceThresholdNumber
-number.py:<module>:identifier:MarstekSoftMaxChargeNumber
-number.py:<module>:identifier:MarstekSoftMaxDischargeNumber
-number.py:async_setup_entry:identifier:MarstekArbitrageNumber
-number.py:async_setup_entry:identifier:MarstekArbitrageNumber
-number.py:async_setup_entry:identifier:MarstekBackupThresholdNumber
-number.py:async_setup_entry:identifier:MarstekChargeHysteresisNumber
-number.py:async_setup_entry:identifier:MarstekConfigNumberEntity
-number.py:async_setup_entry:identifier:MarstekManualSetPowerNumber
-number.py:async_setup_entry:identifier:MarstekManualSetPowerNumber
-number.py:async_setup_entry:identifier:MarstekPriceThresholdNumber
-number.py:async_setup_entry:identifier:MarstekPriceThresholdNumber
-number.py:async_setup_entry:identifier:MarstekSoftMaxChargeNumber
-number.py:async_setup_entry:identifier:MarstekSoftMaxDischargeNumber
-select.py:<module>:identifier:MarstekManualForceModeSelect
-select.py:async_setup_entry:identifier:MarstekManualForceModeSelect

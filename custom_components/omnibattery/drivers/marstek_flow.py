@@ -46,7 +46,6 @@ from ..const import (
     DEFAULT_SLAVE_ID,
     DEFAULT_VERSION,
     DOMAIN,
-    max_power_for_battery_version,
 )
 from .setup import DriverSetup, FlowKind, SetupContext, saved_dc_pv_connected
 
@@ -328,6 +327,8 @@ class _MarstekSetup(DriverSetup):
         )
 
     def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
+        from .marstek import max_power_for_battery_version  # marstek imports this module
+
         battery_version = battery_data.get(CONF_BATTERY_VERSION, DEFAULT_VERSION)
         ceiling = max_power_for_battery_version(battery_version, battery_data.get("ems_version"))
         return ceiling, ceiling

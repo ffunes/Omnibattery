@@ -43,8 +43,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, Optional, Protocol
 
-from ..const import CONF_INDEVOLT_REQUEST_SPEED
 from .indevolt_client import (
+    CONF_INDEVOLT_REQUEST_SPEED,
     ACTION_CHARGE,
     ACTION_DISCHARGE,
     ACTION_STOP,

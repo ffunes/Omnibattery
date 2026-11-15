@@ -341,9 +341,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # ...); these are the defaults for a brand that has none of them.
         self.serial_port = None
         self.rs485_gateway = False
-        self.indevolt_request_speed = None
         self.ems_version = None
-        self.zendure_model = None
         self.consumption_sensor = consumption_sensor
         self.brand = battery_config.get("brand", DEFAULT_BRAND)
         driver_cls = driver_class(self.brand)

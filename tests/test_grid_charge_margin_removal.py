@@ -30,7 +30,7 @@ from custom_components.omnibattery.const import (
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
     default_predictive_safety_margin_kwh,
 )
-from custom_components.omnibattery.number import MarstekConfigNumberEntity
+from custom_components.omnibattery.number import ConfigNumberEntity
 
 DOMAIN = "omnibattery"
 PREFIX = "marstek_venus_system_"
@@ -76,7 +76,7 @@ FLEET = {"batteries": [{"battery_capacity_kwh": 5.12}] * 2}
 def _slider_value(data):
     """native_value of the margin slider for a config entry holding ``data``."""
     entry = SimpleNamespace(data=data)
-    return MarstekConfigNumberEntity(None, entry, MARGIN_DEF).native_value
+    return ConfigNumberEntity(None, entry, MARGIN_DEF).native_value
 
 
 def test_slider_shows_the_same_default_the_controller_uses():
@@ -151,7 +151,7 @@ def test_the_slider_shows_the_controller_s_default():
     hass = SimpleNamespace(data={DOMAIN: {"entry": {"controller": controller}}})
     entry = SimpleNamespace(data=REPORTING, entry_id="entry")
 
-    assert MarstekConfigNumberEntity(hass, entry, MARGIN_DEF).native_value == 0.66
+    assert ConfigNumberEntity(hass, entry, MARGIN_DEF).native_value == 0.66
 
 
 # ----------------------------------------------------------------------

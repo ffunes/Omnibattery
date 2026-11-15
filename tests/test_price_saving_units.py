@@ -16,7 +16,7 @@ from custom_components.omnibattery.const import (
     CONFIG_NUMBER_DEFINITIONS,
     PRICE_INTEGRATION_CKW,
 )
-from custom_components.omnibattery.number import MarstekConfigNumberEntity
+from custom_components.omnibattery.number import ConfigNumberEntity
 
 
 def _definition(key):
@@ -29,7 +29,7 @@ def _definition(key):
     [({}, "€/kWh"), ({CONF_PRICE_INTEGRATION_TYPE: PRICE_INTEGRATION_CKW}, "CHF/kWh")],
 )
 def test_a_minimum_saving_is_shown_in_the_price_currency(key, data, unit):
-    entity = MarstekConfigNumberEntity(None, SimpleNamespace(data=data), _definition(key))
+    entity = ConfigNumberEntity(None, SimpleNamespace(data=data), _definition(key))
 
     assert entity.native_unit_of_measurement == unit
 
@@ -38,5 +38,5 @@ def test_other_config_numbers_keep_their_unit():
     for definition in CONFIG_NUMBER_DEFINITIONS:
         if definition.get("unit") in (None, "/kWh"):
             continue
-        entity = MarstekConfigNumberEntity(None, SimpleNamespace(data={}), definition)
+        entity = ConfigNumberEntity(None, SimpleNamespace(data={}), definition)
         assert entity.native_unit_of_measurement == definition["unit"]

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from custom_components.omnibattery import ChargeDischargeController
-from custom_components.omnibattery.select import MarstekManualForceModeSelect
+from custom_components.omnibattery.select import ManualForceModeSelect
 from custom_components.omnibattery.switch import ManualModeSwitch
 
 
@@ -84,7 +84,7 @@ async def test_selecting_idle_stops_power_once_then_leaves_device_alone():
         async_request_refresh=AsyncMock(),
         persist_battery_config=Mock(),
     )
-    select = MarstekManualForceModeSelect.__new__(MarstekManualForceModeSelect)
+    select = ManualForceModeSelect.__new__(ManualForceModeSelect)
     select.coordinator = coord
     select.async_write_ha_state = Mock()
 
@@ -119,7 +119,7 @@ async def test_force_mode_direction_stays_selected_before_power_is_set():
         commanded_discharge_power=0,
         persist_battery_config=Mock(),
     )
-    select = MarstekManualForceModeSelect.__new__(MarstekManualForceModeSelect)
+    select = ManualForceModeSelect.__new__(ManualForceModeSelect)
     select.coordinator = coord
     select.async_write_ha_state = Mock()
 

@@ -11883,6 +11883,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise
 
 
+def _migrate_missing_battery_version(entry: ConfigEntry) -> None:
+    """Add the default version to batteries of existing installations (in place)."""
+    from .const import CONF_BATTERY_VERSION, DEFAULT_VERSION
+
+    for battery_config in entry.data["batteries"]:
+        if CONF_BATTERY_VERSION not in battery_config:
+            battery_config[CONF_BATTERY_VERSION] = DEFAULT_VERSION
+            _LOGGER.info("Migrated %s to %s (default for existing installations)",
+                        battery_config[CONF_NAME], DEFAULT_VERSION)
+
+
 async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: list) -> bool:
     """Set up the entry; every battery coordinator created is added to ``opened``."""
     _async_register_services(hass)
@@ -11898,14 +11909,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
     # Register the sidebar dashboard panel (once per HA instance, non-blocking).
     await _async_register_frontend_panel(hass, entry)
 
-    # Migration: Add default version for existing installations
-    from .const import CONF_BATTERY_VERSION, DEFAULT_VERSION
-
-    for battery_config in entry.data["batteries"]:
-        if CONF_BATTERY_VERSION not in battery_config:
-            battery_config[CONF_BATTERY_VERSION] = DEFAULT_VERSION
-            _LOGGER.info("Migrated %s to %s (default for existing installations)",
-                        battery_config[CONF_NAME], DEFAULT_VERSION)
+    _migrate_missing_battery_version(entry)
 
     # Backfill feature enable keys no longer written by the config/options flows.
     # The feature switch/slider entities are gated on key *presence*, so entries

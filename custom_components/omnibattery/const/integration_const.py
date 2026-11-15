@@ -46,11 +46,6 @@ SERIAL_BAUDRATE = 115200
 # spacing to MESSAGE_WAIT_MS_RS485_GATEWAY for any Marstek firmware version.
 CONF_RS485_GATEWAY = "rs485_gateway"
 
-# Per-battery Indevolt request speed (maximum / fast / normal / conservative): how
-# often the driver may talk to the battery. The slot per speed, the default and
-# the floors live in drivers/indevolt_client.py; backoff applies on top of every speed.
-CONF_INDEVOLT_REQUEST_SPEED = "indevolt_request_speed"
-
 # Maximum power (W) per battery version — used by config_flow to set slider limits
 MAX_POWER_BY_VERSION = {
     "v2": 2500,
@@ -59,32 +54,6 @@ MAX_POWER_BY_VERSION = {
     "vD": 2500,
 }
 DEFAULT_VERSION = "v2"
-
-VENUS_D_2500W_MIN_EMS_VERSION = 149
-VENUS_D_LEGACY_MAX_POWER_W = 2200
-
-
-def max_power_for_battery_version(
-    battery_version: str,
-    ems_version: object = None,
-) -> int:
-    """Return the safe per-battery power ceiling for a Marstek model/FW.
-
-    Venus D accepts 2500 W only from EMS firmware 149 onward.  Unknown Venus D
-    firmware is treated conservatively until register 30200 has been read.
-    """
-    default = int(MAX_POWER_BY_VERSION.get(battery_version, 2500))
-    if battery_version != "vD":
-        return default
-    try:
-        firmware = int(float(ems_version))
-    except (TypeError, ValueError):
-        return VENUS_D_LEGACY_MAX_POWER_W
-    return (
-        default
-        if firmware >= VENUS_D_2500W_MIN_EMS_VERSION
-        else VENUS_D_LEGACY_MAX_POWER_W
-    )
 
 # Maximum number of independently controllable battery devices in one entry.
 # Keep the aggregate system-power slider envelope in sync with the largest

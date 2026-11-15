@@ -24,8 +24,8 @@ from custom_components.omnibattery.const import (
     MESSAGE_WAIT_MS_RS485_GATEWAY,
     READ_TIMEOUT_S,
     REGISTER_MAP,
-    max_power_for_battery_version,
 )
+from custom_components.omnibattery.drivers.marstek import max_power_for_battery_version
 from custom_components.omnibattery.drivers.marstek_client import BLOCK_REFUSED
 
 
