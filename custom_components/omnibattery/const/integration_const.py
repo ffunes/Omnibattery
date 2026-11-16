@@ -290,7 +290,7 @@ CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY = "weekly_full_charge_skip_delay"
 DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY = True
 # Skip the weekly full charge when every battery already reached 100% in the
 # configured number of days before the run day (off by default). The days are
-# whole and positive, at most two weeks.
+# whole and positive, at most a month.
 CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT = "weekly_full_charge_skip_recent"
 DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT = False
 # One battery per day: the weekly run spreads over consecutive days from the
@@ -301,7 +301,7 @@ WEEKLY_ROTATION_MAX_DAYS = 7
 CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = "weekly_full_charge_skip_recent_days"
 DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 5
 MIN_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 1
-MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 14
+MAX_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 31
 
 
 def weekly_full_charge_skip_recent_days(value) -> int | None:

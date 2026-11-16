@@ -284,6 +284,8 @@ async def test_the_switch_stores_the_setting_and_updates_the_controller():
         (3, datetime(2026, 11, 12, 0, 0), True),  # Thursday: 3 days before Sunday
         (3, datetime(2026, 11, 11, 23, 59), False),
         (7, datetime(2026, 11, 8, 15, 0), True),  # last Sunday, within 7 days
+        (31, datetime(2026, 10, 15, 0, 0), True),  # the longest window
+        (31, datetime(2026, 10, 14, 23, 59), False),
         (1, datetime(2026, 11, 14, 9, 0), True),  # Saturday
         (1, datetime(2026, 11, 13, 23, 0), False),
     ],
@@ -295,7 +297,7 @@ def test_the_window_follows_the_configured_days(days, full, skipped):
     assert _active(manager) is (not skipped)
 
 
-@pytest.mark.parametrize("stored", [None, 0, -2, 15, 2.5, "x", True])
+@pytest.mark.parametrize("stored", [None, 0, -2, 32, 2.5, "x", True])
 def test_an_invalid_stored_window_falls_back_to_five_days(stored):
     controller = _controller(_weekly_full_charge_skip_recent_days=stored)
     manager = _manager(controller, last_full=_SINCE)  # exactly 5 days before
@@ -306,11 +308,11 @@ def test_an_invalid_stored_window_falls_back_to_five_days(stored):
 
 @pytest.mark.parametrize(
     ("value", "expected"),
-    [(1, 1), (5, 5), (14, 14), (7.0, 7), ("3", 3),
-     (0, None), (-1, None), (15, None), (2.5, None), (float("nan"), None),
+    [(1, 1), (5, 5), (14, 14), (31, 31), (7.0, 7), ("3", 3),
+     (0, None), (-1, None), (32, None), (2.5, None), (float("nan"), None),
      (float("inf"), None), ("x", None), (None, None), (True, None)],
 )
-def test_only_whole_days_from_one_to_fourteen_are_valid(value, expected):
+def test_only_whole_days_from_one_to_thirty_one_are_valid(value, expected):
     from custom_components.omnibattery.const import weekly_full_charge_skip_recent_days
 
     assert weekly_full_charge_skip_recent_days(value) == expected
@@ -332,7 +334,7 @@ def test_the_days_field_shows_five_until_set():
     number, _ = _days_number(_controller())
 
     assert number.native_value == 5
-    assert (number.native_min_value, number.native_max_value, number.native_step) == (1, 14, 1)
+    assert (number.native_min_value, number.native_max_value, number.native_step) == (1, 31, 1)
 
 
 @pytest.mark.asyncio
@@ -349,7 +351,7 @@ async def test_a_valid_number_of_days_is_saved():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("value", [0, -3, 15, 2.5, float("nan")])
+@pytest.mark.parametrize("value", [0, -3, 32, 2.5, float("nan")])
 async def test_an_invalid_number_of_days_is_refused_and_not_saved(value):
     from homeassistant.exceptions import ServiceValidationError
 
