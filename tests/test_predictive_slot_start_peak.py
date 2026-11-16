@@ -1,6 +1,7 @@
 """Issue #683: a predictive slot must not raise the import peak it regulates.
 
-Trace of 2026-11-10: peak limit 4400 W, contracted power 5000 W, charge floor
+Trace of 2026-11-10: peak shaving at 4400 W, contracted power 5000 W (one 4400 W
+grid import cap since #506), charge floor
 140 W. A slot started at the full ceiling on top of a 3.1 kW house, the next PD
 step raised it to the 5000 W battery maximum (8 kW import), and for the rest of
 the slot the charge sat on its positive floor while the house alone was above
@@ -28,9 +29,8 @@ def _slot(*, previous_power=-FLOOR_W, protection=True, contracted=5000.0):
     state_holder = {"state": None, "first_report": first_report, "step": 0}
     writes = []
     controller = _predictive_controller(state_holder, writes)
-    controller.max_contracted_power = contracted
+    controller.max_contracted_power = min(contracted, CEILING_W) if protection else contracted
     controller.capacity_protection_enabled = protection
-    controller.capacity_protection_limit = CEILING_W
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False
     controller.min_charge_power = FLOOR_W
@@ -256,8 +256,8 @@ def test_peak_is_confirmed_on_the_second_fresh_sample():
     controller, _, _ = _slot()
     controller.deadband = 50.0
 
-    assert _confirm(controller, 4650) is False
-    assert _confirm(controller, 4650) is True
+    assert _confirm(controller, 4550) is False
+    assert _confirm(controller, 4550) is True
 
 
 def test_peak_just_above_the_trigger_counts():
@@ -307,11 +307,11 @@ def test_a_stale_sample_resets_the_peak_count():
     controller, _, _ = _slot()
     controller.deadband = 50.0
 
-    assert _confirm(controller, 4650) is False
-    assert _confirm(controller, 4650, fresh=False) is False
+    assert _confirm(controller, 4550) is False
+    assert _confirm(controller, 4550, fresh=False) is False
     assert controller._predictive_hard_limit_samples == 0
-    assert _confirm(controller, 4650) is False
-    assert _confirm(controller, 4650) is True
+    assert _confirm(controller, 4550) is False
+    assert _confirm(controller, 4550) is True
 
 
 def test_settle_window_with_a_battery_past_its_target_does_not_raise():

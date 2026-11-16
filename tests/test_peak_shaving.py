@@ -8,15 +8,15 @@ import pytest
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import (
     CONFIG_NUMBER_DEFINITIONS,
-    CONF_CAPACITY_PROTECTION_LIMIT,
+    CONF_MAX_CONTRACTED_POWER,
 )
 from tests.conftest import _FakeMarstekDriver
 
 
-def test_peak_shaving_limit_supports_20_kw():
+def test_grid_import_cap_supports_20_kw():
     definition = next(
         item for item in CONFIG_NUMBER_DEFINITIONS
-        if item["key"] == CONF_CAPACITY_PROTECTION_LIMIT
+        if item["key"] == CONF_MAX_CONTRACTED_POWER
     )
 
     assert definition["max"] == 20000
@@ -28,7 +28,7 @@ def _controller(*, previous_power: float):
     ctrl.capacity_protection_enabled = True
     ctrl.capacity_protection_excluded_devices = False
     ctrl.capacity_protection_soc_threshold = 25
-    ctrl.capacity_protection_limit = 3000
+    ctrl.max_contracted_power = 3000
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 24})]
     ctrl._non_responsive = SimpleNamespace(is_excluded=lambda _c: False)
     ctrl.previous_power = previous_power
@@ -80,25 +80,13 @@ def test_solar_surplus_charge_remains_allowed():
     assert ctrl._capacity_protection_status["action"] == "charging"
 
 
-def test_excluded_devices_switch_is_backward_compatible_when_off():
+@pytest.mark.parametrize("switch", [False, True])
+def test_excluded_devices_cover_only_demand_above_the_cap(switch):
+    # The grid import cap covers excluded devices whatever the switch says
+    # (#506); the switch only matters inside a predictive slot now.
     ctrl = _controller(previous_power=0.0)
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 80})]
-    ctrl._excluded_included_adjustment = 4000.0
-
-    target, sensor = ctrl._apply_capacity_protection(
-        1000.0, active_target=0.0
-    )
-
-    assert target == 0.0
-    assert sensor == 1000.0
-    assert ctrl._capacity_protection_active is False
-    assert ctrl._capacity_protection_status["action"] == "idle"
-
-
-def test_excluded_devices_switch_covers_only_demand_above_peak_limit():
-    ctrl = _controller(previous_power=0.0)
-    ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 80})]
-    ctrl.capacity_protection_excluded_devices = True
+    ctrl.capacity_protection_excluded_devices = switch
     ctrl._excluded_included_adjustment = 4000.0
 
     target, sensor = ctrl._apply_capacity_protection(
@@ -108,11 +96,11 @@ def test_excluded_devices_switch_covers_only_demand_above_peak_limit():
     assert target == 0.0
     assert sensor == 2000.0
     assert ctrl._capacity_protection_active is True
-    assert ctrl._capacity_protection_status["action"] == "shaving_excluded"
+    assert ctrl._capacity_protection_status["action"] == "shaving"
     assert ctrl._capacity_protection_status["excluded_peak_excess"] == 1000
 
 
-def test_excluded_devices_switch_preserves_normal_home_coverage():
+def test_excluded_devices_cap_preserves_normal_home_coverage():
     ctrl = _controller(previous_power=-2000.0)
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 80})]
     ctrl.capacity_protection_excluded_devices = True
@@ -124,10 +112,10 @@ def test_excluded_devices_switch_preserves_normal_home_coverage():
 
     assert target == 0.0
     assert sensor == 0.0
-    assert ctrl._capacity_protection_status["action"] == "shaving_excluded"
+    assert ctrl._capacity_protection_status["action"] == "shaving"
 
 
-def test_excluded_devices_below_peak_limit_keep_normal_exclusion():
+def test_excluded_devices_below_the_cap_keep_normal_exclusion():
     ctrl = _controller(previous_power=0.0)
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), data={"battery_soc": 80})]
     ctrl.capacity_protection_excluded_devices = True
@@ -144,7 +132,7 @@ def test_excluded_devices_below_peak_limit_keep_normal_exclusion():
 
 # --- Issue #803: a non-responsive battery's stale SOC must not be averaged in ---
 
-# House load of 321.4 W with a battery discharging 500 W: below the peak limit
+# House load of 321.4 W with a battery discharging 500 W: below the grid import cap
 # but above the normal target, so peak shaving holds the fleet instead of
 # discharging it (the "conserving" action).
 STALE_SOC_HOUSE_LOAD = -178.6

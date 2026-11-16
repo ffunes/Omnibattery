@@ -4173,10 +4173,10 @@ class PricingManager:
             )
             limit_kw = max(
                 0.0,
-                float(getattr(self._controller, "capacity_protection_limit", 0.0) or 0.0),
+                float(getattr(self._controller, "max_contracted_power", 0.0) or 0.0),
             ) / 1000.0
-            # A no-discharge window blocks the battery outright, peaks
-            # included, so the grid carries all of that interval's load.
+            # A no-discharge window idles the battery, but not for the load
+            # above the grid import cap, which overrides it (#506).
             # ponytail: fleet-wide ("all") windows only; a per-battery window
             # leaves the rest of the fleet discharging, so it is not projected.
             configured = getattr(
@@ -5894,7 +5894,6 @@ class PricingManager:
             arbitrage_ceiling=self._controller._dp_arbitrage_ceiling,
             max_contracted_power=self._controller.max_contracted_power,
             max_charge_capacity=self._controller.max_charge_capacity,
-            peak_limit=self._peak_shaving_limit(),
             plan_orders=orders,
             arbitrage_margin=getattr(controller, "min_arbitrage_margin", None),
         )
@@ -5951,27 +5950,16 @@ class PricingManager:
             },
         )
 
-    def _peak_shaving_limit(self):
-        """Peak shaving's import limit when it is capping grid charging."""
-        controller = self._controller
-        if not getattr(controller, "capacity_protection_enabled", False):
-            return None
-        limit = getattr(controller, "capacity_protection_limit", 0) or 0
-        return limit if limit > 0 else None
-
     def _contracted_charge_ceiling(self) -> float:
-        """Contracted import power, capped by peak shaving.
+        """The configured grid import cap (#506), which also caps grid charging.
 
-        Peak shaving limits grid import, so it limits grid charging too — the
-        same cap the controller enforces at runtime in
-        ``_predictive_charge_ceiling()``.  Planning that assumes the raw
-        contracted power books too few hours and under-reports cost.
+        Planners read the configured value, not the controller's real-time
+        ``_grid_import_cap_w()``: in the 15-min window mode that one moves
+        within the quarter.
         """
-        contracted = max(
+        return max(
             0.0, float(getattr(self._controller, "max_contracted_power", 0.0) or 0.0)
         )
-        limit = self._peak_shaving_limit()
-        return min(contracted, float(limit)) if limit else contracted
 
     def _weekly_charge_hours_needed(self, energy_kwh: float) -> float:
         """Hours to book for the weekly gap, with room to reach 100 % for sure.
@@ -6042,7 +6030,6 @@ class PricingManager:
             schedule,
             unit=self._get_price_unit(),
             max_contracted_power=self._controller.max_contracted_power,
-            peak_limit=self._peak_shaving_limit(),
         )
         await self._async_create_predictive_notification(
             title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
@@ -8588,7 +8575,6 @@ class PricingManager:
             is_daily_evaluation,
             max_contracted_power=self._controller.max_contracted_power,
             max_charge_capacity=self._controller.max_charge_capacity,
-            peak_limit=self._peak_shaving_limit(),
             charging_time_slot=self._controller._active_charging_slot(),
         )
 

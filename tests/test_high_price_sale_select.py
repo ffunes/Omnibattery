@@ -75,7 +75,7 @@ async def test_v16_folds_arbitrage_only_and_deletes_the_switches(hass) -> None:
     ]
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 16
+    assert entry.version == 17
     assert entry.data[CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED] is True
     assert entry.data[CONF_HIGH_PRICE_DISCHARGE_ENABLED] is True
     for e in old:

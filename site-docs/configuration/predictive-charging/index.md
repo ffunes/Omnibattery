@@ -53,7 +53,7 @@ Turn off **Predictive Charging** to pause all predictive grid charging and its D
 | Cheap periods appear but charging does not start | The calendar is informational, the quota is already met, or a safety/control rule is active | `charging_needed`, the active mode page, battery SOC limits, and **Integration Status** |
 | The plan reports an energy shortfall | Eligible periods cannot deliver enough energy before it is needed | Charging power, battery capacity, price ceiling, configured windows, and physical blockers |
 | The battery charges too much or too little | The solar or household-demand estimate does not match the remaining day | Forecast sensor type, consumption profile coverage, and **Solar Forecast Safety Margin** |
-| Charging pauses while household load rises | Contracted-power, phase, or capacity protection is preserving the import limit | [Capacity protection](../../features/peak-shaving.md) and [Main grid sensor](../main-sensor.md) |
+| Charging pauses while household load rises | Maximum grid import or phase protection is preserving the import limit | [Capacity protection](../../features/peak-shaving.md) and [Main grid sensor](../main-sensor.md) |
 | A setting change has no immediate effect | The active plan has not yet been rebuilt | Press **Re-evaluate Predictive Charging** where available |
 
 ??? "Advanced details"
@@ -86,11 +86,11 @@ Turn off **Predictive Charging** to pause all predictive grid charging and its D
 
     A predictive period remains responsible for the batteries until it ends or reaches its target. Normal proportional–derivative (PD) control does not immediately take over when household demand rises because grid import can still include the battery's previous charge command.
 
-    The import ceiling is the lower of contracted power and the capacity-protection limit when that feature is enabled. Omnibattery first reduces charging so the house gets the available grid capacity. If the calculation crosses into discharge during an ordinary overshoot, it keeps the smallest effective positive charge and preserves the incremental PD state.
+    The import ceiling is the Maximum grid import. Omnibattery first reduces charging so the house gets the available grid capacity. If the calculation crosses into discharge during an ordinary overshoot, it keeps the smallest effective positive charge and preserves the incremental PD state.
 
     A physical excess becomes an emergency only after three consecutive fresh meter publications confirm it. Emergency protection can then wait for inverter response and discharge only the settled excess. After two fresh samples show at least `max(200 W, 2 × PD deadband)` of available capacity, charging resumes from that margin rather than from maximum battery power.
 
-    For example, with a 2,000 W contracted-power limit and a settled physical household load of 2,800 W, emergency protection requests about 800 W of discharge to keep import near 2,000 W. A short inrush that disappears while telemetry settles does not trigger that discharge.
+    For example, with a 2,000 W Maximum grid import and a settled physical household load of 2,800 W, emergency protection requests about 800 W of discharge to keep import near 2,000 W. A short inrush that disappears while telemetry settles does not trigger that discharge.
 
     `0 W` remains reserved for explicit blockers, battery-management-system (BMS) limits, unavailable batteries, critical telemetry, the end of a period, reached SOC, phase protection, or a confirmed safety emergency. Safety discharge can bypass economic price or solar-curtailment blocks, but it cannot bypass minimum SOC, unavailable or manually controlled batteries, backup/RS-485 restrictions, device and system limits, or phase protection.
 

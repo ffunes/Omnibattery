@@ -137,11 +137,10 @@ from .const import (
     DEFAULT_SYSTEM_MAX_CHARGE_POWER,
     DEFAULT_SYSTEM_MAX_DISCHARGE_POWER,
     CONF_CAPACITY_PROTECTION_ENABLED,
+    CONF_GRID_IMPORT_WINDOW_15MIN,
     CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
     CONF_CAPACITY_PROTECTION_SOC_THRESHOLD,
-    CONF_CAPACITY_PROTECTION_LIMIT,
     DEFAULT_CAPACITY_PROTECTION_SOC,
-    DEFAULT_CAPACITY_PROTECTION_LIMIT,
     CONF_MANUAL_MODE_ENABLED,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
@@ -670,6 +669,28 @@ def _pricing_clock_now(controller) -> datetime:
     """
     clock = getattr(getattr(controller, "_pricing_mgr", None), "_now", None)
     return clock() if callable(clock) else datetime.now()
+
+
+# Discharge blockers set for money, not for the battery's sake.
+ECONOMIC_DISCHARGE_BLOCKERS = frozenset({
+    "price_discharge",
+    "price_reserve",
+    "curtailment_negative_window",
+    "weekly_refill_hold",
+    "weekly_full_hold",
+    "time_slot_floor_hold",
+})
+# Blockers the grid import cap overrides (#506): economics, schedule, EV.
+# Never in here: min SOC, temperature, availability, phase limits, the
+# low-SOC latch (none of them are registry blockers), the user's own
+# per-battery discharge switch, and curtailment_floor, which guards the
+# pre-discharge reserve.
+POLICY_DISCHARGE_BLOCKERS = ECONOMIC_DISCHARGE_BLOCKERS | frozenset({
+    "time_slot_discharge",
+    "ev_pause",
+    "ev_charging",
+    "excluded_device_dynamic_power_control",
+})
 
 
 class ChargeDischargeController:
@@ -1247,22 +1268,22 @@ class ChargeDischargeController:
         self._rate_limiter_last_logged_change: float | None = None
 
         # Capacity Protection Mode state
+        self.grid_import_window_enabled = ChargeDischargeController._grid_import_window_setting(
+            self, config_entry.data
+        )
         self.capacity_protection_enabled = config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
         self.capacity_protection_excluded_devices = config_entry.data.get(
             CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False
         )
         self.capacity_protection_soc_threshold = config_entry.data.get(CONF_CAPACITY_PROTECTION_SOC_THRESHOLD, DEFAULT_CAPACITY_PROTECTION_SOC)
-        self.capacity_protection_limit = config_entry.data.get(CONF_CAPACITY_PROTECTION_LIMIT, DEFAULT_CAPACITY_PROTECTION_LIMIT)
         self._capacity_protection_active = False  # True while either peak-shaving mode intervenes
         self._excluded_included_adjustment = 0.0  # Tracks excluded device adjustment for included_in_consumption devices
-        self._icp_excluded_protection_w = 0.0
         self._capacity_protection_status = {
             "active": False,
             "avg_soc": None,
             "soc_threshold": self.capacity_protection_soc_threshold,
-            "peak_limit": self.capacity_protection_limit,
             "estimated_house_load": None,
-            "action": "idle",  # idle, shaving, shaving_excluded, conserving, charging
+            "action": "idle",  # disabled, idle, shaving, conserving, charging
             "original_target": None,
             "adjusted_target": None,
         }
@@ -1394,10 +1415,10 @@ class ChargeDischargeController:
                      "ENABLED" if self.charge_delay_enabled else "DISABLED",
                      int(self._delay_safety_margin_h * 60))
 
-        _LOGGER.info("Capacity Protection: %s (SOC threshold: %d%%, peak limit: %dW)",
+        _LOGGER.info("Capacity Protection: %s (SOC threshold: %d%%, grid import cap: %dW)",
                      "ENABLED" if self.capacity_protection_enabled else "DISABLED",
                      self.capacity_protection_soc_threshold,
-                     self.capacity_protection_limit)
+                     self.max_contracted_power)
 
         _LOGGER.info("Hourly Net Balance: %s",
                      "ENABLED" if self.hourly_balance_enabled else "DISABLED")
@@ -3235,7 +3256,6 @@ class ChargeDischargeController:
             getattr(self, "weekly_full_charge_day", None),
             bool(getattr(self, "discharge_reserve_enabled", False)),
             bool(getattr(self, "capacity_protection_enabled", False)),
-            _rounded(getattr(self, "capacity_protection_limit", None)),
             _rounded(getattr(self, "max_contracted_power", None)),
             bool(getattr(self, "enable_system_power_limits", False)),
             _rounded(getattr(self, "system_max_charge_power", None)),
@@ -3504,12 +3524,14 @@ class ChargeDischargeController:
         ):
             if self._discharge_reserve_mgr is not None:
                 self._discharge_reserve_mgr.clear("mode_or_configuration_changed")
+        self.grid_import_window_enabled = ChargeDischargeController._grid_import_window_setting(
+            self, self.config_entry.data
+        )
         self.capacity_protection_enabled = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
         self.capacity_protection_excluded_devices = self.config_entry.data.get(
             CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False
         )
         self.capacity_protection_soc_threshold = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_SOC_THRESHOLD, DEFAULT_CAPACITY_PROTECTION_SOC)
-        self.capacity_protection_limit = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_LIMIT, DEFAULT_CAPACITY_PROTECTION_LIMIT)
 
         if (
             old_pricing_mode != self.predictive_charging_mode
@@ -3842,26 +3864,32 @@ class ChargeDischargeController:
             return True
         return bool(coordinator is not None and self._battery_charge_blockers.get(coordinator))
 
-    def is_discharge_blocked(self, coordinator=None, *, ignore_economic: bool = False) -> bool:
-        """Return True if discharge is blocked globally or for the given battery."""
-        economic = {
-            "price_discharge",
-            "price_reserve",
-            "curtailment_negative_window",
-            "weekly_refill_hold",
-            "weekly_full_hold",
-            "time_slot_floor_hold",
+    def is_discharge_blocked(
+        self, coordinator=None, *, ignore_economic: bool = False, ignore_policy: bool = False
+    ) -> bool:
+        """Return True if discharge is blocked globally or for the given battery.
+
+        While the grid import cap is engaged against a policy block, policy
+        blockers give way on their own (#506), so every caller (the early
+        return, availability, the command guard) sees the same answer.
+        """
+        ignored = (
+            POLICY_DISCHARGE_BLOCKERS
+            if ignore_policy or getattr(self, "_cap_overrides_policy", False)
+            else ECONOMIC_DISCHARGE_BLOCKERS if ignore_economic else frozenset()
+        )
+        global_blockers = {
+            k: v for k, v in self._global_discharge_blockers.items() if k not in ignored
         }
-        global_blockers = self._global_discharge_blockers
-        if ignore_economic:
-            global_blockers = {k: v for k, v in global_blockers.items() if k not in economic}
         if global_blockers:
             return True
         if coordinator is None:
             return False
-        blockers = self._battery_discharge_blockers.get(coordinator, {})
-        if ignore_economic:
-            blockers = {k: v for k, v in blockers.items() if k not in economic}
+        blockers = {
+            k: v
+            for k, v in self._battery_discharge_blockers.get(coordinator, {}).items()
+            if k not in ignored
+        }
         if self._capacity_protection_overrides_curtailment():
             return bool(
                 set(blockers) - {"curtailment_negative_window"}
@@ -3889,6 +3917,9 @@ class ChargeDischargeController:
             return self._serialize_blockers(self._global_discharge_blockers)
         merged = dict(self._global_discharge_blockers)
         merged.update(self._battery_discharge_blockers.get(coordinator, {}))
+        if getattr(self, "_cap_overrides_policy", False):
+            # Suspended while the grid import cap needs the battery (#506).
+            merged = {k: v for k, v in merged.items() if k not in POLICY_DISCHARGE_BLOCKERS}
         if self._capacity_protection_overrides_curtailment():
             # Capacity protection owns priority 10 and must remain able to
             # shave a peak even while the solar window guard is active.
@@ -4871,7 +4902,9 @@ class ChargeDischargeController:
 
             if include_operation_blocks and not is_charging:
                 discharge_blocked = (
-                    self.is_discharge_blocked(coordinator, ignore_economic=True)
+                    # Slot protection is the grid import cap: it overrides
+                    # policy too (#506), never physics or the user.
+                    self.is_discharge_blocked(coordinator, ignore_policy=True)
                     if protection_discharge
                     else self.is_discharge_blocked(coordinator)
                 )
@@ -5328,39 +5361,81 @@ class ChargeDischargeController:
             eligible.append(coordinator)
         return eligible
 
+    def _grid_import_window_setting(self, data) -> bool:
+        """The window switch's stored value, or the country default (#506)."""
+        from .tracking.consumption_tracker import grid_import_window_default
+
+        if CONF_GRID_IMPORT_WINDOW_15MIN in data:
+            return bool(data[CONF_GRID_IMPORT_WINDOW_15MIN])
+        config = getattr(getattr(self, "hass", None), "config", None)
+        return grid_import_window_default(getattr(config, "country", None))
+
+    def _grid_import_cap_w(self) -> float:
+        """Grid import ceiling for real-time discharge decisions (#506).
+
+        The configured ``max_contracted_power``; with the 15-min window on and
+        the quarter trusted, the import the rest of the quarter may still draw
+        (it can be 0 or well above the configured value). Whether the cap is on
+        at all is the configured value > 0, never this one. Planners read
+        ``max_contracted_power`` directly; grid charging uses
+        ``_grid_charge_cap_w``.
+        """
+        cap = float(getattr(self, "max_contracted_power", 0) or 0)
+        tracker = getattr(self, "_consumption_tracker", None)
+        if (
+            cap <= 0
+            or not getattr(self, "grid_import_window_enabled", False)
+            or not getattr(tracker, "window_valid", False)
+        ):
+            return cap
+        from .tracking.consumption_tracker import grid_window_cap_w
+
+        return grid_window_cap_w(
+            cap, tracker.window_quarter, tracker.window_sample_at, tracker.window_import_kwh
+        )
+
+    def _grid_charge_cap_w(self) -> float:
+        """Grid import ceiling for grid charging: never above the configured
+        value, whatever budget the quarter has left (planners expect it)."""
+        return min(
+            ChargeDischargeController._grid_import_cap_w(self),
+            float(getattr(self, "max_contracted_power", 0) or 0),
+        )
+
     def _apply_capacity_protection(
         self, sensor_actual: float, active_target: float
     ) -> tuple[float, float]:
-        """Apply peak-shaving override and return the effective target and sensor value."""
-        if not self.capacity_protection_enabled:
-            self.remove_setpoint_override("capacity_protection")
-            self._capacity_protection_active = False
-            self._capacity_protection_status["active"] = False
-            self._capacity_protection_status["action"] = "disabled"
-            self._capacity_protection_status["excluded_peak_excess"] = 0
-            self._capacity_protection_status["excluded_devices_enabled"] = (
-                self.capacity_protection_excluded_devices
-            )
-            return self.compute_active_target(), sensor_actual
+        """Apply the grid import cap and the SOC reserve (#506).
 
-        # Stale SOC from a battery that cannot answer stays in ``data`` and
-        # used to be averaged in here (#803): the fleet average sat above the
-        # threshold while the remaining battery drained past it.
-        coordinators_with_data = self._capacity_protection_coordinators()
-        if coordinators_with_data:
-            avg_soc = (
-                sum(c.data.get("battery_soc", 0) for c in coordinators_with_data)
-                / len(coordinators_with_data)
-            )
-        else:
-            # No battery can respond: assume full so peak shaving stays idle
-            # rather than acting on SOC it cannot influence.
-            avg_soc = 100  # Assume full if no data, don't activate protection
-
-        # Use the non-capacity-protection target for decisions. The previous
-        # cycle's capacity_protection override may still be registered here; if
-        # we compare against it, normal below-limit import can be mistaken for
-        # solar surplus and the controller starts a short discharge/stop loop.
+        The cap is a ceiling, never a target: the physical grid target is
+        ``min(normal target + hidden excluded load, cap)``. Above the SOC
+        threshold (or with the reserve off) only the excess above the cap is
+        handed back to the controller, so a battery covering the whole house
+        keeps doing so. Below the threshold the reserve holds the battery and
+        covers only the load above the cap.
+        """
+        cap = ChargeDischargeController._grid_import_cap_w(self)
+        configured = float(getattr(self, "max_contracted_power", 0) or 0)
+        status = self._capacity_protection_status
+        reserve_holding = False
+        avg_soc = None
+        if self.capacity_protection_enabled:
+            # Stale SOC from a battery that cannot answer stays in ``data`` and
+            # used to be averaged in here (#803): the fleet average sat above
+            # the threshold while the remaining battery drained past it.
+            coordinators_with_data = self._capacity_protection_coordinators()
+            if coordinators_with_data:
+                avg_soc = (
+                    sum(c.data.get("battery_soc", 0) for c in coordinators_with_data)
+                    / len(coordinators_with_data)
+                )
+            else:
+                # No battery can respond: assume full so the reserve stays idle
+                # rather than acting on SOC it cannot influence.
+                avg_soc = 100
+            reserve_holding = avg_soc < self.capacity_protection_soc_threshold
+        # Decide on the target without this feature's own override, or a
+        # previous cycle's hold would read as the normal target.
         active_target = self.compute_active_target_excluding("capacity_protection")
         original_target = active_target
         # Reconstruct from AC telemetry co-incident with the grid meter.  A
@@ -5374,179 +5449,197 @@ class ChargeDischargeController:
         battery_power = (
             measured_power if measured_power is not None else self.previous_power
         )
-        estimated_house_load = (
-            sensor_actual + self._excluded_included_adjustment
-        ) - battery_power
-        self._capacity_protection_status["excluded_peak_excess"] = 0
+        hidden = max(0.0, self._excluded_included_adjustment)
+        # Physical house load: excluded devices are on the meter too.
+        estimated_house_load = sensor_actual + hidden - battery_power
+        over_cap = configured > 0 and estimated_house_load > cap
+        # A battery that may not discharge only because of policy (price, time
+        # slot, EV) is held back too, once the batteries that are free cannot
+        # keep the real meter under the cap on their own (#506).
+        policy_held = configured > 0 and ChargeDischargeController._discharge_held_by_policy(
+            self, estimated_house_load - cap
+        )
+        held = reserve_holding or policy_held
+        status["excluded_peak_excess"] = 0
+        action = "idle" if self.capacity_protection_enabled else "disabled"
+        active = False
 
-        if avg_soc < self.capacity_protection_soc_threshold:
-            # Estimate house consumption: grid reading minus what the battery is currently doing
-            # sensor_actual = grid power (positive=import), previous_power > 0 = charging, < 0 = discharging
-            # Add back excluded-device adjustment so capacity protection sees the REAL grid load
-            # including devices marked as "included in consumption". This ensures capacity
-            # protection can shave peaks even when those devices are normally excluded.
-            if estimated_house_load > self.capacity_protection_limit:
-                # House load exceeds peak limit: discharge only the excess
-                # Undo excluded-device adjustment so PD controller can discharge against real grid
-                if self._excluded_included_adjustment > 0:
-                    _LOGGER.info(
-                        "Capacity Protection overriding excluded device adjustment (%.0fW) for peak shaving",
-                        self._excluded_included_adjustment,
-                    )
-                    sensor_actual += self._excluded_included_adjustment
-                self.set_setpoint_override("capacity_protection", self.capacity_protection_limit, priority=10)
-                active_target = self.compute_active_target()
-                _LOGGER.info(
-                    "Capacity Protection ACTIVE: SOC=%.1f%% < %d%%, house_load=%.0fW > limit=%dW -> target=%dW",
-                    avg_soc,
-                    self.capacity_protection_soc_threshold,
-                    estimated_house_load,
-                    self.capacity_protection_limit,
-                    active_target,
-                )
-                self._capacity_protection_active = True
-                self._capacity_protection_status.update({
-                    "active": True, "avg_soc": round(avg_soc, 1),
-                    "estimated_house_load": round(estimated_house_load),
-                    "action": "shaving",
-                    "original_target": original_target, "adjusted_target": active_target,
-                })
-            elif estimated_house_load > active_target:
-                # House load is below peak limit but above normal target: hold the
-                # current grid level and stop any existing battery command immediately.
-                # Undo excluded-device adjustment so target aligns with real grid reading
-                if self._excluded_included_adjustment > 0:
-                    _LOGGER.info(
-                        "Capacity Protection overriding excluded device adjustment (%.0fW) for conservation",
-                        self._excluded_included_adjustment,
-                    )
-                    sensor_actual += self._excluded_included_adjustment
-                self.set_setpoint_override("capacity_protection", sensor_actual, priority=10)
-                active_target = self.compute_active_target()
-                if self.previous_power != 0:
-                    self._capacity_protection_force_idle = True
-                _LOGGER.info(
-                    "Capacity Protection ACTIVE: SOC=%.1f%% < %d%%, house_load=%.0fW <= limit=%dW -> idle (target=%.0fW)",
-                    avg_soc,
-                    self.capacity_protection_soc_threshold,
-                    estimated_house_load,
-                    self.capacity_protection_limit,
-                    active_target,
-                )
-                self._capacity_protection_active = True
-                self._capacity_protection_status.update({
-                    "active": True, "avg_soc": round(avg_soc, 1),
-                    "estimated_house_load": round(estimated_house_load),
-                    "action": "conserving",
-                    "original_target": original_target, "adjusted_target": active_target,
-                })
+        shaving = held and over_cap
+        if held and not over_cap and getattr(self, "_cap_shave_engaged", False):
+            # Exit hysteresis: keep the shave until the house is clearly under
+            # the cap for two fresh samples, so a load hovering at the cap does
+            # not flip between shaving and a forced idle.
+            release = cap - max(200.0, 2.0 * float(getattr(self, "deadband", 0) or 0))
+            if estimated_house_load > release:
+                self._cap_release_samples = 0
+                shaving = True
+            elif getattr(self, "_control_sample_is_new", True):
+                self._cap_release_samples = getattr(self, "_cap_release_samples", 0) + 1
+                shaving = self._cap_release_samples < 2
             else:
-                # Solar surplus: normal charging, but SOC is still below threshold
-                self.remove_setpoint_override("capacity_protection")
-                active_target = self.compute_active_target()
-                self._capacity_protection_active = True
-                self._capacity_protection_status.update({
-                    "active": True, "avg_soc": round(avg_soc, 1),
-                    "estimated_house_load": round(estimated_house_load),
-                    "action": "charging",
-                    "original_target": original_target, "adjusted_target": active_target,
-                })
+                shaving = True
+        if not shaving:
+            self._cap_release_samples = 0
+        self._cap_shave_engaged = shaving
+        self._cap_overrides_policy = shaving and policy_held
+
+        if shaving:
+            # The reserve or a policy block holds the battery: cover only the
+            # load above the cap, against the real meter (excluded devices
+            # included).
+            sensor_actual += hidden
+            # Inside the release band hold the meter instead: the cap as a
+            # target would make the battery charge from the grid up to it.
+            value = cap if over_cap else min(cap, sensor_actual)
+            self.set_setpoint_override("capacity_protection", value, priority=10)
+            active_target = self.compute_active_target()
+            _LOGGER.info(
+                "Grid import cap ACTIVE (%s): house_load=%.0fW, cap=%.0fW -> target=%.0fW",
+                "policy block overridden" if policy_held else "reserve",
+                estimated_house_load, cap, active_target,
+            )
+            action, active = "shaving", True
+        elif reserve_holding and estimated_house_load > active_target:
+            # Below the cap but above the normal target: hold the current grid
+            # level and stop any existing battery command immediately.
+            sensor_actual += hidden
+            self.set_setpoint_override("capacity_protection", sensor_actual, priority=10)
+            active_target = self.compute_active_target()
+            if self.previous_power != 0:
+                self._capacity_protection_force_idle = True
+            _LOGGER.info(
+                "Capacity Protection ACTIVE: SOC=%.1f%% < %d%%, house_load=%.0fW <= cap=%.0fW -> idle (target=%.0fW)",
+                avg_soc, self.capacity_protection_soc_threshold,
+                estimated_house_load, cap, active_target,
+            )
+            action, active = "conserving", True
         else:
-            # Above the conservation threshold, normal self-consumption remains
-            # active. Optionally reduce only the excluded share that would leave
-            # grid import above the peak limit:
-            #
-            #   physical grid target = normal target + excluded adjustment
-            #
-            # Adding just the excess back to sensor_actual preserves the normal
-            # target while making the PD controller cover the above-limit share.
             self.remove_setpoint_override("capacity_protection")
             active_target = self.compute_active_target()
-            excluded_peak_excess = 0.0
-            if (
-                self.capacity_protection_excluded_devices
-                and self._excluded_included_adjustment > 0
-            ):
-                excluded_peak_excess = max(
-                    0.0,
-                    active_target
-                    + self._excluded_included_adjustment
-                    - self.capacity_protection_limit,
-                )
+            if reserve_holding:
+                # Solar surplus: normal charging, SOC still below the threshold.
+                action, active = "charging", True
+            elif over_cap:
+                # Normal control keeps its target; hand back only the share of
+                # the physical target (target + hidden excluded load) above
+                # the cap. With the target at zero and nothing hidden this is
+                # nothing: the battery keeps covering the whole house.
+                excess = max(0.0, active_target + hidden - cap)
+                if excess > 0:
+                    sensor_actual += excess
+                    status["excluded_peak_excess"] = round(excess)
+                    _LOGGER.info(
+                        "Grid import cap ACTIVE: target=%.0fW, excluded=%.0fW, excess=%.0fW, cap=%.0fW",
+                        active_target, hidden, excess, cap,
+                    )
+                    action, active = "shaving", True
 
-            if excluded_peak_excess > 0:
-                sensor_actual += excluded_peak_excess
-                self._capacity_protection_active = True
-                self._capacity_protection_status.update({
-                    "active": True, "avg_soc": round(avg_soc, 1),
-                    "estimated_house_load": round(estimated_house_load),
-                    "action": "shaving_excluded",
-                    "excluded_peak_excess": round(excluded_peak_excess),
-                    "original_target": original_target,
-                    "adjusted_target": active_target,
-                })
-                _LOGGER.info(
-                    "Peak shaving for excluded devices ACTIVE: excluded=%.0fW, "
-                    "excess=%.0fW, limit=%dW",
-                    self._excluded_included_adjustment,
-                    excluded_peak_excess,
-                    self.capacity_protection_limit,
-                )
-            else:
-                self._capacity_protection_active = False
-                self._capacity_protection_status.update({
-                    "active": False, "avg_soc": round(avg_soc, 1),
-                    "estimated_house_load": None,
-                    "action": "idle",
-                    "excluded_peak_excess": 0,
-                    "original_target": original_target,
-                    "adjusted_target": active_target,
-                })
-
-        # Always keep thresholds up to date
-        self._capacity_protection_status["soc_threshold"] = self.capacity_protection_soc_threshold
-        self._capacity_protection_status["peak_limit"] = self.capacity_protection_limit
-        self._capacity_protection_status["excluded_devices_enabled"] = (
-            self.capacity_protection_excluded_devices
+        # Observability (#506): what the battery must deliver to keep the meter
+        # under the cap, what it delivers, and one warning per episode the
+        # meter stays above it. Best effort: a peak bigger than the battery,
+        # or a battery a physical limit or the user holds back, goes through.
+        requested = max(0.0, estimated_house_load - cap) if configured > 0 else 0.0
+        delivered = max(0.0, -battery_power)
+        shortfall = requested - delivered  # physical import above the cap
+        tracker = getattr(self, "_consumption_tracker", None)
+        window = (
+            configured > 0
+            and getattr(self, "grid_import_window_enabled", False)
+            and getattr(tracker, "window_valid", False)
         )
+        if window:
+            # The bill is the quarter's mean: one warning per quarter whose
+            # budget is spent, not per instant above a moving cap.
+            if (
+                tracker.window_import_kwh * 3.6e6 > configured * 900.0
+                and getattr(self, "_cap_warned_quarter", None) != tracker.window_quarter
+            ):
+                self._cap_warned_quarter = tracker.window_quarter
+                _LOGGER.warning(
+                    "Grid import cap: the 15-min budget of %.0fW is spent "
+                    "(%.3f kWh imported this quarter)",
+                    configured, tracker.window_import_kwh,
+                )
+        elif shortfall > max(100.0, float(getattr(self, "deadband", 0) or 0)):
+            since = getattr(self, "_cap_shortfall_since", None)
+            now = time.monotonic()
+            if since is None:
+                self._cap_shortfall_since = now
+            elif now - since >= 30 and not getattr(self, "_cap_shortfall_warned", False):
+                self._cap_shortfall_warned = True
+                _LOGGER.warning(
+                    "Grid import cap: could not keep the grid import under %.0fW "
+                    "(the battery had to deliver %.0fW, it delivered %.0fW)",
+                    cap, requested, delivered,
+                )
+        elif shortfall <= 0:
+            self._cap_shortfall_since = None
+            self._cap_shortfall_warned = False
+
+        self._capacity_protection_active = active
+        status.update({
+            "grid_import_cap_active": action == "shaving",
+            "cap_requested_w": round(requested),
+            "cap_delivered_w": round(delivered),
+            "window_valid": bool(window),
+            "window_import_kwh": round(tracker.window_import_kwh, 3) if window else None,
+            "window_cap_w": round(cap) if window else None,
+            "active": active,
+            "avg_soc": round(avg_soc, 1) if avg_soc is not None else None,
+            "estimated_house_load": round(estimated_house_load) if active else None,
+            "action": action,
+            "original_target": original_target,
+            "adjusted_target": active_target,
+            "soc_threshold": self.capacity_protection_soc_threshold,
+            "excluded_devices_enabled": self.capacity_protection_excluded_devices,
+        })
         return active_target, sensor_actual
 
-    def _apply_icp_excluded_protection(
-        self, sensor_filtered: float, sensor_actual: float, active_target: float
-    ) -> float:
-        """Cover excluded-device load that would exceed contracted power.
+    def _release_grid_import_cap(self) -> None:
+        """Drop the cap's engagement on a cycle that never evaluates it.
 
-        This is a safety measure, not an economic one: the breaker sees the
-        physical meter while excluded devices are hidden from the PD controller
-        by design. Scope is excluded devices only (v1 of
-        docs/plans/proteccion-potencia-contratada-descarga.md).
+        Manual mode, a charging predictive slot, a dead meter and the max-SOC
+        measurement return before _apply_capacity_protection; without this the
+        policy override (and its status) would stay latched. A single
+        unreadable sample keeps it: releasing would stop a covering battery
+        while the meter is blind.
         """
-        self._icp_excluded_protection_w = 0.0
-        if self.max_contracted_power <= 0 or self._excluded_included_adjustment <= 0:
-            return sensor_actual
-
-        hidden = sensor_filtered - sensor_actual
-        if hidden <= 0:
-            return sensor_actual
-
-        # Clamp to the still-hidden excluded share so prior add-backs are not counted twice.
-        excess = min(
-            max(0.0, active_target + hidden - self.max_contracted_power),
-            hidden,
-            self._excluded_included_adjustment,
-        )
-        self._icp_excluded_protection_w = excess
-        if excess > 0:
-            sensor_actual += excess
-            _LOGGER.info(
-                "ICP protection for excluded devices ACTIVE: excluded=%.0fW, "
-                "excess=%.0fW, contracted=%.0fW",
-                self._excluded_included_adjustment,
-                excess,
-                self.max_contracted_power,
+        self._cap_overrides_policy = False
+        self._cap_shave_engaged = False
+        self._cap_release_samples = 0
+        status = getattr(self, "_capacity_protection_status", None)
+        if isinstance(status, dict):
+            status.update(
+                {"grid_import_cap_active": False, "cap_requested_w": 0, "cap_delivered_w": 0}
             )
 
-        return sensor_actual
+    def _discharge_held_by_policy(self, excess_w: float) -> bool:
+        """True when a battery blocked only by policy is needed for ``excess_w``.
+
+        Needed means the batteries with no blocker at all cannot cover the
+        load above the cap on their own. Once engaged it holds through the
+        exit hysteresis, so a mixed fleet may share the excess instead of
+        leaving it to the free battery until the house drops.
+        """
+        global_blockers = set(getattr(self, "_global_discharge_blockers", {}) or {})
+        per_battery = getattr(self, "_battery_discharge_blockers", {}) or {}
+        if not global_blockers and not per_battery:
+            return False
+        policy_only, free = False, []
+        for coordinator in self._capacity_protection_coordinators():
+            blockers = global_blockers | set(
+                per_battery.get(coordinator, {}) if per_battery else {}
+            )
+            if not blockers:
+                free.append(coordinator)
+            elif blockers <= POLICY_DISCHARGE_BLOCKERS:
+                policy_only = True
+        if not policy_only:
+            return False
+        if getattr(self, "_cap_overrides_policy", False):
+            return True
+        free_w = self._effective_system_capacity(free, False) if free else 0.0
+        return excess_w > free_w
 
     def _is_capacity_protection_soc_limited(self) -> bool:
         """Return True when peak shaving should be active based on current SOC."""
@@ -6611,10 +6704,7 @@ class ChargeDischargeController:
 
     def _predictive_charge_ceiling(self) -> float:
         """Return the import ceiling used while a predictive slot is active."""
-        ceiling = float(self.max_contracted_power)
-        if self.capacity_protection_enabled and self.capacity_protection_limit > 0:
-            ceiling = min(ceiling, float(self.capacity_protection_limit))
-        return ceiling
+        return ChargeDischargeController._grid_charge_cap_w(self)
 
     def _predictive_min_charge_power(
         self, available_batteries: list, max_battery_charge: float
@@ -6691,8 +6781,8 @@ class ChargeDischargeController:
         )
         trigger = max(float(self.deadband), 50.0)
         hard_margin = max(3.0 * trigger, _PREDICTIVE_HARD_LIMIT_MIN_MARGIN_W)
-        emergency = physical_base_load > float(self.max_contracted_power) + hard_margin
-        # The house alone above the peak limit is not an emergency: it only
+        emergency = physical_base_load > ChargeDischargeController._grid_import_cap_w(self) + hard_margin
+        # The house alone above the grid import cap is not an emergency: it only
         # needs the charge handed over, so it is judged against the ordinary
         # trigger and confirmed faster (#683).
         peak = self.capacity_protection_enabled and base_load > target_power + trigger
@@ -6898,14 +6988,14 @@ class ChargeDischargeController:
             else physical_base_load - excluded_adjustment
         )
         trigger = max(float(self.deadband), 50.0)
-        emergency = physical_base_load > float(self.max_contracted_power) + trigger
+        emergency = physical_base_load > ChargeDischargeController._grid_import_cap_w(self) + trigger
         peak = self.capacity_protection_enabled and base_load > ceiling + trigger
         if emergency or peak:
             # Emergency is always physical: excluded-device policy may reduce
             # ordinary Peak Shaving, but never the import seen by the ICP.
             peak_requested = max(0.0, base_load - ceiling) if peak else 0.0
             emergency_requested = (
-                max(0.0, physical_base_load - float(self.max_contracted_power))
+                max(0.0, physical_base_load - ChargeDischargeController._grid_import_cap_w(self))
                 if emergency else 0.0
             )
             requested = max(peak_requested, emergency_requested)
@@ -6925,12 +7015,8 @@ class ChargeDischargeController:
                 power = allocation.get(coordinator, 0)
                 await self._set_battery_power(
                     coordinator, 0, power,
-                    # Safety protection may only bypass economic policies.
-                    ignore_discharge_blockers={
-                        "price_discharge",
-                        "price_reserve",
-                        "curtailment_negative_window",
-                    },
+                    # The cap overrides policy, never physics or the user.
+                    ignore_discharge_blockers=POLICY_DISCHARGE_BLOCKERS,
                 )
             self._predictive_protection_command_w = allocated
             self._predictive_protection_reason = "emergency" if emergency else "peak_shaving"
@@ -6943,7 +7029,6 @@ class ChargeDischargeController:
                 estimated_house_load=round(
                     physical_base_load if emergency else base_load
                 ),
-                peak_limit=ceiling,
             )
             return
 
@@ -7467,27 +7552,42 @@ class ChargeDischargeController:
         Idle (None) does not reassert 0 W: Manual Mode turn-on already idles
         once, and reasserting would force Anker Third-Party Control every cycle
         — fighting Solix app modes the user may select while paused.
+
+        A software manual charge is still held under the grid import cap
+        (#506): the allowed power is worked out again every cycle from the
+        stored setpoint, which itself is never lowered. Manual discharge is
+        never forced. ponytail: register batteries (Marstek) are driven by the
+        user's own register writes, which the integration does not hold a copy
+        of, so their manual charge is not clamped.
         """
-        for coordinator in self.coordinators:
+        manual = [
+            coordinator for coordinator in self.coordinators
+            if global_mode
+            or getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+        ]
+        allowance = ChargeDischargeController._manual_charge_allowance(
+            self, [c for c in manual if c.needs_software_manual_control]
+        )
+        for coordinator in manual:
             # Raw flag: a calibrating battery is manual-owned but has no manual
             # setpoint to assert.
             individual_mode = bool(
                 getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
             )
-            if not global_mode and not individual_mode:
-                continue
             if not coordinator.needs_software_manual_control:
                 await self._reassert_register_manual_intent(coordinator)
                 continue
             mode = coordinator.manual_force_mode
+            charge_w = coordinator.manual_set_charge_power
+            if mode == "Charge" and allowance is not None:
+                charge_w = min(charge_w, allowance)
+                allowance -= charge_w
             owner = "battery_manual" if individual_mode else "automatic"
             if mode == "Charge":
                 kwargs = {"bypass_blockers": True}
                 if individual_mode:
                     kwargs["owner"] = owner
-                await self._set_battery_power(
-                    coordinator, coordinator.manual_set_charge_power, 0, **kwargs
-                )
+                await self._set_battery_power(coordinator, charge_w, 0, **kwargs)
             elif mode == "Discharge":
                 kwargs = {"bypass_blockers": True}
                 if individual_mode:
@@ -7496,6 +7596,27 @@ class ChargeDischargeController:
                     coordinator, 0, coordinator.manual_set_discharge_power, **kwargs
                 )
             # Idle: leave device alone (no 0 W reassert / no mode force).
+
+    def _manual_charge_allowance(self, manual: list) -> float | None:
+        """Grid charge the given manual batteries may draw under the import cap.
+
+        Marginal model, like the automatic charge clamp: the meter minus what
+        these batteries charge now is the rest of the house (other manual
+        batteries included). None when there is no cap or no meter reading.
+        """
+        cap = ChargeDischargeController._grid_charge_cap_w(self)
+        if float(getattr(self, "max_contracted_power", 0) or 0) <= 0 or not manual:
+            return None
+        grid = self._apply_meter_transform(self.hass.states.get(self.consumption_sensor))
+        if grid is None:
+            return None
+        charging = 0.0
+        for coordinator in manual:
+            power = self._coordinator_delivered_power(coordinator)
+            if power is None:
+                power = self._manual_battery_commanded_power(coordinator)
+            charging += max(0.0, float(power or 0.0))
+        return max(0.0, cap - grid + charging)
 
     @staticmethod
     async def _reassert_register_manual_intent(coordinator) -> None:
@@ -10119,6 +10240,7 @@ class ChargeDischargeController:
             # Do not set batteries to 0 - preserve user's manual settings
             # Do not update PD state - freeze controller state
             self._phase_safety_pending = False
+            ChargeDischargeController._release_grid_import_cap(self)
             return
 
         # Individual manual batteries remain under their own software setpoints
@@ -10158,6 +10280,7 @@ class ChargeDischargeController:
             await self._apply_phase_safety_review()
 
         if await self._max_soc_mgr.handle_measurement():
+            ChargeDischargeController._release_grid_import_cap(self)
             self.previous_power = 0
             self.previous_sensor = None
             self.previous_error = 0
@@ -10170,6 +10293,7 @@ class ChargeDischargeController:
         # A dead meter stops automatic control before predictive dispatch, so a
         # grid charge cannot keep importing against a ceiling nobody is reading.
         if await self._apply_dead_meter_fallback():
+            ChargeDischargeController._release_grid_import_cap(self)
             return
 
         # === Predictive Grid Charging Logic (mode dispatch) ===
@@ -10197,6 +10321,7 @@ class ChargeDischargeController:
             else:
                 self._predictive_dispatch_errors = 0
             if self.grid_charging_active:
+                ChargeDischargeController._release_grid_import_cap(self)
                 return
 
         # === Operation blockers: enforce BEFORE deadband / stale early-returns ===
@@ -10365,12 +10490,11 @@ class ChargeDischargeController:
             await self._hourly_balance_mgr.async_process()
             active_target = self.compute_active_target()
 
-        # CAPACITY PROTECTION MODE: When enabled and SOC is below threshold,
-        # only discharge to cover consumption above the peak limit. This must run
+        # GRID IMPORT CAP + SOC RESERVE (#506): keep the physical import under
+        # the cap, and below the reserve threshold discharge only above it. This must run
         # before deadband and first-execution handling, otherwise a previous
         # hourly-balance discharge can be kept alive by an early return.
         active_target, sensor_actual = self._apply_capacity_protection(sensor_actual, active_target)
-        sensor_actual = self._apply_icp_excluded_protection(sensor_filtered, sensor_actual, active_target)
 
         if self._capacity_protection_force_idle:
             self._capacity_protection_force_idle = False
@@ -10492,7 +10616,11 @@ class ChargeDischargeController:
                 return
 
             # Check price-based discharge block (e.g. RT price mode: cheap price blocks discharge)
-            if not is_charging and self._price_based_discharge_blocked:
+            if (
+                not is_charging
+                and self._price_based_discharge_blocked
+                and not getattr(self, "_cap_overrides_policy", False)
+            ):
                 _LOGGER.debug(
                     "ChargeDischargeController: First execution - Discharging NOT ALLOWED by blockers [%s] (price-based control), starting at 0W",
                     self._operation_blockers_for_log(False),
@@ -10697,8 +10825,17 @@ class ChargeDischargeController:
             self._active_discharge_batteries = []
             self._active_charge_batteries = []
 
+        # Policy (price, EV, solar-surplus device) gives way while the grid
+        # import cap needs the battery (#506); it never forces a charge.
+        cap_override = getattr(self, "_cap_overrides_policy", False)
+
         # Check price-based discharge control (set each cycle by pricing mode handlers)
-        if not operation_restricted and self._price_based_discharge_blocked and not is_charging:
+        if (
+            not operation_restricted
+            and self._price_based_discharge_blocked
+            and not is_charging
+            and not cap_override
+        ):
             _LOGGER.debug(
                 "ChargeDischargeController: Discharging NOT ALLOWED by blockers [%s] (price-based control) - controller paused",
                 self._operation_blockers_for_log(False),
@@ -10711,7 +10848,9 @@ class ChargeDischargeController:
         # Check EV charger no-telemetry: 5-min full pause then discharge-block mode
         if not operation_restricted:
             ev_pause_active, ev_charging_active = self._external_loads.check_ev_charger_state()
-            if ev_pause_active:
+            if cap_override and new_power < 0:
+                pass  # the cap's discharge goes on; the pause still blocks charging
+            elif ev_pause_active:
                 _LOGGER.info(
                     "ChargeDischargeController: EV charger detected – 5-minute battery pause, forcing 0W"
                 )
@@ -10732,7 +10871,12 @@ class ChargeDischargeController:
         # Solar surplus excluded device active: battery may charge but must not discharge.
         # Discharge would cause oscillation because the device adjustment flips sign with
         # previous_power — there is no stable fixed point when device_power > solar_surplus.
-        if not operation_restricted and self._solar_surplus_discharge_blocked and new_power < 0:
+        if (
+            not operation_restricted
+            and self._solar_surplus_discharge_blocked
+            and new_power < 0
+            and not cap_override
+        ):
             _LOGGER.info(
                 "ChargeDischargeController: Solar surplus excluded device active – blocking battery discharge"
             )
@@ -10774,13 +10918,14 @@ class ChargeDischargeController:
         # breaker sees total grid flow. Marginal model: shifting battery power by
         # (new_power - previous_power) shifts grid by the same amount (more charge =
         # more import). Only limits charging; never forces a discharge.
-        if self.max_contracted_power > 0 and new_power > 0:
-            charge_import_cap = self.max_contracted_power - sensor_filtered + self.previous_power
+        import_cap = ChargeDischargeController._grid_charge_cap_w(self)
+        if float(getattr(self, "max_contracted_power", 0) or 0) > 0 and new_power > 0:
+            charge_import_cap = import_cap - sensor_filtered + self.previous_power
             if new_power > charge_import_cap:
                 clamped = max(0.0, charge_import_cap)
                 _LOGGER.info(
-                    "ICP clamp: limiting charge %.0fW -> %.0fW (grid %.0fW, contracted %.0fW)",
-                    new_power, clamped, sensor_filtered, self.max_contracted_power,
+                    "ICP clamp: limiting charge %.0fW -> %.0fW (grid %.0fW, cap %.0fW)",
+                    new_power, clamped, sensor_filtered, import_cap,
                 )
                 new_power = clamped
 
@@ -11126,8 +11271,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 that never enabled pre-discharge reach the new default.
     v15 -> v16: merge the two high-price switches into the high_price_sale
                 select; arbitrage-only folds into surplus + arbitrage.
+    v16 -> v17: one grid import cap (#506). Peak shaving's own limit folds into
+                max_contracted_power (the lower of the two when peak shaving was
+                on); the limit key and its number entity are removed.
     """
-    if entry.version >= 16:
+    if entry.version >= 17:
         return True
 
     new_data = dict(entry.data)
@@ -11516,11 +11664,37 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(high-price switches merged into the high_price_sale select)",
         )
 
+    if entry.version < 17:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        # One grid import cap (#506): peak shaving's own limit folds into the
+        # contracted power. The lower of the two when peak shaving was on (the
+        # user chose that number; falling short is what trips a breaker).
+        # Literals: the limit's constants are gone, these were its defaults.
+        limit = new_data.pop("capacity_protection_limit", 2500)
+        cap = new_data.get(CONF_MAX_CONTRACTED_POWER, 7000)
+        if new_data.get(CONF_CAPACITY_PROTECTION_ENABLED) and limit and limit > 0:
+            cap = min(cap, limit) if cap and cap > 0 else limit
+        new_data[CONF_MAX_CONTRACTED_POWER] = cap
+
+        ent_reg = er.async_get(hass)
+        entity_id = ent_reg.async_get_entity_id(
+            "number", DOMAIN, f"{SYSTEM_UNIQUE_ID_PREFIX}capacity_protection_limit"
+        )
+        if entity_id:
+            ent_reg.async_remove(entity_id)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 17 "
+            "(one grid import cap: %sW)", cap,
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=16,
+        version=17,
     )
     return True
 

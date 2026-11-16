@@ -84,7 +84,7 @@
           "solar_forecast_remaining_sensor": "Sensor de predicció solar restant d'avui (recomanat)",
           "solar_production_sensor": "Sensor de producció solar (opcional)",
           "meter_inverted": "Signe del comptador invertit",
-          "max_contracted_power": "Potència màxima contractada (W)",
+          "max_contracted_power": "Màxim d'importació de xarxa (W)",
           "three_phase_enabled": "Activa la protecció de corrent trifàsica"
         },
         "data_description": {
@@ -95,7 +95,7 @@
           "solar_forecast_remaining_sensor": "Sensor que proporciona la producció solar que encara s'espera avui en kWh. En desar-lo substitueix el sensor heretat del dia complet i mai es redueix amb la producció ja mesurada.",
           "solar_production_sensor": "Sensor de potència de producció fotovoltaica en temps real (W/kW) d'un inversor extern que no passa per les entrades MPPT de la bateria. S'utilitza per mostrar el node Solar al diagrama de flux del tauler. Deixa'l buit si els teus panells alimenten directament el MPPT de la bateria.",
           "meter_inverted": "Activa aquesta opció si el teu comptador utilitza el conveni oposat: positiu = exportació, negatiu = importació. La unitat (W/kW) es detecta automàticament.",
-          "max_contracted_power": "Potència total contractada en watts. El sistema no superarà aquest límit en carregar per evitar que salti el comptador",
+          "max_contracted_power": "Màxima potència que vols prendre de la xarxa, en watts: la teva potència contractada (ICP) o, amb tarifa per capacitat, el teu pic mensual. La càrrega des de la xarxa es manté per sota i la bateria cobreix la casa per sobre.",
           "three_phase_enabled": "Envolupant de seguretat opcional per a instal·lacions trifàsiques; configura els sensors i la fase física de cada bateria al pas següent."
         }
       },
@@ -499,21 +499,19 @@
       },
       "capacity_protection": {
         "title": "Mode de reducció de pics",
-        "description": "Si s'activa, quan el SOC de la bateria baixi d'un llindar, el sistema conservarà energia descarregant només per cobrir consum que superi un límit pic.",
+        "description": "Si s'activa, quan el SOC de la bateria baixi d'un llindar, la bateria reserva la càrrega restant per als pics: deixa de cobrir el consum normal i només cobreix la càrrega que superi el màxim d'importació de xarxa.",
         "data": {
           "configure_capacity_protection": "Activa la reducció de pics"
         }
       },
       "capacity_protection_config": {
         "title": "Configuració de reducció de pics",
-        "description": "Configura el llindar de SOC per sota del qual s'activa la reducció de pics i el límit de potència pic. La bateria només descarregarà per mantenir la importació de xarxa per sota del límit.",
+        "description": "Configura el llindar de SOC per sota del qual la bateria reserva la seva càrrega restant per als pics i només cobreix el consum que superi el màxim d'importació de xarxa.",
         "data": {
-          "capacity_protection_soc_threshold": "Llindar de SOC (%)",
-          "capacity_protection_limit": "Límit pic (W)"
+          "capacity_protection_soc_threshold": "Llindar de SOC (%)"
         },
         "data_description": {
-          "capacity_protection_soc_threshold": "Quan el SOC mitjà de les bateries baixi d'aquest valor, s'activa la reducció de pics. La bateria deixarà de descarregar per a consum normal i només cobrirà pics per sobre del límit.",
-          "capacity_protection_limit": "Llindar de potència d'importació de xarxa. Quan el consum de la casa superi aquest valor i la reducció de pics estigui activa, la bateria només descarregarà l'excés per sobre d'aquest límit."
+          "capacity_protection_soc_threshold": "Quan el SOC mitjà de les bateries baixi d'aquest valor, la bateria deixarà de cobrir el consum normal i només cobrirà la càrrega per sobre del màxim d'importació de xarxa."
         }
       },
       "hourly_balance": {
@@ -886,7 +884,7 @@
           "solar_forecast_remaining_sensor": "Sensor de predicció solar restant d'avui (recomanat)",
           "solar_production_sensor": "Sensor de producció solar (opcional)",
           "meter_inverted": "Signe del comptador invertit",
-          "max_contracted_power": "Potència màxima contractada (W)",
+          "max_contracted_power": "Màxim d'importació de xarxa (W)",
           "three_phase_enabled": "Activa la protecció de corrent trifàsica"
         },
         "data_description": {
@@ -897,7 +895,7 @@
           "solar_forecast_remaining_sensor": "Sensor que proporciona la producció solar que encara s'espera avui en kWh. En desar-lo substitueix el sensor heretat del dia complet i mai es redueix amb la producció ja mesurada.",
           "solar_production_sensor": "Sensor de potència de producció fotovoltaica en temps real (W/kW) d'un inversor extern que no passa per les entrades MPPT de la bateria. S'utilitza per mostrar el node Solar al diagrama de flux del tauler. Deixa'l buit si els teus panells alimenten directament el MPPT de la bateria.",
           "meter_inverted": "Activa aquesta opció si el teu comptador utilitza el conveni oposat: positiu = exportació, negatiu = importació. La unitat (W/kW) es detecta automàticament.",
-          "max_contracted_power": "Potència total contractada en watts. El sistema no superarà aquest límit en carregar per evitar que salti el diferencial",
+          "max_contracted_power": "Màxima potència que vols prendre de la xarxa, en watts: la teva potència contractada (ICP) o, amb tarifa per capacitat, el teu pic mensual. La càrrega des de la xarxa es manté per sota i la bateria cobreix la casa per sobre.",
           "three_phase_enabled": "Envolupant de seguretat opcional per a instal·lacions trifàsiques; configura els sensors i la fase física de cada bateria al pas següent."
         }
       },
@@ -1278,21 +1276,19 @@
       },
       "capacity_protection": {
         "title": "Mode de reducció de pics",
-        "description": "Si s'activa, quan el SOC de la bateria baixi d'un llindar, el sistema conservarà energia descarregant només per cobrir consum que superi un límit pic.",
+        "description": "Si s'activa, quan el SOC de la bateria baixi d'un llindar, la bateria reserva la càrrega restant per als pics: deixa de cobrir el consum normal i només cobreix la càrrega que superi el màxim d'importació de xarxa.",
         "data": {
           "configure_capacity_protection": "Activar reducció de pics"
         }
       },
       "capacity_protection_config": {
         "title": "Configuració de reducció de pics",
-        "description": "Configura el llindar de SOC per sota del qual s'activa la reducció de pics i el límit de potència pic. La bateria només descarregarà per mantenir la importació de xarxa per sota del límit.",
+        "description": "Configura el llindar de SOC per sota del qual la bateria reserva la seva càrrega restant per als pics i només cobreix el consum que superi el màxim d'importació de xarxa.",
         "data": {
-          "capacity_protection_soc_threshold": "Llindar de SOC (%)",
-          "capacity_protection_limit": "Límit pic (W)"
+          "capacity_protection_soc_threshold": "Llindar de SOC (%)"
         },
         "data_description": {
-          "capacity_protection_soc_threshold": "Quan el SOC mitjà de les bateries baixi d'aquest valor, s'activa la reducció de pics. La bateria deixarà de descarregar per a consum normal i només cobrirà pics per sobre del límit.",
-          "capacity_protection_limit": "Llindar de potència d'importació de xarxa. Quan el consum de la casa superi aquest valor i la reducció de pics estigui activa, la bateria només descarregarà l'excés per sobre d'aquest límit."
+          "capacity_protection_soc_threshold": "Quan el SOC mitjà de les bateries baixi d'aquest valor, la bateria deixarà de cobrir el consum normal i només cobrirà la càrrega per sobre del màxim d'importació de xarxa."
         }
       },
       "pd_advanced": {
@@ -1585,6 +1581,9 @@
       },
       "capacity_protection": {
         "name": "Reducció de Pics"
+      },
+      "grid_import_window_15min": {
+        "name": "Finestra de 15 min d'Importació de Xarxa"
       },
       "capacity_protection_excluded_devices": {
         "name": "Reducció de Pics per a Dispositius Exclosos"
@@ -2718,7 +2717,7 @@
         "name": "Potència màxima de descàrrega del sistema"
       },
       "max_contracted_power": {
-        "name": "Potència Màxima Contractada"
+        "name": "Màxim d'Importació de Xarxa"
       },
       "capacity_protection_soc_threshold": {
         "name": "Reducció de Pics – Llindar SOC"
@@ -2740,9 +2739,6 @@
       },
       "temp_charge_limit_floor_pct": {
         "name": "Potència mínima de càrrega"
-      },
-      "capacity_protection_limit": {
-        "name": "Reducció de Pics – Límit"
       },
       "backup_offgrid_threshold": {
         "name": "Llindar Offgrid Backup"

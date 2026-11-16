@@ -43,7 +43,6 @@ FINGERPRINT = {
     "weekly_full_charge_day",
     "discharge_reserve_enabled",
     "capacity_protection_enabled",
-    "capacity_protection_limit",
     "max_contracted_power",
     "enable_system_power_limits",
     "system_max_charge_power",
@@ -68,6 +67,9 @@ LIVE = {
     "_weekly_full_charge_skip_delay",
     "capacity_protection_excluded_devices",
     "capacity_protection_soc_threshold",
+    # The 15-min window moves only the real-time cap; planners read the
+    # configured value (#506).
+    "grid_import_window_enabled",
     "charge_priority",
     "deadband",
     "direction_hysteresis",

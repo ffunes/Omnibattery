@@ -93,7 +93,7 @@ def _night(held, limit_w=3000.0):
     end = DAY + timedelta(hours=12)
     extra = {
         "_is_capacity_protection_soc_limited": lambda: held,
-        "capacity_protection_limit": limit_w,
+        "max_contracted_power": limit_w,
     }
     manager, pricing = _manager(
         now, remaining_kwh=0.0, controller_extra=extra, window_start=SUNRISE

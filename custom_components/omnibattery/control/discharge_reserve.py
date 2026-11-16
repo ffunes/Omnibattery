@@ -746,10 +746,10 @@ class DischargeReserveManager:
         return consumption, solar, fraction_fn
 
     def _peak_shaving_hold(self, pricing, consumption: dict, now: datetime) -> dict:
-        """Leave the load below the peak-shaving limit to the grid until sunrise.
+        """Leave the load below the grid import cap to the grid until sunrise.
 
         While peak shaving conserves, the battery covers only what is above
-        ``capacity_protection_limit``; the charge planner models the same hold
+        ``max_contracted_power`` (#506); the charge planner models the same hold
         (``battery_idle_intervals``), so the reserve must not hold energy for
         load the battery will not carry.
         """
@@ -757,7 +757,7 @@ class DischargeReserveManager:
         held_check = getattr(controller, "_is_capacity_protection_soc_limited", None)
         try:
             limit_kw = max(
-                0.0, float(getattr(controller, "capacity_protection_limit", 0.0) or 0.0)
+                0.0, float(getattr(controller, "max_contracted_power", 0.0) or 0.0)
             ) / 1000.0
             if not callable(held_check) or held_check() is not True or limit_kw <= 0.0:
                 return consumption
@@ -1047,7 +1047,12 @@ class DischargeReserveManager:
         # is spending it on a spike on purpose. A floor would fight both.
         if getattr(controller, "_curtailment_runtime_status", None) in _CURTAILMENT_ACTIVE_STATES:
             return GUARD_CURTAILMENT
-        if getattr(controller, "_capacity_protection_active", False):
+        # Not while the grid import cap is overriding this very block (#506):
+        # the block is already suspended for the excess, and withdrawing it
+        # would drop the cap's reason to engage on the next cycle.
+        if getattr(controller, "_capacity_protection_active", False) and not getattr(
+            controller, "_cap_overrides_policy", False
+        ):
             return GUARD_CAPACITY_PROTECTION
 
         return None

@@ -139,7 +139,7 @@ EVERY_DAY = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 def test_peak_shaving_hold_active():
     manager = _manager(
         _is_capacity_protection_soc_limited=lambda: True,
-        capacity_protection_limit=1000,
+        max_contracted_power=1000,
     )
     _plan(manager, _tonight())
 

@@ -84,7 +84,7 @@
           "solar_forecast_remaining_sensor": "Sensor für die heute verbleibende Solarprognose (empfohlen)",
           "solar_production_sensor": "Solarproduktionssensor (optional)",
           "meter_inverted": "Zählervorzeichen invertiert",
-          "max_contracted_power": "Maximale Vertragsleistung (W)",
+          "max_contracted_power": "Maximaler Netzbezug (W)",
           "three_phase_enabled": "Dreiphasigen Stromschutz aktivieren"
         },
         "data_description": {
@@ -95,7 +95,7 @@
           "solar_forecast_remaining_sensor": "Sensor für die heute noch erwartete Solarproduktion in kWh. Beim Speichern ersetzt er die veraltete Ganztagesprognose und wird nicht um die bereits gemessene Produktion reduziert.",
           "solar_production_sensor": "Echtzeit-PV-Produktionsleistungssensor (W/kW) von einem externen Wechselrichter, der nicht über die MPPT-Eingänge der Batterie geführt wird. Wird verwendet, um den Solar-Knoten im Energiefluss-Diagramm des Dashboards anzuzeigen. Leer lassen, wenn deine Module direkt den MPPT der Batterie speisen.",
           "meter_inverted": "Aktivieren Sie diese Option, wenn Ihr Zähler die umgekehrte Konvention verwendet: positiv = Export, negativ = Import. Die Einheit (W/kW) wird automatisch erkannt.",
-          "max_contracted_power": "Gesamt-Vertragsleistung in Watt. Das System überschreitet dieses Limit beim Laden nicht, um ein Auslösen der Sicherung zu vermeiden",
+          "max_contracted_power": "Maximale Leistung, die Sie aus dem Netz beziehen möchten, in Watt: Ihre Anschlussleistung (ICP) oder, bei Leistungstarif, Ihre monatliche Spitze. Das Netzladen bleibt darunter, und die Batterie deckt den Hausverbrauch darüber.",
           "three_phase_enabled": "Optionale Strom-Sicherheitsgrenze für dreiphasige Anlagen; Sensoren und physische Batteriephase werden im nächsten Schritt konfiguriert."
         }
       },
@@ -499,21 +499,19 @@
       },
       "capacity_protection": {
         "title": "Spitzenlastkappung",
-        "description": "Wenn aktiviert, wird das System bei niedrigem Batterie-SOC Energie sparen und nur entladen, um Verbrauch über einem Spitzenlimit auszugleichen.",
+        "description": "Wenn aktiviert, hält die Batterie bei Unterschreiten eines SOC-Schwellenwerts ihre Restladung für Spitzen zurück: Sie deckt den normalen Verbrauch nicht mehr und nur die Last über dem maximalen Netzbezug.",
         "data": {
           "configure_capacity_protection": "Spitzenlastkappung aktivieren"
         }
       },
       "capacity_protection_config": {
         "title": "Spitzenlastkappung konfigurieren",
-        "description": "Konfigurieren Sie den SOC-Schwellenwert, unter dem die Spitzenlastkappung aktiviert wird, und das Spitzenleistungslimit. Die Batterie entlädt nur, um den Netzimport unter dem Spitzenlimit zu halten.",
+        "description": "Konfigurieren Sie den SOC-Schwellenwert, unter dem die Batterie ihre Restladung für Spitzen zurückhält und nur den Verbrauch über dem maximalen Netzbezug deckt.",
         "data": {
-          "capacity_protection_soc_threshold": "SOC-Schwellenwert (%)",
-          "capacity_protection_limit": "Spitzenlimit (W)"
+          "capacity_protection_soc_threshold": "SOC-Schwellenwert (%)"
         },
         "data_description": {
-          "capacity_protection_soc_threshold": "Wenn der durchschnittliche Batterie-SOC unter diesen Wert fällt, wird die Spitzenlastkappung aktiviert. Die Batterie stoppt die Entladung für normalen Verbrauch und deckt nur Spitzen über dem Limit ab.",
-          "capacity_protection_limit": "Netzimport-Leistungsschwelle. Wenn der Hausverbrauch diesen Wert überschreitet und die Spitzenlastkappung aktiv ist, entlädt die Batterie nur den Überschuss über diesem Limit."
+          "capacity_protection_soc_threshold": "Wenn der durchschnittliche Batterie-SOC unter diesen Wert fällt, deckt die Batterie den normalen Verbrauch nicht mehr und nur die Last über dem maximalen Netzbezug."
         }
       },
       "pd_advanced": {
@@ -886,7 +884,7 @@
           "solar_forecast_remaining_sensor": "Sensor für die heute verbleibende Solarprognose (empfohlen)",
           "solar_production_sensor": "Solarproduktionssensor (optional)",
           "meter_inverted": "Zählervorzeichen invertiert",
-          "max_contracted_power": "Maximale Vertragsleistung (W)",
+          "max_contracted_power": "Maximaler Netzbezug (W)",
           "three_phase_enabled": "Dreiphasigen Stromschutz aktivieren"
         },
         "data_description": {
@@ -897,7 +895,7 @@
           "solar_forecast_remaining_sensor": "Sensor für die heute noch erwartete Solarproduktion in kWh. Beim Speichern ersetzt er die veraltete Ganztagesprognose und wird nicht um die bereits gemessene Produktion reduziert.",
           "solar_production_sensor": "Echtzeit-PV-Produktionsleistungssensor (W/kW) von einem externen Wechselrichter, der nicht über die MPPT-Eingänge der Batterie geführt wird. Wird verwendet, um den Solar-Knoten im Energiefluss-Diagramm des Dashboards anzuzeigen. Leer lassen, wenn deine Module direkt den MPPT der Batterie speisen.",
           "meter_inverted": "Aktivieren Sie diese Option, wenn Ihr Zähler die umgekehrte Konvention verwendet: positiv = Export, negativ = Import. Die Einheit (W/kW) wird automatisch erkannt.",
-          "max_contracted_power": "Gesamt-Vertragsleistung in Watt. Das System überschreitet dieses Limit beim Laden nicht, um ein Auslösen der Sicherung zu vermeiden",
+          "max_contracted_power": "Maximale Leistung, die Sie aus dem Netz beziehen möchten, in Watt: Ihre Anschlussleistung (ICP) oder, bei Leistungstarif, Ihre monatliche Spitze. Das Netzladen bleibt darunter, und die Batterie deckt den Hausverbrauch darüber.",
           "three_phase_enabled": "Optionale Strom-Sicherheitsgrenze für dreiphasige Anlagen; Sensoren und physische Batteriephase werden im nächsten Schritt konfiguriert."
         }
       },
@@ -1278,21 +1276,19 @@
       },
       "capacity_protection": {
         "title": "Spitzenlastkappung",
-        "description": "Wenn aktiviert, wird das System bei niedrigem Batterie-SOC Energie sparen und nur entladen, um Verbrauch über einem Spitzenlimit auszugleichen.",
+        "description": "Wenn aktiviert, hält die Batterie bei Unterschreiten eines SOC-Schwellenwerts ihre Restladung für Spitzen zurück: Sie deckt den normalen Verbrauch nicht mehr und nur die Last über dem maximalen Netzbezug.",
         "data": {
           "configure_capacity_protection": "Spitzenlastkappung aktivieren"
         }
       },
       "capacity_protection_config": {
         "title": "Spitzenlastkappung konfigurieren",
-        "description": "Konfigurieren Sie den SOC-Schwellenwert, unter dem die Spitzenlastkappung aktiviert wird, und das Spitzenleistungslimit. Die Batterie entlädt nur, um den Netzimport unter dem Spitzenlimit zu halten.",
+        "description": "Konfigurieren Sie den SOC-Schwellenwert, unter dem die Batterie ihre Restladung für Spitzen zurückhält und nur den Verbrauch über dem maximalen Netzbezug deckt.",
         "data": {
-          "capacity_protection_soc_threshold": "SOC-Schwellenwert (%)",
-          "capacity_protection_limit": "Spitzenlimit (W)"
+          "capacity_protection_soc_threshold": "SOC-Schwellenwert (%)"
         },
         "data_description": {
-          "capacity_protection_soc_threshold": "Wenn der durchschnittliche Batterie-SOC unter diesen Wert fällt, wird die Spitzenlastkappung aktiviert. Die Batterie stoppt die Entladung für normalen Verbrauch und deckt nur Spitzen über dem Limit ab.",
-          "capacity_protection_limit": "Netzimport-Leistungsschwelle. Wenn der Hausverbrauch diesen Wert überschreitet und die Spitzenlastkappung aktiv ist, entlädt die Batterie nur den Überschuss über diesem Limit."
+          "capacity_protection_soc_threshold": "Wenn der durchschnittliche Batterie-SOC unter diesen Wert fällt, deckt die Batterie den normalen Verbrauch nicht mehr und nur die Last über dem maximalen Netzbezug."
         }
       },
       "pd_advanced": {
@@ -1585,6 +1581,9 @@
       },
       "capacity_protection": {
         "name": "Spitzenlastkappung"
+      },
+      "grid_import_window_15min": {
+        "name": "15-Minuten-Fenster Netzbezug"
       },
       "capacity_protection_excluded_devices": {
         "name": "Spitzenlastkappung für Ausgeschlossene Geräte"
@@ -2718,7 +2717,7 @@
         "name": "System-Maximal-Entladeleistung"
       },
       "max_contracted_power": {
-        "name": "Max. Vertragsleistung"
+        "name": "Maximaler Netzbezug"
       },
       "capacity_protection_soc_threshold": {
         "name": "Spitzenlastkappung SOC-Schwelle"
@@ -2740,9 +2739,6 @@
       },
       "temp_charge_limit_floor_pct": {
         "name": "Minimale Ladeleistung"
-      },
-      "capacity_protection_limit": {
-        "name": "Spitzenlastkappung Limit"
       },
       "backup_offgrid_threshold": {
         "name": "Backup Offgrid Schwellenwert"

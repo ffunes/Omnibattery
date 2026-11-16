@@ -84,7 +84,7 @@
           "solar_forecast_remaining_sensor": "Sensor de previsión solar restante de hoy (recomendado)",
           "solar_production_sensor": "Sensor de producción solar (opcional)",
           "meter_inverted": "Signo del medidor invertido",
-          "max_contracted_power": "Potencia máxima contratada (W)",
+          "max_contracted_power": "Máximo de importación de red (W)",
           "three_phase_enabled": "Activar protección de corriente trifásica"
         },
         "data_description": {
@@ -95,7 +95,7 @@
           "solar_forecast_remaining_sensor": "Sensor con la producción solar que todavía se espera hoy en kWh. Al guardarlo sustituye el forecast legado y nunca se reduce con la producción ya medida.",
           "solar_production_sensor": "Sensor de potencia de producción fotovoltaica en tiempo real (W/kW) de un inversor externo que no pasa por las entradas MPPT de la batería. Se usa para mostrar el nodo Solar en el diagrama de flujo del panel. Déjalo vacío si tus paneles alimentan directamente el MPPT de la batería.",
           "meter_inverted": "Activa esta opción si tu medidor usa el convenio opuesto: positivo = exportación, negativo = importación. La unidad (W/kW) se detecta automáticamente.",
-          "max_contracted_power": "Potencia total contratada en vatios. El sistema no superará este límite al cargar para evitar que salte el diferencial",
+          "max_contracted_power": "Máxima potencia que quieres tomar de la red, en vatios: tu potencia contratada (ICP) o, con tarifa por capacidad, tu pico mensual. La carga desde la red se mantiene por debajo y la batería cubre la casa por encima.",
           "three_phase_enabled": "Envolvente de seguridad de corriente opcional para instalaciones trifásicas; configura los sensores y la fase física de cada batería en el paso siguiente."
         }
       },
@@ -499,21 +499,19 @@
       },
       "capacity_protection": {
         "title": "Modo de reducción de picos",
-        "description": "Si se activa, cuando el SOC de la batería baje de un umbral, el sistema conservará energía descargando solo para cubrir consumo que supere un límite pico.",
+        "description": "Si se activa, cuando el SOC de la batería baje de un umbral, la batería reserva la carga restante para los picos: deja de cubrir el consumo normal y solo cubre la carga que supere el máximo de importación de red.",
         "data": {
           "configure_capacity_protection": "Activar reducción de picos"
         }
       },
       "capacity_protection_config": {
         "title": "Configuración de reducción de picos",
-        "description": "Configura el umbral de SOC por debajo del cual se activa la reducción de picos y el límite de potencia pico. La batería solo descargará para mantener la importación de red por debajo del límite.",
+        "description": "Configura el umbral de SOC por debajo del cual la batería reserva su carga restante para los picos y solo cubre el consumo que supere el máximo de importación de red.",
         "data": {
-          "capacity_protection_soc_threshold": "Umbral de SOC (%)",
-          "capacity_protection_limit": "Límite pico (W)"
+          "capacity_protection_soc_threshold": "Umbral de SOC (%)"
         },
         "data_description": {
-          "capacity_protection_soc_threshold": "Cuando el SOC medio de las baterías baje de este valor, se activa la reducción de picos. La batería dejará de descargar para consumo normal y solo cubrirá picos por encima del límite.",
-          "capacity_protection_limit": "Umbral de potencia de importación de red. Cuando el consumo de la casa supere este valor y la reducción de picos esté activa, la batería solo descargará el exceso por encima de este límite."
+          "capacity_protection_soc_threshold": "Cuando el SOC medio de las baterías baje de este valor, la batería dejará de cubrir el consumo normal y solo cubrirá la carga por encima del máximo de importación de red."
         }
       },
       "hourly_balance": {
@@ -886,7 +884,7 @@
           "solar_forecast_remaining_sensor": "Sensor de previsión solar restante de hoy (recomendado)",
           "solar_production_sensor": "Sensor de producción solar (opcional)",
           "meter_inverted": "Signo del medidor invertido",
-          "max_contracted_power": "Potencia máxima contratada (W)",
+          "max_contracted_power": "Máximo de importación de red (W)",
           "three_phase_enabled": "Activar protección de corriente trifásica"
         },
         "data_description": {
@@ -897,7 +895,7 @@
           "solar_forecast_remaining_sensor": "Sensor con la producción solar que todavía se espera hoy en kWh. Al guardarlo sustituye el forecast legado y nunca se reduce con la producción ya medida.",
           "solar_production_sensor": "Sensor de potencia de producción fotovoltaica en tiempo real (W/kW) de un inversor externo que no pasa por las entradas MPPT de la batería. Se usa para mostrar el nodo Solar en el diagrama de flujo del panel. Déjalo vacío si tus paneles alimentan directamente el MPPT de la batería.",
           "meter_inverted": "Activa esta opción si tu medidor usa el convenio opuesto: positivo = exportación, negativo = importación. La unidad (W/kW) se detecta automáticamente.",
-          "max_contracted_power": "Potencia total contratada en vatios. El sistema no superará este límite al cargar para evitar que salte el diferencial",
+          "max_contracted_power": "Máxima potencia que quieres tomar de la red, en vatios: tu potencia contratada (ICP) o, con tarifa por capacidad, tu pico mensual. La carga desde la red se mantiene por debajo y la batería cubre la casa por encima.",
           "three_phase_enabled": "Envolvente de seguridad de corriente opcional para instalaciones trifásicas; configura los sensores y la fase física de cada batería en el paso siguiente."
         }
       },
@@ -1278,21 +1276,19 @@
       },
       "capacity_protection": {
         "title": "Modo de reducción de picos",
-        "description": "Si se activa, cuando el SOC de la batería baje de un umbral, el sistema conservará energía descargando solo para cubrir consumo que supere un límite pico.",
+        "description": "Si se activa, cuando el SOC de la batería baje de un umbral, la batería reserva la carga restante para los picos: deja de cubrir el consumo normal y solo cubre la carga que supere el máximo de importación de red.",
         "data": {
           "configure_capacity_protection": "Activar reducción de picos"
         }
       },
       "capacity_protection_config": {
         "title": "Configuración de reducción de picos",
-        "description": "Configura el umbral de SOC por debajo del cual se activa la reducción de picos y el límite de potencia pico. La batería solo descargará para mantener la importación de red por debajo del límite.",
+        "description": "Configura el umbral de SOC por debajo del cual la batería reserva su carga restante para los picos y solo cubre el consumo que supere el máximo de importación de red.",
         "data": {
-          "capacity_protection_soc_threshold": "Umbral de SOC (%)",
-          "capacity_protection_limit": "Límite pico (W)"
+          "capacity_protection_soc_threshold": "Umbral de SOC (%)"
         },
         "data_description": {
-          "capacity_protection_soc_threshold": "Cuando el SOC medio de las baterías baje de este valor, se activa la reducción de picos. La batería dejará de descargar para consumo normal y solo cubrirá picos por encima del límite.",
-          "capacity_protection_limit": "Umbral de potencia de importación de red. Cuando el consumo de la casa supere este valor y la reducción de picos esté activa, la batería solo descargará el exceso por encima de este límite."
+          "capacity_protection_soc_threshold": "Cuando el SOC medio de las baterías baje de este valor, la batería dejará de cubrir el consumo normal y solo cubrirá la carga por encima del máximo de importación de red."
         }
       },
       "pd_advanced": {
@@ -1600,6 +1596,9 @@
       },
       "capacity_protection": {
         "name": "Reducción de Picos"
+      },
+      "grid_import_window_15min": {
+        "name": "Ventana de 15 min de Importación de Red"
       },
       "capacity_protection_excluded_devices": {
         "name": "Reducción de Picos para Dispositivos Excluidos"
@@ -2718,7 +2717,7 @@
         "name": "Potencia maxima de descarga del sistema"
       },
       "max_contracted_power": {
-        "name": "Potencia Máxima Contratada"
+        "name": "Máximo de Importación de Red"
       },
       "capacity_protection_soc_threshold": {
         "name": "Reducción de Picos – Umbral SOC"
@@ -2740,9 +2739,6 @@
       },
       "temp_charge_limit_floor_pct": {
         "name": "Potencia mínima de carga"
-      },
-      "capacity_protection_limit": {
-        "name": "Reducción de Picos – Límite"
       },
       "backup_offgrid_threshold": {
         "name": "Umbral Offgrid Backup"

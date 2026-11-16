@@ -40,7 +40,7 @@ You can leave these fields empty or disabled during the first setup and add them
 - **Off-grid power sensor** when a separate meter measures the backed-up circuit
 - **Three-phase current protection** when phase-current sensors are available; see [Three-phase current protection](configuration/three-phase.md)
 
-Set **Maximum contracted power** to the actual import limit for your home. Omnibattery uses it as a charging safety ceiling.
+Set **Maximum grid import** to the actual import limit for your home. Omnibattery keeps grid charging under it and covers any excess with the battery.
 
 ??? "Connection details by battery type"
     **Marstek:** Venus E v2 needs an RS-485 connection, such as a USB adapter or an RS-485-to-TCP converter. Venus E v3, Venus A and Venus D can use their network connection. The LilyGo path requires the supported ESPHome firmware and its stock Home Assistant entities.
