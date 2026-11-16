@@ -50,7 +50,7 @@ const node = () => ({
   get classList() { return { toggle: (key, value) => { this.toggles[key] = !!value; } }; },
 });
 const ref = Object.fromEntries(
-  'card badge notice hourlyBalanceLegend yAxis socAxis viewport stage tooltip previous next nowMarker nowText priceScale priceHigh priceLow'
+  'card badge notice hourlyBalanceLegend holdLegend yAxis socAxis viewport stage tooltip previous next nowMarker nowText priceScale priceHigh priceLow'
     .split(' ').map(key => [key, node()])
 );
 ref.viewport.clientWidth = 480;
@@ -76,6 +76,7 @@ process.stdout.write(JSON.stringify({
   items,
   cells: indexes.map(index => ({
     className: ref.cells[index].className, toggles: ref.cells[index].toggles,
+    background: ref.cells[index].style.backgroundImage || null,
     aria: ref.cells[index].attributes['aria-label'] || null,
     delayHidden: ref.cells[index].querySelector('.daily-op-delay-mark').hidden,
     setpointHidden: ref.cells[index].querySelector('.daily-op-setpoint-mark').hidden,
@@ -335,3 +336,21 @@ def test_flat_price_shows_one_label_at_the_line():
     result = _run({"price_per_kwh": _series(**{"7": 0.2, "8": 0.2, "9": 0.2})})
     assert result["priceScale"]["highTop"] == "98px"
     assert result["priceScale"]["lowHidden"] is True
+
+
+def test_a_held_battery_cell_is_hatched_and_named():
+    """The class alone drew nothing: the cell's inline background wins over
+    any stylesheet rule, so the hatch has to be set there."""
+    result = _run(
+        {
+            "actual_context_mask": _series(**{"7": 64}),
+            "solar_actual_kwh": _series(**{"7": 0}),
+            "consumption_actual_kwh": _series(**{"7": 0.1}),
+        }
+    )
+    held, current = result["cells"][0], result["cells"][1]
+
+    assert held["className"] == "daily-op-cell daily-op-base-hold"
+    assert "var(--daily-op-hold)" in held["background"]
+    assert "Battery held in reserve" in held["aria"]
+    assert current["background"] == "none"

@@ -215,6 +215,53 @@ def test_time_slot_projection_uses_horizon_aware_windows_only_for_dashboard():
     assert controller._planner_calls[0]["slots"] == (preview_slot,)
 
 
+@pytest.mark.parametrize(
+    ("before_open", "dated_sun", "plan_reaches_hours"),
+    [
+        # 23:00, the window opens at midnight: the control will plan it up to
+        # its own horizon, so the panel's plan reaches there.
+        (True, True, 32),
+        # Without dated sun for tomorrow the longer plan would see none.
+        (True, False, 12),
+        # 00:30, the window is open: the 12 h plan stays.
+        (False, True, 12),
+    ],
+)
+def test_time_slot_plan_reaches_the_horizon_of_a_window_not_yet_open(
+    before_open, dated_sun, plan_reaches_hours
+):
+    day = datetime(2026, 8, 24, 0, 0, tzinfo=MADRID)
+    now = day + (
+        timedelta(hours=23) if before_open else timedelta(days=1, minutes=30)
+    )
+    midnight = now.replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ) + timedelta(days=1)
+    opens = day + timedelta(days=1)
+    window = PriceSlot(opens, opens + timedelta(hours=2), 0.0)
+    controller = _controller_for_projection(
+        now,
+        [ProjectionIntervalInput(now, now + timedelta(minutes=15))],
+        [],
+        [BatteryProjectionInput("a", 5, 10, 0, 100, 4000, 4000)],
+        _daily_operation_mode=lambda: "time_slot",
+    )
+    controller._pricing_mgr._time_slot_price_slots_for_horizon = (
+        lambda _now, _end: [window]
+    )
+    controller._pricing_mgr.time_slot_preview_horizon = (
+        lambda _now, start: start + timedelta(hours=32) if dated_sun else None
+    )
+
+    ChargeDischargeController._daily_operation_build_projection(controller, now)
+
+    assert controller._planner_calls[0]["horizon_end"] == (
+        opens + timedelta(hours=32)
+        if plan_reaches_hours == 32
+        else midnight + timedelta(hours=12)
+    )
+
+
 def test_projection_uses_live_sources_without_restoring_daily_diagnostics():
     now = datetime(2026, 8, 24, 10, 0, tzinfo=MADRID)
     end = now + timedelta(minutes=15)

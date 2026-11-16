@@ -18,6 +18,7 @@ from .chronological import (
     EnergyInterval,
     build_energy_deadlines,
     normalize_energy_shape,
+    simulate_allocations,
 )
 from .solar_timeline import SolarTimelineResult, build_solar_timeline
 
@@ -324,6 +325,65 @@ def time_slot_window_hold(
             item = item.with_battery_idle()
         held.append(item)
     return held, window_load_on_grid
+
+
+def time_slot_window_keeps(
+    intervals: Sequence[EnergyInterval],
+    allocations: Sequence[Any],
+    windows: Sequence[Any],
+    *,
+    usable_kwh: float,
+    capacity_kwh: float,
+    now: datetime,
+    horizon_of: Callable[[datetime], datetime],
+    active_keep_kwh: float | None,
+) -> tuple[tuple[datetime, datetime, float | None], ...]:
+    """Usable energy each Time Slot window keeps, for the panel's projection.
+
+    The control's rule (``_apply_time_slot_chronological_plan``) as
+    ``(start, end, kwh)``; ``None`` keeps everything. A window that charges
+    holds whole. One that does not keeps what the plan drains from its start
+    down to its lowest point, within the horizon the control will plan when
+    the window opens (``horizon_of``). The window open now keeps the control's
+    live floor (``active_keep_kwh``). ``intervals`` are the plan's own: the
+    margined sun and the battery idle inside the windows. A window whose
+    horizon the plan does not reach holds whole: its lowest point is unknown,
+    and a shorter look would draw a discharge the control will not allow.
+    """
+    if not windows:
+        return ()
+    capacity = max(0.0, float(capacity_kwh))
+    start_energy = min(max(0.0, float(usable_kwh)), capacity)
+    trajectory = simulate_allocations(
+        intervals, start_energy, allocations, usable_capacity_kwh=capacity
+    ).trajectory
+    plan_end = trajectory[-1][0] if trajectory else now
+    keeps: list[tuple[datetime, datetime, float | None]] = []
+    for window in windows:
+        horizon = horizon_of(window.start)
+        if window.start <= now < window.end:
+            # ponytail: no live floor yet (before the window's first
+            # evaluation) draws it held; the control holds nothing until then.
+            keep = active_keep_kwh
+        elif plan_end < horizon or any(
+            a.planned_battery_kwh > 1e-6
+            and a.slot.start < window.end
+            and a.slot.end > window.start
+            for a in allocations
+        ):
+            keep = None
+        else:
+            entry = next(
+                (e for end, e in reversed(trajectory) if end <= window.start),
+                start_energy,
+            )
+            low = min(
+                [entry]
+                + [e for end, e in trajectory if window.start < end <= horizon]
+            )
+            keep = max(0.0, entry - max(0.0, low))
+        keeps.append((window.start, window.end, keep))
+    return tuple(keeps)
 
 
 @dataclass(frozen=True)

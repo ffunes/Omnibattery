@@ -266,6 +266,7 @@ from .tracking.daily_timeline import (
     CONTEXT_CHARGE_DELAY,
     CONTEXT_DYNAMIC_PRICE,
     CONTEXT_HOURLY_BALANCE,
+    CONTEXT_BATTERY_HOLD,
     CONTEXT_NONE,
     CONTEXT_REALTIME_PRICE,
     CONTEXT_SETPOINT,
@@ -304,6 +305,11 @@ _PREDICTIVE_HARD_LIMIT_MIN_MARGIN_W = 200.0
 # quarter-hour energy threshold avoids repainting the source whenever the PD
 # controller makes the meter oscillate by a few watts around zero.
 _DAILY_OPERATION_GRID_CHARGE_ENERGY_KWH = 0.05  # 50 Wh
+# Discharge blocks that keep stored energy for later (Daily Operation's
+# "battery held" cells); the others stop the battery for another reason.
+_DAILY_OPERATION_HOLD_SOURCES = frozenset(
+    {"time_slot_floor_hold", "weekly_refill_hold", "weekly_full_hold", "price_reserve"}
+)
 from .solar_forecast import (
     SolarForecastInput,
     get_configured_solar_forecast_sensor,
@@ -1895,6 +1901,11 @@ class ChargeDischargeController:
         context_mask |= ChargeDischargeController._daily_operation_hourly_balance_context(
             self, action_mask
         )
+        # Idle because the integration keeps the stored energy for later.
+        if not action_mask and _DAILY_OPERATION_HOLD_SOURCES & set(
+            getattr(self, "_global_discharge_blockers", None) or ()
+        ):
+            context_mask |= CONTEXT_BATTERY_HOLD
 
         weekly_charge_bypasses_delay = (
             ChargeDischargeController._daily_operation_weekly_delay_bypass(self)
@@ -2133,6 +2144,33 @@ class ChargeDischargeController:
             )
         slots = [slot for _raw_slot, slot in slot_pairs]
 
+        # Time Slot: a window that has not opened yet is planned by the
+        # control when it opens, against its own horizon (the next sunrise
+        # after that). The plan must reach it to know what the window will
+        # keep; the display stops where it did.
+        # ponytail: not while a window is open, whose charge this longer plan
+        # would size for the later one too, nor without dated sun for
+        # tomorrow. A window the plan does not reach is drawn held whole.
+        plan_horizon_end = projection_horizon_end
+        preview_horizon = getattr(planner, "time_slot_preview_horizon", None)
+        if (
+            mode == "time_slot"
+            and callable(preview_horizon)
+            and not any(slot.start <= now < slot.end for slot in slots)
+        ):
+            try:
+                horizons = [
+                    preview_horizon(now, slot.start)
+                    for slot in slots
+                    if slot.start > now
+                ]
+                plan_horizon_end = max(
+                    [projection_horizon_end]
+                    + [projection_datetime(h) for h in horizons if h is not None]
+                )
+            except (AttributeError, TypeError, ValueError):
+                plan_horizon_end = projection_horizon_end
+
         try:
             projection_builder = getattr(
                 planner, "build_extended_chronological_projection", None
@@ -2144,7 +2182,7 @@ class ChargeDischargeController:
                 slots=tuple(slots),
                 base_decision_data=base_decision_data,
                 price_ceiling=getattr(self, "max_price_threshold", None),
-                horizon_end=projection_horizon_end,
+                horizon_end=plan_horizon_end,
             )
             plan = projection_result.plan
             # These are projection-local diagnostics. They are deliberately
@@ -2330,7 +2368,7 @@ class ChargeDischargeController:
                     self, now
                 ),
                 reserve_floor=ChargeDischargeController._daily_operation_reserve_floor(
-                    self
+                    self, plan
                 ),
             )
         )
@@ -2504,7 +2542,7 @@ class ChargeDischargeController:
         return tuple((start, kwh * scale) for start, kwh in claims)
 
 
-    def _daily_operation_reserve_floor(self):
+    def _daily_operation_reserve_floor(self, plan=None):
         """The reserve's decision at a later slot, for the projection, or None.
 
         The hold between weekly charge blocks keeps everything where it
@@ -2534,13 +2572,19 @@ class ChargeDischargeController:
                 weekly_fn = weekly_hold()
             except Exception:  # noqa: BLE001 - dashboard projection is optional
                 weekly_fn = None
-        if weekly_fn is None:
+        # Time Slot: inside a window the battery spends only what is above
+        # the energy the control keeps there (None keeps everything).
+        keeps = tuple(getattr(plan, "window_keeps", None) or ())
+        if weekly_fn is None and not keeps:
             return reserve_fn
 
         def floor(start, usable_kwh, free_kwh):
-            held = weekly_fn(start, usable_kwh, free_kwh)
+            held = weekly_fn(start, usable_kwh, free_kwh) if weekly_fn else None
             if held is not None:
                 return held
+            for window_start, window_end, keep in keeps:
+                if window_start <= start < window_end:
+                    return usable_kwh if keep is None else keep
             return reserve_fn(start, usable_kwh, free_kwh) if reserve_fn else None
 
         return floor

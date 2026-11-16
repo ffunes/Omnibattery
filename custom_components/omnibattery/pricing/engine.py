@@ -123,6 +123,7 @@ from .plan_inputs import (  # noqa: F401  (_apply_excluded_demand_claim: re-expo
     consumption_shape,
     solar_timeline,
     time_slot_window_hold,
+    time_slot_window_keeps,
 )
 from .solar_timeline import (
     build_boundaries,
@@ -428,6 +429,43 @@ class PricingManager:
             ) + timedelta(days=1)
             return midnight, False
         return min(next_start, self.energy_horizon_end(now)), True
+
+    def time_slot_control_horizon(self, at: datetime) -> datetime:
+        """Horizon the control plans against when a window opens at ``at``
+        (``_apply_time_slot_chronological_plan``)."""
+        end, from_next_window = self._time_slot_horizon_end(at)
+        return end if from_next_window else self.energy_horizon_end(at)
+
+    def time_slot_preview_horizon(
+        self, now: datetime, opens: datetime
+    ) -> datetime | None:
+        """``time_slot_control_horizon`` of a window that opens at ``opens``,
+        when the panel's plan can reach it from ``now``; else None.
+
+        Past midnight the plan only has the sun the provider dates: without
+        dated periods for tomorrow it would plan a sunless day, which the
+        control, reading tomorrow's forecast when the window opens, will not.
+        """
+        horizon = self.time_slot_control_horizon(opens)
+        tomorrow = now.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) + timedelta(days=1)
+        if horizon <= tomorrow:
+            return horizon
+        if normalize_solar_profile_mode(
+            getattr(self._controller, "solar_profile_mode", None)
+        ) == "off":
+            return None
+        solar_input = self._read_remaining_solar_input(
+            now=now, update_controller=False
+        )
+        covered = _periods_cover(
+            solar_input.periods if solar_input is not None else None,
+            tomorrow,
+            min(horizon, tomorrow + timedelta(days=1)),
+            solar_forecast_local_timezone(self._hass, self._controller, now),
+        )
+        return horizon if covered else None
 
     def planning_horizon_end(self, now: datetime, slots: Sequence[PriceSlot]) -> datetime:
         """Horizon the charge planner looks at, given the known price ``slots``.
@@ -4274,11 +4312,12 @@ class PricingManager:
                 )
                 shown_solar = shown_result.intervals_kwh
                 shown_fallback_reason = shown_result.timeline.fallback_reason
-                shown_intervals, _ = time_slot_window_hold(
-                    battery_idle_intervals(
-                        boundaries, consumption, shown_solar, **idle_kwargs
-                    ),
-                    windows,
+            if safety > 0.0 or windows:
+                # The windows are not idled here: the panel holds each one at
+                # the energy the control keeps (``plan.window_keeps``) and
+                # lets the battery spend the rest, as the control does.
+                shown_intervals = battery_idle_intervals(
+                    boundaries, consumption, shown_solar, **idle_kwargs
                 )
                 if discharge_limit_w is not None:
                     shown_intervals = cap_battery_drain(
@@ -4679,6 +4718,26 @@ class PricingManager:
                 for index, (start, _end) in enumerate(boundaries)
             }
             plan.shown_intervals = tuple(shown_intervals)
+            live_floor = getattr(self._controller, "_time_slot_floor_kwh", None)
+            plan.window_keeps = time_slot_window_keeps(
+                intervals,
+                plan.allocations,
+                windows,
+                usable_kwh=usable,
+                capacity_kwh=usable + headroom,
+                now=now,
+                horizon_of=self.time_slot_control_horizon,
+                # The control's floor is stored energy; the panel reserves
+                # usable energy, above the batteries' minimum.
+                active_keep_kwh=(
+                    None
+                    if live_floor is None
+                    else max(
+                        0.0,
+                        float(live_floor) - (self._fleet_stored_kwh() - usable),
+                    )
+                ),
+            )
             if not diagnostic_only:
                 # What the published projection starts from and is capped at.
                 plan.projection_inputs = (usable, usable + headroom)

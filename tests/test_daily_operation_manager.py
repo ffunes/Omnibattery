@@ -316,6 +316,38 @@ def test_runtime_diary_classifies_discharge_from_hourly_balance():
 
 
 @pytest.mark.parametrize(
+    ("blockers", "ac_power", "held"),
+    [
+        # Idle under the Time Slot floor: the integration keeps the energy.
+        ({"time_slot_floor_hold": {}}, 0, True),
+        # Idle for another reason (minimum SOC) is not a reserve.
+        ({"min_soc": {}}, 0, False),
+        # A battery that moves is drawn by what it does.
+        ({"time_slot_floor_hold": {}}, 600, False),
+        ({}, 0, False),
+    ],
+)
+def test_runtime_diary_marks_a_battery_the_integration_holds(blockers, ac_power, held):
+    from custom_components.omnibattery.tracking.daily_timeline import (
+        CONTEXT_BATTERY_HOLD,
+    )
+
+    coordinator = SimpleNamespace(
+        driver=_FakeMarstekDriver(),
+        capabilities=SimpleNamespace(has_mppt_pv=False, has_solar_telemetry=False),
+        data={"ac_power": ac_power},
+    )
+    controller = _runtime_controller([coordinator])
+    controller._global_discharge_blockers = blockers
+
+    decision = ChargeDischargeController._daily_operation_runtime_decision(
+        controller, datetime(2026, 8, 24, 0, 15, tzinfo=MADRID)
+    )
+
+    assert bool(decision["context_mask"] & CONTEXT_BATTERY_HOLD) is held
+
+
+@pytest.mark.parametrize(
     ("state", "unlocked", "expected"),
     [
         ("Idle", False, False),

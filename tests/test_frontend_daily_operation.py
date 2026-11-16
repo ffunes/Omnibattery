@@ -198,3 +198,21 @@ def test_the_legend_wraps_only_between_areas_and_lines():
     first_line = panel.index('daily-op-line daily-op-line-solar"></i>')
     assert first < not_needed < second < first_line
     assert ".daily-op-legend, .daily-op-legend-group { display: flex;" in panel
+
+
+def test_a_battery_held_in_reserve_has_its_own_cell_legend_and_label():
+    """A quarter in which the integration blocks discharge to keep energy
+    for later looked like a gap (the background colour, "No action")."""
+    panel = PANEL.read_text(encoding="utf-8")
+
+    assert "const DAILY_OPERATION_CONTEXT_BATTERY_HOLD = 64;" in panel
+    assert "hold: ((context || 0) & DAILY_OPERATION_CONTEXT_BATTERY_HOLD) !== 0," in panel
+    # A real action or a solar window still wins the base colour.
+    assert (
+        'item.actions[0] || (item.hold ? "hold" : item.decision === "not_needed"'
+        in panel
+    )
+    assert ".daily-op-swatch-hold {" in panel
+    assert "ref.holdLegend.hidden = !snapshot.holdSeen;" in panel
+    assert panel.count('this._t("dailyOperationHold")') == 3  # legend, tip, aria
+    assert panel.count("dailyOperationHold: ") == 6  # one per language

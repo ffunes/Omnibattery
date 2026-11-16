@@ -57,6 +57,8 @@ CONTEXT_DYNAMIC_PRICE = 4
 CONTEXT_TIME_SLOT = 8
 CONTEXT_REALTIME_PRICE = 16
 CONTEXT_HOURLY_BALANCE = 32
+# The integration blocks discharge to keep stored energy for later.
+CONTEXT_BATTERY_HOLD = 64
 CONTEXT_NONE = 0
 CONTEXT_MASK_ALL = (
     CONTEXT_SETPOINT
@@ -65,6 +67,7 @@ CONTEXT_MASK_ALL = (
     | CONTEXT_TIME_SLOT
     | CONTEXT_REALTIME_PRICE
     | CONTEXT_HOURLY_BALANCE
+    | CONTEXT_BATTERY_HOLD
 )
 
 STATE_PAST = "past"
@@ -112,6 +115,7 @@ CONTEXT_NAMES = {
     CONTEXT_TIME_SLOT: "time_slot",
     CONTEXT_REALTIME_PRICE: "realtime_price",
     CONTEXT_HOURLY_BALANCE: "hourly_balance",
+    CONTEXT_BATTERY_HOLD: "battery_hold",
 }
 _CONTEXT_ALIASES = {
     "setpoint": CONTEXT_SETPOINT,
@@ -128,6 +132,7 @@ _CONTEXT_ALIASES = {
     "hourly_balance": CONTEXT_HOURLY_BALANCE,
     "hourly_net_balance": CONTEXT_HOURLY_BALANCE,
     "net_balance": CONTEXT_HOURLY_BALANCE,
+    "battery_hold": CONTEXT_BATTERY_HOLD,
 }
 
 
@@ -1483,6 +1488,19 @@ def simulate_battery_projection(
         context = _metadata_value(context_masks, index, interval_list)
         if context is None:
             context = interval.context_mask
+        # The reserve, not the power or an empty battery, left this house
+        # load to the grid: the battery is held on purpose.
+        if (
+            reserve_floor is not None
+            and grid_to_battery <= _EPSILON
+            and grid_to_home > _EPSILON
+            and reserve_room <= _EPSILON
+            and any(
+                states[key] - values["minimum"] > _EPSILON
+                for key, values in per_battery.items()
+            )
+        ):
+            context = int(context or 0) | CONTEXT_BATTERY_HOLD
         action_mask = compose_action_mask(
             solar_charge=solar_to_battery > _EPSILON,
             grid_charge=grid_to_battery > _EPSILON,
@@ -2376,6 +2394,7 @@ __all__ = [
     "CONTEXT_CHARGE_DELAY",
     "CONTEXT_DYNAMIC_PRICE",
     "CONTEXT_HOURLY_BALANCE",
+    "CONTEXT_BATTERY_HOLD",
     "CONTEXT_MASK_ALL",
     "CONTEXT_NAMES",
     "CONTEXT_NONE",

@@ -159,6 +159,162 @@ def test_the_hold_releases_outside_its_case(change):
     assert "time_slot_floor_hold" not in blocks
 
 
+# ----------------------------------------------------------------------
+# The Daily Operation preview of a window that has not opened yet
+# ----------------------------------------------------------------------
+
+EVENING = datetime(2026, 11, 9, 22, 0)
+EVENING_LOAD = 2 * LOAD_KW  # 22:00-24:00
+
+
+def _preview(soc):
+    """The panel's plan at 22:00 for the window that opens at midnight."""
+    manager, _, _ = _manager(soc)
+    opens = EVENING + timedelta(hours=2)
+    horizon = manager.time_slot_control_horizon(opens)
+    slots = [
+        slot
+        for slot in manager._time_slot_price_slots_for_horizon(EVENING, horizon)
+        if slot.start == opens
+    ]
+    usable = (soc - 10.0) / 10.0
+    plan = manager.build_extended_chronological_projection(
+        now=EVENING,
+        slots=slots,
+        base_decision_data=_decision(usable),
+        price_ceiling=None,
+        horizon_end=horizon,
+    ).plan
+    keep = next(k for start, _end, k in plan.window_keeps if start == opens)
+    return plan, keep
+
+
+def test_the_preview_keeps_what_the_control_will_keep_when_the_window_opens():
+    """95% at 22:00 is 89% at midnight: the control then holds the 4.8 kWh
+    of the day after the window, and so does the preview drawn at 22:00."""
+    plan, keep = _preview(95.0)
+
+    at_midnight = 95.0 - EVENING_LOAD * 10.0
+    control, _, _ = _manager(at_midnight)
+    usable = (at_midnight - 10.0) / 10.0
+    control._apply_time_slot_chronological_plan(
+        {
+            "avg_consumption_kwh": 24 * LOAD_KW,
+            "planned_grid_charge_kwh": 0.0,
+            "should_charge": False,
+        },
+        now=EVENING + timedelta(hours=2),
+    )
+    assert usable > 16 * LOAD_KW  # no charge needed: the spare rule applies
+    control_keep = control._controller._time_slot_floor_kwh - 1.0  # over min SOC
+
+    assert not plan.allocations
+    assert keep == pytest.approx(16 * LOAD_KW, abs=0.05)
+    assert keep == pytest.approx(control_keep, abs=0.05)
+
+
+def test_the_preview_draws_the_window_load_the_plan_idles():
+    """The plan still idles the window to size the charge; the drawn
+    intervals carry its load, which the kept energy then limits."""
+    plan, _keep = _preview(95.0)
+    opens = EVENING + timedelta(hours=2)
+
+    def inside(items):
+        return [i for i in items if opens <= i.start < opens + timedelta(hours=8)]
+
+    assert all(i.consumption_kwh == 0.0 for i in inside(plan.intervals))
+    assert all(
+        i.consumption_kwh == pytest.approx(LOAD_KW / 4)
+        for i in inside(plan.shown_intervals)
+    )
+
+
+def test_the_preview_holds_whole_a_window_that_will_charge():
+    plan, keep = _preview(30.0)
+
+    assert sum(a.planned_battery_kwh for a in plan.allocations) > 0.5
+    assert keep is None
+
+
+def test_the_preview_reaches_tomorrow_only_with_dated_sun_for_it():
+    """Without dated periods for tomorrow the longer plan would see a sunless
+    day and book a charge the control, reading tomorrow's forecast when the
+    window opens, will not make: the plan stays short and the window held."""
+    from custom_components.omnibattery.solar_forecast import (
+        SolarForecastInput,
+        SolarForecastPeriod,
+    )
+
+    opens = EVENING + timedelta(hours=2)
+    from datetime import timezone
+
+    noon = (opens + timedelta(hours=12)).replace(tzinfo=timezone.utc)
+    dated = SolarForecastInput(
+        0.0, "remaining", periods=(SolarForecastPeriod(noon, noon + timedelta(hours=1), 1.0),)
+    )
+    manager, _, _ = _manager(95.0)
+
+    assert manager.time_slot_preview_horizon(EVENING, opens) is None
+    manager._read_remaining_solar_input = lambda **_kw: dated
+    assert manager.time_slot_preview_horizon(EVENING, opens) == (
+        manager.time_slot_control_horizon(opens)
+    )
+    manager._controller.solar_profile_mode = "off"
+    assert manager.time_slot_preview_horizon(EVENING, opens) is None
+    # A window that opens today is planned within today's horizon anyway.
+    assert manager.time_slot_preview_horizon(
+        EVENING, EVENING + timedelta(hours=1)
+    ) is not None
+
+
+def test_the_longer_plan_draws_the_same_series_and_sees_tomorrow_s_sun():
+    """One forecast, the 12 h plan and the one to the control's horizon: what
+    they both draw is equal, the longer one carries tomorrow afternoon's sun,
+    and only it knows what the window keeps (the short one holds whole)."""
+    from datetime import timezone
+
+    from custom_components.omnibattery.solar_forecast import (
+        SolarForecastInput,
+        SolarForecastPeriod,
+    )
+
+    opens = EVENING + timedelta(hours=2)
+    hours = [(opens + timedelta(hours=h)).replace(tzinfo=timezone.utc) for h in range(9, 16)]
+    dated = SolarForecastInput(
+        0.0,
+        "remaining",
+        periods=tuple(SolarForecastPeriod(h, h + timedelta(hours=1), 0.5) for h in hours),
+    )
+
+    def build(reach_h):
+        manager, _, _ = _manager(95.0)
+        manager._read_remaining_solar_input = lambda **_kw: dated
+        slots = [
+            slot
+            for slot in manager._time_slot_price_slots_for_horizon(
+                EVENING, opens + timedelta(hours=12)
+            )
+            if slot.start == opens
+        ]
+        return manager.build_extended_chronological_projection(
+            now=EVENING,
+            slots=slots,
+            base_decision_data=_decision(8.5),
+            price_ceiling=None,
+            horizon_end=opens + timedelta(hours=reach_h),
+        ).plan
+
+    short, long = build(12), build(24)
+
+    assert long.shown_intervals[: len(short.shown_intervals)] == short.shown_intervals
+    assert sum(
+        i.solar_kwh for i in long.shown_intervals if i.start >= opens + timedelta(hours=12)
+    ) == pytest.approx(2.0)
+    assert short.window_keeps[0][2] is None
+    # 4.8 kWh of load after the window, 3.5 kWh of sun on the way.
+    assert long.window_keeps[0][2] == pytest.approx(1.3, abs=0.05)
+
+
 def test_a_headroom_capped_balance_still_buys_the_after_window_need():
     # Field case 2026-11-11: the scalar balance, capped at the room to max_soc,
     # minus the window load left 0.06 kWh while the plan needed 3.2 kWh after
