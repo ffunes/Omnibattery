@@ -1582,6 +1582,9 @@
       "weekly_full_charge_skip_recent": {
         "name": "Ometre la càrrega setmanal completa després d'una càrrega completa recent"
       },
+      "weekly_full_charge_one_battery_per_day": {
+        "name": "Càrrega setmanal completa: una bateria per dia"
+      },
       "capacity_protection": {
         "name": "Reducció de Pics"
       },

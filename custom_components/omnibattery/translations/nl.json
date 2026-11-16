@@ -1582,6 +1582,9 @@
       "weekly_full_charge_skip_recent": {
         "name": "Wekelijkse volledige lading overslaan na een recente volledige lading"
       },
+      "weekly_full_charge_one_battery_per_day": {
+        "name": "Wekelijkse volledige lading: één batterij per dag"
+      },
       "capacity_protection": {
         "name": "Piekbegrenzing"
       },

@@ -81,6 +81,8 @@ from .const import (
     CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
     DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
     weekly_full_charge_skip_recent_days,
+    CONF_WEEKLY_FULL_CHARGE_ONE_PER_DAY,
+    DEFAULT_WEEKLY_FULL_CHARGE_ONE_PER_DAY,
     CONF_ENABLE_CHARGE_DELAY,
     CONF_DELAY_SAFETY_MARGIN_MIN,
     DEFAULT_DELAY_SAFETY_MARGIN_MIN,
@@ -1323,6 +1325,11 @@ class ChargeDischargeController:
                 config_entry.data.get(CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS)
             )
             or DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS
+        )
+        self._weekly_full_charge_one_per_day = bool(
+            config_entry.data.get(
+                CONF_WEEKLY_FULL_CHARGE_ONE_PER_DAY, DEFAULT_WEEKLY_FULL_CHARGE_ONE_PER_DAY
+            )
         )
         # None until the user sets one: the default then follows the fleet.
         self._predictive_safety_margin_stored: float | None = config_entry.data.get(
@@ -3192,6 +3199,7 @@ class ChargeDischargeController:
             getattr(self, "weekly_full_charge_day", None),
             bool(getattr(self, "_weekly_full_charge_skip_recent", False)),
             getattr(self, "_weekly_full_charge_skip_recent_days", None),
+            bool(getattr(self, "_weekly_full_charge_one_per_day", False)),
             bool(getattr(self, "discharge_reserve_enabled", False)),
             bool(getattr(self, "capacity_protection_enabled", False)),
             _rounded(getattr(self, "capacity_protection_limit", None)),
@@ -3344,6 +3352,11 @@ class ChargeDischargeController:
                 self.config_entry.data.get(CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS)
             )
             or DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS
+        )
+        self._weekly_full_charge_one_per_day = bool(
+            self.config_entry.data.get(
+                CONF_WEEKLY_FULL_CHARGE_ONE_PER_DAY, DEFAULT_WEEKLY_FULL_CHARGE_ONE_PER_DAY
+            )
         )
         self._predictive_safety_margin_stored = self.config_entry.data.get(
             CONF_PREDICTIVE_SAFETY_MARGIN_KWH
@@ -4036,11 +4049,15 @@ class ChargeDischargeController:
 
         if not getattr(self, "weekly_full_charge_enabled", False):
             return False
+        manager = getattr(self, "_weekly_charge_mgr", None)
+        one_per_day = getattr(manager, "one_battery_per_day", None)
+        if callable(one_per_day) and one_per_day():
+            # Every day of the rotation charges a battery, not only the first.
+            return manager.rotation_pending_on(now.date() + timedelta(days=1))
         target = WEEKDAY_MAP.get(getattr(self, "weekly_full_charge_day", None))
         if target is None or (now.weekday() + 1) % 7 != target:
             return False
         # A run that will be skipped for a recent full charge needs no room.
-        manager = getattr(self, "_weekly_charge_mgr", None)
         skipped = getattr(manager, "recent_full_charge_before", None)
         return not (
             callable(skipped) and skipped(now.date() + timedelta(days=1)) is not None
@@ -4081,8 +4098,14 @@ class ChargeDischargeController:
         manager = getattr(self, "_weekly_charge_mgr", None)
         return manager is not None and manager.is_active()
 
+    def _weekly_full_charge_runs_for(self, coordinator) -> bool:
+        """Whether this battery is part of the weekly run (one battery per day: its turn)."""
+        manager = getattr(self, "_weekly_charge_mgr", None)
+        runs_for = getattr(manager, "runs_for", None)
+        return runs_for(coordinator) if callable(runs_for) else True
+
     def _weekly_full_charge_gap_kwh(self, coordinators) -> float:
-        """Return the fleet energy gap to 100% while a weekly charge is pending."""
+        """Return the gap to 100% of the batteries in a pending weekly run."""
         if not ChargeDischargeController._weekly_full_charge_pending(self):
             return 0.0
         return sum(
@@ -4092,6 +4115,7 @@ class ChargeDischargeController:
                 * float(c.data.get("battery_total_energy", 0) or 0.0),
             )
             for c in coordinators
+            if ChargeDischargeController._weekly_full_charge_runs_for(self, c)
         )
 
     def _charge_ceiling_soc(self, coordinator) -> float:
@@ -4103,7 +4127,9 @@ class ChargeDischargeController:
         planner stopping at max_soc and the weekly routine waiting for solar
         that may never arrive.
         """
-        if ChargeDischargeController._weekly_full_charge_pending(self):
+        if ChargeDischargeController._weekly_full_charge_pending(
+            self
+        ) and ChargeDischargeController._weekly_full_charge_runs_for(self, coordinator):
             return 100.0
         return float(coordinator.max_soc)
 
@@ -4138,7 +4164,10 @@ class ChargeDischargeController:
         # charging was silently ignored for the whole window. Weekly full charge
         # still wins, as it did when the slot branch was ordered after it.
         slot_cap = ChargeDischargeController._slot_charge_soc_max(self, coordinator)
-        if slot_cap is not None and not ChargeDischargeController._weekly_full_charge_pending(self):
+        in_weekly_run = ChargeDischargeController._weekly_full_charge_pending(
+            self
+        ) and ChargeDischargeController._weekly_full_charge_runs_for(self, coordinator)
+        if slot_cap is not None and not in_weekly_run:
             ceiling = min(ceiling, slot_cap)
 
         if (
@@ -4150,7 +4179,9 @@ class ChargeDischargeController:
             if per_battery_target is not None:
                 return min(ceiling, per_battery_target), "predictive_target"
 
-        if weekly_100_unlocked:
+        if weekly_100_unlocked and ChargeDischargeController._weekly_full_charge_runs_for(
+            self, coordinator
+        ):
             return 100, "weekly_full_charge"
 
         if slot_cap is not None:

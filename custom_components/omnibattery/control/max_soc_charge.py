@@ -108,6 +108,11 @@ class MaxSocChargeManager:
             )
         )
 
+    def _in_weekly_run(self, coordinator) -> bool:
+        """Whether a weekly run charges this battery (one battery per day: its turn)."""
+        runs_for = getattr(self._controller, "_weekly_full_charge_runs_for", None)
+        return runs_for(coordinator) if callable(runs_for) else True
+
     def _taper_applies(self, coordinator) -> bool:
         """Return True when taper is enabled for this coordinator."""
         if getattr(coordinator, "battery_manual_mode_enabled", False):
@@ -739,6 +744,7 @@ class MaxSocChargeManager:
             weekly_active = (
                 hasattr(c, "_weekly_charge_mgr")
                 and c._weekly_full_charge_unlocked()
+                and self._in_weekly_run(coordinator)
             )
 
             # SOC recalibration starts only once the cell has reached the top
@@ -868,7 +874,11 @@ class MaxSocChargeManager:
                 c._normal_balance_phases.pop(coordinator, None)
                 c._normal_balance_measure_started.pop(coordinator, None)
                 continue
-            if weekly_active and not post_bms_measurement:
+            if (
+                weekly_active
+                and self._in_weekly_run(coordinator)
+                and not post_bms_measurement
+            ):
                 # Let the weekly taper charge to the BMS cutoff; don't hold/measure.
                 c._normal_balance_phases.pop(coordinator, None)
                 c._normal_balance_measure_started.pop(coordinator, None)

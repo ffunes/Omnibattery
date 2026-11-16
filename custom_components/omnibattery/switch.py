@@ -28,6 +28,7 @@ from .const import (
     CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY,
     CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY,
     CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT,
+    CONF_WEEKLY_FULL_CHARGE_ONE_PER_DAY,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     CONF_MANUAL_MODE_ENABLED,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
@@ -109,6 +110,7 @@ async def async_setup_entry(
         # be turned on from the dashboard even if configured off at setup).
         entities.append(WeeklyFullChargeEnableSwitch(hass, entry, controller))
         entities.append(WeeklyFullChargeSkipRecentSwitch(hass, entry, controller))
+        entities.append(WeeklyFullChargeOnePerDaySwitch(hass, entry, controller))
         entities.append(VacationModeSwitch(hass, entry, controller))
 
     # Keep mode-specific predictive controls registered while the master switch
@@ -2281,6 +2283,67 @@ class WeeklyFullChargeSkipRecentSwitch(SwitchEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         """Run the weekly full charge every week."""
+        await self._set(False)
+
+    @property
+    def device_info(self):
+        """Return device information for the system."""
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class WeeklyFullChargeOnePerDaySwitch(SwitchEntity):
+    """Charge one battery per day in the weekly full charge.
+
+    ON  = the run lasts one day per automatic battery (at most a week) from the
+          full charge day, and each day charges only the battery that went
+          longest without a full charge.
+    OFF = every battery charges to 100% on the full charge day (default).
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        """Initialize the one-battery-per-day switch."""
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "weekly_full_charge_one_battery_per_day"
+        self._attr_unique_id = (
+            f"{SYSTEM_UNIQUE_ID_PREFIX}weekly_full_charge_one_battery_per_day"
+        )
+        self.entity_id = system_entity_id(
+            "switch", "weekly_full_charge_one_battery_per_day"
+        )
+        self._attr_icon = "mdi:battery-sync"
+        self._attr_should_poll = False
+
+    @property
+    def is_on(self) -> bool:
+        """Return True when the weekly run charges one battery per day."""
+        return bool(getattr(self.controller, "_weekly_full_charge_one_per_day", False))
+
+    async def _set(self, enabled: bool) -> None:
+        self.controller._weekly_full_charge_one_per_day = enabled
+        new_data = dict(self.entry.data)
+        new_data[CONF_WEEKLY_FULL_CHARGE_ONE_PER_DAY] = enabled
+        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+        _LOGGER.info(
+            "Weekly Full Charge: one battery per day %s",
+            "ENABLED" if enabled else "DISABLED",
+        )
+        self.async_write_ha_state()
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Charge one battery per day."""
+        await self._set(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Charge every battery on the full charge day."""
         await self._set(False)
 
     @property

@@ -8190,21 +8190,48 @@ class PricingManager:
             "current_price": current_price,
             "threshold": None if threshold is None else round(threshold, 4),
         }
-        if (
+        hold_refill = not (
             threshold is None
             or current_price is None
             or pays
             or getattr(ctrl, "_current_price_slot_active", False)
-        ):
+        )
+        manager = getattr(ctrl, "_weekly_charge_mgr", None)
+        one_per_day = getattr(manager, "one_battery_per_day", None)
+        runs_for = getattr(ctrl, "_weekly_full_charge_runs_for", None)
+
+        def in_run(coordinator) -> bool:
+            return runs_for(coordinator) if callable(runs_for) else True
+
+        coordinators = getattr(ctrl, "coordinators", ()) or ()
+        if callable(one_per_day) and one_per_day():
+            # One battery per day: only the battery being filled has to keep
+            # what it holds; the others cover the house as usual.
             ctrl.remove_discharge_block("weekly_refill_hold")
+            for coordinator in coordinators:
+                if hold_refill and in_run(coordinator):
+                    ctrl.set_discharge_block(
+                        "weekly_refill_hold",
+                        "weekly_refill",
+                        details,
+                        coordinator=coordinator,
+                    )
+                else:
+                    ctrl.remove_discharge_block(
+                        "weekly_refill_hold", coordinator=coordinator
+                    )
         else:
-            ctrl.set_discharge_block("weekly_refill_hold", "weekly_refill", details)
+            for coordinator in coordinators:
+                ctrl.remove_discharge_block("weekly_refill_hold", coordinator=coordinator)
+            if hold_refill:
+                ctrl.set_discharge_block("weekly_refill_hold", "weekly_refill", details)
+            else:
+                ctrl.remove_discharge_block("weekly_refill_hold")
 
         hold_full = bool(run_slots) and not pays
-        manager = getattr(ctrl, "_weekly_charge_mgr", None)
         is_full = getattr(manager, "is_battery_full", None)
-        for coordinator in getattr(ctrl, "coordinators", ()) or ():
-            if hold_full and callable(is_full) and is_full(coordinator):
+        for coordinator in coordinators:
+            if hold_full and in_run(coordinator) and callable(is_full) and is_full(coordinator):
                 ctrl.set_discharge_block(
                     "weekly_full_hold",
                     "weekly_full",

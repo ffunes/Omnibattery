@@ -767,6 +767,18 @@ class WeeklyFullChargeSensor(SensorEntity):
             getattr(self._controller, "_weekly_full_charge_skip_recent", False)
         )
         manager = getattr(self._controller, "_weekly_charge_mgr", None)
+        attrs["one_battery_per_day"] = bool(
+            getattr(self._controller, "_weekly_full_charge_one_per_day", False)
+        )
+        rotation = self._controller._weekly_charge_status.get("rotation")
+        if attrs["one_battery_per_day"] and rotation:
+            attrs["rotation"] = rotation
+        per_battery = getattr(manager, "last_full_by_battery", None)
+        if isinstance(per_battery, dict) and per_battery:
+            attrs["last_full_charge_by_battery"] = {
+                name: moment.isoformat(timespec="minutes")
+                for name, moment in per_battery.items()
+            }
         days = getattr(manager, "skip_recent_days", None)
         if days is not None:
             attrs["skip_recent_days"] = days

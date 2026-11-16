@@ -42,6 +42,7 @@ FINGERPRINT = {
     "weekly_full_charge_day",
     "_weekly_full_charge_skip_recent",
     "_weekly_full_charge_skip_recent_days",
+    "_weekly_full_charge_one_per_day",
     "discharge_reserve_enabled",
     "capacity_protection_enabled",
     "capacity_protection_limit",

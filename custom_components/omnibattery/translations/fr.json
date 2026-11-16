@@ -1582,6 +1582,9 @@
       "weekly_full_charge_skip_recent": {
         "name": "Ignorer la charge complète hebdomadaire après une charge complète récente"
       },
+      "weekly_full_charge_one_battery_per_day": {
+        "name": "Charge complète hebdomadaire : une batterie par jour"
+      },
       "capacity_protection": {
         "name": "Écrêtement de Pointe"
       },

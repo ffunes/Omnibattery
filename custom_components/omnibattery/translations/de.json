@@ -1582,6 +1582,9 @@
       "weekly_full_charge_skip_recent": {
         "name": "Wöchentliche Vollladung nach kürzlicher Vollladung überspringen"
       },
+      "weekly_full_charge_one_battery_per_day": {
+        "name": "Wöchentliche Vollladung: eine Batterie pro Tag"
+      },
       "capacity_protection": {
         "name": "Spitzenlastkappung"
       },

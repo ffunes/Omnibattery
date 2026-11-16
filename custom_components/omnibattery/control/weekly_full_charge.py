@@ -31,6 +31,7 @@ from ..const import (
     NORMAL_BALANCE_TAPER_CELL_VOLTAGE,
     DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS,
     WEEKDAY_MAP,
+    WEEKLY_ROTATION_MAX_DAYS,
     weekly_full_charge_skip_recent_days,
 )
 
@@ -317,37 +318,56 @@ class WeeklyFullChargeManager:
         """When every automatic battery last stood full, or None."""
         return getattr(self, "_last_full_at", None)
 
-    def _fleet_full(self) -> bool:
-        """Every automatic battery with data is full, without side effects.
+    @property
+    def last_full_by_battery(self) -> dict[str, datetime]:
+        """When each automatic battery last stood full, by name."""
+        found = getattr(self, "_last_full_by_battery", None)
+        if found is None:
+            found = self._last_full_by_battery = {}
+        return found
+
+    def _automatic_batteries(self) -> list:
+        """The batteries a weekly run charges: every one not in manual mode."""
+        return [
+            coordinator
+            for coordinator in getattr(self._controller, "coordinators", ()) or ()
+            if not getattr(coordinator, "battery_manual_mode_enabled", False)
+        ]
+
+    def _stands_full(self, coordinator: Any) -> bool:
+        """This battery is full, without side effects.
 
         Unlike is_battery_full() this never prepares a BMS-cutoff retry: it is
         asked every cycle, outside a weekly run too.
         """
-        batteries = [
-            coordinator
-            for coordinator in getattr(self._controller, "coordinators", ()) or ()
-            if getattr(coordinator, "data", None)
-            and not getattr(coordinator, "battery_manual_mode_enabled", False)
-        ]
-        if not batteries:
+        data = getattr(coordinator, "data", None)
+        if not data:
             return False
-        for coordinator in batteries:
-            try:
-                soc = float(coordinator.data.get("battery_soc", 0) or 0)
-            except (TypeError, ValueError):
-                return False
-            if soc_vs_ceiling(coordinator, soc) < 100 and not self.is_bms_cutoff_confirmed(
-                coordinator
-            ):
-                return False
-        return True
+        try:
+            soc = float(data.get("battery_soc", 0) or 0)
+        except (TypeError, ValueError):
+            return False
+        return soc_vs_ceiling(coordinator, soc) >= 100 or self.is_bms_cutoff_confirmed(
+            coordinator
+        )
+
+    def _fleet_full(self) -> bool:
+        """Every automatic battery with data is full, without side effects."""
+        batteries = [c for c in self._automatic_batteries() if getattr(c, "data", None)]
+        return bool(batteries) and all(self._stands_full(c) for c in batteries)
 
     def note_full_charge(self, now: datetime | None = None) -> None:
-        """Remember the moment while every automatic battery is full."""
-        if not self._fleet_full():
-            return
+        """Remember when each automatic battery, and the whole fleet, is full."""
         now = now or datetime.now()
-        self._last_full_at = now
+        changed = False
+        for coordinator in self._automatic_batteries():
+            if self._stands_full(coordinator):
+                self.last_full_by_battery[coordinator.name] = now
+                changed = True
+        if changed and self._fleet_full():
+            self._last_full_at = now
+        if not changed:
+            return
         saved = getattr(self, "_last_full_saved_at", None)
         if saved is None or not timedelta(0) <= now - saved < _LAST_FULL_SAVE_INTERVAL:
             self._last_full_saved_at = now
@@ -355,30 +375,81 @@ class WeeklyFullChargeManager:
                 self._save_last_full(), "omnibattery_last_full_charge_save"
             )
 
+    def _tracking_payload(self) -> dict:
+        last = self.last_full_charge_at
+        rotation_start = getattr(self, "_rot_start", None)
+        day_done = getattr(self, "_rot_day_done", None)
+        return {
+            "last_full_at": last.isoformat() if last else None,
+            "batteries": {
+                name: moment.isoformat()
+                for name, moment in self.last_full_by_battery.items()
+            },
+            "rotation": {
+                "start": rotation_start.isoformat() if rotation_start else None,
+                "done": dict(getattr(self, "_rot_done", None) or {}),
+                "day_done": day_done.isoformat() if day_done else None,
+                "due": getattr(self, "_rot_due", None),
+            },
+        }
+
     async def _save_last_full(self) -> None:
-        if self.last_full_charge_at is None or not hasattr(self, "_last_full_store"):
+        if not hasattr(self, "_last_full_store"):
             return
         try:
-            await self._last_full_store.async_save(
-                {"last_full_at": self._last_full_at.isoformat()}
-            )
+            await self._last_full_store.async_save(self._tracking_payload())
         except Exception as err:  # noqa: BLE001 - losing it only means one more weekly run
             _LOGGER.error("Weekly Full Charge: Failed to save the last full charge: %s", err)
 
+    def _save_tracking_soon(self) -> None:
+        self._create_background_task(
+            self._save_last_full(), "omnibattery_last_full_charge_save"
+        )
+
     async def load_last_full(self) -> None:
-        """Restore the last full charge, independent of the weekly feature."""
+        """Restore the full charges and the rotation, independent of the weekly feature."""
         try:
             data = await self._last_full_store.async_load()
         except Exception as err:  # noqa: BLE001
             _LOGGER.error("Weekly Full Charge: Failed to load the last full charge: %s", err)
             return
-        try:
-            stored = datetime.fromisoformat(str((data or {}).get("last_full_at")))
-        except (TypeError, ValueError):
-            return
-        if self.last_full_charge_at is None or stored > self.last_full_charge_at:
+        data = data if isinstance(data, dict) else {}
+
+        def moment(value) -> datetime | None:
+            try:
+                return datetime.fromisoformat(str(value))
+            except (TypeError, ValueError):
+                return None
+
+        def day(value) -> date | None:
+            try:
+                return date.fromisoformat(str(value))
+            except (TypeError, ValueError):
+                return None
+
+        stored = moment(data.get("last_full_at"))
+        if stored is not None and (
+            self.last_full_charge_at is None or stored > self.last_full_charge_at
+        ):
             self._last_full_at = stored
             self._last_full_saved_at = stored
+        batteries = data.get("batteries")
+        if isinstance(batteries, dict):
+            for name, value in batteries.items():
+                when = moment(value)
+                known = self.last_full_by_battery.get(str(name))
+                if when is not None and (known is None or when > known):
+                    self.last_full_by_battery[str(name)] = when
+        rotation = data.get("rotation")
+        if isinstance(rotation, dict) and getattr(self, "_rot_start", None) is None:
+            self._rot_start = day(rotation.get("start"))
+            done = rotation.get("done")
+            self._rot_done = (
+                {str(k): str(v) for k, v in done.items()} if isinstance(done, dict) else {}
+            )
+            self._rot_day_done = day(rotation.get("day_done"))
+            due = rotation.get("due")
+            self._rot_due = str(due) if due else None
 
     @property
     def skip_recent_days(self) -> int:
@@ -426,6 +497,152 @@ class WeeklyFullChargeManager:
             return None
         return datetime.combine(day, datetime.min.time()) + timedelta(hours=float(hours))
 
+    # ------------------------------------------------------------------
+    # One battery per day
+    #
+    # A fleet that cannot reach 100% on one winter day can still fill one
+    # battery. With the switch on, the run lasts one day per automatic battery
+    # (at most a week) from the full charge day, and each day charges only the
+    # battery that went longest without a full charge. A battery that does not
+    # get full stays first in line the next day; one that was full recently
+    # (with the skip switch on) needs no turn. The day ends once its battery is
+    # full. A run that ends before every battery had its turn leaves those first
+    # in line next week.
+    # ------------------------------------------------------------------
+
+    def one_battery_per_day(self) -> bool:
+        """True when the weekly run charges one battery per day."""
+        return bool(getattr(self._controller, "_weekly_full_charge_one_per_day", False))
+
+    def rotation_days(self) -> int:
+        """Days the run spans in one-battery-per-day mode: one per battery."""
+        return max(1, min(WEEKLY_ROTATION_MAX_DAYS, len(self._automatic_batteries())))
+
+    def rotation_start(self, now: datetime) -> date | None:
+        """The full charge day of the rotation ``now`` falls in, or None.
+
+        The rotation runs from that day's start through the sunrise after its
+        last day, so the cheap night after each day belongs to it.
+        """
+        target_weekday = WEEKDAY_MAP[self._controller.weekly_full_charge_day]
+        local = now.replace(tzinfo=None) if now.tzinfo else now
+        days = self.rotation_days()
+        for back in range(8):
+            start = local.date() - timedelta(days=back)
+            if start.weekday() != target_weekday:
+                continue
+            last = start + timedelta(days=days - 1)
+            if local.date() <= last:
+                return start
+            if local.date() == last + timedelta(days=1):
+                end = self._sunrise_on(local.date())
+                if end is not None and local < end:
+                    return start
+        return None
+
+    def runs_for(self, coordinator: Any) -> bool:
+        """Whether this battery is part of the current weekly run.
+
+        Every automatic battery normally; in one-battery-per-day mode only the
+        battery whose turn it is. Callers ask it only while a run is active.
+        """
+        if not self.one_battery_per_day():
+            return True
+        due = getattr(self, "_rot_due", None)
+        return due is not None and due == getattr(coordinator, "name", None)
+
+    def _pick_due_battery(self, start: date) -> str | None:
+        """The battery whose turn it is, or None when every one is done."""
+        names = [c.name for c in self._automatic_batteries()]
+        done = self._rot_done
+        due = getattr(self, "_rot_due", None)
+        if due in names and due not in done:
+            return due
+        if getattr(self._controller, "_weekly_full_charge_skip_recent", False):
+            since = datetime.combine(start, datetime.min.time()) - timedelta(
+                days=self.skip_recent_days
+            )
+            for name in names:
+                last = self.last_full_by_battery.get(name)
+                if name not in done and last is not None and last >= since:
+                    done[name] = "recent"
+        remaining = [name for name in names if name not in done]
+        if not remaining:
+            self._rot_due = None
+            return None
+        self._rot_due = min(
+            remaining,
+            key=lambda name: (self.last_full_by_battery.get(name) or datetime.min, names.index(name)),
+        )
+        _LOGGER.info("Weekly Full Charge: %s's turn to charge to 100%%", self._rot_due)
+        self._save_tracking_soon()
+        return self._rot_due
+
+    def _rotation_status(self) -> None:
+        self._controller._weekly_charge_status["rotation"] = {
+            "start": self._rot_start.isoformat() if self._rot_start else None,
+            "days": self.rotation_days(),
+            "due": self._rot_due,
+            "done": dict(self._rot_done),
+        }
+
+    def _is_rotation_active(self, now: datetime) -> bool:
+        """is_active() in one-battery-per-day mode."""
+        ctrl = self._controller
+        status = ctrl._weekly_charge_status
+        start = self.rotation_start(now)
+        if not hasattr(self, "_rot_done"):
+            self._rot_done = {}
+        if start != getattr(self, "_rot_start", None):
+            if getattr(self, "_rot_start", None) is not None:
+                _LOGGER.info("Weekly Full Charge: rotation of %s ended", self._rot_start)
+            if ctrl.weekly_full_charge_registers_written and not ctrl.weekly_full_charge_complete:
+                # A battery that did not get full before the run ended keeps
+                # 100% in its hardware cutoff unless it is restored.
+                ctrl._weekly_charge_needs_restore = True
+            ctrl.weekly_full_charge_complete = False
+            ctrl.weekly_full_charge_registers_written = False
+            status["state"] = "Idle"
+            for key in ("completion_reason", "skipped_for_full_charge_at", "rotation"):
+                status.pop(key, None)
+            self._rot_start, self._rot_done = start, {}
+            self._rot_day_done, self._rot_due = None, None
+            self._save_tracking_soon()
+            self._create_background_task(
+                self.save_state(), "omnibattery_weekly_charge_state_save"
+            )
+        if start is None:
+            return False
+        local = now.replace(tzinfo=None) if now.tzinfo else now
+        if getattr(self, "_rot_day_done", None) == local.date():
+            self._rotation_status()
+            return False
+        due = self._pick_due_battery(start)
+        self._rotation_status()
+        if due is None:
+            if not ctrl.weekly_full_charge_complete:
+                ctrl.weekly_full_charge_complete = True
+                skipped = all(reason == "recent" for reason in self._rot_done.values())
+                status["state"] = "Skipped" if skipped else "Complete"
+                status["completion_reason"] = (
+                    "recent_full_charge" if skipped else "every_battery_had_its_turn"
+                )
+                self._create_background_task(
+                    self.save_state(), "omnibattery_weekly_charge_state_save"
+                )
+            return False
+        return True
+
+    def rotation_pending_on(self, day: date) -> bool:
+        """Whether a one-battery-per-day run will charge a battery on ``day``."""
+        start = self.rotation_start(datetime.combine(day, datetime.min.time()) + timedelta(hours=12))
+        if start is None:
+            return False
+        if start != getattr(self, "_rot_start", None):
+            return True
+        names = [c.name for c in self._automatic_batteries()]
+        return any(name not in (getattr(self, "_rot_done", None) or {}) for name in names)
+
     def window_end(self, now: datetime) -> datetime | None:
         """When the current charge window ends: the sunrise after the target day.
 
@@ -433,7 +650,15 @@ class WeeklyFullChargeManager:
         cheap hours of the night after it belong to the same run. Without a
         known sunrise the window ends at midnight, as it always did. Returned in
         ``now``'s timezone (naive for a naive ``now``); None outside the window.
+        In one-battery-per-day mode: the sunrise after the rotation's last day.
         """
+        if self.one_battery_per_day():
+            start = self.rotation_start(now)
+            if start is None:
+                return None
+            after = start + timedelta(days=self.rotation_days())
+            end = self._sunrise_on(after) or datetime.combine(after, datetime.min.time())
+            return end.replace(tzinfo=now.tzinfo) if now.tzinfo else end
         target_weekday = WEEKDAY_MAP[self._controller.weekly_full_charge_day]
         local = now.replace(tzinfo=None) if now.tzinfo else now
         if local.weekday() == target_weekday:
@@ -447,8 +672,13 @@ class WeeklyFullChargeManager:
 
     def in_overnight_extension(self, now: datetime) -> bool:
         """True in the night after the target day, before its sunrise."""
-        target_weekday = WEEKDAY_MAP[self._controller.weekly_full_charge_day]
         local = now.replace(tzinfo=None) if now.tzinfo else now
+        if self.one_battery_per_day():
+            start = self.rotation_start(local)
+            return start is not None and local.date() == start + timedelta(
+                days=self.rotation_days()
+            )
+        target_weekday = WEEKDAY_MAP[self._controller.weekly_full_charge_day]
         if local.weekday() != (target_weekday + 1) % 7:
             return False
         end = self._sunrise_on(local.date())
@@ -474,6 +704,8 @@ class WeeklyFullChargeManager:
             self._already_complete_logged = False
 
         now = datetime.now()
+        if self.one_battery_per_day() and not ctrl._force_full_charge:
+            return self._is_rotation_active(now)
         current_weekday = now.weekday()
         target_weekday = WEEKDAY_MAP[ctrl.weekly_full_charge_day]
 
@@ -830,6 +1062,7 @@ class WeeklyFullChargeManager:
             coordinator.name
             for coordinator in ctrl.coordinators
             if not getattr(coordinator, "battery_manual_mode_enabled", False)
+            and self.runs_for(coordinator)
             and not ctrl._is_backup_function_active(coordinator)
             and coordinator.capabilities.hardware_soc_cutoff
         }
@@ -847,6 +1080,8 @@ class WeeklyFullChargeManager:
             for coordinator in ctrl.coordinators:
                 if getattr(coordinator, "battery_manual_mode_enabled", False):
                     continue
+                if not self.runs_for(coordinator):
+                    continue  # one battery per day: not this battery's turn
                 if ctrl._is_backup_function_active(coordinator):
                     _LOGGER.debug("%s: Skipping weekly full charge - backup function is active", coordinator.name)
                     continue
@@ -911,6 +1146,7 @@ class WeeklyFullChargeManager:
             for c in ctrl.coordinators
             if c.data
             and not getattr(c, "battery_manual_mode_enabled", False)
+            and self.runs_for(c)
         ]
         all_batteries_full = bool(batteries_with_data) and all(
             self.is_battery_full(c)
@@ -929,7 +1165,34 @@ class WeeklyFullChargeManager:
         }
 
         if all_batteries_full and not ctrl.weekly_full_charge_complete:
-            await self._complete_weekly_charge("all_batteries_full")
+            if self.one_battery_per_day():
+                await self._complete_rotation_day()
+            else:
+                await self._complete_weekly_charge("all_batteries_full")
+
+    async def _complete_rotation_day(self) -> None:
+        """The battery whose turn it was is full: its day is done."""
+        ctrl = self._controller
+        name = getattr(self, "_rot_due", None)
+        await self._complete_weekly_charge("battery_full")
+        self._rot_done[name] = "full"
+        self._rot_day_done = datetime.now().date()
+        self._rot_due = None
+        ctrl.weekly_full_charge_registers_written = False
+        names = [c.name for c in self._automatic_batteries()]
+        finished = all(n in self._rot_done for n in names)
+        ctrl.weekly_full_charge_complete = finished
+        ctrl._weekly_charge_status["completion_reason"] = (
+            "every_battery_had_its_turn" if finished else f"{name}_full"
+        )
+        self._rotation_status()
+        _LOGGER.info(
+            "Weekly Full Charge: %s is full%s",
+            name,
+            ", every battery had its turn" if finished else "; the next one follows tomorrow",
+        )
+        self._save_tracking_soon()
+        await self.save_state()
 
     async def _complete_weekly_charge(self, reason: str) -> None:
         """Mark weekly full charge complete and restore configured limits."""
@@ -941,6 +1204,8 @@ class WeeklyFullChargeManager:
         completion_batteries: dict = {}
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
+                continue
+            if not self.runs_for(coordinator):
                 continue
             data = coordinator.data or {}
             soc = data.get("battery_soc")
@@ -968,6 +1233,8 @@ class WeeklyFullChargeManager:
         )
         if measurement_state is not None:
             for coordinator in ctrl.coordinators:
+                if not self.runs_for(coordinator):
+                    continue
                 data = coordinator.data or {}
                 try:
                     vmax = float(data.get("max_cell_voltage"))
@@ -991,7 +1258,13 @@ class WeeklyFullChargeManager:
                     )
                 ):
                     measurement_state[coordinator] = "pending"
-        self._bms_cutoff_counts.clear()
+        if self.one_battery_per_day():
+            # The others keep their own counts: their turn comes later.
+            for coordinator in ctrl.coordinators:
+                if self.runs_for(coordinator):
+                    self._bms_cutoff_counts.pop(coordinator.name, None)
+        else:
+            self._bms_cutoff_counts.clear()
 
         # Restore the saved hardware ceiling. Keep the saved values when a write
         # fails so the next control cycle can retry instead of silently
@@ -1011,6 +1284,8 @@ class WeeklyFullChargeManager:
         measured = getattr(ctrl, "_normal_balance_last_delta_v", {})
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
+                continue
+            if not self.runs_for(coordinator):
                 continue
             if (
                 measurement_state is not None
@@ -1047,6 +1322,8 @@ class WeeklyFullChargeManager:
         # Re-enable hysteresis for batteries that have it configured.
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
+                continue
+            if not self.runs_for(coordinator):
                 continue
             if coordinator.enable_charge_hysteresis:
                 coordinator._hysteresis_active = True

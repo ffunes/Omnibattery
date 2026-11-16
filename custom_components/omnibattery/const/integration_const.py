@@ -293,6 +293,11 @@ DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY = True
 # whole and positive, at most two weeks.
 CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT = "weekly_full_charge_skip_recent"
 DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT = False
+# One battery per day: the weekly run spreads over consecutive days from the
+# full charge day, one battery each, at most a week (off by default).
+CONF_WEEKLY_FULL_CHARGE_ONE_PER_DAY = "weekly_full_charge_one_battery_per_day"
+DEFAULT_WEEKLY_FULL_CHARGE_ONE_PER_DAY = False
+WEEKLY_ROTATION_MAX_DAYS = 7
 CONF_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = "weekly_full_charge_skip_recent_days"
 DEFAULT_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 5
 MIN_WEEKLY_FULL_CHARGE_SKIP_RECENT_DAYS = 1

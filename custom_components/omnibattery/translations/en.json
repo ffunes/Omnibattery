@@ -1594,6 +1594,9 @@
       "weekly_full_charge_skip_recent": {
         "name": "Skip Weekly Full Charge After a Recent Full Charge"
       },
+      "weekly_full_charge_one_battery_per_day": {
+        "name": "Weekly Full Charge One Battery per Day"
+      },
       "capacity_protection": {
         "name": "Peak Shaving"
       },
