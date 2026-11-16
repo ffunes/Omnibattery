@@ -207,6 +207,7 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
     "solar_timeline_effective_kwh",
     "solar_timeline_energy_error_kwh",
     "solar_timeline_fallback_reason",
+    "solar_shown_fallback_reason",
     "solar_profile_mature",
     "solar_profile_days",
     "solar_profile_coverage_ratio",
@@ -4262,14 +4263,17 @@ class PricingManager:
             # is a cushion for the decisions and not a prediction, through
             # the same masks. The plan itself keeps the margin.
             shown_solar, shown_intervals = solar, intervals
+            shown_fallback_reason = timeline.fallback_reason
             if safety > 0.0:
-                shown_solar = solar_timeline(
+                shown_result = solar_timeline(
                     boundaries,
                     solar_input,
                     learned_snapshot,
                     safety_margin_kwh=0.0,
                     **solar_kwargs,
-                ).intervals_kwh
+                )
+                shown_solar = shown_result.intervals_kwh
+                shown_fallback_reason = shown_result.timeline.fallback_reason
                 shown_intervals, _ = time_slot_window_hold(
                     battery_idle_intervals(
                         boundaries, consumption, shown_solar, **idle_kwargs
@@ -4721,6 +4725,8 @@ class PricingManager:
                 "solar_timeline_effective_kwh": timeline.timeline_effective_kwh,
                 "solar_timeline_energy_error_kwh": timeline.energy_error_kwh,
                 "solar_timeline_fallback_reason": timeline.fallback_reason,
+                # The panel's notice follows the curve it draws: no margin.
+                "solar_shown_fallback_reason": shown_fallback_reason,
                 "solar_profile_mature": bool(learned_snapshot and learned_snapshot.mature),
                 "solar_profile_days": learned_snapshot.eligible_days if learned_snapshot else 0,
                 "solar_profile_coverage_ratio": learned_snapshot.future_coverage_ratio if learned_snapshot else 0.0,

@@ -489,8 +489,10 @@ def build_daily_operation_projection(
         "sources": {
             "solar_forecast": request.decision_data.get("solar_timeline_source")
             or "unavailable",
+            # The reason of the curve the panel draws (no safety margin).
             "solar_fallback_reason": request.decision_data.get(
-                "solar_timeline_fallback_reason"
+                "solar_shown_fallback_reason",
+                request.decision_data.get("solar_timeline_fallback_reason"),
             ),
             "consumption_forecast": request.decision_data.get("chronological_source")
             or "fallback",

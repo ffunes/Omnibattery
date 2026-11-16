@@ -2214,7 +2214,7 @@ def test_panel_sun_is_drawn_without_the_safety_margin():
         SimpleNamespace(config=SimpleNamespace(time_zone="Europe/Madrid")), ctrl
     )
 
-    plan = manager.build_extended_chronological_projection(
+    result = manager.build_extended_chronological_projection(
         now=now,
         slots=[],
         base_decision_data={
@@ -2224,8 +2224,14 @@ def test_panel_sun_is_drawn_without_the_safety_margin():
         },
         price_ceiling=None,
         horizon_end=midnight + timedelta(hours=12),
-    ).plan
+    )
+    plan = result.plan
 
+    # 16 Nov 2026: the panel warned "no solar forecast left" over a drawn
+    # forecast, because the margin ate the plan's budget. The notice follows
+    # the drawn curve.
+    assert result.diagnostics["solar_timeline_fallback_reason"] == "zero_budget"
+    assert result.diagnostics["solar_shown_fallback_reason"] is None
     assert sum(i.solar_kwh for i in plan.intervals) == 0.0
     assert sum(i.solar_kwh for i in plan.shown_intervals) == pytest.approx(3.2)
     assert sum(solar for solar, _house in plan.house_forecast.values()) == (
