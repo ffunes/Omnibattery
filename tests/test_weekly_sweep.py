@@ -392,7 +392,9 @@ def simulate(case, factor, *, old=False, weekly=True):
 
     def evaluate(at, daily):
         sc = scenario(case, at=at, socs=_split(floor + e, socs), pending=pending)
-        return run(sc, old=old, daily=daily)
+        # The 00:05 run with a zero forecast defers to the retry ladder, whose
+        # evaluation is a REMAINING one.
+        return run(sc, old=old, daily=daily and SOLAR[case[4]] > 0)
 
     first = evaluate(t0, t0.hour == 0 and t0.minute == 5)
     policy = policy_of(first)
