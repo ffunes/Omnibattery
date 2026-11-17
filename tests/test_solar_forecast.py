@@ -391,3 +391,31 @@ async def test_energy_dashboard_forecasts_are_summed(monkeypatch):
 
     # East counted once despite being listed twice; each instant merged.
     assert sorted(wh_hours.values()) == [1200.0, 1300.0]
+
+
+def test_forecast_solar_sunrise_sunset_keys_keep_hourly_periods():
+    """#855: off-grid sunrise/sunset keys must not shrink every period."""
+    from custom_components.omnibattery.solar_forecast import periods_from_wh_hours
+
+    periods = periods_from_wh_hours({
+        "2026-11-11T06:55:49+00:00": 1,
+        "2026-11-11T07:00:00+00:00": 73,
+        "2026-11-11T08:00:00+00:00": 131,
+        "2026-11-11T09:00:00+00:00": 170,
+        "2026-11-11T15:00:00+00:00": 17,
+        "2026-11-11T15:54:40+00:00": 0,
+        "2026-11-12T06:57:37+00:00": 1,
+        "2026-11-12T07:00:00+00:00": 73,
+    })
+    spans = [(p.start.strftime("%d %H:%M:%S"), p.end.strftime("%d %H:%M:%S")) for p in periods]
+    assert spans == [
+        ("11 06:55:49", "11 07:00:00"),
+        ("11 07:00:00", "11 08:00:00"),
+        ("11 08:00:00", "11 09:00:00"),
+        # A long gap (omitted zero periods) stays uncovered.
+        ("11 09:00:00", "11 10:00:00"),
+        ("11 15:00:00", "11 15:54:40"),
+        ("11 15:54:40", "11 16:54:40"),
+        ("12 06:57:37", "12 07:00:00"),
+        ("12 07:00:00", "12 08:00:00"),
+    ]
