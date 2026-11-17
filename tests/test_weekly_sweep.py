@@ -245,7 +245,7 @@ def policy_of(r) -> Policy:
         frozenset(getattr(c, "_dp_plan_weekly_holds", None) or ()),
         r.d.get("planner") == "optimizer", run_slots,
         getattr(c, "_dp_weekly_full_at", None),
-        r.o.request.full_by is not None
+        getattr(r.o.request, "full_by", None) is not None  # absent before the change
         and r.o.request.full_by <= max(s.end for s in r.o.request.price_slots),
     )
 
