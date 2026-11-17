@@ -121,14 +121,20 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     # Once a weekly charge is done the ceiling is max_soc again: the done
     # layer stores up to it (the plan valued room for tomorrow's sun the
     # battery would not take). The pending layer keeps the 100 %.
-    # Its power is the ordinary one too: the groups carry the weekly fleet's
-    # (every battery charging), a band from 0 brings it back to the day's.
+    # Its power is the day's ordinary one too, not the weekly fleet's (every
+    # battery charging): the done layer runs its own quarters.
     done_model = model
+    done_quarters = [quarters for _s, quarters, _e in groups]
     if request.full_by is not None and request.done_headroom_kwh is not None:
         done_model = dataclasses.replace(
             model, usable_kwh=min(cap, usable + max(0.0, float(request.done_headroom_kwh))),
-            bands=((0.0, max(0.0, float(request.effective_power_kw))),),
+            bands=(),
         )
+        power = max(0.0, float(request.effective_power_kw))
+        done_quarters = [
+            [dataclasses.replace(q, charge_kwh=power * q.hours) for q in quarters]
+            for _s, quarters, _e in groups
+        ]
     layer_model = {False: done_model, True: model}
     # Weekly Full Charge pending (D-1): a second value function for "not yet
     # full", through the group holding the window's end. The shortfall pays
@@ -418,7 +424,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         slot, quarters, slot_ends = groups[k]
         nxt, nxt_pending = values[-1], pending_values[-1]
         best = None
-        for _option, (e1, _c, decide, *_) in run_menu(slot, quarters, levels, slot_ends):
+        for _option, (e1, _c, decide, *_) in run_menu(slot, done_quarters[k], levels, slot_ends):
             v = decide + np.interp(e1, levels, nxt)
             best = v if best is None else np.minimum(best, v)
         values.append(best)
@@ -451,7 +457,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         layer = pending and k <= last_k
         chosen = None
         for option, (e1, c, decide, stored, open_, path, peaks) in run_menu(
-                slot, quarters, [e], ends, layer):
+                slot, quarters if layer else done_quarters[k], [e], ends, layer):
             if layer:
                 after, hit = onward(k, ends, e1, path, peaks, nxt, pending_values[k + 1])
                 v, hit = float(decide[0] + after[0]), bool(hit[0])
