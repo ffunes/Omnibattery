@@ -5293,22 +5293,20 @@ class PricingManager:
             )
         ):
             decision_data = await self._controller._should_activate_grid_charging()
+            decision_data["planning_horizon_reason"] = "daily_evaluation"
         else:
-            # Tomorrow's prices known (and plannable): look past the sunrise (#710).
-            planning_end = (
-                self._extended_planning_end(now)
-                if horizon is DynamicPricingEvaluationHorizon.REMAINING
-                else None
-            )
+            # Tomorrow's prices known (and plannable): look past the sunrise
+            # (#710). The 00:05 run too: a feed that already holds tomorrow
+            # then (a fixed-tariff template) planned it to midnight, and the
+            # first re-plan, on the extended horizon, dropped a slot mid-charge.
+            planning_end = self._extended_planning_end(now)
             decision_data = await self._evaluate_remaining_grid_charging(
                 now=now, **({"horizon_end": planning_end} if planning_end else {})
             )
+            decision_data["planning_horizon_reason"] = getattr(
+                self, "planning_horizon_reason", None
+            )
         self._controller._dp_planning_end = planning_end
-        decision_data["planning_horizon_reason"] = (
-            getattr(self, "planning_horizon_reason", None)
-            if horizon is DynamicPricingEvaluationHorizon.REMAINING
-            else "daily_evaluation"
-        )
 
         # Keep the first full-day forecast separate from the live remaining
         # horizon used by later reevaluations. With a configured remaining-today
@@ -5320,12 +5318,15 @@ class PricingManager:
         # would leave the reference unset for the whole day. Within the first
         # hour nothing has been produced yet, which makes the remaining figure
         # the full-day figure; the capture itself only ever keeps the first
-        # value of the day.
+        # value of the day. Today's figure, not the balance's: on an extended
+        # horizon that also holds tomorrow's sun.
         if horizon is DynamicPricingEvaluationHorizon.DAILY or now.hour == 0:
             tracker = getattr(self._controller, "_consumption_tracker", None)
             capture = getattr(tracker, "capture_daily_solar_forecast", None)
             if callable(capture):
-                capture(decision_data.get("solar_forecast_kwh"))
+                capture(decision_data.get(
+                    "remaining_solar_kwh", decision_data.get("solar_forecast_kwh")
+                ))
         self._controller._last_decision_data = decision_data
         # Reference SOC for the SOC-drop re-evaluation (#411): this is read before
         # the overnight discharge, so a battery that drains far below it must be
