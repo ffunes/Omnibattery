@@ -121,11 +121,13 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     # Once a weekly charge is done the ceiling is max_soc again: the done
     # layer stores up to it (the plan valued room for tomorrow's sun the
     # battery would not take). The pending layer keeps the 100 %.
+    # Its power is the ordinary one too: the groups carry the weekly fleet's
+    # (every battery charging), a band from 0 brings it back to the day's.
     done_model = model
     if request.full_by is not None and request.done_headroom_kwh is not None:
         done_model = dataclasses.replace(
             model, usable_kwh=min(cap, usable + max(0.0, float(request.done_headroom_kwh))),
-            bands=(),
+            bands=((0.0, max(0.0, float(request.effective_power_kw))),),
         )
     layer_model = {False: done_model, True: model}
     # Weekly Full Charge pending (D-1): a second value function for "not yet
@@ -135,7 +137,13 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     # that misses the first keeps charging for the second. Penalised only when
     # the window's end is inside the published prices (D-3); before that the
     # day is planned with the top and the hold, freely.
-    pending0 = request.full_by is not None and bool(groups) and min(usable, cap) < cap - _FULL_TOL
+    e0 = min(usable, cap)
+    if request.full_by is not None and soc_step > 0 and cap > soc_step:
+        # Pending at a reading of 100 %: not complete until the batteries say
+        # so (a Venus A/D taper counts its BMS cutoff only while commanded to
+        # charge). Planned a reading step short, it books a slot to the top.
+        e0 = min(e0, cap - soc_step)
+    pending0 = request.full_by is not None and bool(groups) and e0 < cap - _FULL_TOL
     deadline = early = None
     last_k = early_k = -1
     binding = False
@@ -154,7 +162,6 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     prices = [s.price for s, quarters, _ends in groups for _ in quarters]
     end_value = min((p for p in prices if p > 0), default=0.0) * model.eff
 
-    e0 = min(usable, cap)
     grid = max(LATTICE_KWH, cap / MAX_LEVELS)
     lattice = np.arange(e0 % grid, cap + _TOL, grid)
     extra = [0.0, cap, e0]

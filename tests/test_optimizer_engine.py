@@ -1058,3 +1058,29 @@ def test_a_weekly_charge_behind_its_plan_re_plans_once():
     ctrl._dp_weekly_full_at = at
     ctrl._weekly_full_charge_pending = lambda: False  # completed meanwhile
     assert not manager._is_weekly_overdue(at + timedelta(minutes=30))
+
+
+def test_a_weekly_charge_pending_at_a_full_reading_books_a_slot_to_the_top(monkeypatch):
+    """A Venus A/D in its taper reads 100 % and is not full until its BMS
+    cuts a commanded charge: the plan still books one, to the top, instead
+    of leaving the battery to cover the house."""
+    import dataclasses
+
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    box = {}
+    real_controller = h._controller
+
+    def build(s):
+        c = real_controller(s)
+        c._weekly_full_charge_pending = lambda: True
+        box["c"] = c
+        return c
+
+    monkeypatch.setattr(h, "_controller", build)
+    sc = sw.scenario(("1x5k-2500", 60, "flat0.4", "night-cheap", True, "none", "00:05"))
+    sc = dataclasses.replace(sc, fleet=(dict(sc.fleet[0], soc=100.0, max_soc=90),))
+    outcome = h._run_engine(sc, monkeypatch)
+    assert outcome.planner == "optimizer" and outcome.booked
+    assert outcome.to_end & {slot for slot, _kwh in outcome.booked}

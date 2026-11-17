@@ -5720,7 +5720,14 @@ class PricingManager:
             self._controller._dynamic_pricing_schedule = None
             self._controller._dynamic_pricing_evaluated_date = today
             self._controller._dp_eval_retry_count = 0
-            _LOGGER.warning("Dynamic pricing: no slots selected (all above thresholds?)")
+            if decision_data.get("planner") == "optimizer":
+                # The plan decided it (a weekly day the sun fills, say): no warning.
+                _LOGGER.info(
+                    "Dynamic pricing: the plan books no grid charge (%s)",
+                    decision_data.get("chronological_plan_reason"),
+                )
+            else:
+                _LOGGER.warning("Dynamic pricing: no slots selected (all above thresholds?)")
             await self._send_dynamic_pricing_notification(decision_data=decision_data, schedule=None)
             return
 
