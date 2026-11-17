@@ -6969,6 +6969,14 @@ class PricingManager:
         decision = await controller._should_activate_grid_charging(
             consumption_override_kwh=remaining_consumption_kwh,
             solar_forecast_override_kwh=balance_solar_kwh,
+            # Today's sun and tomorrow's each give up the margin (per day).
+            **(
+                {"solar_days_kwh": (
+                    remaining_solar_kwh, balance_solar_kwh - remaining_solar_kwh
+                )}
+                if planning_extended
+                else {}
+            ),
         )
         # Keep explicit diagnostics for the pre-slot notification and future
         # consumers while preserving the legacy avg_consumption_kwh field.

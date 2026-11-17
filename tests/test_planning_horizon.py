@@ -344,6 +344,93 @@ def test_balance_credits_tomorrows_sun_only_on_an_extended_horizon():
     assert seen == [pytest.approx(1.0), pytest.approx(9.0)]
 
 
+def test_balance_takes_the_safety_margin_off_each_days_sun():
+    """2026-11-17: 4 kWh came off today's 5.48 and tomorrow's 9.14 kWh once,
+    so today kept 73 % of its sun instead of 27 %. The margin is per day."""
+    import asyncio
+
+    from tests.test_excluded_demand_claim import _ctrl, _run
+
+    manager = _manager(_solar(8.0))
+    seen = []
+
+    async def _decision(**kwargs):
+        seen.append(kwargs.get("solar_days_kwh"))
+        return {"should_charge": False}
+
+    async def _average():
+        return 12.0
+
+    controller = manager._controller
+    controller._should_activate_grid_charging = _decision
+    controller._consumption_tracker.get_dynamic_base_consumption = _average
+    controller._daily_home_energy_date = None
+    controller._daily_home_energy_kwh = 0.0
+    controller._household_accumulator_date = None
+    manager._remaining_solar_today_kwh = lambda _now: 1.0
+
+    asyncio.run(manager._evaluate_remaining_grid_charging(now=NOW))
+    asyncio.run(manager._evaluate_remaining_grid_charging(now=NOW, horizon_end=CAP))
+    assert seen == [None, (pytest.approx(1.0), pytest.approx(8.0))]
+
+    both = _run(
+        _ctrl(safety_margin=4.0, capacity=20.0),
+        consumption_override_kwh=20.0,
+        solar_forecast_override_kwh=14.62,
+        solar_days_kwh=(5.48, 9.14),
+    )
+    assert both["solar_safety_margin_kwh"] == pytest.approx(8.0)
+    assert both["solar_remaining_effective_kwh"] == pytest.approx(6.62)
+    # A day with less sun than the margin gives up only its own sun.
+    short = _run(
+        _ctrl(safety_margin=4.0, capacity=20.0),
+        consumption_override_kwh=20.0,
+        solar_forecast_override_kwh=10.0,
+        solar_days_kwh=(2.0, 8.0),
+    )
+    assert short["solar_remaining_effective_kwh"] == pytest.approx(4.0)
+
+
+def test_plan_timeline_takes_the_safety_margin_off_each_days_sun():
+    from custom_components.omnibattery.pricing.plan_inputs import solar_timeline
+    from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
+
+    now = datetime(2026, 11, 5, 6, 0)
+    periods = tuple(
+        SolarForecastPeriod(
+            datetime(2026, 11, 5 + day, hour, tzinfo=UTC),
+            datetime(2026, 11, 5 + day, hour + 1, tzinfo=UTC),
+            kwh / 4,
+        )
+        for day, kwh in ((0, 2.0), (1, 8.0))
+        for hour in range(10, 14)
+    )
+    boundaries = build_boundaries(now, CAP)
+    result = solar_timeline(
+        boundaries,
+        SolarForecastInput(10.0, "remaining_sensor", periods=periods),
+        None,
+        solar_start=None,
+        solar_end=None,
+        mode="active",
+        safety_margin_kwh=4.0,
+        extended_timezone=UTC,
+        excluded_claim_kwh=0.0,
+        today_end=MIDNIGHT,
+    )
+
+    def energy(after):
+        return sum(
+            kwh for (start, _end), kwh in zip(boundaries, result.intervals_kwh)
+            if (start >= MIDNIGHT) == after
+        )
+
+    assert energy(False) == pytest.approx(0.0, abs=1e-9)
+    assert energy(True) == pytest.approx(4.0)
+    assert result.timeline.safety_margin_kwh == pytest.approx(6.0)
+    assert result.timeline.energy_error_kwh == pytest.approx(0.0, abs=1e-9)
+
+
 def test_extended_control_plan_keeps_its_diagnostics_snapshot():
     """The 00:05 run clears the snapshot; an extended plan must store its own,
     or a later balance check that replaces the decision blanks the sensor."""

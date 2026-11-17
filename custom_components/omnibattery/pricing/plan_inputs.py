@@ -7,8 +7,8 @@ each function turns plain values into one input of
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta
 from typing import Any, Sequence
 
 from ..const import FLOOR_HYSTERESIS_PCT
@@ -109,6 +109,46 @@ def _apply_excluded_demand_claim(
     return adjusted, claim
 
 
+def _margin_per_day(
+    boundaries: Sequence[tuple[datetime, datetime]],
+    timeline: SolarTimelineResult,
+    margin_kwh: float,
+    today_end: datetime,
+) -> SolarTimelineResult:
+    """``timeline`` (built without margin) less ``margin_kwh`` off each day.
+
+    Each local day gives up the margin, at most its own sun, spread over its
+    intervals in proportion to their energy: what a one-day horizon does.
+    """
+    # ponytail: days are 24 h steps from today_end; a DST night shifts the
+    # day boundary by an hour, where there is no sun.
+    days: dict[int, list[int]] = {}
+    for index, (start, _end) in enumerate(boundaries):
+        day = 0 if start < today_end else 1 + (start - today_end) // timedelta(days=1)
+        days.setdefault(day, []).append(index)
+    intervals = list(timeline.intervals_kwh)
+    cut_total = 0.0
+    for indices in days.values():
+        total = sum(intervals[index] for index in indices)
+        cut = min(margin_kwh, total)
+        if cut > 0.0:
+            for index in indices:
+                intervals[index] *= (total - cut) / total
+        cut_total += cut
+    effective = max(0.0, timeline.remaining_raw_kwh - cut_total)
+    return replace(
+        timeline,
+        intervals_kwh=tuple(intervals),
+        safety_margin_kwh=cut_total,
+        remaining_effective_kwh=effective,
+        timeline_effective_kwh=max(0.0, timeline.timeline_effective_kwh - cut_total),
+        # As the one-day timeline reports a margin that leaves no sun.
+        fallback_reason=(
+            "zero_budget" if effective <= 1e-9 else timeline.fallback_reason
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class SolarTimeline:
     """Solar curve of the plan: the selected timeline and the claim applied to it."""
@@ -157,10 +197,15 @@ def solar_timeline(
         )
         provider_periods = None
 
+    # The margin is per forecast day: a horizon past today takes it off each
+    # day's own sun, not once off the total.
+    per_day = safety_margin_kwh > 0.0 and any(
+        start >= today_end for start, _end in boundaries
+    )
     timeline = build_solar_timeline(
         boundaries,
         solar_input.remaining_kwh,
-        safety_margin_kwh=safety_margin_kwh,
+        safety_margin_kwh=0.0 if per_day else safety_margin_kwh,
         provider_periods=provider_periods,
         temporal_shape=temporal_shape,
         learned_shape=(learned_snapshot.shape if learned_snapshot else None),
@@ -169,6 +214,8 @@ def solar_timeline(
         solar_end=solar_end,
         mode=mode,
     )
+    if per_day:
+        timeline = _margin_per_day(boundaries, timeline, safety_margin_kwh, today_end)
     # Excluded devices reserve part of the remaining forecast (see
     # _should_activate_grid_charging). The timeline must project the
     # same solar the scalar balance used, otherwise it would place
