@@ -194,3 +194,30 @@ def control_vmax(coordinator):
     if packs and coordinator.traits.sequential_pack_fill and min(packs) < _PACK_TOP_SOC:
         return None
     return vmax
+
+
+def hardware_reserve_soc(coordinator):
+    """SOC the hardware holds back for itself, or 0 when it publishes none.
+
+    A Huawei inverter keeps its *backup power SOC* for the backup output and does
+    not discharge into the house below it, whatever the discharge cutoff says. The
+    control layer has to treat it as a floor too: otherwise it commands a battery
+    that sits between its own minimum and the reserve, the inverter delivers
+    nothing, and the battery is written off as non-delivering.
+    """
+    data = getattr(coordinator, "data", None)
+    if not isinstance(data, dict):
+        return 0.0
+    value = data.get("hardware_reserve_soc")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    return float(value) if 0 < value <= 100 else 0.0
+
+
+def effective_min_soc(coordinator):
+    """The user's minimum SOC, raised to the hardware reserve where that is higher.
+
+    A maximum, never a sum: the reserve is part of the same charge the minimum
+    already protects.
+    """
+    return max(float(coordinator.min_soc), hardware_reserve_soc(coordinator))

@@ -2327,6 +2327,9 @@
       "discharging_cutoff_capacity": {
         "name": "Seuil de Fin de Décharge"
       },
+      "hardware_reserve_soc": {
+        "name": "SOC de Secours"
+      },
       "user_work_mode": {
         "name": "Mode de Fonctionnement"
       },

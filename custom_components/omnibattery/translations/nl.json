@@ -2327,6 +2327,9 @@
       "discharging_cutoff_capacity": {
         "name": "Ontlaadafkapgrens"
       },
+      "hardware_reserve_soc": {
+        "name": "Back-up-SOC"
+      },
       "user_work_mode": {
         "name": "Werkmodus"
       },

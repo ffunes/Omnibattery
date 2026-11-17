@@ -2327,6 +2327,9 @@
       "discharging_cutoff_capacity": {
         "name": "Límit de Fi de Descàrrega"
       },
+      "hardware_reserve_soc": {
+        "name": "SOC de Reserva"
+      },
       "user_work_mode": {
         "name": "Mode de Funcionament"
       },

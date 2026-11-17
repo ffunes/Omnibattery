@@ -2327,6 +2327,9 @@
       "discharging_cutoff_capacity": {
         "name": "Entladeschlussgrenze"
       },
+      "hardware_reserve_soc": {
+        "name": "Notstrom-Ladestand"
+      },
       "user_work_mode": {
         "name": "Betriebsmodus"
       },
