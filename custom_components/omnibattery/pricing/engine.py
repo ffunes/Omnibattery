@@ -281,8 +281,10 @@ class DynamicPricingEvaluationHorizon(Enum):
 # measured: 3 recovers 87 % of what a consumption-deviation rule did, 5 less).
 SOC_DROP_BELOW_PROJECTION = 3.0
 # After the plan's own completion time, how long a pending weekly full charge
-# waits for the manager to see 100 % before the plan is rebuilt.
-WEEKLY_OVERDUE_GRACE = timedelta(minutes=10)
+# waits for the manager to see 100 % before the plan is rebuilt: its cutoff
+# check takes seconds, and every minute after the slot the battery covers the
+# house and the rest is bought back later.
+WEEKLY_OVERDUE_GRACE = timedelta(minutes=2)
 
 
 class PricingManager:

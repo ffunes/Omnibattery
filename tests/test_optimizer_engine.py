@@ -1052,8 +1052,8 @@ def test_a_weekly_charge_behind_its_plan_re_plans_once():
     at = datetime(2026, 11, 11, 6, 45)
     ctrl = SimpleNamespace(_dp_weekly_full_at=at, _weekly_full_charge_pending=lambda: True)
     manager = PricingManager(SimpleNamespace(), ctrl)
-    assert not manager._is_weekly_overdue(at + timedelta(minutes=9))
-    assert manager._is_weekly_overdue(at + timedelta(minutes=10))
+    assert not manager._is_weekly_overdue(at + timedelta(minutes=1))
+    assert manager._is_weekly_overdue(at + timedelta(minutes=2))
     assert not manager._is_weekly_overdue(at + timedelta(minutes=20))  # once per plan
     ctrl._dp_weekly_full_at = at
     ctrl._weekly_full_charge_pending = lambda: False  # completed meanwhile

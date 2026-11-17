@@ -405,8 +405,10 @@ def simulate(case, factor, *, old=False, weekly=True):
             pending = False
             model = _model(case, False)
         if (pending and not old and not BASE and policy.full_at is not None
-                and a >= policy.full_at + timedelta(minutes=10)):
-            replan_now = True  # the engine's overdue trigger (new code only)
+                and a >= policy.full_at):
+            # The engine's overdue trigger (new code only), 2 minutes after the
+            # plan's completion: here at the next quarter's start.
+            replan_now = True
             policy.full_at = None
         due = [t for t in triggers if t <= a]
         if due or replan_now:
