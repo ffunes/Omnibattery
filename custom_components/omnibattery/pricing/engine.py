@@ -116,6 +116,7 @@ from .plan_inputs import (  # noqa: F401  (_apply_excluded_demand_claim: re-expo
     _apply_excluded_demand_claim,
     fleet_plan_state,
     guaranteed_floor,
+    weekly_charge_curve,
     weekly_reserve,
     battery_idle_intervals,
     EnergyProjection,
@@ -4630,8 +4631,9 @@ class PricingManager:
                     if t not in blocked and (floor_price is None or by_start.get(t, math.inf) > floor_price)
                 }
             # Weekly Full Charge pending (step 4): the optimizer plans the day
-            # to touch 100 % by the window's end, the fleet's power sized on the
-            # whole gap (D-6), the last percent at the taper's power (D-7).
+            # to touch 100 % by the window's end, with the fleet's charge curve
+            # (D-6: a battery that is full stops; D-7: the last percent at the
+            # taper's power).
             full_by = self._weekly_full_by(now)
             tails = list(self._weekly_tails()) if full_by is not None else []
             evaluation = yield (
@@ -4737,11 +4739,20 @@ class PricingManager:
                     room_floor_kwh=room_floor,
                     room_export_prices=room_prices,
                     full_by=full_by,
-                    top_band_kwh=sum(tail[1] for tail in tails),
-                    top_band_kw=sum(tail[3] for tail in tails) / 1000.0,
-                    full_by_power_kw=(
-                        self._fleet_charge_power_kw(eligible, room_kwh, headroom)
+                    done_headroom_kwh=(
+                        sum(
+                            max(0.0, min(100.0, float(c.max_soc))
+                                - float(c.data.get("battery_soc", 0) or 0))
+                            / 100.0 * float(c.data.get("battery_total_energy", 0) or 0)
+                            for c in eligible
+                        )
                         if full_by is not None
+                        else None
+                    ),
+                    charge_curve=weekly_charge_curve(tails),
+                    full_by_power_kw=(
+                        min(self._contracted_charge_ceiling(), sum(t[2] for t in tails)) / 1000.0
+                        if tails
                         else None
                     ),
                 )

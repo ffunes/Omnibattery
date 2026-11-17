@@ -218,10 +218,9 @@ def test_the_top_band_slows_the_charge_and_splits_the_quarter():
     in 0.647 of it (0.5625 stored per quarter), then 0.0993 inside the band
     (0.28125 per quarter) for the rest: 0.4633 stored, 0.5147 kWh AC. The grid
     and the sun fill the same way."""
-    model = BatteryModel(capacity_kwh=5.12, round_trip_efficiency=0.81, band_kwh=0.256)
+    model = BatteryModel(capacity_kwh=5.12, round_trip_efficiency=0.81, bands=((4.864, 1.25),))
     grid = Quarter(house_kwh=0.0, solar_kwh=0.0, import_price=0.10, export_price=0.0,
-                   grid_charge_allowed=True, charge_kwh=0.625, discharge_kwh=0.625,
-                   band_charge_kwh=0.3125)
+                   grid_charge_allowed=True, charge_kwh=0.625, discharge_kwh=0.625)
     e1, cost = model.normal_step(grid, 4.5, target=5.12)
     assert float(e1) == pytest.approx(4.5 + 0.364 + 0.352889 * 0.28125, abs=1e-5)
     assert float(cost) == pytest.approx((0.647111 * 0.625 + 0.352889 * 0.3125) * 0.10, abs=1e-6)
@@ -234,3 +233,25 @@ def test_the_top_band_slows_the_charge_and_splits_the_quarter():
     assert float(model.normal_step(grid, 4.9, target=5.12)[0]) == pytest.approx(4.9 + 0.22)
     plain = BatteryModel(capacity_kwh=5.12, round_trip_efficiency=0.81)
     assert float(plain.normal_step(grid, 4.5, target=5.12)[0]) == pytest.approx(5.0625)
+
+
+def test_two_bands_split_the_quarter_twice():
+    """The curve of two 5.12 kWh batteries at 50 % and 90 % (2.5 kW each,
+    taper 1.25 kW, eff 0.9): 5 kW until 2.56 kWh below the top, 3.75 kW to
+    1.792 below, 2.5 kW to 0.256 below, then 1.25 kW. Over 1.3 kWh below the
+    top in a quarter at 5 kW: 0.3 kWh at 3.75 kW take 0.3 / (3.75 x 0.9) h,
+    the rest of the quarter at 2.5 kW stores 2.5 x 0.9 x (0.25 - that) kWh."""
+    cap = 9.216
+    model = BatteryModel(capacity_kwh=10.24, round_trip_efficiency=0.81, usable_kwh=cap,
+                         bands=((cap - 2.56, 3.75), (cap - 1.792, 2.5), (cap - 0.256, 1.25)))
+    q = Quarter(house_kwh=0.0, solar_kwh=0.0, import_price=0.10, export_price=0.0,
+                grid_charge_allowed=True, charge_kwh=1.25, discharge_kwh=1.25)
+    e0 = cap - 2.092  # 0.3 kWh inside the 3.75 kW band
+    t1 = 0.3 / (3.75 * 0.9)
+    expected = 0.3 + 2.5 * 0.9 * (0.25 - t1)
+    add, busy = model.charge_phase(q, e0, cap)
+    assert float(add) == pytest.approx(expected, abs=1e-9) and float(busy) == pytest.approx(1.0)
+    # From below every band: 5 kW until the first edge.
+    add, _busy = model.charge_phase(q, cap - 3.0, cap)
+    t0 = 0.44 / (5.0 * 0.9)
+    assert float(add) == pytest.approx(0.44 + 3.75 * 0.9 * (0.25 - t0), abs=1e-9)

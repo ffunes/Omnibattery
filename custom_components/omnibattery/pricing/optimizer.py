@@ -75,11 +75,16 @@ _FULL_TOL = 1e-6  # "full": within this of the top
 _TOL = 1e-9
 
 
-def _top_band(request) -> tuple[float, float]:
-    """(kWh, kW) of the weekly charge's top band (D-7); none without one."""
+def _bands(request, cap) -> tuple:
+    """The weekly charge's curve (D-6, D-7) as the model's bands: ((stored
+    kWh, AC kW), ...) ascending; none without a weekly charge."""
     if request.full_by is None:
-        return 0.0, 0.0
-    return max(0.0, float(request.top_band_kwh or 0.0)), max(0.0, float(request.top_band_kw or 0.0))
+        return ()
+    return tuple(sorted(
+        (cap - float(below), max(0.0, float(kw)))
+        for below, kw in request.charge_curve or ()
+        if 0.0 < float(below) <= cap
+    ))
 
 
 def _reached(peaks, ends, deadline, cap):
@@ -97,7 +102,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     cap = usable + max(0.0, float(request.headroom_kwh))
     rte = request.import_value_efficiency or DEFAULT_ROUND_TRIP_EFFICIENCY
     fleet = request.fleet_capacity_kwh
-    band_kwh, band_kw = _top_band(request)
+    bands = _bands(request, cap)
     if fleet and request.fleet_soc_pct is not None:
         model = BatteryModel(
             capacity_kwh=fleet,
@@ -105,15 +110,24 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             floor_kwh=fleet * request.fleet_soc_pct / 100.0 - usable,
             usable_kwh=cap,
             soc_resolution_pct=request.soc_resolution_pct,
-            band_kwh=min(band_kwh, cap),
+            bands=bands,
         )
         soc_step = fleet * request.soc_resolution_pct / 100.0
     else:  # no reading to round to
         model = BatteryModel(capacity_kwh=max(cap, _TOL), round_trip_efficiency=rte,
-                             usable_kwh=cap, soc_resolution_pct=1e-6,
-                             band_kwh=min(band_kwh, cap))
+                             usable_kwh=cap, soc_resolution_pct=1e-6, bands=bands)
         soc_step = 0.0
-    groups = _slot_groups(request, band_kw)
+    groups = _slot_groups(request)
+    # Once a weekly charge is done the ceiling is max_soc again: the done
+    # layer stores up to it (the plan valued room for tomorrow's sun the
+    # battery would not take). The pending layer keeps the 100 %.
+    done_model = model
+    if request.full_by is not None and request.done_headroom_kwh is not None:
+        done_model = dataclasses.replace(
+            model, usable_kwh=min(cap, usable + max(0.0, float(request.done_headroom_kwh))),
+            bands=(),
+        )
+    layer_model = {False: done_model, True: model}
     # Weekly Full Charge pending (D-1): a second value function for "not yet
     # full", through the group holding the window's end. The shortfall pays
     # at the planned deadline (D-7: the window's end less the run's margin,
@@ -215,6 +229,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         charge must not fill what the plan would then export as room; not
         while a weekly charge is pending), then raised to the floor while the
         guaranteed floor is active."""
+        model = layer_model[pending]
         target = model.slot_target(e, ask)
         if slot_start in charge_caps and not pending:
             target = np.minimum(target, charge_caps[slot_start])
@@ -227,7 +242,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         ``asks`` (n, 1): n charge quotas at once, row i the run of ``option``
         with ``asks[i]`` as its quota (``option`` says only whether it holds).
         ``pending``: the weekly charge's layer (no minimum saving on a hold,
-        no charge cap, only the delay's export)."""
+        no charge cap, only the delay's export, the 100 % ceiling)."""
+        model = layer_model[pending]
         e = np.array(e, dtype=float)
         if asks is not None:
             e = np.broadcast_to(e, (len(asks),) + e.shape).copy()
@@ -259,7 +275,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 # sun surplus during the charge phase feeds it too, and is not
                 # bought (margin and D3 counted it, making sunny charges dear).
                 add, busy = model.charge_phase(q, e, t)
-                if model.band_kwh > 0:
+                if model.bands:
                     done |= target - e - add <= _TOL
                 else:
                     done |= target - e <= model.charge_rate(q) + _TOL
@@ -760,10 +776,10 @@ def _published_quota(model, soc_step, e, target, stored):
     return min(max(stored, target - reading - soc_step + margin), target - reading - margin)
 
 
-def _slot_groups(request: ChronologicalEvaluationRequest, band_kw: float = 0.0):
+def _slot_groups(request: ChronologicalEvaluationRequest):
     """[(slot, [Quarter], [interval end])] from now to the last published price.
-    A weekly charge (``full_by``) charges at the fleet's average power over its
-    whole gap, and at ``band_kw`` inside its top band."""
+    A weekly charge (``full_by``) charges at the fleet's power while every
+    battery charges; its curve (the model's bands) slows it after that."""
     slots = sorted(
         (
             s for s in (request.price_curve or request.price_slots)
@@ -778,7 +794,7 @@ def _slot_groups(request: ChronologicalEvaluationRequest, band_kw: float = 0.0):
     ceiling = request.grid_ceiling_kw
     power = max(0.0, float(request.effective_power_kw))
     if request.full_by is not None and request.full_by_power_kw is not None:
-        power = min(power, max(0.0, float(request.full_by_power_kw)))
+        power = max(0.0, float(request.full_by_power_kw))
     groups: list = []
     for i in sorted(request.intervals, key=lambda x: x.start):
         if i.start < request.now:
@@ -803,7 +819,7 @@ def _slot_groups(request: ChronologicalEvaluationRequest, band_kw: float = 0.0):
             charge_kwh=power * h,
             discharge_kwh=BIG if discharge is None else max(0.0, float(discharge)) * h,
             ceiling_kwh=BIG if ceiling is None or not math.isfinite(float(ceiling)) else max(0.0, float(ceiling)) * h,
-            band_charge_kwh=band_kw * h if band_kw > 0 else BIG,
+            hours=h,
         )
         if groups and groups[-1][0] is s:
             groups[-1][1].append(q)

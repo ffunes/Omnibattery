@@ -893,9 +893,9 @@ def test_a_weekly_full_charge_day_is_the_optimizer_s(monkeypatch):
     assert outcome.planner == "optimizer"
     req = outcome.request
     assert req.full_by == sw.DAY + timedelta(days=1, hours=sw.SUNRISE)
-    # 10 kWh at 15 %: the top band is 5 % (0.5 kWh) at half of 2.5 kW.
-    assert req.top_band_kwh == pytest.approx(0.5)
-    assert req.top_band_kw == pytest.approx(1.25)
+    # 10 kWh at 15 %: the last 5 % (0.5 kWh) at half of 2.5 kW.
+    ((below, kw),) = req.charge_curve
+    assert below == pytest.approx(0.5) and kw == pytest.approx(1.25)
     assert req.full_by_power_kw == pytest.approx(2.5)
     assert c._dp_plan_weekly_holds is not None
     assert c._dp_plan_room is not None
@@ -904,7 +904,7 @@ def test_a_weekly_full_charge_day_is_the_optimizer_s(monkeypatch):
 
 def test_without_a_weekly_charge_the_request_carries_none(monkeypatch):
     outcome, c = _room_engine(monkeypatch)
-    assert outcome.request.full_by is None and outcome.request.top_band_kwh == 0.0
+    assert outcome.request.full_by is None and outcome.request.charge_curve == ()
     assert c._dp_plan_weekly_holds is None
 
 

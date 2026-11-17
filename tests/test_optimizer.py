@@ -953,7 +953,7 @@ def test_under_its_level_a_room_slot_stores_the_sun_as_the_controller_does():
 def _weekly(request, full_by_quarter, band_kwh=0.0, band_kw=0.0):
     import dataclasses
     return dataclasses.replace(request, full_by=T0 + full_by_quarter * Q,
-                               top_band_kwh=band_kwh, top_band_kw=band_kw)
+                               charge_curve=((band_kwh, band_kw),) if band_kwh else ())
 
 
 def _reach(plan, cap):

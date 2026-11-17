@@ -276,12 +276,14 @@ class ChronologicalEvaluationRequest:
     room_export_prices: Mapping[datetime, float] | None = None
     # Weekly Full Charge pending (step 4): the fleet must touch its top
     # (``usable_initial_kwh + headroom_kwh``, 100 %) once by ``full_by``, the
-    # window's end; None = no weekly charge. The last ``top_band_kwh`` charge
-    # at ``top_band_kw`` (the 100 % taper), grid and sun alike, and
-    # ``full_by_power_kw`` is the fleet's average power over the whole gap.
+    # window's end; None = no weekly charge. ``full_by_power_kw`` is the
+    # fleet's power while every battery charges; ``charge_curve``, ((kWh below
+    # the top, AC kW), ...), the power from there up (a battery in its 100 %
+    # taper, or full while the others go on), grid and sun alike.
     full_by: datetime | None = None
-    top_band_kwh: float = 0.0
-    top_band_kw: float = 0.0
+    # The headroom to the configured max_soc: the ceiling once the run is done.
+    done_headroom_kwh: float | None = None
+    charge_curve: tuple[tuple[float, float], ...] = ()
     full_by_power_kw: float | None = None
 
     def __post_init__(self) -> None:
