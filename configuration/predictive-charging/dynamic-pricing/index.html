@@ -3485,9 +3485,10 @@ EnergyZero calls <code>energyzero.get_energy_prices</code> for today and tomorro
 <h3 id="discharge-reserve">Discharge Reserve<a class="headerlink" href="#discharge-reserve" title="Permanent link">&para;</a></h3>
 <p>This opt-in feature saves stored energy for more expensive household-demand periods before the next sunrise. It projects the learned 15-minute demand profile and expected solar, lets the dearest periods claim only the energy they need, and reserves claims that exceed the current price by <strong>Discharge Reserve Minimum Saving</strong>. That control defaults to 0.05 currency/kWh.</p>
 <p>Expected solar surplus can release part of the reserve, but only when it can physically fit in the battery. Surplus that <strong>Surplus Price Hold</strong> plans to export receives no credit. The planner credits 75% of qualifying expected surplus so forecast uncertainty cannot release the full reserve before actual production arrives.</p>
+<p>A cheaper grid charge before a dear period releases it too. A period counts when buying the energy back there, its price divided by the round-trip efficiency plus <strong>Minimum Arbitrage Margin</strong>, costs no more than the current price plus <strong>Discharge Reserve Minimum Saving</strong>. Only periods after the next daily evaluation at 00:05 count, because that evaluation plans the night charge from the battery's actual SOC. Each counts only for what the battery can take at its charge power without pushing out expected solar, and not above <strong>Max Price Threshold (Charge)</strong>. For example, at 18:15 at 0.676 €/kWh, a night at 0.436 €/kWh buys the energy back for 0.436 / 0.82 + 0.05 ≈ 0.585 €/kWh, so it is used now instead of held for tomorrow evening.</p>
 <p>The resulting energy becomes an added fleet SOC floor. Energy above it remains available now, and the floor falls when the current period becomes expensive. The configured battery <code>min_soc</code> is not rewritten. Peak shaving, emergency protection, and anti-curtailment can bypass this economic blocker.</p>
 <p>The reserve ends at the next sunrise. Missing prices, consumption profile, usable energy, or future demand leaves it at the configured minimum SOC. Manual control, anti-curtailment, peak shaving, operating-time ownership, and an explicit per-period SOC override also release it.</p>
-<p><strong>Discharge Reserve Status</strong> reports active state, reason, reserved energy/percentage, reference price, claims, expected solar credit, horizon demand, and horizon surplus. <strong>Integration Status</strong> reports <code>price_reserve_hold</code> while a battery is held.</p>
+<p><strong>Discharge Reserve Status</strong> reports active state, reason, reserved energy/percentage, reference price, claims, expected solar credit, grid refill credit (<code>refill_credit_kwh</code>, <code>refills</code>, <code>refill_from</code>), horizon demand, and horizon surplus. <strong>Integration Status</strong> reports <code>price_reserve_hold</code> while a battery is held.</p>
 <h3 id="minimum-arbitrage-margin-and-round-trip-efficiency">Minimum Arbitrage Margin and round-trip efficiency<a class="headerlink" href="#minimum-arbitrage-margin-and-round-trip-efficiency" title="Permanent link">&para;</a></h3>
 <p>The optional <strong>Minimum Arbitrage Margin</strong> rejects a charge period unless the expected future discharge value covers conversion losses and the selected margin:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>expected_discharge_price × round_trip_efficiency − charge_price ≥ margin
@@ -3578,6 +3579,10 @@ EnergyZero calls <code>energyzero.get_energy_prices</code> for today and tomorro
 <tr>
 <td><code>energy_horizon_end</code></td>
 <td>Next-sunrise boundary, or midnight when sunrise cannot be calculated</td>
+</tr>
+<tr>
+<td><code>planning_horizon_reason</code></td>
+<td>Why the plan did or did not extend past the next sunrise: <code>extended</code>, <code>no_price_slots</code>, <code>no_tomorrow_prices</code>, <code>solar_profile_off</code>, <code>no_tomorrow_solar_periods</code> (no dated forecast for tomorrow, from the sensor or the Energy dashboard), <code>no_consumption_profile</code>, or <code>daily_evaluation</code></td>
 </tr>
 <tr>
 <td><code>overnight_consumption_kwh</code></td>

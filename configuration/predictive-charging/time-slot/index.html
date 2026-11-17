@@ -1582,6 +1582,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#window-floor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Window floor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#re-evaluation-triggers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2990,6 +3001,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#window-floor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Window floor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#re-evaluation-triggers" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3062,6 +3084,12 @@
 <p><img alt="Configure fixed predictive charging windows" src="../../../assets/screenshots/configuration/predictive-charging/time-slot-form.png" style="display: block; margin: 0 auto;" width="650" /></p>
 <h2 id="what-you-will-see">What you will see<a class="headerlink" href="#what-you-will-see" title="Permanent link">&para;</a></h2>
 <p>At the start of an active window, Omnibattery checks the remaining energy balance and gives that window a quota. It can share the required energy across several windows, so the first window does not automatically consume the whole flexible daily target. Charging stops when the quota is stored or the window ends.</p>
+<p>Inside a window, the grid covers the house at the cheap rate, so the battery keeps the energy it needs for the hours after the window:</p>
+<ul>
+<li><strong>The window charges:</strong> the battery charges its quota and then stays idle until the window ends. It never charges and then discharges in the same window, which would only lose the round trip.</li>
+<li><strong>No charge needed:</strong> the battery discharges normally, but only down to the energy needed after the window. From there the grid covers the house until the window ends.</li>
+</ul>
+<p>The quota therefore covers only the demand after the window, not the house load during it. A <a href="../../../features/weekly-full-charge/">weekly full charge</a> keeps its own behaviour.</p>
 <p><strong>Predictive Charging Active</strong> shows the decision and any uncovered energy. <strong>Re-evaluate Predictive Charging</strong> forces a fresh decision on the next control cycle while a configured window is active. Outside a window, the button invalidates the old reference for the next window but does not evaluate immediately or start charging.</p>
 <p>The plan adapts inside an active window when SOC changes materially, the guaranteed floor is crossed or recovered, the provider revises the solar forecast, a relevant battery or forecast setting changes, or <a href="../../../features/peak-shaving/">capacity protection</a> changes the power available to the plan.</p>
 <h2 id="if-it-does-not-work">If it does not work<a class="headerlink" href="#if-it-does-not-work" title="Permanent link">&para;</a></h2>
@@ -3100,6 +3128,11 @@
 <td>Window duration, charge limits, battery capacity, and active blockers</td>
 </tr>
 <tr>
+<td>The battery stops discharging during a window</td>
+<td>It reached the energy it needs after the window; the grid covers the house until the window ends</td>
+<td><code>time_slot_floor_kwh</code> on <strong>Predictive Charging Active</strong> and the <code>time_slot_floor_hold</code> discharge blocker</td>
+</tr>
+<tr>
 <td>Pressing re-evaluate does nothing</td>
 <td>The button was pressed outside an active window</td>
 <td>Press it during a configured window; outside one it prepares the next entry</td>
@@ -3112,6 +3145,8 @@
 <p>On window entry, Omnibattery evaluates immediately when no solar forecast is configured or the configured forecast is readable. If the forecast is temporarily unavailable, it retries during a five-minute grace period; after that it evaluates conservatively with zero solar.</p>
 <p>The planner simulates consumption, solar, and usable battery energy in 15-minute intervals until midnight. Energy needed before a projected minimum-SOC crossing is assigned only to windows that can deliver it in time. Later energy is distributed across the remaining configured windows. If no window can meet a deadline, the uncovered kWh is reported as an energy shortfall instead of being assigned to a window that is too late.</p>
 <p>Each window receives its own kWh quota. Charging stops when the live battery reaches that quota or the window ends. A suspended quota remains attached to the plan and is rebuilt from live SOC when charging can continue.</p>
+<h3 id="window-floor">Window floor<a class="headerlink" href="#window-floor" title="Permanent link">&para;</a></h3>
+<p>The planner treats every configured window as battery-idle: the house load inside it is left to the grid and is not part of any quota. At each evaluation the window gets a floor, the stored energy it must end with. If the window charges, the floor is the current energy plus the quota. Otherwise it is the current energy minus the lowest point of the projection without grid charging, which is the energy that is spare until the next window. While stored energy is at or below the floor, the <code>time_slot_floor_hold</code> discharge blocker keeps the battery idle. Capacity protection can still discharge. The floor clears when the window ends, and is not used during a weekly full charge.</p>
 <h3 id="re-evaluation-triggers">Re-evaluation triggers<a class="headerlink" href="#re-evaluation-triggers" title="Permanent link">&para;</a></h3>
 <p>Inside an active charging window, the balance is reconsidered when:</p>
 <ul>
