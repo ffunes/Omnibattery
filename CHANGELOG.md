@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- **A battery tapering on cell voltage below 99 % is no longer marked non-responsive** (PR#871): the top-of-charge grace now also opens with the top cell in the taper zone, the same gate as the BMS-cutoff detector (a Zendure 2400 AC+ fell to 190 W at 97 % and was excluded twice). Thanks to @anorakophobia.
 - **A Repair raised before a restart is cleared once the fault is gone** (PR#851): a non-delivering battery, a degraded phase sensor or a missing configured sensor came back after a restart and was never deleted. Thanks to @sphings79.
 - **Forecast.Solar periods keep their full hour** (#855, PR#856): the sunrise and sunset keys no longer shrink every Energy dashboard period to a few minutes, so the solar curve is no longer rejected (`provider_coverage`), drawn as a sawtooth, or put into each hour's first quarter by High-Price Sale.
 - **Dynamic Pricing: the 00:05 plan also looks past tomorrow's sunrise when tomorrow's prices are already known**: with a feed that always holds tomorrow (a fixed-tariff template), the 00:05 plan stopped at midnight and the first re-evaluation, planning across tomorrow, could drop a charge already running. The predictive sensor keeps a plan's timeline diagnostics when it covers tomorrow.
