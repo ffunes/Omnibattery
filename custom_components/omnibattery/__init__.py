@@ -8,7 +8,7 @@ import math
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
@@ -5753,6 +5753,7 @@ class ChargeDischargeController:
         *,
         consumption_override_kwh: float | None = None,
         solar_forecast_override_kwh: float | None = None,
+        solar_days_kwh: Sequence[float] | None = None,
     ) -> dict:
         """
         Evaluate whether to activate grid charging using energy balance approach.
@@ -5762,6 +5763,8 @@ class ChargeDischargeController:
         ``consumption_override_kwh`` and ``solar_forecast_override_kwh`` allow a
         caller to evaluate a shorter horizon, such as the energy still needed
         before midnight. The normal daily evaluation leaves both unset.
+        ``solar_days_kwh`` splits a forecast that spans several days into each
+        day's sun, so the safety margin comes off every day on its own.
 
         Where:
         - usable_energy = stored_energy - cutoff_energy
@@ -5897,6 +5900,13 @@ class ChargeDischargeController:
         # Safety margin: user-configurable buffer added to consumption forecast.
         # Guardrail: never exceed total system capacity.
         safety_margin_kwh = min(self._predictive_safety_margin_kwh, total_capacity_kwh)
+        if solar_days_kwh:
+            # The margin is per forecast day: each day gives up its own, at
+            # most its own sun.
+            safety_margin_kwh = sum(
+                min(safety_margin_kwh, max(0.0, float(day_kwh)))
+                for day_kwh in solar_days_kwh
+            )
 
         # Guaranteed minimum SOC floor (#417): the whole-day balance can read
         # zero deficit on a solar-positive day, yet the battery still hits the

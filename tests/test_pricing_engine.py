@@ -312,6 +312,72 @@ def test_daily_dynamic_pricing_uses_persisted_remaining_sensor_when_cache_is_emp
     assert diagnostic_builds[0]["slots"] == []
 
 
+def test_daily_dynamic_pricing_plans_across_tomorrow_like_a_re_plan():
+    """2026-11-17: a fixed-tariff template holds tomorrow's prices at 00:05.
+    The 00:05 run planned to midnight; the first re-plan, extended to tomorrow,
+    dropped the 07:00 slot six minutes into its charge. Both runs must plan on
+    the same horizon, and the day's solar reference keeps today's sun only."""
+    planning_end = datetime(2026, 11, 19, 0, 0)
+    horizons = []
+    captured = []
+
+    async def remaining_decision(*, now=None, horizon_end=None):
+        horizons.append(horizon_end)
+        return {
+            "should_charge": False,
+            "avg_soc": 50.0,
+            "energy_deficit_kwh": 0.0,
+            "avg_consumption_kwh": 0.0,
+            # Balance: today's 5.48 kWh plus tomorrow's 9.14 kWh.
+            "solar_forecast_kwh": 14.62,
+            "remaining_solar_kwh": 5.48,
+        }
+
+    async def no_op(*_args, **_kwargs):
+        return None
+
+    ctrl = _controller(
+        config_entry=SimpleNamespace(
+            data={CONF_SOLAR_FORECAST_REMAINING_SENSOR: "sensor.remaining"},
+            options={},
+        ),
+        solar_forecast_remaining_sensor=None,
+        solar_forecast_sensor=None,
+        _dp_eval_retry_count=0,
+        _consumption_tracker=SimpleNamespace(
+            capture_daily_solar_forecast=captured.append
+        ),
+    )
+    manager = _mgr(ctrl)
+    manager._now = lambda: datetime(2026, 11, 17, 0, 5)
+    manager._read_remaining_solar_reading = lambda _now: 5.48
+
+    def extended(_now):
+        manager.planning_horizon_reason = "extended"
+        return planning_end
+
+    manager._extended_planning_end = extended
+    manager._evaluate_remaining_grid_charging = remaining_decision
+    manager._maybe_refresh_service_prices = no_op
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: []
+    manager._build_curtailment_plan = lambda *_args, **_kwargs: CurtailmentPlan(
+        status="no_risk", reason="none"
+    )
+    manager._send_dynamic_pricing_notification = no_op
+    manager._build_chronological_plan = lambda **_kwargs: None
+
+    asyncio.run(
+        manager._evaluate_dynamic_pricing(
+            horizon=DynamicPricingEvaluationHorizon.DAILY,
+        )
+    )
+
+    assert horizons == [planning_end]
+    assert ctrl._dp_planning_end == planning_end
+    assert ctrl._last_decision_data["planning_horizon_reason"] == "extended"
+    assert captured == [5.48]
+
+
 def test_dynamic_pricing_builds_diagnostics_when_balance_needs_no_charge():
     async def no_charge_decision():
         return {
@@ -1148,6 +1214,52 @@ def test_price_publication_reeval_waits_for_the_active_slot_to_end():
     ctrl._current_price_slot_active = False
     asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
     assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
+
+
+def test_first_cycle_after_midnight_resets_the_day_and_does_not_re_plan():
+    """2026-11-17: a feed that always holds tomorrow made the publication
+    trigger re-plan at 00:00, before the reset, which then saw today's date
+    and never ran. The reset runs first, and the trigger waits for the day's
+    own evaluation (00:05), which disarms it."""
+    calls = []
+
+    async def _evaluate(**kwargs):
+        calls.append(kwargs)
+        ctrl._dynamic_pricing_evaluated_date = datetime.now().date()
+
+    yesterday = datetime.now().date() - timedelta(days=1)
+    ctrl = _publication_ctrl(
+        _dynamic_pricing_evaluated_date=yesterday,
+        _dp_price_publication_reeval_date=yesterday,
+        _dp_solar_forecast_reeval_count=3,
+        _dp_eval_retry_count=0,
+    )
+    manager = _publication_mgr(ctrl, _evaluate)
+    manager._prices_reach_beyond_today = lambda _now: True
+    for name in (
+        "_reset_predictive_demand_runtime",
+        "clear_curtailment_runtime",
+        "_clear_surplus_hold",
+        "_clear_discharge_reserve",
+        "_clear_plan_orders",
+    ):
+        setattr(manager, name, lambda *_args: None)
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+
+    assert calls == []
+    assert ctrl._dynamic_pricing_evaluated_date is None
+    assert ctrl._dp_solar_forecast_reeval_count == 0
+
+    # Any trigger that re-plans in the first cycle still finds the day reset.
+    ctrl._dynamic_pricing_evaluated_date = yesterday
+    ctrl._dp_solar_forecast_reeval_count = 3
+    manager._is_dp_soc_drop_reeval = lambda: True
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+
+    assert len(calls) == 1
+    assert ctrl._dp_solar_forecast_reeval_count == 0
 
 
 def test_price_publication_reeval_disarmed_when_the_daily_eval_already_saw_tomorrow():

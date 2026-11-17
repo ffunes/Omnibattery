@@ -4850,7 +4850,10 @@ class PricingManager:
             # not a new control decision. Retaining its expanded solar budget
             # would make the next refresh add tomorrow's periods a second time
             # and would leak a multi-day total into predictive diagnostics.
-            if persist_diagnostics and not is_extended_horizon:
+            # A control plan extended past sunrise (#710) is the decision
+            # itself: kept, or the 00:05 run, which clears the snapshot, would
+            # leave it empty all day once a balance check replaced the decision.
+            if persist_diagnostics and (not is_extended_horizon or control_extension):
                 self._store_chronological_diagnostics(decision_data)
             self._clear_planner_fallback_issue()
             return plan
@@ -5293,22 +5296,20 @@ class PricingManager:
             )
         ):
             decision_data = await self._controller._should_activate_grid_charging()
+            decision_data["planning_horizon_reason"] = "daily_evaluation"
         else:
-            # Tomorrow's prices known (and plannable): look past the sunrise (#710).
-            planning_end = (
-                self._extended_planning_end(now)
-                if horizon is DynamicPricingEvaluationHorizon.REMAINING
-                else None
-            )
+            # Tomorrow's prices known (and plannable): look past the sunrise
+            # (#710). The 00:05 run too: a feed that already holds tomorrow
+            # then (a fixed-tariff template) planned it to midnight, and the
+            # first re-plan, on the extended horizon, dropped a slot mid-charge.
+            planning_end = self._extended_planning_end(now)
             decision_data = await self._evaluate_remaining_grid_charging(
                 now=now, **({"horizon_end": planning_end} if planning_end else {})
             )
+            decision_data["planning_horizon_reason"] = getattr(
+                self, "planning_horizon_reason", None
+            )
         self._controller._dp_planning_end = planning_end
-        decision_data["planning_horizon_reason"] = (
-            getattr(self, "planning_horizon_reason", None)
-            if horizon is DynamicPricingEvaluationHorizon.REMAINING
-            else "daily_evaluation"
-        )
 
         # Keep the first full-day forecast separate from the live remaining
         # horizon used by later reevaluations. With a configured remaining-today
@@ -6626,6 +6627,11 @@ class PricingManager:
         controller = self._controller
         if getattr(controller, "_dp_price_publication_reeval_date", None) == now.date():
             return False
+        # A re-plan of a day already planned: a feed that always holds
+        # tomorrow (a fixed-tariff template) "published" it at midnight,
+        # before the 00:05 evaluation, which disarms it when it sees tomorrow.
+        if getattr(controller, "_dynamic_pricing_evaluated_date", None) != now.date():
+            return False
         if getattr(controller, "_current_price_slot_active", False):
             return False
         return self._prices_reach_beyond_today(now)
@@ -6966,6 +6972,14 @@ class PricingManager:
         decision = await controller._should_activate_grid_charging(
             consumption_override_kwh=remaining_consumption_kwh,
             solar_forecast_override_kwh=balance_solar_kwh,
+            # Today's sun and tomorrow's each give up the margin (per day).
+            **(
+                {"solar_days_kwh": (
+                    remaining_solar_kwh, balance_solar_kwh - remaining_solar_kwh
+                )}
+                if planning_extended
+                else {}
+            ),
         )
         # Keep explicit diagnostics for the pre-slot notification and future
         # consumers while preserving the legacy avg_consumption_kwh field.
@@ -7677,6 +7691,68 @@ class PricingManager:
         await self._maybe_refresh_service_prices()
         self._carry_over_held_slots(now)
 
+        # Phase 1: Daily reset at midnight, before any trigger: an evaluation
+        # in the first cycle of the day stamps today's date and the reset
+        # below never ran (2026-11-17, a price-publication re-plan at 00:00).
+        # After the carry-over, which still needs yesterday's slots.
+        today = now.date()
+        if self._controller._dynamic_pricing_evaluated_date is not None:
+            if today > self._controller._dynamic_pricing_evaluated_date:
+                _LOGGER.info("Dynamic pricing: new day — resetting schedule")
+                if self._controller._current_price_slot_active:
+                    await self._stop_dynamic_price_slot("slot_ended", write_idle=False)
+                midnight = now.replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                )
+                schedule = self._controller._dynamic_pricing_schedule
+                if schedule is not None:
+                    retained = [
+                        slot
+                        for slot in schedule.selected_slots
+                        if slot.start >= midnight
+                    ]
+                    schedule.selected_slots = retained
+                    for attribute in (
+                        "slot_purposes",
+                        "slot_energy_targets_kwh",
+                        "slot_cost_energy_kwh",
+                        "slot_deadlines",
+                        "slot_plan_kinds",
+                    ):
+                        values = getattr(schedule, attribute, None)
+                        if isinstance(values, dict):
+                            setattr(
+                                schedule,
+                                attribute,
+                                {slot: values[slot] for slot in retained if slot in values},
+                            )
+                    if not retained:
+                        self._controller._dynamic_pricing_schedule = None
+                self._controller._dynamic_pricing_evaluated_date = None
+                self._controller._current_price_slot_active = False
+                self._controller._dp_eval_retry_count = 0
+                self._controller._dp_pre_evaluated_slots = {}
+                self._controller._dp_pre_evaluated_purposes = {}
+                self._controller._dp_completed_slots = set()
+                self._controller._active_dynamic_slot_purpose = None
+                self._controller._dp_daily_avg_price = None
+                self._controller._dp_arbitrage_ceiling = None
+                self._controller._dp_evening_reevaluated_date = None
+                self._controller._dp_last_eval_soc = None
+                self._clear_plan_orders()
+                self._controller._dp_eval_projection = None
+                self._controller._dp_last_eval_excluded_claim_kwh = None
+                self._controller._dp_excluded_demand_reeval_at = None
+                self._controller._dp_excluded_demand_reeval_count = 0
+                self._controller._dp_last_eval_solar_remaining_kwh = None
+                self._controller._dp_last_eval_solar_produced_kwh = None
+                self._controller._dp_solar_forecast_reeval_at = None
+                self._controller._dp_solar_forecast_reeval_count = 0
+                self._reset_predictive_demand_runtime()
+                self.clear_curtailment_runtime("new_day")
+                self._clear_surplus_hold("new_day")
+                self._clear_discharge_reserve("new_day")
+
         # Phase 2: Retry if prices (or the solar forecast) weren't available at
         # 00:05. Every 15 min in the first hour, then every 30 min all day:
         # a provider publishing after 01:00 used to leave the day unplanned.
@@ -7786,65 +7862,6 @@ class PricingManager:
             await self._evaluate_dynamic_pricing(
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
             )
-
-        # Phase 3: Daily reset at midnight
-        today = now.date()
-        if self._controller._dynamic_pricing_evaluated_date is not None:
-            if today > self._controller._dynamic_pricing_evaluated_date:
-                _LOGGER.info("Dynamic pricing: new day — resetting schedule")
-                if self._controller._current_price_slot_active:
-                    await self._stop_dynamic_price_slot("slot_ended", write_idle=False)
-                midnight = now.replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                )
-                schedule = self._controller._dynamic_pricing_schedule
-                if schedule is not None:
-                    retained = [
-                        slot
-                        for slot in schedule.selected_slots
-                        if slot.start >= midnight
-                    ]
-                    schedule.selected_slots = retained
-                    for attribute in (
-                        "slot_purposes",
-                        "slot_energy_targets_kwh",
-                        "slot_cost_energy_kwh",
-                        "slot_deadlines",
-                        "slot_plan_kinds",
-                    ):
-                        values = getattr(schedule, attribute, None)
-                        if isinstance(values, dict):
-                            setattr(
-                                schedule,
-                                attribute,
-                                {slot: values[slot] for slot in retained if slot in values},
-                            )
-                    if not retained:
-                        self._controller._dynamic_pricing_schedule = None
-                self._controller._dynamic_pricing_evaluated_date = None
-                self._controller._current_price_slot_active = False
-                self._controller._dp_eval_retry_count = 0
-                self._controller._dp_pre_evaluated_slots = {}
-                self._controller._dp_pre_evaluated_purposes = {}
-                self._controller._dp_completed_slots = set()
-                self._controller._active_dynamic_slot_purpose = None
-                self._controller._dp_daily_avg_price = None
-                self._controller._dp_arbitrage_ceiling = None
-                self._controller._dp_evening_reevaluated_date = None
-                self._controller._dp_last_eval_soc = None
-                self._clear_plan_orders()
-                self._controller._dp_eval_projection = None
-                self._controller._dp_last_eval_excluded_claim_kwh = None
-                self._controller._dp_excluded_demand_reeval_at = None
-                self._controller._dp_excluded_demand_reeval_count = 0
-                self._controller._dp_last_eval_solar_remaining_kwh = None
-                self._controller._dp_last_eval_solar_produced_kwh = None
-                self._controller._dp_solar_forecast_reeval_at = None
-                self._controller._dp_solar_forecast_reeval_count = 0
-                self._reset_predictive_demand_runtime()
-                self.clear_curtailment_runtime("new_day")
-                self._clear_surplus_hold("new_day")
-                self._clear_discharge_reserve("new_day")
 
         # Phase 3.5: keep the surplus-absorption plan current. The manager
         # throttles itself; between rebuilds it only refreshes the live target,

@@ -292,14 +292,12 @@ def test_sweep(case):
 
 
 # The scheduled 00:05 run (DAILY horizon). A zero forecast at 00:05 defers it
-# to the retry ladder, and with tomorrow's prices it plans to sunrise while
-# a later run extends the horizon, so stability is only held without them.
+# to the retry ladder. With tomorrow's prices it plans on the same extended
+# horizon as a later run, so stability holds with them too (2026-11-17).
 DAILY_CASES = [c for c in CASES if c[6] == "00:05" and SOLAR[c[5]] > 0]
 
 
 @pytest.mark.parametrize("case", DAILY_CASES[::SAMPLE], ids=case_id)
 def test_sweep_daily(case):
-    findings = evaluate_pair(case, daily=True)
-    if not case[4]:
-        findings += evaluate_stability(case, daily=True)
+    findings = evaluate_pair(case, daily=True) + evaluate_stability(case, daily=True)
     check("daily " + case_id(case), findings)
