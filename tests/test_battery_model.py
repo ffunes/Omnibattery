@@ -210,3 +210,27 @@ def test_an_hourly_slot_sets_its_target_once():
     for _ in range(4):
         e, _cost = MODEL.normal_step(hour, e, target=target)
     assert float(e) == pytest.approx(3.0)
+
+
+def test_the_top_band_slows_the_charge_and_splits_the_quarter():
+    """D-7: 5.12 kWh, rte 0.81 (eff 0.9), top band 0.256 kWh (5 %) charged at
+    half of 2.5 kW. From 4.5 kWh a quarter charges 0.364 kWh to the band edge
+    in 0.647 of it (0.5625 stored per quarter), then 0.0993 inside the band
+    (0.28125 per quarter) for the rest: 0.4633 stored, 0.5147 kWh AC. The grid
+    and the sun fill the same way."""
+    model = BatteryModel(capacity_kwh=5.12, round_trip_efficiency=0.81, band_kwh=0.256)
+    grid = Quarter(house_kwh=0.0, solar_kwh=0.0, import_price=0.10, export_price=0.0,
+                   grid_charge_allowed=True, charge_kwh=0.625, discharge_kwh=0.625,
+                   band_charge_kwh=0.3125)
+    e1, cost = model.normal_step(grid, 4.5, target=5.12)
+    assert float(e1) == pytest.approx(4.5 + 0.364 + 0.352889 * 0.28125, abs=1e-5)
+    assert float(cost) == pytest.approx((0.647111 * 0.625 + 0.352889 * 0.3125) * 0.10, abs=1e-6)
+    sun = Quarter(**{**grid.__dict__, "house_kwh": 0.1, "solar_kwh": 1.0,
+                     "grid_charge_allowed": False, "export_price": 0.05})
+    e1, cost = model.normal_step(sun, 4.5)
+    assert float(e1) == pytest.approx(4.5 + 0.364 + 0.352889 * 0.28125, abs=1e-5)
+    assert float(cost) == pytest.approx(-(0.9 - 0.514722) * 0.05, abs=1e-6)
+    # Inside the band from the start, and without a band: the full rate.
+    assert float(model.normal_step(grid, 4.9, target=5.12)[0]) == pytest.approx(4.9 + 0.22)
+    plain = BatteryModel(capacity_kwh=5.12, round_trip_efficiency=0.81)
+    assert float(plain.normal_step(grid, 4.5, target=5.12)[0]) == pytest.approx(5.0625)

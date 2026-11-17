@@ -42,6 +42,8 @@ class Quarter:
     discharge_kwh: float  # AC discharge power x hours
     ceiling_kwh: float = BIG  # grid import ceiling x hours
     export_limit_kwh: float | None = None
+    # AC charge kWh the quarter allows inside the top band (``band_kwh``).
+    band_charge_kwh: float = BIG
 
 
 @dataclass(frozen=True)
@@ -53,6 +55,9 @@ class BatteryModel:
     # Resolution of the SOC reading, % (whole percent on most drivers; Huawei
     # reads tenths; ESPHome whatever its sensor publishes).
     soc_resolution_pct: float = 1.0
+    # Top band (D-7, weekly full charge): the last kWh under ``cap`` charge at
+    # the quarter's ``band_charge_kwh`` (the 100 % voltage taper), grid and sun.
+    band_kwh: float = 0.0
 
     @property
     def eff(self) -> float:
@@ -86,6 +91,34 @@ class BatteryModel:
         net = q.house_kwh - q.solar_kwh
         return min(q.charge_kwh, max(0.0, q.ceiling_kwh - max(0.0, net))) * self.eff
 
+    def fill(self, e, upto, rate, band_rate, frac=1.0):
+        """(stored kWh, fraction of the quarter used) charging from ``e`` toward
+        ``upto`` for at most ``frac`` of the quarter, at ``rate`` stored kWh per
+        quarter below the top band and ``band_rate`` inside it."""
+        e = np.asarray(e, dtype=float)
+        upto = np.asarray(upto, dtype=float)
+        edge = self.cap - self.band_kwh
+        below = np.maximum(np.minimum(upto, edge) - e, 0.0)
+        if rate > 0:
+            t_below = np.minimum(below / rate, frac)
+        else:
+            t_below = np.zeros_like(below)
+        inside = np.maximum(upto - np.maximum(e, edge), 0.0)
+        left = np.where(below <= t_below * rate + TOL, frac - t_below, 0.0)
+        t_inside = np.minimum(inside / band_rate, left) if band_rate > 0 else np.zeros_like(inside)
+        return t_below * rate + t_inside * band_rate, t_below + t_inside
+
+    def charge_phase(self, q: Quarter, e, target):
+        """(stored kWh, busy fraction) of a slot charge toward ``target`` in the
+        quarter: at the rate the ceiling leaves, slower inside the top band."""
+        e = np.asarray(e, dtype=float)
+        rate = self.charge_rate(q)
+        if self.band_kwh <= 0:
+            add = np.minimum(np.maximum(np.asarray(target, dtype=float) - e, 0.0), rate)
+            busy = np.where(add > 0, add / rate, 0.0) if rate > 0 else np.zeros_like(add)
+            return add, busy
+        return self.fill(e, target, rate, min(rate, q.band_charge_kwh * self.eff))
+
     def normal_step(self, q: Quarter, e, target=None):
         """(energy after, cost) of the quarter. With an open slot (``target``
         from ``slot_target``, passed until the slot first reaches it: the
@@ -95,16 +128,22 @@ class BatteryModel:
         The two phases are priced apart: they do not net."""
         e = np.asarray(e, dtype=float)
         net = q.house_kwh - q.solar_kwh
-        rate = self.charge_rate(q)
         if target is None or not q.grid_charge_allowed:
-            add = np.zeros_like(e)
+            add = busy = np.zeros_like(e)
         else:
-            add = np.minimum(np.maximum(np.asarray(target, dtype=float) - e, 0.0), rate)
-        busy = np.where(add > 0, add / rate, 0.0) if rate > 0 else np.zeros_like(add)
+            add, busy = self.charge_phase(q, e, target)
         e1 = e + add
         grid_busy = add / self.eff + net * busy  # the charge, plus the house meanwhile
         rest = net * (1 - busy)
-        if net < 0:
+        if net < 0 and self.band_kwh > 0:
+            stored, _t = self.fill(
+                e1, self.cap, min(-net, q.charge_kwh) * self.eff,
+                min(-net, q.charge_kwh, q.band_charge_kwh) * self.eff, 1 - busy,
+            )
+            stored_ac = stored / self.eff
+            e2 = e1 + stored
+            grid_rest = rest + stored_ac
+        elif net < 0:
             stored_ac = np.minimum(-rest, q.charge_kwh * (1 - busy))
             stored_ac = np.minimum(stored_ac, np.maximum(self.cap - e1, 0.0) / self.eff)
             e2 = e1 + stored_ac * self.eff
