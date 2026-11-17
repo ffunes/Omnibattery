@@ -230,6 +230,32 @@ def test_deferred_day_still_captures_the_full_day_reference():
     assert len(captured) == 1
 
 
+def test_extended_midnight_rebuild_captures_today_only(_frozen_clock):
+    # 2026-11-17: the remaining sensor stepped 0 -> 5.48 at 00:00 and a rebuild
+    # planned to tomorrow's end (#710). Its balance solar is today + tomorrow;
+    # storing it as "today's forecast" showed 14.62 kWh for a 5.48 kWh day.
+    _frozen_clock._value = datetime(2026, 9, 4, 0, 0)
+    ctrl = _controller()
+    captured = _capture_recorder(ctrl)
+    manager = PricingManager(SimpleNamespace(), ctrl)
+    manager._maybe_refresh_service_prices = _noop
+    manager._parse_price_data = lambda horizon_end=None, **_kwargs: _slots()
+    manager._send_dynamic_pricing_notification = _noop
+    manager._read_remaining_solar_reading = lambda _now: 5.48
+
+    async def extended_balance(**_kwargs):
+        return {**_decision(), "solar_forecast_kwh": 14.62, "remaining_solar_kwh": 5.48}
+
+    manager._evaluate_remaining_grid_charging = extended_balance
+    asyncio.run(
+        manager._evaluate_dynamic_pricing(
+            horizon=DynamicPricingEvaluationHorizon.REMAINING
+        )
+    )
+
+    assert captured == [5.48]
+
+
 def test_midday_rebuild_does_not_capture_a_remaining_figure(_frozen_clock):
     # Past the first hour the remaining figure is not the full-day figure and
     # must never be stored as the day's reference.
