@@ -24,10 +24,12 @@ deselects the ``sweep`` marker); run it with::
     pytest -m sweep -n auto
 
 ``OMNI_SWEEP_RECORD=<dir>`` writes every finding to ``<dir>`` instead of
-failing, to (re)build the known list.
+failing, to (re)build the known list. ``OMNI_SWEEP_SAMPLE=<n>`` runs one case
+in ``n`` (the pre-merge hook uses 11).
 """
 from __future__ import annotations
 
+import functools
 import itertools
 import json
 import os
@@ -235,9 +237,16 @@ def check(case_key: str, findings: list[tuple[str, str]]) -> None:
     )
 
 
+@functools.lru_cache(maxsize=1)
+def base_run(case, daily):
+    """The case's own evaluation, shared by evaluate_pair and evaluate_stability
+    (each test ran it twice: a quarter of the sweep's plans)."""
+    return run(scenario(case), daily=daily)
+
+
 def evaluate_pair(case, *, daily=False) -> list[tuple[str, str]]:
     findings = []
-    runs = {scale: run(scenario(case, scale=scale), daily=daily) for scale in (1.0, LOAD_SCALE)}
+    runs = {1.0: base_run(case, daily), LOAD_SCALE: run(scenario(case, scale=LOAD_SCALE), daily=daily)}
     low, high = runs[1.0], runs[LOAD_SCALE]
     costs = [getattr(r.plan, "optimizer_cost", None) for r in (low, high)]
     if None not in costs:
@@ -259,7 +268,7 @@ def evaluate_pair(case, *, daily=False) -> list[tuple[str, str]]:
 
 def evaluate_stability(case, *, daily=False) -> list[tuple[str, str]]:
     sc = scenario(case)
-    a = run(sc, daily=daily)
+    a = base_run(case, daily)
     later = sc.now + timedelta(hours=1)
     later += timedelta(minutes=(-later.minute) % 15)
     if any(x.slot.start < later for x in a.plan.allocations):
@@ -272,7 +281,12 @@ def evaluate_stability(case, *, daily=False) -> list[tuple[str, str]]:
     return []
 
 
-@pytest.mark.parametrize("case", CASES, ids=case_id)
+# Every n-th case; n coprime with 2, 3 and 4 (the grid's dimension sizes) keeps
+# every value of every dimension in the sample.
+SAMPLE = int(os.environ.get("OMNI_SWEEP_SAMPLE") or 1)
+
+
+@pytest.mark.parametrize("case", CASES[::SAMPLE], ids=case_id)
 def test_sweep(case):
     check(case_id(case), evaluate_pair(case) + evaluate_stability(case))
 
@@ -283,7 +297,7 @@ def test_sweep(case):
 DAILY_CASES = [c for c in CASES if c[6] == "00:05" and SOLAR[c[5]] > 0]
 
 
-@pytest.mark.parametrize("case", DAILY_CASES, ids=case_id)
+@pytest.mark.parametrize("case", DAILY_CASES[::SAMPLE], ids=case_id)
 def test_sweep_daily(case):
     findings = evaluate_pair(case, daily=True) + evaluate_stability(case, daily=True)
     check("daily " + case_id(case), findings)

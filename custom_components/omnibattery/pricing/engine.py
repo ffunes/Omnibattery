@@ -5321,15 +5321,18 @@ class PricingManager:
         # would leave the reference unset for the whole day. Within the first
         # hour nothing has been produced yet, which makes the remaining figure
         # the full-day figure; the capture itself only ever keeps the first
-        # value of the day. Today's figure, not the balance's: on an extended
-        # horizon that also holds tomorrow's sun.
+        # value of the day.
+        #
+        # remaining_solar_kwh, not solar_forecast_kwh: a rebuild planned past
+        # midnight (#710) balances today + tomorrow's sun, and storing that
+        # sum showed 14.62 kWh for a 5.48 kWh day. Without a remaining sensor
+        # the DAILY path has no such key; _should_activate_grid_charging
+        # already captured its full-day figure there.
         if horizon is DynamicPricingEvaluationHorizon.DAILY or now.hour == 0:
             tracker = getattr(self._controller, "_consumption_tracker", None)
             capture = getattr(tracker, "capture_daily_solar_forecast", None)
             if callable(capture):
-                capture(decision_data.get(
-                    "remaining_solar_kwh", decision_data.get("solar_forecast_kwh")
-                ))
+                capture(decision_data.get("remaining_solar_kwh"))
         self._controller._last_decision_data = decision_data
         # Reference SOC for the SOC-drop re-evaluation (#411): this is read before
         # the overnight discharge, so a battery that drains far below it must be

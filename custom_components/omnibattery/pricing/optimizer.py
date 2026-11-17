@@ -165,9 +165,14 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             target = np.minimum(target, charge_caps[slot_start])
         return np.maximum(target, floor) if floor > 0 else target
 
-    def run(quarters, e, option, slot_price, quarter_ends, slot_start=None):
-        """Exact execution of one slot from energies ``e`` (array)."""
+    def run(quarters, e, option, slot_price, quarter_ends, slot_start=None, asks=None):
+        """Exact execution of one slot from energies ``e`` (array).
+
+        ``asks`` (n, 1): n charge quotas at once, row i the run of ``option``
+        with ``asks[i]`` as its quota (``option`` says only whether it holds)."""
         e = np.array(e, dtype=float)
+        if asks is not None:
+            e = np.broadcast_to(e, (len(asks),) + e.shape).copy()
         cost = np.zeros_like(e)
         decide = np.zeros_like(e)
         stored = np.zeros_like(e)
@@ -181,7 +186,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         delayed = delay.allows(e, slot_start, quarter_ends[-1]) if delay is not None else None
         if export and not request.export_choice_allowed:
             export = delayed
-        target = None if option in (None, HOLD, EXPORT) or sell else target_of(e, option[0], slot_start)
+        target = None if option in (None, HOLD, EXPORT) or sell else target_of(
+            e, option[0] if asks is None else asks, slot_start)
         done = np.zeros(e.shape, dtype=bool)
         ends = []
         for q, end in zip(quarters, quarter_ends):
@@ -274,13 +280,32 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         to_end = (~done | (target >= model.cap - 1e-6)) if target is not None else done
         return e, cost, decide, stored, to_end, ends
 
+    def run_menu(slot, quarters, e, slot_ends):
+        """[(option, run)] for the slot's menu, in its order. The charge quotas
+        run in one call per kind (with and without the hold): the same
+        numbers, without the per-call overhead (96 % of the runs were quotas)."""
+        options = menu(slot, quarters, slot_ends[-1])
+        out = [None] * len(options)
+        stacks = {}
+        for i, option in enumerate(options):
+            if isinstance(option, tuple) and option[0] not in (SELL, ROOM):
+                stacks.setdefault(len(option), []).append(i)
+            else:
+                out[i] = (option, run(quarters, e, option, slot.price, slot_ends, slot.start))
+        for rows in stacks.values():
+            asks = np.array([[options[i][0]] for i in rows], dtype=float)
+            e1, c, decide, stored, to_end, ends = run(
+                quarters, e, options[rows[0]], slot.price, slot_ends, slot.start, asks=asks)
+            for r, i in enumerate(rows):
+                out[i] = (options[i], (e1[r], c[r], decide[r], stored[r], to_end[r], [x[r] for x in ends]))
+        return out
+
     # Backward pass: values[k] = cost-to-go before group k, on the lattice.
     values = [-end_value * levels]
     for slot, quarters, slot_ends in reversed(groups):
         nxt = values[-1]
         best = None
-        for option in menu(slot, quarters, slot_ends[-1]):
-            e1, _c, decide, *_ = run(quarters, levels, option, slot.price, slot_ends, slot.start)
+        for _option, (e1, _c, decide, *_) in run_menu(slot, quarters, levels, slot_ends):
             v = decide + np.interp(e1, levels, nxt)
             best = v if best is None else np.minimum(best, v)
         values.append(best)
@@ -298,8 +323,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     for k, (slot, quarters, ends) in enumerate(groups):
         nxt = values[k + 1]
         chosen = None
-        for option in menu(slot, quarters, ends[-1]):
-            e1, c, decide, stored, open_, path = run(quarters, [e], option, slot.price, ends, slot.start)
+        for option, (e1, c, decide, stored, open_, path) in run_menu(slot, quarters, [e], ends):
             v = float(decide[0] + np.interp(e1[0], levels, nxt))
             if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
                 chosen = (v, option, float(e1[0]), float(c[0]), float(stored[0]),

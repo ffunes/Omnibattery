@@ -1823,6 +1823,68 @@ def test_midnight_remaining_balance_uses_periods_when_scalar_is_zero():
     assert decision["solar_forecast_conversion"] == "dated_periods_zero_scalar"
 
 
+def test_extended_balance_keeps_remaining_solar_to_today():
+    # The 00:05 forecast reference is captured from remaining_solar_kwh; a
+    # horizon planned to tomorrow's end must add tomorrow's sun only to the
+    # balance, never to that field (14.62 kWh shown for a 5.48 kWh day).
+    madrid = ZoneInfo("Europe/Madrid")
+    now = datetime(2026, 11, 17, 0, 0, tzinfo=madrid)
+    periods = [
+        {
+            "start": (now + timedelta(hours=9)).isoformat(),
+            "end": (now + timedelta(hours=17)).isoformat(),
+            "energy_kwh": 5.48,
+        },
+        {
+            "start": (now + timedelta(hours=33)).isoformat(),
+            "end": (now + timedelta(hours=41)).isoformat(),
+            "energy_kwh": 9.14,
+        },
+    ]
+    state = SimpleNamespace(
+        state="5.48",
+        attributes={
+            "unit_of_measurement": "kWh",
+            "solar_forecast_periods": periods,
+        },
+    )
+    hass = SimpleNamespace(
+        config=SimpleNamespace(time_zone="Europe/Madrid"),
+        states=SimpleNamespace(get=lambda _entity_id: state),
+    )
+    calls = []
+
+    async def get_average_consumption():
+        return 6.0
+
+    async def should_activate(**overrides):
+        calls.append(overrides)
+        return {
+            "should_charge": False,
+            "solar_forecast_kwh": overrides["solar_forecast_override_kwh"],
+        }
+
+    controller = _controller(
+        solar_forecast_remaining_sensor="sensor.remaining",
+        solar_forecast_sensor=None,
+        _consumption_tracker=SimpleNamespace(
+            consumption_profile=None,
+            get_dynamic_base_consumption=get_average_consumption,
+        ),
+        _should_activate_grid_charging=should_activate,
+    )
+    manager = PricingManager(hass, controller)
+
+    decision = asyncio.run(
+        manager._evaluate_remaining_grid_charging(
+            now=now, horizon_end=now + timedelta(days=2)
+        )
+    )
+
+    assert calls[0]["solar_forecast_override_kwh"] == pytest.approx(14.62)
+    assert decision["remaining_solar_kwh"] == pytest.approx(5.48)
+
+
 def test_manual_button_uses_remaining_horizon_at_midday():
     import asyncio
 
