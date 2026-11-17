@@ -4850,7 +4850,10 @@ class PricingManager:
             # not a new control decision. Retaining its expanded solar budget
             # would make the next refresh add tomorrow's periods a second time
             # and would leak a multi-day total into predictive diagnostics.
-            if persist_diagnostics and not is_extended_horizon:
+            # A control plan extended past sunrise (#710) is the decision
+            # itself: kept, or the 00:05 run, which clears the snapshot, would
+            # leave it empty all day once a balance check replaced the decision.
+            if persist_diagnostics and (not is_extended_horizon or control_extension):
                 self._store_chronological_diagnostics(decision_data)
             self._clear_planner_fallback_issue()
             return plan

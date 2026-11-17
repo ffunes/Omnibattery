@@ -344,6 +344,19 @@ def test_balance_credits_tomorrows_sun_only_on_an_extended_horizon():
     assert seen == [pytest.approx(1.0), pytest.approx(9.0)]
 
 
+def test_extended_control_plan_keeps_its_diagnostics_snapshot():
+    """The 00:05 run clears the snapshot; an extended plan must store its own,
+    or a later balance check that replaces the decision blanks the sensor."""
+    manager = _manager(_solar(3.0))
+    manager._controller._last_chronological_diagnostics = None
+    plan, decision = _plan(manager, _tonight(0.20) + _tomorrow({}), CAP)
+
+    snapshot = manager._controller._last_chronological_diagnostics
+    assert plan is not None
+    assert snapshot
+    assert snapshot["energy_deadlines"] == decision["energy_deadlines"]
+
+
 def test_plan_within_drops_allocations_outside_the_control_slots():
     manager = _manager(_solar(3.0))
     cheap_midday = {hour: 0.05 for hour in range(10, 14)}
