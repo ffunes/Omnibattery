@@ -114,11 +114,12 @@ def _margin_per_day(
     timeline: SolarTimelineResult,
     margin_kwh: float,
     today_end: datetime,
-) -> SolarTimelineResult:
+) -> SolarTimelineResult | None:
     """``timeline`` (built without margin) less ``margin_kwh`` off each day.
 
     Each local day gives up the margin, at most its own sun, spread over its
     intervals in proportion to their energy: what a one-day horizon does.
+    None with sun on one day only, which the one-day build already covers.
     """
     # ponytail: days are 24 h steps from today_end; a DST night shifts the
     # day boundary by an hour, where there is no sun.
@@ -127,6 +128,11 @@ def _margin_per_day(
         day = 0 if start < today_end else 1 + (start - today_end) // timedelta(days=1)
         days.setdefault(day, []).append(index)
     intervals = list(timeline.intervals_kwh)
+    sunny = sum(
+        1 for indices in days.values() if sum(intervals[i] for i in indices) > 1e-9
+    )
+    if sunny < 2:
+        return None
     cut_total = 0.0
     for indices in days.values():
         total = sum(intervals[index] for index in indices)
@@ -197,25 +203,27 @@ def solar_timeline(
         )
         provider_periods = None
 
-    # The margin is per forecast day: a horizon past today takes it off each
-    # day's own sun, not once off the total.
-    per_day = safety_margin_kwh > 0.0 and any(
-        start >= today_end for start, _end in boundaries
-    )
-    timeline = build_solar_timeline(
-        boundaries,
-        solar_input.remaining_kwh,
-        safety_margin_kwh=0.0 if per_day else safety_margin_kwh,
-        provider_periods=provider_periods,
-        temporal_shape=temporal_shape,
-        learned_shape=(learned_snapshot.shape if learned_snapshot else None),
-        learned_mature=bool(learned_snapshot and learned_snapshot.mature),
-        solar_start=solar_start,
-        solar_end=solar_end,
-        mode=mode,
-    )
-    if per_day:
-        timeline = _margin_per_day(boundaries, timeline, safety_margin_kwh, today_end)
+    def build(margin_kwh: float) -> SolarTimelineResult:
+        return build_solar_timeline(
+            boundaries,
+            solar_input.remaining_kwh,
+            safety_margin_kwh=margin_kwh,
+            provider_periods=provider_periods,
+            temporal_shape=temporal_shape,
+            learned_shape=(learned_snapshot.shape if learned_snapshot else None),
+            learned_mature=bool(learned_snapshot and learned_snapshot.mature),
+            solar_start=solar_start,
+            solar_end=solar_end,
+            mode=mode,
+        )
+
+    timeline = build(safety_margin_kwh)
+    # The margin is per forecast day: sun on more than one day gives up the
+    # margin off each day's own sun, not once off the total.
+    if safety_margin_kwh > 0.0 and any(start >= today_end for start, _end in boundaries):
+        per_day = _margin_per_day(boundaries, build(0.0), safety_margin_kwh, today_end)
+        if per_day is not None:
+            timeline = per_day
     # Excluded devices reserve part of the remaining forecast (see
     # _should_activate_grid_charging). The timeline must project the
     # same solar the scalar balance used, otherwise it would place

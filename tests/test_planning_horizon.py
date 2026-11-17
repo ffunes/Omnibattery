@@ -431,6 +431,34 @@ def test_plan_timeline_takes_the_safety_margin_off_each_days_sun():
     assert result.timeline.energy_error_kwh == pytest.approx(0.0, abs=1e-9)
 
 
+def test_sun_on_one_day_keeps_the_one_day_margin():
+    """The control horizon runs to the next sunrise: crossing midnight with
+    today's sun only must give exactly the timeline it gave before."""
+    from custom_components.omnibattery.pricing.plan_inputs import solar_timeline
+    from custom_components.omnibattery.pricing.solar_timeline import (
+        build_boundaries,
+        build_solar_timeline,
+    )
+
+    now = datetime(2026, 11, 5, 6, 0)
+    end = datetime(2026, 11, 6, 8, 0)
+    shape = tuple(1.0 if 10 <= start.hour < 14 and start < MIDNIGHT else 0.0
+                  for start, _end in build_boundaries(now, end))
+    boundaries = build_boundaries(now, end)
+    solar = SolarForecastInput(3.0, "remaining_sensor", temporal_shape=shape)
+    kwargs = dict(solar_start=None, solar_end=None, mode="active")
+    for margin in (2.0, 5.0):
+        result = solar_timeline(
+            boundaries, solar, None, safety_margin_kwh=margin,
+            extended_timezone=None, excluded_claim_kwh=0.0, today_end=MIDNIGHT,
+            **kwargs,
+        )
+        before = build_solar_timeline(
+            boundaries, 3.0, safety_margin_kwh=margin, temporal_shape=shape, **kwargs
+        )
+        assert result.timeline == before
+
+
 def test_extended_control_plan_keeps_its_diagnostics_snapshot():
     """The 00:05 run clears the snapshot; an extended plan must store its own,
     or a later balance check that replaces the decision blanks the sensor."""
