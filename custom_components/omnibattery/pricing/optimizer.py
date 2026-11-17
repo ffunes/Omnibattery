@@ -49,6 +49,10 @@ MAX_LEVELS = 1000
 # 10 kW / hourly / 36 h: 5.5 s -> 0.6 s on a PC); finer if a fleet needs it.
 QUOTA_STEP_KWH = 0.05
 MAX_ASKS = 24
+# A pending weekly charge runs a second menu (D-1): half the quotas there keep
+# every plan of the weekly sweep's requests identical at 2/3 of the time (8
+# lost up to 0.23 c).
+PENDING_MAX_ASKS = 12
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
@@ -224,7 +228,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         most = sum(model.charge_rate(q) for q in quarters)
         if most <= _TOL:
             return options + room
-        step = max(QUOTA_STEP_KWH, most / MAX_ASKS)
+        step = max(QUOTA_STEP_KWH, most / (PENDING_MAX_ASKS if pending else MAX_ASKS))
         asks = [(a, False) for a in list(np.arange(step, most, step)) + [most]]
         asks.append((most + max(soc_step, QUOTA_STEP_KWH), True))
         # With the hold allowed a charge may also hold: once its target is
