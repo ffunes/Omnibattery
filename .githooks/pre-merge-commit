@@ -18,7 +18,7 @@ if [ -z "$py" ]; then
     echo "pre-merge-commit: no .venv-test, planner sweep skipped" >&2
     exit 0
 fi
-# One case in eleven (~185 of 2016): the full grid takes ~8 minutes since the
+# One case in eleven (~185 of 2016): the full grid takes ~3 minutes since the
 # optimizer; run it in full (`pytest -m sweep -n auto`) before a release.
-echo "pre-merge-commit: running a sample of the planner sweep (about a minute); git merge --no-verify skips it" >&2
+echo "pre-merge-commit: running a sample of the planner sweep (under a minute); git merge --no-verify skips it" >&2
 OMNI_SWEEP_SAMPLE=11 exec "$py" -m pytest -q -p no:cacheprovider -m sweep -n auto
