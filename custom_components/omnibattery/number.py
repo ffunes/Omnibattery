@@ -61,6 +61,9 @@ from .infra.entity_naming import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Lowest max-power limit the options flow accepts (config_flow battery_limits).
+_SOFTWARE_POWER_CAP_MIN_W = 100
+
 
 def _effective_setpoint_max(
     coordinator: MarstekVenusDataUpdateCoordinator,
@@ -223,6 +226,22 @@ class MarstekVenusNumber(CoordinatorEntity, NumberEntity):
                 self.coordinator, "discharge", self.definition["max"]
             )
         return self.definition["max"]
+
+    @property
+    def native_min_value(self):
+        """Return the slider floor.
+
+        On Venus E v2/v3 the max-power registers only hold the 800/2500 W
+        hardware selector (their definition min is 800). The user limit is
+        enforced in software, so the slider allows the same 100 W floor as
+        the options flow (#815). The driver still writes 800 W on the wire.
+        """
+        if self.definition["key"] in (
+            "max_charge_power",
+            "max_discharge_power",
+        ) and getattr(self.coordinator, "needs_software_power_cap", False):
+            return _SOFTWARE_POWER_CAP_MIN_W
+        return self.definition["min"]
 
     @property
     def native_value(self):
@@ -485,7 +504,13 @@ class MarstekConfigNumberEntity(NumberEntity):
         self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{definition['key']}"
         self.entity_id = system_entity_id("number", definition["key"])
         self._attr_icon = definition.get("icon")
-        self._attr_native_unit_of_measurement = definition.get("unit")
+        unit = definition.get("unit")
+        if unit == "/kWh":
+            # A price difference: in the price source's currency, like the
+            # arbitrage margin and the price thresholds.
+            is_chf = entry.data.get(CONF_PRICE_INTEGRATION_TYPE) == PRICE_INTEGRATION_CKW
+            unit = ("CHF" if is_chf else "€") + unit
+        self._attr_native_unit_of_measurement = unit
         # min/max are not set here: they are properties, so entries marked
         # dynamic_bounds can follow config_entry.data without a reload.
         self._attr_native_step = definition["step"]
@@ -619,9 +644,15 @@ class MarstekArbitrageNumber(NumberEntity):
 
     @property
     def native_value(self):
-        """Margin is None until set (gate disabled); efficiency falls back to the default."""
+        """The margin, 0 while unset (both mean off); efficiency falls back to the default.
+
+        An unset margin used to be ``unknown``, which the panel drops as a
+        leftover, so the slider never appeared on installs that had not set
+        one. Every reader treats unset and 0 alike (``<= 0`` / ``or 0.0``).
+        """
         if self._kind == "margin":
-            return self.entry.data.get(self._conf_key)
+            value = self.entry.data.get(self._conf_key)
+            return 0.0 if value is None else value
         return self.entry.data.get(self._conf_key, DEFAULT_ROUND_TRIP_EFFICIENCY)
 
     async def async_set_native_value(self, value: float) -> None:

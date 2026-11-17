@@ -14,11 +14,14 @@ from __future__ import annotations
 
 import json
 import os
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState, ConfigFlow
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.storage import Store, get_internal_store_manager
 from pytest_homeassistant_custom_component.common import (
     MockConfigEntry,
     MockEntity,
@@ -168,3 +171,149 @@ async def test_backup_key_is_domain_stable() -> None:
     """The Store key must stay the legacy literal so both builds share one file."""
     assert BACKUP_KEY == f"{LEGACY_DOMAIN}.config_backup"
     assert DOMAIN not in BACKUP_KEY
+
+
+async def test_restore_keeps_store_data_the_entry_writes_on_setup(
+    hass: HomeAssistant,
+) -> None:
+    """A real entry saves its Stores as soon as it loads.
+
+    Adding the restored entry enabled loaded it before the old files were
+    copied, so it wrote default Stores first and the copy (which skips
+    existing files) lost the user's counters.
+    """
+    storage_dir = hass.config.path(".storage")
+    os.makedirs(storage_dir, exist_ok=True)
+
+    with mock_config_flow(DOMAIN, _MockFlow):
+        entry = await _mount_entry(hass)
+        await async_save_config_backup(hass)
+        old_name = f"{DOMAIN}.{entry.entry_id}.daily_energy"
+        with open(os.path.join(storage_dir, old_name), "w", encoding="utf-8") as fh:
+            json.dump({"version": 1, "key": old_name, "data": {"home_kwh": 9.0}}, fh)
+        await hass.config_entries.async_remove(entry.entry_id)
+        await hass.async_block_till_done()
+
+        async def setup_writing_defaults(hass, entry):
+            path = os.path.join(storage_dir, f"{DOMAIN}.{entry.entry_id}.daily_energy")
+            if not os.path.exists(path):
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump({"version": 1, "key": "x", "data": {"home_kwh": 0.0}}, fh)
+            return True
+
+        async def unload(hass, entry):
+            return True
+
+        mock_integration(
+            hass,
+            MockModule(
+                DOMAIN,
+                async_setup_entry=setup_writing_defaults,
+                async_unload_entry=unload,
+            ),
+        )
+
+        new_id = (await async_restore_config_backup(hass))[0]
+        await hass.async_block_till_done()
+
+        restored = hass.config_entries.async_get_entry(new_id)
+        assert restored.disabled_by is None
+        assert restored.state is ConfigEntryState.LOADED
+        with open(
+            os.path.join(storage_dir, f"{DOMAIN}.{new_id}.daily_energy"),
+            encoding="utf-8",
+        ) as fh:
+            assert json.load(fh)["data"] == {"home_kwh": 9.0}
+
+
+GOOD_STORE = json.dumps(
+    {"version": 1, "minor_version": 1, "key": "daily_energy", "data": {"home_kwh": 9.0}}
+)
+
+
+async def _delete_entry_leaving_files(hass: HomeAssistant, files: dict[str, str]) -> None:
+    """Mount an entry, back it up and delete it, leaving Store files named after it.
+
+    The storage manager lists the files afterwards, as it does at startup, so
+    anything the restore copies isn't on that list.
+    """
+    storage_dir = hass.config.path(".storage")
+    os.makedirs(storage_dir, exist_ok=True)
+    entry = await _mount_entry(hass)
+    await async_save_config_backup(hass)
+    for suffix, content in files.items():
+        name = f"{DOMAIN}.{entry.entry_id}.{suffix}"
+        with open(os.path.join(storage_dir, name), "w", encoding="utf-8") as fh:
+            fh.write(content)
+    await hass.config_entries.async_remove(entry.entry_id)
+    await hass.async_block_till_done()
+    await get_internal_store_manager(hass).async_initialize()
+
+
+def _record_loaded_store(hass: HomeAssistant) -> dict[str, object]:
+    """Register a setup that loads the daily-energy Store, and return what it read."""
+    loaded: dict[str, object] = {}
+
+    async def async_setup_entry(hass, entry):
+        store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}.daily_energy")
+        loaded[entry.entry_id] = await store.async_load()
+        return True
+
+    async def async_unload_entry(hass, entry):
+        return True
+
+    mock_integration(
+        hass,
+        MockModule(
+            DOMAIN,
+            async_setup_entry=async_setup_entry,
+            async_unload_entry=async_unload_entry,
+        ),
+    )
+    return loaded
+
+
+async def test_restored_entry_loads_the_carried_storage_files(hass: HomeAssistant) -> None:
+    """Setup of the restored entry reads the deleted entry's data through Store."""
+    with mock_config_flow(DOMAIN, _MockFlow):
+        await _delete_entry_leaving_files(hass, {"daily_energy": GOOD_STORE})
+        loaded = _record_loaded_store(hass)
+
+        new_id = (await async_restore_config_backup(hass))[0]
+        await hass.async_block_till_done()
+
+        assert loaded[new_id] == {"home_kwh": 9.0}
+
+
+@pytest.mark.parametrize("bad_content", ["{not json", "[1, 2, 3]", '{"no_version": true}'])
+async def test_bad_storage_file_does_not_stop_the_restore(
+    hass: HomeAssistant, bad_content: str
+) -> None:
+    """A file that isn't a valid Store is skipped; the entry and other Stores restore."""
+    with mock_config_flow(DOMAIN, _MockFlow):
+        await _delete_entry_leaving_files(
+            hass, {"daily_energy": GOOD_STORE, "bad_store": bad_content}
+        )
+        loaded = _record_loaded_store(hass)
+
+        new_id = (await async_restore_config_backup(hass))[0]
+        await hass.async_block_till_done()
+
+        assert hass.config_entries.async_get_entry(new_id).state is ConfigEntryState.LOADED
+        assert loaded[new_id] == {"home_kwh": 9.0}
+
+
+async def test_unreadable_copy_does_not_stop_the_restore(hass: HomeAssistant) -> None:
+    """A copy that can't be read back is skipped and the entry still loads."""
+    with mock_config_flow(DOMAIN, _MockFlow):
+        await _delete_entry_leaving_files(hass, {"daily_energy": GOOD_STORE})
+        _record_loaded_store(hass)
+
+        with patch(
+            "custom_components.omnibattery.config_backup.load_json",
+            side_effect=HomeAssistantError("unreadable"),
+        ):
+            new_id = (await async_restore_config_backup(hass))[0]
+        await hass.async_block_till_done()
+
+        assert hass.config_entries.async_get_entry(new_id).state is ConfigEntryState.LOADED

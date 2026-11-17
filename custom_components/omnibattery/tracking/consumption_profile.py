@@ -9,6 +9,7 @@ the algorithm without constructing a Home Assistant controller.
 from __future__ import annotations
 
 import asyncio
+import functools
 import hashlib
 import json
 import logging
@@ -318,7 +319,21 @@ def _local_segments(
     tz = _timezone_for_value(start_local)
     if tz is None and end_local.tzinfo is not None:
         tz = end_local.tzinfo
+    try:
+        hash(tz)
+    except TypeError:
+        # an unhashable custom tzinfo cannot key the cache
+        return list(_local_segments_between.__wrapped__(start_ts, end_ts, tz))
+    return list(_local_segments_between(start_ts, end_ts, tz))
 
+
+@functools.lru_cache(maxsize=512)
+def _local_segments_between(
+    start_ts: float, end_ts: float, tz: Any
+) -> tuple[tuple[float, float, datetime], ...]:
+    """Cached core of ``_local_segments``: the same day is split again and
+    again (the solar profile remaps every stored day on each re-plan), and
+    the split depends only on the range and the zone."""
     segments: list[tuple[float, float, datetime]] = []
     cursor = start_ts
     while cursor < end_ts - 1e-7:
@@ -327,7 +342,7 @@ def _local_segments(
         midpoint = _datetime_from_timestamp((cursor + segment_end) / 2.0, tz)
         segments.append((cursor, segment_end, midpoint))
         cursor = segment_end
-    return segments
+    return tuple(segments)
 
 
 def _named_timezone(name: str) -> Any | None:

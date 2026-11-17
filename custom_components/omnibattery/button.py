@@ -107,7 +107,7 @@ class ReevaluateDynamicPricingButton(ButtonEntity):
             return
         # The button is commonly pressed after a price/forecast adjustment.  It
         # must not reuse the full-day 00:05 balance after energy has elapsed.
-        await self.controller._pricing_mgr._evaluate_dynamic_pricing(
+        await self.controller._pricing_mgr.evaluate_dynamic_pricing_now(
             horizon=DynamicPricingEvaluationHorizon.REMAINING,
             extended_horizon=True,
         )

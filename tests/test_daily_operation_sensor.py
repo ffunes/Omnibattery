@@ -197,7 +197,7 @@ def test_timeline_entity_publishes_fixed_96_element_json_safe_dto():
 def test_timeline_entity_excludes_heavy_sections_from_recorder():
     sensor = DailyOperationTimelineSensor(SimpleNamespace())
 
-    assert {"series", "operations"}.issubset(sensor._unrecorded_attributes)
+    assert "*" in sensor._unrecorded_attributes
 
 
 def test_timeline_entity_tolerates_missing_manager_and_events():

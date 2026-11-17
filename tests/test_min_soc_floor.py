@@ -908,6 +908,41 @@ def _captured_intervals(monkeypatch, manager, now):
     return captured[0]
 
 
+def test_the_plan_publishes_the_total_less_the_grid_carried_load():
+    """PR #835 review: the load above the discharge power comes off the
+    total the plan buys and the published figures, once per decision."""
+    manager = _floor_manager(45.0)
+    manager._controller._predictive_min_soc_floor_enabled = False
+    # 100 W under a 0.36 kW load: 0.26 kW goes to the grid.
+    manager._controller.coordinators[0].effective_max_discharge_power = 100.0
+    now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
+    decision = {
+        "should_charge": True,
+        "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+        "energy_deficit_kwh": 10.0,
+        "planned_grid_charge_kwh": 10.0,
+        "excluded_demand_claim_kwh": 0.0,
+    }
+
+    def build():
+        return manager._build_chronological_plan(
+            now=now, slots=[], decision_data=decision, price_ceiling=None
+        )
+
+    plan = build()
+    carried = decision["grid_carried_load_kwh"]
+    # 0.26 kW above the limit wherever the sun does not cover the house,
+    # from 01:00 until the horizon's sunrise.
+    assert 0.0 < carried < (_FLOOR_BASE_KW - 0.1) * 29.3 + 0.01
+    assert decision["battery_discharge_limit_w"] == 100
+    assert decision["planned_grid_charge_kwh"] == pytest.approx(10.0 - carried, abs=1e-3)
+    assert decision["energy_deficit_kwh"] == pytest.approx(10.0 - carried, abs=1e-3)
+    assert plan.total_required_kwh <= 10.0 - carried + 1e-6
+
+    build()  # a rebuild nets the same load, not twice
+    assert decision["planned_grid_charge_kwh"] == pytest.approx(10.0 - carried, abs=1e-3)
+
+
 def test_daytime_no_discharge_window_credits_only_the_solar_surplus(monkeypatch):
     # Battery may not discharge 11:00-17:00, but the house still eats solar
     # first: only the surplus may be projected as battery charge.
@@ -952,6 +987,19 @@ def test_peak_shaving_band_is_not_counted_as_usable_energy():
     assert abs(plain["usable_energy_kwh"] - 1.8) < 0.01
     assert abs(shaved["usable_energy_kwh"] - 1.0) < 0.01
     assert shaved["energy_deficit_kwh"] > plain["energy_deficit_kwh"] + 0.7
+
+
+def test_peaks_only_threshold_at_max_soc_does_not_zero_usable_energy():
+    # #843: threshold 100% at night means "cover peaks only", not "reserve
+    # the whole battery"; at 90% the plan must still see the energy above min_soc.
+    plain = _run(_ctrl([_Coord(90.0, 10.0)], floor=0.0, solar="0.0", consumption=2.5))
+    ctrl = _ctrl([_Coord(90.0, 10.0)], floor=0.0, solar="0.0", consumption=2.5)
+    ctrl.capacity_protection_enabled = True
+    ctrl.capacity_protection_soc_threshold = 100
+    peaks_only = _run(ctrl)
+
+    assert peaks_only["usable_energy_kwh"] == pytest.approx(plain["usable_energy_kwh"])
+    assert peaks_only["usable_energy_kwh"] > 7.0
 
 
 def _shaving_floor_decision(threshold, *, held=False, floor=20.0):
@@ -1044,3 +1092,32 @@ def test_the_plan_knows_whether_the_discharge_reserve_holds_energy(
     )
 
     assert requests[0].reserve_holds is expected
+
+
+def test_the_plan_sizes_its_slots_with_the_power_the_fleet_averages():
+    """Two 5.12 kWh batteries at 20 % and 80 % with 750 W each: filling both
+    takes as long as the emptier one, 4.1 kWh / 750 W, not 5.1 kWh / 1500 W."""
+    manager = _floor_manager(20.0, 80.0)
+    manager._controller._predictive_min_soc_floor_enabled = False
+    now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
+
+    def power_w(with_limits):
+        if with_limits:
+            manager._controller._battery_power_limit = lambda _c, _charging: 750.0
+        decision = {
+            "should_charge": True,
+            "avg_consumption_kwh": _FLOOR_BASE_KW * 24,
+            "energy_deficit_kwh": 10.0,
+            "planned_grid_charge_kwh": 10.0,
+            "excluded_demand_claim_kwh": 0.0,
+        }
+        manager._build_chronological_plan(
+            now=now, slots=[], decision_data=decision, price_ceiling=None
+        )
+        return decision["battery_charge_power_w"]
+
+    # No per-battery limit known: the summed power, as before.
+    assert power_w(False) == 1500
+    room = [(100.0 - 20.0) / 100.0 * _FLOOR_CAP, (100.0 - 80.0) / 100.0 * _FLOOR_CAP]
+    assert power_w(True) == round(sum(room) / (room[0] / 0.75) * 1000.0)
+    assert power_w(True) < 1500

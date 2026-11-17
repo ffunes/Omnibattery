@@ -49,6 +49,7 @@ from .const import (
     CONF_DISCHARGE_PRICE_THRESHOLD,
     CONF_MAX_PRICE_THRESHOLD_ENABLED,
     CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED,
+    effective_price_threshold,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_VACATION_MODE_ENABLED,
     CONF_THREE_PHASE_ENABLED,
@@ -680,7 +681,7 @@ class PredictiveChargingSwitch(SwitchEntity):
     async def _async_rebuild_dynamic_schedule(self) -> None:
         """Rebuild the remaining calendar after a live master-switch enable."""
         try:
-            await self.controller._pricing_mgr._evaluate_dynamic_pricing(
+            await self.controller._pricing_mgr.evaluate_dynamic_pricing_now(
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
                 extended_horizon=True,
             )
@@ -2328,9 +2329,40 @@ class PriceThresholdEnabledSwitch(SwitchEntity):
         # Missing key: legacy entries were manual iff a value was set.
         return bool(self.entry.data.get(self._conf_key, self.entry.data.get(self._value_key) is not None))
 
+    def _starting_value(self) -> float | None:
+        """A first value for a manual threshold that was never set.
+
+        Turning manual on with nothing stored would change nothing and leave
+        the box empty. Today's average price is what the discharge floor falls
+        back to anyway; it is kept on the right side of the sibling threshold
+        (charge ceiling <= discharge floor, #408). None without prices.
+        """
+        controller = (
+            (getattr(self.hass, "data", None) or {}).get(DOMAIN, {})
+            .get(self.entry.entry_id, {})
+            .get("controller")
+        )
+        average = getattr(controller, "_dp_daily_avg_price", None)
+        if average is None:
+            return None
+        value = round(float(average), 3)
+        if self._kind == "charge":
+            floor = effective_price_threshold(
+                self.entry.data, CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
+            )
+            return value if floor is None else min(value, floor)
+        ceiling = effective_price_threshold(
+            self.entry.data, CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
+        )
+        return value if ceiling is None else max(value, ceiling)
+
     def _set_enabled(self, enabled: bool) -> None:
         new_data = dict(self.entry.data)
         new_data[self._conf_key] = enabled
+        if enabled and new_data.get(self._value_key) is None:
+            start = self._starting_value()
+            if start is not None:
+                new_data[self._value_key] = start
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("Dynamic pricing %s price threshold %s",
                      self._kind, "MANUAL" if enabled else "AUTOMATIC")
@@ -2371,24 +2403,16 @@ class SmartPredischargeSwitch(SwitchEntity):
         return bool(self.controller.smart_predischarge_enabled)
 
     async def async_turn_on(self, **kwargs) -> None:
-        """Enable and recalculate the current dynamic-pricing plan."""
+        """Enable; the entry update re-plans like any other planning setting."""
         self.controller.smart_predischarge_enabled = True
         new_data = dict(self.entry.data)
         new_data[CONF_SMART_PREDISCHARGE_ENABLED] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         _LOGGER.info("Smart pre-discharge ENABLED")
-        try:
-            await self.controller._pricing_mgr._evaluate_dynamic_pricing(
-                horizon=DynamicPricingEvaluationHorizon.REMAINING,
-                extended_horizon=True,
-            )
-        except Exception as err:  # keep a runtime toggle fail-safe
-            _LOGGER.warning("Smart pre-discharge evaluation failed after enable: %s", err)
-            self.controller._pricing_mgr.clear_curtailment_runtime("evaluation_error")
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
-        """Disable and immediately clean every smart runtime action."""
+        """Disable: clear every smart runtime action now; the re-plan drops the plan."""
         self.controller.smart_predischarge_enabled = False
         new_data = dict(self.entry.data)
         new_data[CONF_SMART_PREDISCHARGE_ENABLED] = False
@@ -2426,27 +2450,15 @@ class NegativePriceChargingSwitch(SwitchEntity):
         return bool(self.controller.negative_price_charging_enabled)
 
     async def async_turn_on(self, **kwargs) -> None:
-        """Enable the feature and immediately rebuild the typed calendar."""
+        """Enable; the entry update re-plans like any other planning setting."""
         self.controller.negative_price_charging_enabled = True
         new_data = dict(self.entry.data)
         new_data[CONF_NEGATIVE_PRICE_CHARGING_ENABLED] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-        try:
-            await self.controller._pricing_mgr._evaluate_dynamic_pricing(
-                horizon=DynamicPricingEvaluationHorizon.REMAINING,
-                extended_horizon=True
-            )
-        except Exception as err:
-            _LOGGER.warning(
-                "Negative-price charging evaluation failed after enable: %s", err
-            )
-            self.controller._pricing_mgr.clear_negative_price_runtime(
-                "evaluation_error"
-            )
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs) -> None:
-        """Disable and remove only opportunistic work from the live schedule."""
+        """Disable: stop an active opportunity slot now; the re-plan drops the rest."""
         active_purpose = getattr(
             self.controller, "_active_dynamic_slot_purpose", None
         )

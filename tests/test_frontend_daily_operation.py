@@ -189,10 +189,12 @@ def test_grid_price_label_exists_in_every_language():
     assert 'rows.push(row(this._t("dailyOperationPrice"), this._dailyOperationFormatPrice(item.price)))' in panel
 
 
-def test_the_legend_puts_the_lines_on_their_own_row():
+def test_the_legend_wraps_only_between_areas_and_lines():
     panel = PANEL.read_text(encoding="utf-8")
+    group = '<span class="daily-op-legend-group">'
+    first = panel.index(group)
     not_needed = panel.index("daily-op-swatch-not-needed\"></i>")
-    row_break = panel.index('class="daily-op-legend-break"')
+    second = panel.index('</span><span class="daily-op-legend-group">')
     first_line = panel.index('daily-op-line daily-op-line-solar"></i>')
-    assert not_needed < row_break < first_line
-    assert ".daily-op-legend-break { flex-basis: 100%; height: 0; }" in panel
+    assert first < not_needed < second < first_line
+    assert ".daily-op-legend, .daily-op-legend-group { display: flex;" in panel

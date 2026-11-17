@@ -27,6 +27,13 @@ Time Slot mode buys only the energy your home is expected to need during the che
 
 At the start of an active window, Omnibattery checks the remaining energy balance and gives that window a quota. It can share the required energy across several windows, so the first window does not automatically consume the whole flexible daily target. Charging stops when the quota is stored or the window ends.
 
+Inside a window, the grid covers the house at the cheap rate, so the battery keeps the energy it needs for the hours after the window:
+
+- **The window charges:** the battery charges its quota and then stays idle until the window ends. It never charges and then discharges in the same window, which would only lose the round trip.
+- **No charge needed:** the battery discharges normally, but only down to the energy needed after the window. From there the grid covers the house until the window ends.
+
+The quota therefore covers only the demand after the window, not the house load during it. A [weekly full charge](../../features/weekly-full-charge.md) keeps its own behaviour.
+
 **Predictive Charging Active** shows the decision and any uncovered energy. **Re-evaluate Predictive Charging** forces a fresh decision on the next control cycle while a configured window is active. Outside a window, the button invalidates the old reference for the next window but does not evaluate immediately or start charging.
 
 The plan adapts inside an active window when SOC changes materially, the guaranteed floor is crossed or recovered, the provider revises the solar forecast, a relevant battery or forecast setting changes, or [capacity protection](../../features/peak-shaving.md) changes the power available to the plan.
@@ -40,6 +47,7 @@ The plan adapts inside an active window when SOC changes materially, the guarant
 | A changed forecast does not start charging at midday | No configured charging window is open | Wait for the next window or add a tariff-valid window |
 | The first window stops before reaching the full daily target | Energy has been assigned to a later window | Per-window quota and remaining selected windows |
 | The plan reports an energy shortfall | The configured windows or physical charge power cannot deliver enough energy before its deadline | Window duration, charge limits, battery capacity, and active blockers |
+| The battery stops discharging during a window | It reached the energy it needs after the window; the grid covers the house until the window ends | `time_slot_floor_kwh` on **Predictive Charging Active** and the `time_slot_floor_hold` discharge blocker |
 | Pressing re-evaluate does nothing | The button was pressed outside an active window | Press it during a configured window; outside one it prepares the next entry |
 
 ??? "Advanced details"
@@ -50,6 +58,10 @@ The plan adapts inside an active window when SOC changes materially, the guarant
     The planner simulates consumption, solar, and usable battery energy in 15-minute intervals until midnight. Energy needed before a projected minimum-SOC crossing is assigned only to windows that can deliver it in time. Later energy is distributed across the remaining configured windows. If no window can meet a deadline, the uncovered kWh is reported as an energy shortfall instead of being assigned to a window that is too late.
 
     Each window receives its own kWh quota. Charging stops when the live battery reaches that quota or the window ends. A suspended quota remains attached to the plan and is rebuilt from live SOC when charging can continue.
+
+    ### Window floor
+
+    The planner treats every configured window as battery-idle: the house load inside it is left to the grid and is not part of any quota. At each evaluation the window gets a floor, the stored energy it must end with. If the window charges, the floor is the current energy plus the quota. Otherwise it is the current energy minus the lowest point of the projection without grid charging, which is the energy that is spare until the next window. While stored energy is at or below the floor, the `time_slot_floor_hold` discharge blocker keeps the battery idle. Capacity protection can still discharge. The floor clears when the window ends, and is not used during a weekly full charge.
 
     ### Re-evaluation triggers
 

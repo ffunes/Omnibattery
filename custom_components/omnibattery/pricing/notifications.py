@@ -8,6 +8,7 @@ controller keeps the thin ``_send_*`` wrappers that read its config and push the
 from __future__ import annotations
 
 from datetime import datetime
+import math
 
 
 def _forecast_notification_context(decision: dict) -> dict:
@@ -184,6 +185,31 @@ def _max_charge_power_str(
     return f"{min(limits):g}W (" + ", ".join(parts) + ")"
 
 
+def _max_discharge_power_line(decision_data: dict) -> str:
+    """Discharge limit the planner capped the battery drain at, if known.
+
+    House load above it comes from the grid, so the planned grid charge
+    leaves it out.
+    """
+    try:
+        limit = float(decision_data.get("battery_discharge_limit_w"))
+    except (TypeError, ValueError):
+        return ""
+    if not math.isfinite(limit):
+        return ""
+    line = f"\nMax discharge power: {limit:g}W"
+    try:
+        carried = float(decision_data.get("grid_carried_load_kwh") or 0.0)
+    except (TypeError, ValueError):
+        carried = 0.0
+    if carried >= 0.005:
+        line += (
+            f" (load above it from the grid: {carried:.2f} kWh, "
+            "left out of the charge)"
+        )
+    return line
+
+
 def format_predictive_notification_message(
     decision_data: dict,
     is_daily_evaluation: bool = False,
@@ -319,6 +345,79 @@ def format_predictive_notification_message(
     return (title, message)
 
 
+def _no_slots_explanation(
+    decision_data: dict, unit: str, arbitrage_binding: bool
+) -> tuple[str, str]:
+    """Headline and hint for a deficit that ended with no selected slot.
+
+    The chronological planner records why it allocated nothing; only a
+    rejection by price is fixed by the price sensor or the threshold, so the
+    generic hint is kept for that case (and when no plan reason exists).
+    """
+    reason = decision_data.get("chronological_plan_reason")
+    if reason == "awaiting_prices":
+        waiting = float(decision_data.get("awaiting_prices_kwh", 0.0) or 0.0)
+        return (
+            "Charging needed later, but its prices are not published yet",
+            f"The {waiting:.2f} kWh is needed after the last published price, "
+            "so no slot can be valued against it yet. It is planned again as "
+            "soon as the next day's prices are published.",
+        )
+    if reason == "cheaper_to_import":
+        imported = float(decision_data.get("cheaper_to_import_kwh", 0.0) or 0.0)
+        return (
+            "Charging needed, but charging from the grid now is not worth it",
+            f"Importing the {imported:.2f} kWh when it is used is cheaper than "
+            "storing it now after round-trip losses and the arbitrage margin. "
+            "Lower the minimum arbitrage margin to charge anyway.",
+        )
+    if reason in ("deadline_capacity_shortfall", "insufficient_slot_capacity"):
+        return (
+            "Charging needed but the remaining slots cannot deliver it in time",
+            "The price slots left before the energy is needed are too few or "
+            "too short at the available charge power. Check the max charge "
+            "power and contracted power, or wait for the next price day.",
+        )
+    if reason == "insufficient_power":
+        return (
+            "Charging needed but the available charge power is zero",
+            "Check the max charge power, contracted power and peak shaving limit.",
+        )
+    if reason == "ok":
+        return (
+            "Charging needed later, but nothing can be stored now",
+            "The battery has no room for the energy before it is used, so no "
+            "slot is booked. The plan is rebuilt as the battery drains and at "
+            "the next daily evaluation.",
+        )
+    if reason == "no_eligible_slots":
+        return (
+            "Charging needed but no price slots remain in the planning horizon",
+            "Check the price sensor: the next day's prices may not be published yet.",
+        )
+    hint = (
+        "Today's spread is too small to cover round-trip losses "
+        "at the configured arbitrage margin."
+        if arbitrage_binding
+        else "Check price sensor or raise max price threshold."
+    )
+    rejected = decision_data.get("cheapest_rejected_slot")
+    if reason == "price_threshold" and isinstance(rejected, dict):
+        try:
+            start = datetime.fromisoformat(str(rejected["start"])).strftime("%H:%M")
+            price = float(rejected["price"])
+            ceiling = rejected.get("ceiling")
+            ceiling_str = (
+                f" (ceiling {float(ceiling):.4f} {unit})" if ceiling is not None else ""
+            )
+            hint = (
+                f"Cheapest slot: {start} at {price:.4f} {unit}{ceiling_str}.\n" + hint
+            )
+        except (KeyError, TypeError, ValueError):
+            pass
+    return ("Charging needed but no valid price slots found", hint)
+
+
 def format_dynamic_pricing_notification(
     decision_data: dict,
     schedule,
@@ -386,19 +485,24 @@ def format_dynamic_pricing_notification(
                 "No grid charging is scheduled now; it is planned again at the next daily evaluation."
             )
         else:
-            title = "Predictive Charging: Price Optimization - No slots available"
+            headline, hint = _no_slots_explanation(
+                decision_data, unit, arbitrage_binding
+            )
+            plan_reason = decision_data.get("chronological_plan_reason")
+            title = (
+                "Predictive Charging: Price Optimization - Grid import is cheaper"
+                if plan_reason == "cheaper_to_import"
+                else "Predictive Charging: Price Optimization - Waiting for prices"
+                if plan_reason == "awaiting_prices"
+                else "Predictive Charging: Price Optimization - No slots available"
+            )
             message = (
-                f"⚠️ Charging needed but no valid price slots found\n\n"
+                f"⚠️ {headline}\n\n"
                 f"🔋 Battery: {avg_soc:.0f}% ({usable_energy:.2f} kWh usable)\n"
                 f"{forecast_lines}"
                 f"⚡ Energy deficit: {energy_deficit:.2f} kWh\n\n"
                 f"{price_config_line}"
-                + (
-                    "Today's spread is too small to cover round-trip losses "
-                    "at the configured arbitrage margin."
-                    if arbitrage_binding
-                    else "Check price sensor or raise max price threshold."
-                )
+                f"{hint}"
             )
     else:
         hours_needed = schedule.hours_needed
@@ -485,6 +589,12 @@ def format_dynamic_pricing_notification(
                     f"🕒 Required before deadlines: {deadline:.2f} kWh\n"
                     f"💰 Flexible by price: {flexible:.2f} kWh\n"
                 )
+                deferred = float(decision_data.get("deferred_grid_charge_kwh", 0.0) or 0.0)
+                if deferred > 0.005:
+                    chronological_lines += (
+                        f"📅 Planned in tomorrow's slots (scheduled at 00:05): "
+                        f"{deferred:.2f} kWh\n"
+                    )
                 imported = float(getattr(schedule, "cheaper_to_import_kwh", 0.0) or 0.0)
                 if imported > 0:
                     chronological_lines += (
@@ -520,6 +630,7 @@ def format_dynamic_pricing_notification(
                     peak_limit,
                     contracted_label="ICP",
                 )
+                + _max_discharge_power_line(decision_data)
             )
 
     return (title, message)

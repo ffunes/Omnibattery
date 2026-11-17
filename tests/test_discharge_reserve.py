@@ -1578,3 +1578,66 @@ def test_without_tomorrow_s_periods_the_evening_plan_ends_at_sunrise():
 def test_a_morning_the_sun_does_not_cover_by_noon_keeps_sunrise():
     dull = {hour: 0.1 for hour in range(7, 12)}
     assert _evening_manager(_periods(TOMORROW, dull)).plan.horizon_end == TOMORROW_SUNRISE
+
+
+# ----------------------------------------------------------------------
+# #840: a day the sun never covers keeps tomorrow's evening in the plan
+# ----------------------------------------------------------------------
+
+TOMORROW_NIGHT = TOMORROW + timedelta(hours=22)
+
+
+def _full_day_manager(periods, extended=TOMORROW_NIGHT):
+    """Prices from 21:00 to tomorrow 22:00: 0.30, tomorrow 18:00-21:00 at 0.60.
+
+    ``extended`` is the charge planner's horizon once tomorrow's prices are in.
+    """
+    slots = [
+        PriceSlot(
+            EVENING + timedelta(hours=i),
+            EVENING + timedelta(hours=i + 1),
+            0.60 if i > 3 and 18 <= (EVENING + timedelta(hours=i)).hour < 21 else 0.30,
+        )
+        for i in range(25)
+    ]
+    pricing = _evening_pricing()
+    pricing.get_future_price_slots = lambda horizon_end=None: [
+        slot for slot in slots if horizon_end is None or slot.start <= horizon_end
+    ]
+    pricing._extended_planning_end = lambda _now: extended
+    manager = _curve_manager(
+        periods,
+        _pricing_mgr=pricing,
+        discharge_reserve_min_saving=0.05,
+        coordinators=[_coordinator(soc=80.0)],
+    )
+    manager._now = lambda: EVENING
+    asyncio.get_event_loop().run_until_complete(manager.async_rebuild_plan("test"))
+    return manager
+
+
+DULL_DAY = {hour: 0.1 for hour in range(7, 17)}
+
+
+def test_a_day_the_sun_never_covers_keeps_tomorrow_s_evening():
+    """#840: 6.9 kWh of sun tomorrow never covers the house, so the plan ended
+    at sunrise and the morning spent what tomorrow's evening peak needed."""
+    manager = _full_day_manager(_periods(TOMORROW, DULL_DAY))
+
+    assert manager.plan.horizon_end == TOMORROW_NIGHT
+    manager.reserve_soc_pct()
+    claimed = {slot["start"] for slot in manager.get_status()["claims"]}
+    assert (TOMORROW + timedelta(hours=18)).isoformat() in claimed
+
+
+def test_a_sunny_tomorrow_still_ends_where_the_sun_takes_over():
+    sunny = {**DULL_DAY, **TOMORROW_SUN}
+    manager = _full_day_manager(_periods(TOMORROW, sunny))
+
+    assert manager.plan.horizon_end == TOMORROW + timedelta(hours=9)
+
+
+def test_without_an_extended_horizon_a_dull_tomorrow_keeps_sunrise():
+    manager = _full_day_manager(_periods(TOMORROW, DULL_DAY), extended=None)
+
+    assert manager.plan.horizon_end == TOMORROW_SUNRISE

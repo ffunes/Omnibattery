@@ -1021,6 +1021,10 @@ class DailyOperationTimelineManager:
         self._snapshot_cache_revision = -1
         self._snapshot_cache = None
         self._last_notification_kind = kind
+        if self._update_batch_depth > 0:
+            # #850: a later routine change in the same batch must not demote
+            # an earlier immediate one (interval close + plan metadata).
+            immediate = immediate or self._last_notification_immediate
         self._last_notification_immediate = immediate
 
     def _notify_listeners(self) -> None:
@@ -1043,6 +1047,8 @@ class DailyOperationTimelineManager:
 
     def begin_update_batch(self) -> None:
         """Defer listener publication until a coherent refresh is complete."""
+        if self._update_batch_depth == 0:
+            self._last_notification_immediate = False
         self._update_batch_depth += 1
 
     def end_update_batch(self) -> None:

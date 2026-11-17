@@ -808,6 +808,40 @@ def test_balance_fingerprint_moves_with_the_predictive_knobs():
         assert _fingerprint(ctrl) != before, field
 
 
+@pytest.mark.parametrize(
+    ("field", "before", "after"),
+    [
+        # Which slots the plan buys, not only how much: each used to leave the
+        # old slots booked until the next scheduled evaluation.
+        ("max_price_threshold", None, 0.30),
+        ("max_price_threshold", 0.30, 0.25),
+        ("min_arbitrage_margin", None, 0.05),
+        ("min_arbitrage_margin", 0.05, 0.08),
+        ("round_trip_efficiency", 0.85, 0.80),
+        ("negative_injection_threshold", 0.0, -0.05),
+        ("predischarge_reserve_soc", 20.0, 30.0),
+        # A moved or switched-off weekly run must not keep its slots.
+        ("weekly_full_charge_enabled", True, False),
+        ("weekly_full_charge_day", "sat", "sun"),
+    ],
+)
+def test_balance_fingerprint_moves_with_the_slot_and_weekly_knobs(field, before, after):
+    ctrl = _balance_ctrl(**{field: before})
+    fingerprint = _fingerprint(ctrl)
+    setattr(ctrl, field, after)
+    assert _fingerprint(ctrl) != fingerprint
+
+
+def test_balance_fingerprint_ignores_settings_read_live():
+    # Read every cycle, so a change needs no re-plan.
+    ctrl = _balance_ctrl(discharge_price_threshold=0.40, discharge_reserve_min_saving=0.02)
+    before = _fingerprint(ctrl)
+    ctrl.discharge_price_threshold = 0.45
+    ctrl.discharge_reserve_min_saving = 0.05
+    ctrl.surplus_hold_min_saving = 0.03
+    assert _fingerprint(ctrl) == before
+
+
 def test_balance_fingerprint_ignores_unrelated_battery_state():
     # Shadow selects, manual force mode and capability detection all persist
     # through the same config entry; none of them may re-plan the day.
@@ -861,6 +895,55 @@ def test_dynamic_pricing_rebuilds_once_on_a_dirty_configuration():
     # The flag is consumed, so the next cycle does not rebuild again.
     asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
     assert len(calls) == 1
+
+
+def test_a_configuration_change_re_plans_once_the_settings_stand_still():
+    # A manual threshold switch writes twice (the switch, then its starting
+    # value) and a slider writes as it moves; each write used to run its own
+    # full evaluation. The flag now waits CONFIG_REPLAN_SETTLE_S.
+    from time import monotonic
+
+    from custom_components.omnibattery.pricing.engine import CONFIG_REPLAN_SETTLE_S
+
+    calls = []
+
+    async def _evaluate(**kwargs):
+        calls.append(kwargs)
+
+    ctrl = _controller(
+        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        _dp_config_dirty=True,
+        _dp_config_dirty_at=monotonic(),
+        predictive_charging_overridden=False,
+        _current_price_slot_active=False,
+        grid_charging_active=False,
+    )
+    manager = _mgr(ctrl)
+    manager._maybe_refresh_service_prices = _async_noop
+    manager._check_dp_pre_slot_reevaluation = _async_noop
+    manager._refresh_surplus_hold_plan = _async_noop
+    manager._refresh_discharge_reserve_plan = _async_noop
+    manager._is_evening_reevaluation_time = lambda: False
+    manager._is_dp_soc_drop_reeval = lambda: False
+    manager._evaluate_dynamic_pricing = _evaluate
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert calls == []
+    assert ctrl._dp_config_dirty is True
+
+    ctrl._dp_config_dirty_at = monotonic() - CONFIG_REPLAN_SETTLE_S - 0.1
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+    assert len(calls) == 1
+    assert ctrl._dp_config_dirty is False
+
+
+def test_invalidate_predictive_plan_stamps_the_change():
+    from time import monotonic
+
+    ctrl = _balance_ctrl()
+    before = monotonic()
+    ChargeDischargeController.invalidate_predictive_plan(ctrl, "test")
+    assert before <= ctrl._dp_config_dirty_at <= monotonic()
 
 
 async def _async_noop(*_args, **_kwargs):
@@ -1746,7 +1829,7 @@ def test_manual_button_uses_remaining_horizon_at_midday():
     calls = []
 
     class PricingStub:
-        async def _evaluate_dynamic_pricing(self, *, horizon, extended_horizon=False):
+        async def evaluate_dynamic_pricing_now(self, *, horizon, extended_horizon=False):
             calls.append((horizon, extended_horizon))
 
     button = ReevaluateDynamicPricingButton(
@@ -1764,7 +1847,7 @@ def test_manual_button_invalidates_the_plan_in_time_slot_mode():
     # Time slot has no calendar to rebuild; the button must clear the SOC
     # reference so the next cycle inside a window is an initial evaluation.
     class PricingStub:
-        async def _evaluate_dynamic_pricing(self, **_kwargs):
+        async def evaluate_dynamic_pricing_now(self, **_kwargs):
             raise AssertionError("time slot mode has no dynamic-pricing calendar")
 
     controller = _balance_ctrl(
@@ -3732,3 +3815,22 @@ def test_charge_ceiling_without_peak_shaving_is_the_contracted_power(overrides):
 
     assert manager._peak_shaving_limit() is None
     assert manager._contracted_charge_ceiling() == 5000
+
+
+def test_excluded_demand_reeval_cap_rolls_over_at_midnight():
+    """P7: yesterday's spent cap must not block today's re-evaluations.
+
+    The counter was only cleared in the Dynamic Pricing new-day block, which
+    is skipped while the evaluated date is unset or already tomorrow.
+    """
+    yesterday = _CLAIM_NOW - timedelta(days=1)
+    ctrl = _claim_ctrl(
+        0.0,
+        7.0,
+        _dp_excluded_demand_reeval_count=4,
+        _dp_excluded_demand_reeval_at=yesterday,
+    )
+    manager = _claim_mgr(ctrl)
+
+    assert manager._excluded_demand_reeval_count_today(_CLAIM_NOW) == 0
+    assert manager._is_excluded_demand_reeval(_CLAIM_NOW) is True

@@ -610,3 +610,25 @@ async def test_a_slow_battery_climbs_the_ladder_and_comes_back():
     assert driver.scheduler.interval_s == 2.0
     assert driver.control_state is ControlState.OWNED
     await driver.close()
+
+
+def test_a_refused_scheduled_write_is_not_marked_accepted():
+    """HTTP 200 with ``result`` not true is a refusal (O2).
+
+    Marking it accepted let the identical retry be deduplicated, so the
+    refused setpoint was never sent again.
+    """
+    _clock, scheduler = _scheduler_at(2.0)
+    payload = (2, 500, 55)
+    scheduler._current = ("write", payload)
+    scheduler._client.last_latency_s = 0.1
+
+    scheduler._after_success(("Indevolt.SetData", {}), {"result": False})
+
+    assert scheduler.last_accepted != payload
+    assert scheduler.writes == 0
+    assert scheduler.errors == 1
+
+    scheduler._current = ("write", payload)
+    scheduler._after_success(("Indevolt.SetData", {}), {"result": True})
+    assert scheduler.last_accepted == payload

@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.6.1] - 2026-11-17
+
+### Changed
+
+- **Time Slot: no charging and discharging inside the same window**: inside a configured window the battery discharges only down to the energy needed after the window, the grid covers the house for the rest of it, and the window charges at least what is needed after it, up to max_soc. Energy is no longer bought and spent in the same window. A window that needs no charge still lets the battery discharge its spare energy.
+- **Panel: shorter Daily operation card**: the subtitle is gone, the 15-min interval sits in the Real / Forecast chip and the legend keeps areas and lines on one row when they fit.
+
+### Fixed
+
+- **Daily operation timeline no longer fills the recorder** (#850): from Home Assistant 2024.7 its attributes are no longer recorded (the panel reads the live state), and the card updates as soon as an interval closes. Thanks to @mhjansen79.
+- **Predictive charging no longer charges to 100% with the Peak Shaving SOC threshold at max SOC** (#843): a threshold at max SOC now means "cover peaks only" and the plan counts the energy down to min SOC; lower thresholds still reserve their band (#627). Thanks to @ssorgatem.
+- **Dynamic Pricing: no night charge for a morning peak with the Discharge Reserve off** (#834): a night slot that ends before an hour left to the grid now also stores what those hours drain and is booked when the peak repays it. Thanks to @locmer and @Sk1dmaster.
+- **Dynamic Pricing: the night charge came up short when the night is cheaper to import** (#662): the house load of hours left to the grid no longer comes off the energy booked for the dear hours after them. Thanks to @anorakophobia.
+- **Predictive charging booked too few slots for batteries with unequal room**: slots are sized with the power the fleet averages over the charge (a full battery stops charging), shown as `battery_charge_power_w`. Thanks to @anorakophobia.
+- **Dynamic Pricing: the night charge no longer overfills a battery with a low discharge limit**: the projected drain is capped at the fleet's discharge power, also in Real-Time Price and the Discharge Reserve. Thanks to @pocketware.
+- **Discharge Reserve keeps energy for tomorrow's evening when tomorrow's sun cannot refill the battery** (#840). Thanks to @Sjoedzj.
+- **Discharge Reserve no longer holds energy a cheaper night charge buys back**: a dear period claims nothing where buying the energy back before it (round-trip losses, Minimum Arbitrage Margin and Minimum Saving included) costs no more. Discharge Reserve Status shows `refill_credit_kwh`, `refills`, `refill_from` and the reason `grid_refills_cheaper`. Thanks to @anorakophobia.
+- **Dynamic Pricing: tomorrow's horizon no longer drops after a failed forecast fetch** (#817): an empty Energy dashboard answer keeps the previous periods and is retried after a minute; `planning_horizon_reason` says why the horizon did or did not extend. Thanks to @Sjoedzj.
+- **Time Slot / Real-Time Price: a window through midnight covers the night after it** (PR#818): it is re-evaluated for the new day from 00:05. Thanks to @pocketware.
+- **Dynamic Pricing planner fixes** (PR#818, PR#821): battery room simulated in time order; slots sized by what the house leaves of the grid import cap; tomorrow's charge planned with a full battery and the planned grid charge no longer 0 kWh while slots are booked (#838); the evening re-evaluation re-plans the slots it keeps; DST nights; a slot held by Charge Delay passes its energy to later slots; a Time Slot window with no days is never planned; slot labels name the earliest deadline their energy serves. Thanks to @pocketware.
+- **Dynamic Pricing: late prices and failing price services** (PR#818): late prices are retried all day, Tibber / Nord Pool / EnergyZero refreshes back off, and evaluations no longer run in parallel. Thanks to @pocketware.
+- **Predictive charging notifications say why** (PR#818): "waiting for prices" instead of "cheaper to import", the reason when no slot was selected, and the energy planned in tomorrow's slots. Thanks to @pocketware.
+- **Predictive charging re-plans after any setting it reads**: price thresholds, arbitrage margin, round-trip efficiency, pre-discharge, Weekly Full Charge, Discharge Reserve, peak shaving, Vacation Mode, Charge Delay, contracted power and system power limits now re-plan once settings are still for 3 s; turning off Smart Pre-Discharge, Negative-Price Charging or a weekly run drops its slots. Thanks to @anorakophobia.
+- **A re-plan no longer freezes Home Assistant for seconds**: the solar forecast and profile math is about 20× faster (≈6 s on arm64 before), with identical results. Thanks to @anorakophobia.
+- **Robustness** (PR#818, PR#821): a failing predictive step falls back to normal control; one failing driver no longer aborts the unload; Config Backup restores stored data before the entry loads; Huawei EMMA reconnects; a refused Indevolt write counts as failed; Anker closes a refused Modbus client; legacy-domain migration works before HA 2024.10. Thanks to @pocketware.
+- **Restore previous configuration keeps learned profiles and daily counters** (PR#819). Thanks to @tkaspersNL.
+- **Panel: missing price settings**: an unset Minimum Arbitrage Margin reads 0 and its slider shows; the minimum savings show the price currency; the manual charge ceiling / discharge floor rows render and get today's average price as a starting value. Thanks to @anorakophobia.
+- **Venus E v2/v3 max power sliders go down to 100 W** (#815). Thanks to @effevee.
+- **Integration Status price-hold states translated** (PR#825). Thanks to @syphernl.
+
 ## [1.6.0] - 2026-11-09
 
 ### Added

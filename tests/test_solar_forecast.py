@@ -9,6 +9,7 @@ from custom_components.omnibattery.pricing.engine import PricingManager
 from custom_components.omnibattery.const import CONF_SOLAR_FORECAST_REMAINING_SENSOR
 from custom_components.omnibattery.solar_forecast import (
     SolarForecastInput,
+    SolarForecastPeriod,
     get_configured_solar_forecast_sensor,
     normalize_solar_forecast_config,
     read_remaining_solar_kwh,
@@ -319,6 +320,36 @@ async def test_remaining_sensor_borrows_energy_dashboard_periods(monkeypatch):
     assert len(tasks) == 1  # fresh cache, no refetch
     assert [p.end - p.start for p in periods] == [timedelta(minutes=30)] * 3
     assert sum(p.energy_kwh for p in periods) == pytest.approx(6.0)
+
+
+@pytest.mark.asyncio
+async def test_empty_energy_dashboard_fetch_keeps_cached_periods(monkeypatch):
+    """#817: a transient empty fetch must not wipe good periods for 30 min."""
+    import asyncio
+    import custom_components.omnibattery.solar_forecast as module
+
+    good = SolarForecastPeriod(
+        datetime(2026, 11, 10, 12, tzinfo=MADRID), datetime(2026, 11, 10, 13, tzinfo=MADRID), 2.0
+    )
+    stale_at = module.monotonic() - module.ENERGY_FORECAST_REFRESH_S - 1
+    controller = SimpleNamespace(_energy_solar_forecast=("sensor.remaining", stale_at, (good,)))
+
+    async def empty_fetch(hass, sensor):
+        return {}
+
+    monkeypatch.setattr(module, "async_fetch_energy_solar_forecast", empty_fetch)
+    tasks = []
+    hass = SimpleNamespace(
+        async_create_task=lambda coro: tasks.append(asyncio.ensure_future(coro)) or tasks[-1],
+    )
+
+    assert module._energy_dashboard_periods(hass, controller, "sensor.remaining") == (good,)
+    await tasks[0]
+    sensor, fetched_at, periods = controller._energy_solar_forecast
+    assert periods == (good,)
+    # Retried after ENERGY_FORECAST_RETRY_S, not a full refresh interval.
+    age_to_refresh = fetched_at + module.ENERGY_FORECAST_REFRESH_S - module.monotonic()
+    assert 0 < age_to_refresh <= module.ENERGY_FORECAST_RETRY_S
 
 
 @pytest.mark.asyncio

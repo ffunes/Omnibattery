@@ -2967,3 +2967,51 @@ async def test_the_next_episode_warns_again():
         table.update(_live_with(soc=0xFFFF))
         await driver.read_telemetry(["battery_soc"])
         assert logger.warning.call_count == 2
+
+
+# ----------------------------------------------------------------------
+# A lost EMMA meter connection is reopened (O4)
+# ----------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_a_lost_meter_connection_is_reopened():
+    """Only connect() opened it: a meter that dropped stayed missing until the
+    inverter link itself reconnected."""
+    meter = _fake_client({31657: [0, 100]})
+    meter.connected = False
+
+    async def reconnect():
+        meter.connected = True
+        return True
+
+    meter.async_connect = AsyncMock(side_effect=reconnect)
+    driver = _driver(_fake_client(_LIVE_BLOCKS), meter_client=meter)
+
+    data = await driver.read_telemetry(["grid_power"])
+
+    meter.async_connect.assert_awaited_once()
+    assert data["grid_power"] == 100
+
+
+@pytest.mark.asyncio
+async def test_meter_reconnects_are_rate_limited():
+    meter = _fake_client({})
+    meter.connected = False
+    meter.async_connect = AsyncMock(return_value=False)
+    driver = _driver(_fake_client(_LIVE_BLOCKS), meter_client=meter)
+
+    for _ in range(5):
+        await driver.read_telemetry(["grid_power"])
+
+    assert meter.async_connect.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_no_meter_reconnect_while_shutting_down():
+    meter = _fake_client({})
+    meter.connected = False
+    driver = _driver(_fake_client(_LIVE_BLOCKS), meter_client=meter)
+    driver.set_shutting_down(True)
+
+    await driver.read_telemetry(["grid_power"])
+
+    meter.async_connect.assert_not_awaited()

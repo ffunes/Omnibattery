@@ -32,6 +32,16 @@ def encode_int32(value: int) -> list[int]:
     return [(value >> 16) & 0xFFFF, value & 0xFFFF]
 
 
+async def _close_quietly(client) -> None:
+    """Close a pymodbus client that never became ``self._client``."""
+    try:
+        result = client.close()
+        if asyncio.iscoroutine(result):
+            await result
+    except Exception:  # noqa: BLE001 - best effort on a failed connect
+        pass
+
+
 class AnkerModbusClient:
     """Thin async Modbus TCP transport for Anker Solarbank devices."""
 
@@ -75,17 +85,16 @@ class AnkerModbusClient:
                 self.port,
                 err,
             )
-            try:
-                close_result = client.close()
-                if asyncio.iscoroutine(close_result):
-                    await close_result
-            except Exception:
-                pass
+            await _close_quietly(client)
             return False
         if not connected:
             _LOGGER.error(
                 "Anker Modbus connect refused %s:%s", self.host, self.port
             )
+            # The client object (and any transport or reconnect task pymodbus
+            # opened for it) was left open on this path, leaking one per
+            # refused reconnect.
+            await _close_quietly(client)
             return False
         self._client = client
         self._slave_kwarg = _detect_slave_kwarg(client)

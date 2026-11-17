@@ -41,6 +41,52 @@ PRICE_LIST_ATTRS = {
 }
 
 
+def normalize_price_slots(slots: list) -> list:
+    """Repair the wall-clock slots of a DST night.
+
+    The parsers convert provider times to naive local wall clocks, so:
+
+    - spring forward: the slot before the gap runs to the far side of it
+      (hourly 01:00->03:00, 15-min 01:45->03:00) although it lasts one
+      nominal step; its end is pulled back to ``start + step``;
+    - fall back: the slot before the repeated hour ends before or at its own
+      start (02:00->02:00, 02:45->02:00) and the repeated hour's slots start
+      a second time; empty or reversed slots and repeated starts are dropped
+      (the first occurrence is kept).
+
+    Without this a 0-minute slot made ``select_cheapest_hours`` divide by
+    zero, a 2 h slot booked twice the charge its real hour can deliver, and
+    repeated starts collided in the maps keyed by ``slot.start``. Slots of an
+    ordinary day are returned unchanged.
+    """
+    if not slots:
+        return slots
+    durations = [
+        slot.end - slot.start for slot in slots if slot.end > slot.start
+    ]
+    step = min(durations) if durations else None
+    result = []
+    seen = set()
+    changed = False
+    for slot in sorted(slots, key=lambda item: item.start):
+        if slot.end <= slot.start or slot.start in seen:
+            changed = True
+            continue
+        seen.add(slot.start)
+        if step is not None and slot.end - slot.start > step:
+            # Only a slot whose end crosses a missing wall-clock hour is
+            # longer than the step; a mixed hourly/15-min feed keeps hours.
+            nominal_end = slot.start + step
+            if (slot.end - slot.start) - step == timedelta(hours=1):
+                slot = PriceSlot(slot.start, nominal_end, slot.price)
+                changed = True
+        result.append(slot)
+    if changed:
+        _LOGGER.debug("Dynamic pricing: normalized DST price slots")
+        return result
+    return slots
+
+
 def stringified_price_attrs(integration_type: str, attrs: dict) -> list[str]:
     """Return the list attributes this sensor exposes as a string."""
     return [
@@ -646,6 +692,45 @@ def calculate_exact_charging_hours_needed(
     return energy_kwh / (effective_power_kw * CHARGE_EFFICIENCY)
 
 
+def fleet_charge_power_kw(
+    batteries: list[tuple[float, float]],
+    energy_kwh: float,
+) -> float | None:
+    """Average power at which the fleet charges ``energy_kwh``, or None if unknown.
+
+    ``batteries`` holds ``(room_kwh, charge_power_kw)`` per battery. A slot is
+    sized with one fleet power, but a battery that is full stops charging: two
+    2.4 kW batteries with 4.25 and 7.18 kWh of room charge at 4.8 kW until the
+    first is full and at 2.4 kW after that. Filling both takes as long as the
+    slower one alone, 7.18 / 2.4 h, so the fleet averages 11.43 / (7.18 / 2.4)
+    = 3.82 kW, not 4.8. Sized at 4.8 kW the slots end with the slower battery
+    short. A charge that ends before any battery is full keeps the summed
+    power. The charge efficiency scales energy and time alike and cancels.
+    """
+    charging = sorted(
+        (room / power, power)
+        for room, power in batteries
+        if math.isfinite(room) and math.isfinite(power) and room > 1e-9 and power > 1e-9
+    )
+    if not charging:
+        return None
+    rate = sum(power for _full_after, power in charging)
+    energy = min(max(0.0, energy_kwh), sum(full_after * power for full_after, power in charging))
+    if energy <= 1e-9:
+        return rate
+    stored = 0.0
+    elapsed = 0.0
+    for full_after, power in charging:
+        step = (full_after - elapsed) * rate
+        if stored + step >= energy - 1e-9:
+            elapsed += (energy - stored) / rate
+            break
+        stored += step
+        elapsed = full_after
+        rate -= power
+    return energy / elapsed if elapsed > 0.0 else None
+
+
 def calculate_planned_grid_charge_kwh(
     deficit_kwh: float,
     battery_headroom_kwh: float,
@@ -734,6 +819,9 @@ def select_cheapest_blocks(slots: list, hours_needed: float, slot_duration_h: fl
     Returns:
         Sorted (by start time) list of selected PriceSlot
     """
+    if slot_duration_h <= 0:
+        # A DST night can leave a 0-minute slot first; never divide by it.
+        slot_duration_h = 0.25
     block_size = max(1, round(1.0 / slot_duration_h))  # 4 for 15-min slots
     sorted_slots = sorted(slots, key=lambda s: s.start)
     n = len(sorted_slots)
@@ -1037,6 +1125,10 @@ def select_cheapest_hours(
         return []
 
     # Dispatch to block strategy for sub-hourly granularity
+    future_slots = [s for s in future_slots if s.end > s.start]
+    if not future_slots:
+        _LOGGER.warning("Dynamic pricing: no slots available after filtering")
+        return []
     slot_duration_h = (future_slots[0].end - future_slots[0].start).total_seconds() / 3600.0
     if slot_duration_h < 0.9:
         return select_cheapest_blocks(future_slots, hours_needed, slot_duration_h)
@@ -1047,7 +1139,12 @@ def select_cheapest_hours(
     selected = []
     hours_accumulated = 0.0
     for slot in sorted_slots:
-        slot_duration = (slot.end - slot.start).total_seconds() / 3600.0
+        # Only the part still ahead can charge: a slot already running at
+        # hh:40 offers 20 minutes, not the hour (as in
+        # select_cheapest_slots_by_duration).
+        slot_duration = max(
+            0.0, (slot.end - max(slot.start, now)).total_seconds() / 3600.0
+        )
         selected.append(slot)
         hours_accumulated += slot_duration
         if hours_accumulated >= hours_needed:

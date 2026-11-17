@@ -16,6 +16,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -2259,8 +2260,13 @@ class DailyOperationTimelineSensor(SensorEntity):
     _attr_icon = "mdi:chart-timeline-variant"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_should_poll = False
+    # #850: every section changes each publish (observed seconds, revision,
+    # progress), so recording any of them stores a fresh attributes row per
+    # write. The panel reads the live state; nothing reads attribute history.
+    # MATCH_ALL needs HA 2024.7+; the named heavy sections cover older cores.
     _unrecorded_attributes = frozenset(
         {
+            MATCH_ALL,
             "series",
             "operations",
             "dst_skipped",
