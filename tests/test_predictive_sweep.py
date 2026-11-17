@@ -29,6 +29,7 @@ in ``n`` (the pre-merge hook uses 11).
 """
 from __future__ import annotations
 
+import functools
 import itertools
 import json
 import os
@@ -236,9 +237,16 @@ def check(case_key: str, findings: list[tuple[str, str]]) -> None:
     )
 
 
+@functools.lru_cache(maxsize=1)
+def base_run(case, daily):
+    """The case's own evaluation, shared by evaluate_pair and evaluate_stability
+    (each test ran it twice: a quarter of the sweep's plans)."""
+    return run(scenario(case), daily=daily)
+
+
 def evaluate_pair(case, *, daily=False) -> list[tuple[str, str]]:
     findings = []
-    runs = {scale: run(scenario(case, scale=scale), daily=daily) for scale in (1.0, LOAD_SCALE)}
+    runs = {1.0: base_run(case, daily), LOAD_SCALE: run(scenario(case, scale=LOAD_SCALE), daily=daily)}
     low, high = runs[1.0], runs[LOAD_SCALE]
     costs = [getattr(r.plan, "optimizer_cost", None) for r in (low, high)]
     if None not in costs:
@@ -260,7 +268,7 @@ def evaluate_pair(case, *, daily=False) -> list[tuple[str, str]]:
 
 def evaluate_stability(case, *, daily=False) -> list[tuple[str, str]]:
     sc = scenario(case)
-    a = run(sc, daily=daily)
+    a = base_run(case, daily)
     later = sc.now + timedelta(hours=1)
     later += timedelta(minutes=(-later.minute) % 15)
     if any(x.slot.start < later for x in a.plan.allocations):
