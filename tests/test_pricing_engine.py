@@ -1216,6 +1216,52 @@ def test_price_publication_reeval_waits_for_the_active_slot_to_end():
     assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
 
 
+def test_first_cycle_after_midnight_resets_the_day_and_does_not_re_plan():
+    """2026-11-17: a feed that always holds tomorrow made the publication
+    trigger re-plan at 00:00, before the reset, which then saw today's date
+    and never ran. The reset runs first, and the trigger waits for the day's
+    own evaluation (00:05), which disarms it."""
+    calls = []
+
+    async def _evaluate(**kwargs):
+        calls.append(kwargs)
+        ctrl._dynamic_pricing_evaluated_date = datetime.now().date()
+
+    yesterday = datetime.now().date() - timedelta(days=1)
+    ctrl = _publication_ctrl(
+        _dynamic_pricing_evaluated_date=yesterday,
+        _dp_price_publication_reeval_date=yesterday,
+        _dp_solar_forecast_reeval_count=3,
+        _dp_eval_retry_count=0,
+    )
+    manager = _publication_mgr(ctrl, _evaluate)
+    manager._prices_reach_beyond_today = lambda _now: True
+    for name in (
+        "_reset_predictive_demand_runtime",
+        "clear_curtailment_runtime",
+        "_clear_surplus_hold",
+        "_clear_discharge_reserve",
+        "_clear_plan_orders",
+    ):
+        setattr(manager, name, lambda *_args: None)
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+
+    assert calls == []
+    assert ctrl._dynamic_pricing_evaluated_date is None
+    assert ctrl._dp_solar_forecast_reeval_count == 0
+
+    # Any trigger that re-plans in the first cycle still finds the day reset.
+    ctrl._dynamic_pricing_evaluated_date = yesterday
+    ctrl._dp_solar_forecast_reeval_count = 3
+    manager._is_dp_soc_drop_reeval = lambda: True
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+
+    assert len(calls) == 1
+    assert ctrl._dp_solar_forecast_reeval_count == 0
+
+
 def test_price_publication_reeval_disarmed_when_the_daily_eval_already_saw_tomorrow():
     async def no_charge_decision():
         return {
