@@ -102,7 +102,9 @@ def test_full_battery_after_a_charge_flip_ends_the_spell_without_a_repair():
 
     controller._weekly_charge_mgr.is_battery_full = lambda c: True
     _age_spell_past_repair_threshold(tracker, coord)
-    with patch(f"{_TRACKER}.ir.async_create_issue") as create_issue:
+    with patch(f"{_TRACKER}.ir.async_create_issue") as create_issue, patch(
+        f"{_TRACKER}.ir.async_delete_issue"
+    ):
         asyncio.run(controller._run_control_cycle(now=reported_at))
 
     create_issue.assert_not_called()
@@ -145,7 +147,9 @@ def test_full_battery_after_a_flip_keeps_a_discharge_or_comms_fault(record, reas
 
     controller._weekly_charge_mgr.is_battery_full = lambda c: True
     _age_spell_past_repair_threshold(tracker, coord)
-    with patch(f"{_TRACKER}.ir.async_create_issue") as create_issue:
+    with patch(f"{_TRACKER}.ir.async_create_issue") as create_issue, patch(
+        f"{_TRACKER}.ir.async_delete_issue"
+    ):
         asyncio.run(controller._run_control_cycle(now=reported_at))
 
     create_issue.assert_called_once()

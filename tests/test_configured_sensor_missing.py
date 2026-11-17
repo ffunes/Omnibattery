@@ -101,6 +101,7 @@ def _ctrl(data: dict, existing: set[str]) -> SimpleNamespace:
         config_entry=SimpleNamespace(entry_id="abc123", data=data),
         _missing_sensors_since=None,
         _missing_sensors_reported=None,
+        _missing_sensors_issue_cleared=False,
     )
 
 
@@ -163,4 +164,7 @@ def test_all_sensors_present_raises_nothing(issues, clock):
     _check(ctrl)
     _check(ctrl)
 
-    assert issues.created == [] and issues.deleted == []
+    # Nothing raised. The one delete is the first healthy check of a run
+    # clearing a persisted issue from before a restart, and it happens once.
+    assert issues.created == []
+    assert issues.deleted == ["configured_sensor_missing_abc123"]

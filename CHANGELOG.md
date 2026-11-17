@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- **A Repair raised before a restart is cleared once the fault is gone** (PR#851): a non-delivering battery, a degraded phase sensor or a missing configured sensor came back after a restart and was never deleted. Thanks to @sphings79.
 - **Forecast.Solar periods keep their full hour** (#855, PR#856): the sunrise and sunset keys no longer shrink every Energy dashboard period to a few minutes, so the solar curve is no longer rejected (`provider_coverage`), drawn as a sawtooth, or put into each hour's first quarter by High-Price Sale.
 - **Dynamic Pricing: the 00:05 plan also looks past tomorrow's sunrise when tomorrow's prices are already known**: with a feed that always holds tomorrow (a fixed-tariff template), the 00:05 plan stopped at midnight and the first re-evaluation, planning across tomorrow, could drop a charge already running. The predictive sensor keeps a plan's timeline diagnostics when it covers tomorrow.
 - **Solar Forecast Safety Margin applies to each day**: a plan that also covers tomorrow took the margin once off both days' sun, so today kept most of its forecast and less was charged for it. Each day now gives up its own margin, at most its own sun.
