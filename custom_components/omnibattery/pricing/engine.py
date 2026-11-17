@@ -3694,7 +3694,14 @@ class PricingManager:
                 )
             except (TypeError, ValueError):
                 floor = 0.0
-            netted_planned = max(planned - carried, min(planned, floor))
+            # The carried load comes off the deficit, not off the planned
+            # charge: that one is already capped by the room in the battery.
+            # Subtracting a long horizon's carried load from the capped figure
+            # booked nothing for a battery that ran empty at 02:00 (deficit
+            # 33.3 kWh, room 5.5 kWh, carried 11.8 kWh -> 0 kWh planned).
+            netted_planned = max(
+                min(planned, max(0.0, deficit - carried)), min(planned, floor)
+            )
             netted_deficit = max(deficit - carried, min(deficit, floor))
         if publish:
             decision_data.setdefault("scalar_planned_grid_charge_kwh", planned)

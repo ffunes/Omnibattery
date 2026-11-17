@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- **Real-Time Price: a load above the battery's discharge power no longer zeroes the planned charge** (PR#845): the load the grid carries came off the room-capped charge instead of the deficit, so a long horizon booked 0 kWh while the battery still ran empty. Thanks to @pocketware.
 - **A battery tapering on cell voltage below 99 % is no longer marked non-responsive** (PR#871): the top-of-charge grace now also opens with the top cell in the taper zone, the same gate as the BMS-cutoff detector (a Zendure 2400 AC+ fell to 190 W at 97 % and was excluded twice). Thanks to @anorakophobia.
 - **A Repair raised before a restart is cleared once the fault is gone** (PR#851): a non-delivering battery, a degraded phase sensor or a missing configured sensor came back after a restart and was never deleted. Thanks to @sphings79.
 - **Forecast.Solar periods keep their full hour** (#855, PR#856): the sunrise and sunset keys no longer shrink every Energy dashboard period to a few minutes, so the solar curve is no longer rejected (`provider_coverage`), drawn as a sawtooth, or put into each hour's first quarter by High-Price Sale.
