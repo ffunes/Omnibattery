@@ -636,3 +636,43 @@ def guaranteed_floor(
         planned_grid_charge_kwh=min(required, headroom),
         guaranteed_floor_deadline=solar_start.isoformat(),
     )
+
+
+def weekly_charge_curve(tails) -> tuple[tuple[float, float], ...]:
+    """The fleet's charge curve on the way to 100 %: ((kWh below 100 %, kW
+    from there up), ...), from ``(gap kWh, taper kWh, power W, taper W)`` per
+    battery still short of it.
+
+    The controller splits a slot's charge by what each battery charges in
+    time, so every battery charges at its own power until its taper (its last
+    WEEKLY_CHARGE_TAIL_PCT), then at the taper's power, and stops when full:
+    two batteries at 50 % and 90 % charge at their summed power only until
+    the fuller one tapers. Started together, the fleet's power is a step
+    function of the energy still missing (the charge efficiency scales energy
+    and time alike and cancels).
+    """
+    batteries = [(gap, tail, power / 1000.0, taper / 1000.0)
+                 for gap, tail, power, taper in tails if gap > 0 and power > 0 and taper > 0]
+
+    def phases(gap, tail, power, taper):
+        return (gap - tail) / power, (gap - tail) / power + tail / taper
+
+    def stored(time, gap, tail, power, taper):
+        bulk_end, _full = phases(gap, tail, power, taper)
+        return min(power * time, gap - tail) + min(max(0.0, time - bulk_end) * taper, tail)
+
+    def power_at(time):
+        total = 0.0
+        for battery in batteries:
+            bulk_end, full = phases(*battery)
+            gap, tail, power, taper = battery
+            total += power if time < bulk_end else taper if time < full else 0.0
+        return total
+
+    total_gap = sum(b[0] for b in batteries)
+    curve = []
+    for time in sorted({t for b in batteries for t in phases(*b)}):
+        missing = total_gap - sum(stored(time, *b) for b in batteries)
+        if missing > 1e-9:
+            curve.append((missing, power_at(time + 1e-9)))
+    return tuple(curve)

@@ -447,3 +447,5 @@ async def test_weekly_completion_queues_post_cutoff_measurement_below_pause_volt
         == MaxSocChargeManager._BMS_CUTOFF_MEASUREMENT_PENDING
     )
     assert ctrl._normal_balance_last_delta_v == {}
+    # D-9 (weekly charge in the optimizer): completing re-plans at once.
+    assert ctrl._dp_config_dirty is True and ctrl._dp_config_dirty_at == 0.0

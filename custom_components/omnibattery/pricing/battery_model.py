@@ -42,6 +42,7 @@ class Quarter:
     discharge_kwh: float  # AC discharge power x hours
     ceiling_kwh: float = BIG  # grid import ceiling x hours
     export_limit_kwh: float | None = None
+    hours: float = 0.25  # the interval's length (the bands are powers)
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,11 @@ class BatteryModel:
     # Resolution of the SOC reading, % (whole percent on most drivers; Huawei
     # reads tenths; ESPHome whatever its sensor publishes).
     soc_resolution_pct: float = 1.0
+    # The charge curve of a weekly full charge (D-6, D-7): ((stored kWh, AC
+    # kW), ...) ascending; from each edge up the fleet charges at that power at
+    # most, grid and sun alike (a battery in its 100 % taper, or full while the
+    # others go on).
+    bands: tuple = ()
 
     @property
     def eff(self) -> float:
@@ -86,6 +92,41 @@ class BatteryModel:
         net = q.house_kwh - q.solar_kwh
         return min(q.charge_kwh, max(0.0, q.ceiling_kwh - max(0.0, net))) * self.eff
 
+    def fill(self, e, upto, rate, q: Quarter, frac=1.0):
+        """(stored kWh, fraction of the quarter used) charging from ``e`` toward
+        ``upto`` for at most ``frac`` of the quarter: ``rate`` stored kWh per
+        quarter, at most each band's power from its edge up."""
+        e = np.asarray(e, dtype=float)
+        upto = np.asarray(upto, dtype=float)
+        segments = [(-np.inf, rate)] + [
+            (edge, min(rate, kw * q.hours * self.eff)) for edge, kw in self.bands
+        ]
+        frac = np.asarray(frac, dtype=float)
+        left = np.broadcast_to(frac, np.broadcast_shapes(e.shape, frac.shape)).copy()
+        now = np.broadcast_to(e, left.shape).copy()
+        stored = np.zeros_like(left)
+        for k, (low, r) in enumerate(segments):
+            high = segments[k + 1][0] if k + 1 < len(segments) else np.inf
+            need = np.where(now < high, np.maximum(np.minimum(upto, high) - np.maximum(now, low), 0.0), 0.0)
+            t = np.minimum(need / r, left) if r > 0 else np.zeros_like(need)
+            got = t * r
+            stored += got
+            now = now + got
+            # Out of time (or of power) inside this segment: none left above it.
+            left = np.where((need > 0) & (got < need - TOL), 0.0, left - t)
+        return stored, frac - left
+
+    def charge_phase(self, q: Quarter, e, target):
+        """(stored kWh, busy fraction) of a slot charge toward ``target`` in the
+        quarter: at the rate the ceiling leaves, slower above the bands' edges."""
+        e = np.asarray(e, dtype=float)
+        rate = self.charge_rate(q)
+        if not self.bands:
+            add = np.minimum(np.maximum(np.asarray(target, dtype=float) - e, 0.0), rate)
+            busy = np.where(add > 0, add / rate, 0.0) if rate > 0 else np.zeros_like(add)
+            return add, busy
+        return self.fill(e, target, rate, q)
+
     def normal_step(self, q: Quarter, e, target=None):
         """(energy after, cost) of the quarter. With an open slot (``target``
         from ``slot_target``, passed until the slot first reaches it: the
@@ -95,16 +136,19 @@ class BatteryModel:
         The two phases are priced apart: they do not net."""
         e = np.asarray(e, dtype=float)
         net = q.house_kwh - q.solar_kwh
-        rate = self.charge_rate(q)
         if target is None or not q.grid_charge_allowed:
-            add = np.zeros_like(e)
+            add = busy = np.zeros_like(e)
         else:
-            add = np.minimum(np.maximum(np.asarray(target, dtype=float) - e, 0.0), rate)
-        busy = np.where(add > 0, add / rate, 0.0) if rate > 0 else np.zeros_like(add)
+            add, busy = self.charge_phase(q, e, target)
         e1 = e + add
         grid_busy = add / self.eff + net * busy  # the charge, plus the house meanwhile
         rest = net * (1 - busy)
-        if net < 0:
+        if net < 0 and self.bands:
+            stored, _t = self.fill(e1, self.cap, min(-net, q.charge_kwh) * self.eff, q, 1 - busy)
+            stored_ac = stored / self.eff
+            e2 = e1 + stored
+            grid_rest = rest + stored_ac
+        elif net < 0:
             stored_ac = np.minimum(-rest, q.charge_kwh * (1 - busy))
             stored_ac = np.minimum(stored_ac, np.maximum(self.cap - e1, 0.0) / self.eff)
             e2 = e1 + stored_ac * self.eff

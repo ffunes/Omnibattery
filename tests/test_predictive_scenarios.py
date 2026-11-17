@@ -68,9 +68,9 @@ _EPS = 1e-6
 
 _TOP_KEYS = {
     "source", "note", "level", "xfail", "now", "time_zone", "sun", "prices",
-    "consumption", "solar", "fleet", "settings", "expected",
+    "consumption", "solar", "fleet", "settings", "expected", "weekly",
 }
-_OPTIONAL_TOP_KEYS = {"xfail"}
+_OPTIONAL_TOP_KEYS = {"xfail", "weekly"}
 _SETTINGS_KEYS = {
     "max_price_threshold", "min_arbitrage_margin", "round_trip_efficiency",
     "discharge_reserve", "peak_shaving", "contracted_power_w",
@@ -112,6 +112,8 @@ class Scenario:
     fleet: tuple[dict, ...]
     settings: dict
     expected: dict
+    # Weekly Full Charge: {"target_day": "tue", "pending": bool}, or None.
+    weekly: dict | None = None
 
     @property
     def horizon_end(self) -> datetime:
@@ -197,6 +199,8 @@ def load_scenario(path: Path) -> Scenario:
     _keys("solar", raw["solar"], {"remaining_kwh", "periods"})
     if not raw["expected"]:
         raise ScenarioError("expected is empty: the scenario asserts nothing")
+    if "weekly" in raw:
+        _keys("weekly", raw["weekly"], {"target_day", "pending"})
     if raw["level"] not in ("allocator", "engine"):
         raise ScenarioError(f"unknown level {raw['level']!r}")
     peak = raw["settings"]["peak_shaving"]
@@ -229,6 +233,7 @@ def load_scenario(path: Path) -> Scenario:
         fleet=tuple(raw["fleet"]),
         settings=raw["settings"],
         expected=raw["expected"],
+        weekly=raw.get("weekly"),
     )
 
 
@@ -520,11 +525,33 @@ def _controller(scenario: Scenario) -> SimpleNamespace:
             lambda *args, _method=method, **kwargs: _method(controller, *args, **kwargs),
         )
     controller._is_battery_manual_owned = ChargeDischargeController._is_battery_manual_owned
+    if scenario.weekly:
+        _wire_weekly(controller, scenario.weekly)
     # Nameplate power: no temperature, taper or slot derating in a scenario.
     controller._battery_power_limit = lambda coordinator, is_charging: (
         coordinator.max_charge_power if is_charging else coordinator.max_discharge_power
     )
     return controller
+
+
+def _wire_weekly(controller, weekly: dict) -> None:
+    """A Weekly Full Charge day: the real manager for the window (its sunrise
+    from the stub tracker), ``is_active`` replaced by the file's ``pending``
+    (the real one reads an unpinned ``datetime.now()``)."""
+    from custom_components.omnibattery.control.weekly_full_charge import (
+        WeeklyFullChargeManager,
+    )
+
+    controller.weekly_full_charge_enabled = True
+    controller.weekly_full_charge_day = weekly["target_day"]
+    controller._weekly_full_charge_skip_delay = True
+    manager = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
+    manager._controller = controller
+    manager.is_active = lambda: bool(weekly["pending"])
+    controller._weekly_charge_mgr = manager
+    controller._weekly_full_charge_pending = lambda: (
+        ChargeDischargeController._weekly_full_charge_pending(controller)
+    )
 
 
 def _run_engine(scenario: Scenario, monkeypatch, *, executor: bool = False) -> Outcome:

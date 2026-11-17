@@ -29,7 +29,7 @@ import math
 
 import numpy as np
 
-from ..const import DEFAULT_ROUND_TRIP_EFFICIENCY
+from ..const import DEFAULT_ROUND_TRIP_EFFICIENCY, WEEKLY_CHARGE_MARGIN_MIN_H
 from .battery_model import BIG, BatteryModel, Quarter
 from .chronological import (
     ChronologicalDiagnostics,
@@ -49,6 +49,10 @@ MAX_LEVELS = 1000
 # 10 kW / hourly / 36 h: 5.5 s -> 0.6 s on a PC); finer if a fleet needs it.
 QUOTA_STEP_KWH = 0.05
 MAX_ASKS = 24
+# A pending weekly charge runs a second menu (D-1): half the quotas there keep
+# every plan of the weekly sweep's requests identical at 2/3 of the time (8
+# lost up to 0.23 c).
+PENDING_MAX_ASKS = 12
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
@@ -68,7 +72,33 @@ DELAY_REFILL_FACTOR = 1.3
 # Per kWh under the guaranteed floor, per quarter before the sun: above any
 # price, so the floor wins whenever it can be met; never reported.
 FLOOR_PENALTY_EUR = 100.0
+# Weekly Full Charge (step 4, D-8): per kWh short of the top at the deadline,
+# above any price; decides, never reported.
+FULL_PENALTY_EUR = FLOOR_PENALTY_EUR
+_FULL_TOL = 1e-6  # "full": within this of the top
 _TOL = 1e-9
+
+
+def _bands(request, cap) -> tuple:
+    """The weekly charge's curve (D-6, D-7) as the model's bands: ((stored
+    kWh, AC kW), ...) ascending; none without a weekly charge."""
+    if request.full_by is None:
+        return ()
+    return tuple(sorted(
+        (cap - float(below), max(0.0, float(kw)))
+        for below, kw in request.charge_curve or ()
+        if 0.0 < float(below) <= cap
+    ))
+
+
+def _reached(peaks, ends, deadline, cap):
+    """Whether the run touched the top in a quarter ending by the deadline:
+    a weekly charge is done the moment the fleet is full (D-1)."""
+    hit = np.zeros(np.shape(peaks[0]), dtype=bool)
+    for peak, end in zip(peaks, ends):
+        if end <= deadline:
+            hit |= peak >= cap - _FULL_TOL
+    return hit
 
 
 def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEvaluationResult:
@@ -76,6 +106,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     cap = usable + max(0.0, float(request.headroom_kwh))
     rte = request.import_value_efficiency or DEFAULT_ROUND_TRIP_EFFICIENCY
     fleet = request.fleet_capacity_kwh
+    bands = _bands(request, cap)
     if fleet and request.fleet_soc_pct is not None:
         model = BatteryModel(
             capacity_kwh=fleet,
@@ -83,18 +114,64 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             floor_kwh=fleet * request.fleet_soc_pct / 100.0 - usable,
             usable_kwh=cap,
             soc_resolution_pct=request.soc_resolution_pct,
+            bands=bands,
         )
         soc_step = fleet * request.soc_resolution_pct / 100.0
     else:  # no reading to round to
         model = BatteryModel(capacity_kwh=max(cap, _TOL), round_trip_efficiency=rte,
-                             usable_kwh=cap, soc_resolution_pct=1e-6)
+                             usable_kwh=cap, soc_resolution_pct=1e-6, bands=bands)
         soc_step = 0.0
     groups = _slot_groups(request)
+    # Once a weekly charge is done the ceiling is max_soc again: the done
+    # layer stores up to it (the plan valued room for tomorrow's sun the
+    # battery would not take). The pending layer keeps the 100 %.
+    # Its power is the day's ordinary one too, not the weekly fleet's (every
+    # battery charging): the done layer runs its own quarters.
+    done_model = model
+    done_quarters = [quarters for _s, quarters, _e in groups]
+    if request.full_by is not None and request.done_headroom_kwh is not None:
+        done_model = dataclasses.replace(
+            model, usable_kwh=min(cap, usable + max(0.0, float(request.done_headroom_kwh))),
+            bands=(),
+        )
+        power = max(0.0, float(request.effective_power_kw))
+        done_quarters = [
+            [dataclasses.replace(q, charge_kwh=power * q.hours) for q in quarters]
+            for _s, quarters, _e in groups
+        ]
+    layer_model = {False: done_model, True: model}
+    # Weekly Full Charge pending (D-1): a second value function for "not yet
+    # full", through the group holding the window's end. The shortfall pays
+    # at the planned deadline (D-7: the window's end less the run's margin,
+    # not before the first quarter) and again at the window's end, so a run
+    # that misses the first keeps charging for the second. Penalised only when
+    # the window's end is inside the published prices (D-3); before that the
+    # day is planned with the top and the hold, freely.
+    e0 = min(usable, cap)
+    if request.full_by is not None and soc_step > 0 and cap > soc_step:
+        # Pending at a reading of 100 %: not complete until the batteries say
+        # so (a Venus A/D taper counts its BMS cutoff only while commanded to
+        # charge). Planned a reading step short, it books a slot to the top.
+        e0 = min(e0, cap - soc_step)
+    pending0 = request.full_by is not None and bool(groups) and e0 < cap - _FULL_TOL
+    deadline = early = None
+    last_k = early_k = -1
+    binding = False
+    if pending0:
+        first_end = groups[0][2][0]
+        deadline = max(request.full_by, first_end)
+        early = max(request.full_by - timedelta(hours=WEEKLY_CHARGE_MARGIN_MIN_H), first_end)
+        binding = request.full_by <= groups[-1][2][-1]
+
+        def group_of(t):
+            return max(k for k, (_s, _q, ends) in enumerate(groups) if ends[0] <= t)
+
+        last_k = group_of(deadline) if binding else len(groups) - 1
+        early_k = group_of(early) if binding else -1
     margin = max(0.0, float(request.import_value_margin or 0.0))
     prices = [s.price for s, quarters, _ends in groups for _ in quarters]
     end_value = min((p for p in prices if p > 0), default=0.0) * model.eff
 
-    e0 = min(usable, cap)
     grid = max(LATTICE_KWH, cap / MAX_LEVELS)
     lattice = np.arange(e0 % grid, cap + _TOL, grid)
     extra = [0.0, cap, e0]
@@ -107,6 +184,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         steps = np.arange(math.ceil(base / soc_step), math.floor((base + cap) / soc_step) + 1)
         edges = steps * soc_step - base
         extra += list(edges) + list(edges - soc_step * 1e-4)
+    if pending0:
+        extra.append(cap - 2 * _FULL_TOL)  # the value jumps at the top: done / not done
     levels = np.unique(np.round(np.concatenate([lattice, extra]), 9))
     levels = levels[(levels >= 0.0) & (levels <= cap + _TOL)]
 
@@ -114,28 +193,34 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     risk, room_levels, charge_caps, risk_reserve = _room(request, groups, model, soc_step)
     room_prices = request.room_export_prices or {}
 
-    def menu(slot, quarters, slot_end):
+    def menu(slot, quarters, slot_end, pending=False):
         # Inside a risk the grid is held at 0 W: only normal behaviour (and a
         # floor charge) executes there.
         in_risk = slot.start in risk
+        # A pending weekly charge (§3 of its plan) may always hold (a flat
+        # afternoon otherwise discharges and buys back at a loss); it keeps
+        # all the sun (only the delay's export), and neither sells nor makes
+        # room nor caps its charges (100 % would not fit).
+        hold_ok = (request.hold_allowed or pending) and not in_risk
         # Normal first: on a tie neither a charge nor a hold is taken.
-        options = [None] + ([HOLD] if request.hold_allowed and not in_risk else [])
+        options = [None] + ([HOLD] if hold_ok else [])
         # Store first: on a tie the surplus is stored. Never with a charge: the
         # surplus price hold's blocker stops all charging.
         if not in_risk and (
-            request.export_choice_allowed or (delay is not None and delay.offers(slot_end))
+            (request.export_choice_allowed and not pending)
+            or (delay is not None and delay.offers(slot_end))
         ) and any(q.solar_kwh > q.house_kwh for q in quarters):
             options.append(EXPORT)
         # Sell last: on a tie it does not sell. Two powers, exclusive with the rest.
         # Never at a battery price <= 0: paid exports are Smart Pre-Discharge's
         # (its own switch and reserve SOC, design §3), not High-Price Sale's.
-        if (not in_risk and request.sell_allowed and request.sell_power_kw > 0
+        if (not in_risk and not pending and request.sell_allowed and request.sell_power_kw > 0
                 and slot.start in sell_prices and sell_prices[slot.start] > 0):
             options += [(SELL, request.sell_power_kw), (SELL, request.sell_power_kw / 2)]
         # Make room: the very last, so on a tie nothing is discharged.
         room = (
             [(ROOM, request.room_power_kw), (ROOM, request.room_power_kw / 2)]
-            if slot.start in room_levels
+            if slot.start in room_levels and not pending
             else []
         )
         if not quarters[0].grid_charge_allowed:
@@ -143,12 +228,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         most = sum(model.charge_rate(q) for q in quarters)
         if most <= _TOL:
             return options + room
-        step = max(QUOTA_STEP_KWH, most / MAX_ASKS)
+        step = max(QUOTA_STEP_KWH, most / (PENDING_MAX_ASKS if pending else MAX_ASKS))
         asks = [(a, False) for a in list(np.arange(step, most, step)) + [most]]
         asks.append((most + max(soc_step, QUOTA_STEP_KWH), True))
         # With the hold allowed a charge may also hold: once its target is
         # reached the battery keeps it instead of covering the rest of the slot.
-        holding = [(a, end, True) for a, end in asks] if request.hold_allowed and not in_risk else []
+        holding = [(a, end, True) for a, end in asks] if hold_ok else []
         return options + asks + holding + room
 
     floor = min(max(0.0, float(request.floor_kwh or 0.0)), cap)
@@ -156,20 +241,26 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     export_saving = max(0.0, float(request.export_choice_min_saving or 0.0))
     sell_prices = dict(request.battery_export_prices or request.export_prices or {})
 
-    def target_of(e, ask, slot_start=None):
+    def target_of(e, ask, slot_start=None, pending=False):
         """The slot's target: capped before a risk where room is offered (a
-        charge must not fill what the plan would then export as room), then
-        raised to the floor while the guaranteed floor is active."""
+        charge must not fill what the plan would then export as room; not
+        while a weekly charge is pending), then raised to the floor while the
+        guaranteed floor is active."""
+        model = layer_model[pending]
         target = model.slot_target(e, ask)
-        if slot_start in charge_caps:
+        if slot_start in charge_caps and not pending:
             target = np.minimum(target, charge_caps[slot_start])
         return np.maximum(target, floor) if floor > 0 else target
 
-    def run(quarters, e, option, slot_price, quarter_ends, slot_start=None, asks=None):
+    def run(quarters, e, option, slot_price, quarter_ends, slot_start=None, asks=None,
+            pending=False):
         """Exact execution of one slot from energies ``e`` (array).
 
         ``asks`` (n, 1): n charge quotas at once, row i the run of ``option``
-        with ``asks[i]`` as its quota (``option`` says only whether it holds)."""
+        with ``asks[i]`` as its quota (``option`` says only whether it holds).
+        ``pending``: the weekly charge's layer (no minimum saving on a hold,
+        no charge cap, only the delay's export, the 100 % ceiling)."""
+        model = layer_model[pending]
         e = np.array(e, dtype=float)
         if asks is not None:
             e = np.broadcast_to(e, (len(asks),) + e.shape).copy()
@@ -180,27 +271,32 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         room = sell and option[0] == ROOM
         hold = option == HOLD or (not sell and isinstance(option, tuple) and len(option) > 2)
         export = option == EXPORT
+        saving = 0.0 if pending else hold_saving
         # The delay applies where its mask lets the slot export, judged once at
         # the slot's start for every option: elsewhere neither its export nor its
         # tie-break (which steered sales of the sun from an empty battery).
         delayed = delay.allows(e, slot_start, quarter_ends[-1]) if delay is not None else None
-        if export and not request.export_choice_allowed:
+        if export and (pending or not request.export_choice_allowed):
             export = delayed
         target = None if option in (None, HOLD, EXPORT) or sell else target_of(
-            e, option[0] if asks is None else asks, slot_start)
+            e, option[0] if asks is None else asks, slot_start, pending)
         done = np.zeros(e.shape, dtype=bool)
         ends = []
+        peaks = []  # the quarter's highest energy: after its charge phase, or at its end
         for q, end in zip(quarters, quarter_ends):
             t = None
+            top = e
             if target is not None:
                 t = np.where(done, -np.inf, target)
-                add = np.minimum(np.maximum(t - e, 0.0), model.charge_rate(q))
-                done |= target - e <= model.charge_rate(q) + _TOL
                 # Bought = the GRID energy the charge puts in the battery: the
                 # sun surplus during the charge phase feeds it too, and is not
                 # bought (margin and D3 counted it, making sunny charges dear).
-                rate = model.charge_rate(q)
-                busy = np.where(add > 0, add / rate, 0.0) if rate > 0 else np.zeros_like(add)
+                add, busy = model.charge_phase(q, e, t)
+                if model.bands:
+                    done |= target - e - add <= _TOL
+                else:
+                    done |= target - e <= model.charge_rate(q) + _TOL
+                top = e + add
                 bought = np.maximum(add / model.eff - max(0.0, q.solar_kwh - q.house_kwh) * busy, 0.0)
                 stored += add
                 decide += margin * bought
@@ -213,7 +309,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                     np.minimum(e * model.eff, max(0.0, q.house_kwh - q.solar_kwh)),
                     q.discharge_kwh,
                 )
-                decide += hold_saving * covered
+                decide += saving * covered
                 q = dataclasses.replace(q, discharge_kwh=0.0)
             if sell:
                 # High-Price Sale's override: the grid at -P; the battery covers
@@ -247,6 +343,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 if floor > 0 and request.floor_until is not None and end <= request.floor_until:
                     decide += FLOOR_PENALTY_EUR * np.maximum(floor - e, 0.0)
                 ends.append(e)
+                peaks.append(e)
                 continue
             kept = np.minimum(
                 min(max(0.0, q.solar_kwh - q.house_kwh), q.charge_kwh),
@@ -255,7 +352,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             if export is not False and np.any(export):
                 # The surplus it would have stored is exported; the minimum
                 # saving is charged on it (decides, never reported).
-                if request.export_choice_allowed:
+                if request.export_choice_allowed and not pending:
                     decide += export_saving * kept
                 e_x, c = model.normal_step(dataclasses.replace(q, charge_kwh=0.0), e, t)
                 if export is not True and not np.all(export):
@@ -274,77 +371,130 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             if floor > 0 and request.floor_until is not None and end <= request.floor_until:
                 decide += FLOOR_PENALTY_EUR * np.maximum(floor - e, 0.0)
             ends.append(e)
+            peaks.append(np.maximum(top, e))
         # Published "to the end": a target not reached in the slot, or the
         # battery's top (the controller stops it there; as a plain quota it
         # would round from its own reading and stop short).
         to_end = (~done | (target >= model.cap - 1e-6)) if target is not None else done
-        return e, cost, decide, stored, to_end, ends
+        return e, cost, decide, stored, to_end, ends, peaks
 
-    def run_menu(slot, quarters, e, slot_ends):
+    def run_menu(slot, quarters, e, slot_ends, pending=False):
         """[(option, run)] for the slot's menu, in its order. The charge quotas
         run in one call per kind (with and without the hold): the same
         numbers, without the per-call overhead (96 % of the runs were quotas)."""
-        options = menu(slot, quarters, slot_ends[-1])
+        options = menu(slot, quarters, slot_ends[-1], pending)
         out = [None] * len(options)
         stacks = {}
         for i, option in enumerate(options):
             if isinstance(option, tuple) and option[0] not in (SELL, ROOM):
                 stacks.setdefault(len(option), []).append(i)
             else:
-                out[i] = (option, run(quarters, e, option, slot.price, slot_ends, slot.start))
+                out[i] = (option, run(quarters, e, option, slot.price, slot_ends, slot.start,
+                                      pending=pending))
         for rows in stacks.values():
             asks = np.array([[options[i][0]] for i in rows], dtype=float)
-            e1, c, decide, stored, to_end, ends = run(
-                quarters, e, options[rows[0]], slot.price, slot_ends, slot.start, asks=asks)
+            e1, c, decide, stored, to_end, ends, peaks = run(
+                quarters, e, options[rows[0]], slot.price, slot_ends, slot.start, asks=asks,
+                pending=pending)
             for r, i in enumerate(rows):
-                out[i] = (options[i], (e1[r], c[r], decide[r], stored[r], to_end[r], [x[r] for x in ends]))
+                out[i] = (options[i], (e1[r], c[r], decide[r], stored[r], to_end[r],
+                                       [x[r] for x in ends], [x[r] for x in peaks]))
         return out
 
-    # Backward pass: values[k] = cost-to-go before group k, on the lattice.
+    def shortfall(ends, path, peaks, by):
+        """FULL_PENALTY_EUR per kWh short of the top at the slot's last
+        quarter ending by ``by``, unless the top was touched by then."""
+        j = max(i for i, end in enumerate(ends) if end <= by)
+        return np.where(_reached(peaks, ends, by, cap), 0.0,
+                        FULL_PENALTY_EUR * np.maximum(cap - path[j], 0.0))
+
+    def onward(k, ends, e1, path, peaks, done_next, pending_next):
+        """(cost from a pending run's end on, whether it touched the top): the
+        done value once full by the window's end, else the pending one; the
+        groups holding a binding deadline pay its shortfall, and the charge
+        is over after the window's end."""
+        hit = _reached(peaks, ends, deadline, cap)
+        after = np.interp(e1, levels, done_next)
+        penalty = shortfall(ends, path, peaks, early) if k == early_k else 0.0
+        if k < last_k or not binding:
+            return np.where(hit, after, np.interp(e1, levels, pending_next)) + penalty, hit
+        return after + penalty + shortfall(ends, path, peaks, deadline), hit
+
+    # Backward pass: values[k] = cost-to-go before group k, on the lattice;
+    # pending_values[k] the same while a weekly charge is still to complete.
     values = [-end_value * levels]
-    for slot, quarters, slot_ends in reversed(groups):
-        nxt = values[-1]
+    pending_values = [values[0]]
+    for k in reversed(range(len(groups))):
+        slot, quarters, slot_ends = groups[k]
+        nxt, nxt_pending = values[-1], pending_values[-1]
         best = None
-        for _option, (e1, _c, decide, *_) in run_menu(slot, quarters, levels, slot_ends):
+        for _option, (e1, _c, decide, *_) in run_menu(slot, done_quarters[k], levels, slot_ends):
             v = decide + np.interp(e1, levels, nxt)
             best = v if best is None else np.minimum(best, v)
         values.append(best)
+        if pending0 and k <= last_k:
+            best_pending = None
+            for _option, (e1, _c, decide, _st, _te, path, peaks) in run_menu(
+                    slot, quarters, levels, slot_ends, True):
+                v = decide + onward(k, slot_ends, e1, path, peaks, nxt, nxt_pending)[0]
+                best_pending = v if best_pending is None else np.minimum(best_pending, v)
+            # Full at the slot's start: already done.
+            best = np.where(levels >= cap - _FULL_TOL, best, best_pending)
+        pending_values.append(best)
     values.reverse()
+    pending_values.reverse()
 
     # Forward pass from the exact energy.
     e = e0
     total = 0.0
     allocations: list[SlotAllocation] = []
     holds: list = []
+    weekly_holds: list = []
     exports: list = []
     sales: list = []
     rooms: list = []
     trajectory: list = []
+    pending = pending0
+    full_at = None  # when the plan touches the top of a pending weekly charge
     for k, (slot, quarters, ends) in enumerate(groups):
         nxt = values[k + 1]
+        layer = pending and k <= last_k
         chosen = None
-        for option, (e1, c, decide, stored, open_, path) in run_menu(slot, quarters, [e], ends):
-            v = float(decide[0] + np.interp(e1[0], levels, nxt))
+        for option, (e1, c, decide, stored, open_, path, peaks) in run_menu(
+                slot, quarters if layer else done_quarters[k], [e], ends, layer):
+            if layer:
+                after, hit = onward(k, ends, e1, path, peaks, nxt, pending_values[k + 1])
+                v, hit = float(decide[0] + after[0]), bool(hit[0])
+            else:
+                v, hit = float(decide[0] + np.interp(e1[0], levels, nxt)), False
             if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
                 chosen = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
-                          bool(open_[0]), [float(x[0]) for x in path])
-        _v, option, e_end, c, stored, open_, path = chosen
+                          bool(open_[0]), [float(x[0]) for x in path], hit,
+                          [float(x[0]) for x in peaks])
+        _v, option, e_end, c, stored, open_, path, hit, top = chosen
+        if layer and hit:
+            full_at = next(end for end, x in zip(ends, top)
+                           if end <= deadline and x >= cap - _FULL_TOL)
         selling = isinstance(option, tuple) and option[0] in (SELL, ROOM)
         if selling and option[0] == ROOM:
             rooms.append((slot, float(option[1]), float(room_levels[slot.start])))
         elif selling:
             sales.append((slot, float(option[1])))
         elif option == HOLD or (isinstance(option, tuple) and len(option) > 2):
-            holds.append(slot)
+            # A pending weekly charge's hold is its own (executed without the
+            # Discharge Reserve); the reserve's are the done layer's.
+            (weekly_holds if layer else holds).append(slot)
         if option == EXPORT and (
-            request.export_choice_allowed or bool(delay.allows(np.array([e]), slot.start, ends[-1])[0])
+            (request.export_choice_allowed and not layer)
+            or bool(delay.allows(np.array([e]), slot.start, ends[-1])[0])
         ):
             exports.append(slot)
         if option not in (None, HOLD, EXPORT) and not selling and stored > _TOL:
             allocations.append(SlotAllocation(
                 slot,
                 _published_quota(model, soc_step, e,
-                                 None if open_ else float(target_of(e, option[0], slot.start)), stored),
+                                 None if open_ else float(target_of(e, option[0], slot.start, layer)),
+                                 stored),
                 None, "flexible",
                 # Charged to the slot's end or to the top: executing
                 # ``stored`` as a plain quota would stop it early.
@@ -353,6 +503,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         total += c
         e = e_end
         trajectory += list(zip(ends, path))
+        if layer and (hit or k >= last_k):
+            pending = False
     total -= end_value * e
 
     intervals = sorted(request.intervals, key=lambda item: item.start)
@@ -389,6 +541,8 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         risk_slots=tuple(s for s, _q, _e in groups if s.start in risk),
     )
     plan.optimizer_cost = total
+    plan.weekly_holds = tuple(weekly_holds)
+    plan.weekly_full_at = full_at
     # The plan decided Smart Pre-Discharge (with export prices, design §2.6 A).
     plan.room_allowed = request.room_threshold is not None and bool(request.export_prices)
     # Per risk slot, the stored kWh its sun can add: the solar reserve the
@@ -640,7 +794,9 @@ def _published_quota(model, soc_step, e, target, stored):
 
 
 def _slot_groups(request: ChronologicalEvaluationRequest):
-    """[(slot, [Quarter], [interval end])] from now to the last published price."""
+    """[(slot, [Quarter], [interval end])] from now to the last published price.
+    A weekly charge (``full_by``) charges at the fleet's power while every
+    battery charges; its curve (the model's bands) slows it after that."""
     slots = sorted(
         (
             s for s in (request.price_curve or request.price_slots)
@@ -653,6 +809,9 @@ def _slot_groups(request: ChronologicalEvaluationRequest):
     exports = request.export_prices or {}
     discharge = request.discharge_kw
     ceiling = request.grid_ceiling_kw
+    power = max(0.0, float(request.effective_power_kw))
+    if request.full_by is not None and request.full_by_power_kw is not None:
+        power = max(0.0, float(request.full_by_power_kw))
     groups: list = []
     for i in sorted(request.intervals, key=lambda x: x.start):
         if i.start < request.now:
@@ -674,9 +833,10 @@ def _slot_groups(request: ChronologicalEvaluationRequest):
             import_price=s.price,
             export_price=float(exports.get(s.start, 0.0) or 0.0),
             grid_charge_allowed=allowed,
-            charge_kwh=max(0.0, float(request.effective_power_kw)) * h,
+            charge_kwh=power * h,
             discharge_kwh=BIG if discharge is None else max(0.0, float(discharge)) * h,
             ceiling_kwh=BIG if ceiling is None or not math.isfinite(float(ceiling)) else max(0.0, float(ceiling)) * h,
+            hours=h,
         )
         if groups and groups[-1][0] is s:
             groups[-1][1].append(q)
@@ -689,10 +849,11 @@ def _slot_groups(request: ChronologicalEvaluationRequest):
 def optimizer_fallback_reason(request: ChronologicalEvaluationRequest) -> str | None:
     """Why step 3 leaves this request to the previous allocator (None = optimizer).
 
-    Not modelled yet, each moved in by a later step of the design: a pending
-    weekly full charge (step 4), the discharge reserve holding energy (step 5);
-    a floor request without its ``floor_kwh``; Time Slot prices are synthetic
-    (out of scope).
+    Not modelled: the discharge reserve holding energy without the plan's
+    holds; a floor request without its ``floor_kwh``; Time Slot prices are
+    synthetic (out of scope). A pending weekly full charge is the optimizer's
+    since step 4 (``full_by``); ``grid_carries_load_while_charging`` is the
+    previous allocator's bookkeeping, not read here.
     """
     if request.import_value_efficiency is None:
         return "time_slot"
@@ -702,8 +863,6 @@ def optimizer_fallback_reason(request: ChronologicalEvaluationRequest) -> str | 
         d.kind == "guaranteed_floor" for d in request.deadlines
     )):
         return "guaranteed_floor"
-    if not request.grid_carries_load_while_charging:
-        return "weekly_full_charge"
     if request.reserve_holds and not request.hold_allowed:
         return "discharge_reserve"
     return None

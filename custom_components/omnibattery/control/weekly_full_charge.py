@@ -789,7 +789,8 @@ class WeeklyFullChargeManager:
         # Check if unified charge delay is active - if so, don't write registers yet
         # Skip delay logic when force button was pressed
         if (ctrl.charge_delay_enabled and not ctrl._charge_delay_unlocked
-                and not ctrl._force_full_charge and not ctrl._balance_monitor_overrides_delay()):
+                and not ctrl._force_full_charge and not ctrl._balance_monitor_overrides_delay()
+                and not getattr(ctrl, "_weekly_delay_released", False)):
             return  # Delay is handled by _is_charge_delayed() in _is_operation_allowed()
 
         # Write register 44000 to 100% on first activation (v2 only - v3 uses software enforcement).
@@ -911,6 +912,10 @@ class WeeklyFullChargeManager:
         ctrl._weekly_charge_status["state"] = "Complete"
         ctrl._weekly_charge_status["completion_reason"] = reason
         self._clear_solar_outlook()
+        # D-9: the plan in force charges to 100 % and holds for the run;
+        # re-plan now with max_soc (the configuration-change trigger, no settle).
+        ctrl._dp_config_dirty = True
+        ctrl._dp_config_dirty_at = 0.0
         completion_batteries: dict = {}
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
