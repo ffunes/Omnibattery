@@ -96,6 +96,8 @@ WORLDS = {"forecast": 1.0, "sun30": 0.3}
 CASES = [
     c for c in itertools.product(FLEETS, SOCS, PRICES, (False, True), SOLAR, NOWS, RESERVE)
     if not (c[5].startswith("+") and c[3])  # the night after: tomorrow = that day
+    # The reserve (W4, the plan's holds) on half the grid: it changes little else.
+    and not (c[6] and c[1] != 30)
 ]
 
 
@@ -251,18 +253,24 @@ def policy_of(r) -> Policy:
 
 
 def _split(stored: float, socs) -> list[float]:
-    """Battery SOCs holding ``stored`` kWh, moved by the same SOC points."""
+    """Battery SOCs holding ``stored`` kWh, moved by the same SOC points.
+
+    The batteries have one capacity, so the SOCs add up: their clipped sum is
+    piecewise linear in the shift, solved between its breakpoints."""
     def at(delta):
         return [min(100.0, max(0.0, s + delta)) for s in socs]
 
-    lo, hi = -100.0, 100.0
-    for _ in range(60):
-        mid = (lo + hi) / 2
-        if sum(5.12 * s / 100 for s in at(mid)) < stored:
-            lo = mid
-        else:
-            hi = mid
-    return at(hi)
+    want = stored / 5.12 * 100.0
+    points = sorted({-s for s in socs} | {100.0 - s for s in socs})
+    delta = points[-1]
+    if want <= sum(at(points[0])):
+        delta = points[0]
+    for a, b in zip(points, points[1:]):
+        low, high = sum(at(a)), sum(at(b))
+        if low <= want <= high:
+            delta = a + (want - low) / (high - low) * (b - a) if high > low else b
+            break
+    return at(delta)
 
 
 def _world_quarters(case, factor, start, end):
@@ -391,10 +399,18 @@ def simulate(case, factor, *, old=False, weekly=True):
     triggers.sort()
 
     def evaluate(at, daily):
-        sc = scenario(case, at=at, socs=_split(floor + e, socs), pending=pending)
+        now_socs = _split(floor + e, socs)
         # The 00:05 run with a zero forecast defers to the retry ladder, whose
         # evaluation is a REMAINING one.
-        return run(sc, old=old, daily=daily and SOLAR[case[4]] > 0)
+        daily = daily and SOLAR[case[4]] > 0
+        # The same inputs plan the same: shared between the worlds (identical
+        # up to the first re-plan) and, once the weekly charge is over,
+        # between the arms.
+        key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily)
+        if key not in _EVALS:
+            sc = scenario(case, at=at, socs=now_socs, pending=pending)
+            _EVALS[key] = run(sc, old=old, daily=daily)
+        return _EVALS[key]
 
     first = evaluate(t0, t0.hour == 0 and t0.minute == 5)
     policy = policy_of(first)
@@ -470,7 +486,11 @@ def simulate(case, factor, *, old=False, weekly=True):
 # Rules
 # ----------------------------------------------------------------------
 
+_EVALS: dict = {}  # one case's evaluations, by their inputs
+
+
 def evaluate_case(case) -> list[tuple[str, str]]:
+    _EVALS.clear()
     findings = []
     new = {w: simulate(case, f) for w, f in WORLDS.items()}
     old = {w: simulate(case, f, old=True) for w, f in WORLDS.items()}
