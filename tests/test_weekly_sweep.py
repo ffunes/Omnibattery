@@ -63,9 +63,11 @@ WINDOW_END = DAY + timedelta(days=1, hours=sw.SUNRISE)  # the sunrise after it
 # a rule of thumb (a cut there priced a refill bought for the next morning
 # at the cheapest price, below what it cost).
 SIM_END = DAY + timedelta(days=2)
-# D-9 (re-plan on completion) is production behaviour from Phase 3 on; 0
-# records the baseline without it.
-D9_REPLAN = os.environ.get("OMNI_WEEKLY_D9", "1") == "1"
+# OMNI_WEEKLY_BASE=1 replays the code before the weekly charge moved into
+# the optimizer: no re-plan on completion (D-9) or when behind the plan, and a
+# slot charged to its end keeps its quota. OMNI_WEEKLY_COSTS=<dir> writes each
+# arm's cost per case and world there (old arm on the base = forced old arm).
+BASE = os.environ.get("OMNI_WEEKLY_BASE") == "1"
 RTE = 0.85
 MAX_SOC = 90
 MIN_SOC = 10
@@ -225,6 +227,7 @@ class Policy:
     optimizer: bool
     run_slots: tuple  # the old weekly hold's charge slots
     full_at: object = None  # when the plan touches 100 % (the overdue re-plan)
+    binding: bool = False  # the window's end inside the published prices (D-3)
 
 
 def policy_of(r) -> Policy:
@@ -242,6 +245,8 @@ def policy_of(r) -> Policy:
         frozenset(getattr(c, "_dp_plan_weekly_holds", None) or ()),
         r.d.get("planner") == "optimizer", run_slots,
         getattr(c, "_dp_weekly_full_at", None),
+        r.o.request.full_by is not None
+        and r.o.request.full_by <= max(s.end for s in r.o.request.price_slots),
     )
 
 
@@ -275,27 +280,56 @@ def _world_quarters(case, factor, start, end):
             import_price=prices[slot_start],
             export_price=0.0,
             grid_charge_allowed=True,
-            charge_kwh=min(CONTRACTED_W, POWER_W * n) / 1000 * hours,
+            charge_kwh=0.0,  # per slice, from the batteries (_step)
             discharge_kwh=POWER_W * n / 1000 * hours,
             ceiling_kwh=CONTRACTED_W / 1000 * hours,
-            band_charge_kwh=POWER_W * 0.5 * n / 1000 * hours,  # WEEKLY_CHARGE_TAIL_POWER_RATIO
         )))
     return out
 
 
-def _charging(case, q, e):
-    """The quarter with the charge power of the batteries still short of
-    100 %: the same capacity, so they charge the same SOC points, and one
-    that is full stops (a 90 % battery fills in minutes, the other goes on
-    alone at its own power)."""
-    floor = _fleet(case)[1]
-    open_ = sum(1 for soc in _split(floor + e, socs0(case)) if soc < 100.0 - 1e-6)
-    hours = q.charge_kwh / (min(CONTRACTED_W, POWER_W * len(FLEETS[case[0]])) / 1000)
-    return dataclasses.replace(
-        q,
-        charge_kwh=min(CONTRACTED_W, POWER_W * open_) / 1000 * hours,
-        band_charge_kwh=POWER_W * 0.5 * open_ / 1000 * hours,
-    )
+SUBSTEPS = 15  # one-minute slices: a battery reaching its taper or 100 % changes the power
+TAIL_PCT = 5.0  # WEEKLY_CHARGE_TAIL_PCT, at WEEKLY_CHARGE_TAIL_POWER_RATIO = 0.5
+
+
+def _power_w(case, e, pending) -> float:
+    """The fleet's charge power at stored energy ``e``, from each battery's
+    SOC: the controller splits a slot's charge by what each battery charges in
+    time (``_shares_within_window``), so each charges at its own power, half
+    of it in its last 5 % (the BMS taper) while the weekly charge runs, and
+    none once at its ceiling (100 %, max_soc after the run). Equal batteries
+    charge the same SOC points (``_split``)."""
+    top = 100.0 if pending else MAX_SOC
+    total = 0.0
+    for soc in _split(_fleet(case)[1] + e, socs0(case)):
+        if soc < top - 1e-6:
+            total += POWER_W * (0.5 if pending and soc >= 100.0 - TAIL_PCT else 1.0)
+    return min(CONTRACTED_W, total)
+
+
+def _step(case, model, q, hours, e, target, pending):
+    """(energy after, cost, kWh stored from the grid, highest energy) of one
+    quarter, in SUBSTEPS slices with the power re-read each slice. A slot
+    charge stops once its target is reached (the controller completes it)."""
+    k = SUBSTEPS
+    cost = grid = 0.0
+    peak = e
+    for _ in range(k):
+        sub = dataclasses.replace(
+            q, house_kwh=q.house_kwh / k, solar_kwh=q.solar_kwh / k,
+            charge_kwh=_power_w(case, e, pending) / 1000 * hours / k,
+            discharge_kwh=q.discharge_kwh / k, ceiling_kwh=q.ceiling_kwh / k,
+        )
+        t = target if target is not None and e < target - FULL_TOL else None
+        if t is not None:
+            add = float(model.charge_phase(sub, e, t)[0])
+            grid += add
+            peak = max(peak, e + add)
+            if e + add >= target - FULL_TOL:
+                target = None  # complete: normal behaviour for the rest
+        e1, c = model.normal_step(sub, e, t)
+        e, cost = float(e1), cost + float(c)
+        peak = max(peak, e)
+    return e, cost, grid, peak
 
 
 def _fleet(case):
@@ -307,10 +341,10 @@ def _fleet(case):
 
 def _model(case, pending):
     capacity, floor, cap100, cap_done = _fleet(case)
+    # The taper is per battery (_power_w), not the plan's fleet band.
     return BatteryModel(
         capacity_kwh=capacity, round_trip_efficiency=RTE, floor_kwh=floor,
         usable_kwh=cap100 if pending else cap_done,
-        band_kwh=0.05 * capacity if pending else 0.0,  # WEEKLY_CHARGE_TAIL_PCT
     )
 
 
@@ -318,28 +352,20 @@ def fits(case, factor) -> bool:
     """W1's "it fits": charging at full power in every quarter from now."""
     model = _model(case, True)
     e = sum(5.12 * s / 100 for s in socs0(case)) - _fleet(case)[1]
-    for _a, b, _s, q in _world_quarters(case, factor, start_of(case), WINDOW_END):
-        q = _charging(case, q, e)
-        if _peak(model, q, e, model.cap) >= model.cap - FULL_TOL:
+    for a, b, _s, q in _world_quarters(case, factor, start_of(case), WINDOW_END):
+        e, _c, _g, peak = _step(case, model, q, (b - a).total_seconds() / 3600, e, model.cap, True)
+        if peak >= model.cap - FULL_TOL:
             return True
-        e, _c = model.normal_step(q, e, target=model.cap)
     return False
-
-
-def _peak(model, q, e, target) -> float:
-    """The quarter's highest energy: after its charge phase, or at its end
-    (the manager sees 100 % within the quarter, the house may drain it after)."""
-    add = float(model.charge_phase(q, e, target)[0]) if target is not None else 0.0
-    return max(e + add, float(model.normal_step(q, e, target)[0]))
 
 
 def sun_fills(case) -> bool:
     """The forecast sun alone (no grid charge) fills the gap before the window ends."""
     model = _model(case, True)
     e = sum(5.12 * s / 100 for s in socs0(case)) - _fleet(case)[1]
-    for _a, _b, _s, q in _world_quarters(case, 1.0, start_of(case), WINDOW_END):
-        e, _c = model.normal_step(_charging(case, q, e), e)
-        if float(e) >= model.cap - FULL_TOL:
+    for a, b, _s, q in _world_quarters(case, 1.0, start_of(case), WINDOW_END):
+        e, _c, _g, peak = _step(case, model, q, (b - a).total_seconds() / 3600, e, None, True)
+        if peak >= model.cap - FULL_TOL:
             return True
     return False
 
@@ -378,7 +404,7 @@ def simulate(case, factor, *, old=False, weekly=True):
         if pending and a >= WINDOW_END:  # the window closed short: the manager resets
             pending = False
             model = _model(case, False)
-        if (pending and not old and policy.full_at is not None
+        if (pending and not old and not BASE and policy.full_at is not None
                 and a >= policy.full_at + timedelta(minutes=10)):
             replan_now = True  # the engine's overdue trigger (new code only)
             policy.full_at = None
@@ -393,7 +419,7 @@ def simulate(case, factor, *, old=False, weekly=True):
         if ps is not None:
             if ps not in targets:
                 quota = policy.quotas[ps]
-                if quota is None or (pending and ps in policy.to_end):
+                if quota is None or (pending and ps in policy.to_end and not BASE):
                     # An old weekly slot, or a slot charged to its end while
                     # the weekly charge is pending: to its end or the top.
                     targets[ps] = model.cap
@@ -413,24 +439,23 @@ def simulate(case, factor, *, old=False, weekly=True):
                 weekly_held = q.import_price < max(s.price for s in later) / RTE
         if held or weekly_held:
             q = dataclasses.replace(q, discharge_kwh=0.0)
-        q = _charging(case, q, e)
-        e1, c = model.normal_step(q, e, target)
-        e1 = float(e1)
-        if target is not None:
-            add, _busy = model.charge_phase(q, e, target)
-            if a < WINDOW_END:
-                bought += float(add) / model.eff
-        total += float(c)
-        peak = _peak(model, q, e, target)
-        e = e1
+        e, c, grid, peak = _step(case, model, q, (b - a).total_seconds() / 3600, e, target, pending)
+        if a < WINDOW_END:
+            bought += grid / model.eff
+        total += c
         if pending and peak >= model.cap - FULL_TOL:
             complete_at, pending = b, False
-            # W5: what the plan in force at that moment would still hold.
-            late = [s for s in policy.weekly_holds if s.start >= b]
+            # W5: what the plan in force would still hold after its own
+            # completion (all of it after now if it never completes: a plan
+            # that must be full AT the deadline). Before its own completion a
+            # plan behind reality holds legitimately; D-9 replaces it.
+            own = b if policy.full_at is None else max(b, policy.full_at)
+            # A plan without the obligation yet (D-3) holds freely.
+            late = [s for s in policy.weekly_holds if s.start >= own] if policy.binding else []
             if late:
                 breaches.append(f"full at {b:%d %H:%M}, the plan holds {len(late)} slots after it")
             model = _model(case, False)
-            replan_now = D9_REPLAN and not old  # D-9: the new arm re-plans on completion
+            replan_now = not BASE and not old  # D-9: the new arm re-plans on completion
     prices = [p for p in (PRICES[case[2]](hr) for hr in range(24)) if p > 0]
     total -= min(prices) * math.sqrt(RTE) * e
     return SimpleNamespace(cost=total, complete_at=complete_at, bought=bought,
@@ -445,6 +470,12 @@ def evaluate_case(case) -> list[tuple[str, str]]:
     findings = []
     new = {w: simulate(case, f) for w, f in WORLDS.items()}
     old = {w: simulate(case, f, old=True) for w, f in WORLDS.items()}
+    costs = os.environ.get("OMNI_WEEKLY_COSTS")
+    if costs:
+        with open(os.path.join(costs, f"{os.environ.get('PYTEST_XDIST_WORKER', 'main')}.tsv"),
+                  "a", encoding="utf-8") as fh:
+            for w in WORLDS:
+                fh.write(f"{case_id(case)}\t{w}\t{new[w].cost:.4f}\t{old[w].cost:.4f}\n")
     for w, f in WORLDS.items():
         if fits(case, f) and new[w].complete_at is None:
             findings.append((f"W1{w}", "100 % fits before the window ends and is not reached"))
