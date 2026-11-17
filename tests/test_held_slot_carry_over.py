@@ -179,3 +179,22 @@ def test_a_completed_running_slot_is_not_given_the_held_energy():
 
     assert schedule.slot_energy_targets_kwh[nxt] == 0.5
     assert schedule.deadline_shortfall_kwh == pytest.approx(2.0)
+
+
+def test_a_pending_weekly_charge_s_slot_to_its_end_carries_nothing():
+    """Weekly Full Charge in the optimizer: such a slot aims at 100 % until it
+    ends, so its targets are the whole gap, not a shortfall to move on."""
+    active, later = _slot(9), _slot(14)
+    manager, controller, schedule = _setup(active, later)
+    schedule.slot_charge_to_end = frozenset({active})
+    schedule.plan_charge_efficiency = 0.92
+    battery = type("Battery", (), {})()  # hashable: targets are keyed by battery
+    battery.data = {"battery_soc": 50.0, "battery_total_energy": 10.0}
+    controller.coordinators = [battery]
+    controller._predictive_deficit_target_soc = {battery: 100.0}
+    controller._weekly_full_charge_pending = lambda: True
+    manager._carry_over_slot_shortfall(active, now=DAY + timedelta(hours=10))
+    assert schedule.slot_energy_targets_kwh[later] == 0.5
+    controller._weekly_full_charge_pending = lambda: False
+    manager._carry_over_slot_shortfall(active, now=DAY + timedelta(hours=10))
+    assert schedule.slot_energy_targets_kwh[later] > 0.5

@@ -1,0 +1,509 @@
+"""Weekly Full Charge sweep (docs/plans/carga-semanal-en-el-optimizador.md).
+
+A grid of weekly days of its own, not a dimension of the main sweep (its keys
+in ``sweep_known.json`` and its time do not move). Each case runs through the
+scenario harness and a quarter-by-quarter arbiter that executes what the
+engine publishes (slot quotas, slots charged to their end or to the top, the
+plan's holds, the old weekly hold by threshold) in a world fixed once per case
+(forecast sun, or 30 % of it; in the ``today`` cases tomorrow's prices appear
+at 13:30). The arbiter re-plans at the production triggers' own times: the
+price publication (13:30), the evening re-evaluation (16:00: the stub has no
+solar start), 00:05, and the weekly completion (D-9). The pre-slot gate and
+the SOC-drop trigger are not replayed.
+
+Two arms: the engine as it is ("new") and the same engine with the previous
+allocator forced for the weekly day ("old": ``optimizer_fallback_reason``
+patched), both priced by the same arbiter, the energy left at the window's end
+valued the same.
+
+* W1 the fleet reaches 100 % before the window ends whenever it fits (charging
+  at full power in every quarter from now), in both worlds.
+* W2 with the forecast sun alone filling the gap, the weekly day buys no more
+  from the grid than the same day without the weekly charge.
+* W3 the new arm costs no more than the old one + COST_EPS, in both worlds.
+* W4 the optimizer plans the weekly day, and with the Discharge Reserve on its
+  holds are published.
+* W5 once complete, no weekly hold: in the arbiter, and in the published plan
+  after its own trajectory touches the top.
+* I4, I5, I6 of the main sweep, on the first evaluation.
+
+Marker ``weekly_sweep`` inside ``sweep``: ``pytest -m weekly_sweep -n auto``.
+Findings go through the main sweep's known list, keys ``"<rule> weekly <case>"``.
+"""
+from __future__ import annotations
+
+import dataclasses
+import itertools
+import math
+import os
+from datetime import datetime, timedelta
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
+
+import pytest
+
+from custom_components.omnibattery.pricing import PriceSlot
+from custom_components.omnibattery.pricing import engine as pricing_engine
+from custom_components.omnibattery.pricing.battery_model import BatteryModel, Quarter
+from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
+from custom_components.omnibattery.solar_forecast import (
+    SolarForecastPeriod,
+    solar_forecast_period_energy_between,
+)
+from tests import test_predictive_scenarios as h
+from tests import test_predictive_sweep as sw
+
+pytestmark = [pytest.mark.sweep, pytest.mark.weekly_sweep]
+
+DAY = sw.DAY  # 2026-11-10, a Tuesday: the target day
+TARGET = "tue"
+WINDOW_END = DAY + timedelta(days=1, hours=sw.SUNRISE)  # the sunrise after it
+# The arbiter runs on to the end of the next day, both arms planned alike
+# after the window, so the energy left at the window's end is not valued by
+# a rule of thumb (a cut there priced a refill bought for the next morning
+# at the cheapest price, below what it cost).
+SIM_END = DAY + timedelta(days=2)
+# D-9 (re-plan on completion) is production behaviour from Phase 3 on; 0
+# records the baseline without it.
+D9_REPLAN = os.environ.get("OMNI_WEEKLY_D9", "1") == "1"
+RTE = 0.85
+MAX_SOC = 90
+MIN_SOC = 10
+POWER_W = 2500
+CONTRACTED_W = 5750
+COST_EPS = 0.003
+EPS = 0.05
+FULL_TOL = 1e-6
+PUBLISH_AT = (13, 30)
+
+FLEETS = {"1x5k": (0,), "2x5k-uneven": (-20, 20)}  # SOC offsets per battery
+SOCS = (30, 70)
+PRICES = {
+    # 2.0TD: flat valley 00-08, peak 10-14 and 18-22, flat rest.
+    "2.0TD": lambda hr: 0.08 if hr < 8 else (0.25 if 10 <= hr < 14 or 18 <= hr < 22 else 0.15),
+    "night-cheap": sw.PRICES["night-cheap"],
+    "solar-dip": sw.PRICES["solar-dip"],
+}
+SOLAR = {"none": 0.0, "dull": 3.0, "sunny": 15.0}
+# Target day: midnight run, morning, after the sun; the night after: 02:00, and
+# 07:00 (often too late for 100 %).
+NOWS = ("00:05", "10:00", "19:00", "+02:00", "+07:00")
+RESERVE = (False, True)
+WORLDS = {"forecast": 1.0, "sun30": 0.3}
+
+CASES = [
+    c for c in itertools.product(FLEETS, SOCS, PRICES, (False, True), SOLAR, NOWS, RESERVE)
+    if not (c[5].startswith("+") and c[3])  # the night after: tomorrow = that day
+]
+
+
+def case_id(case) -> str:
+    fleet, soc, prices, tomorrow, solar, now, reserve = case
+    return (f"{fleet}-soc{soc}-{prices}-{'tomorrow' if tomorrow else 'today'}-{solar}"
+            f"-{now.replace(':', '').replace('+', 'n')}-{'reserve' if reserve else 'noreserve'}")
+
+
+def start_of(case) -> datetime:
+    now = case[5]
+    day = DAY + timedelta(days=1) if now.startswith("+") else DAY
+    hh, mm = map(int, now.lstrip("+").split(":"))
+    return day.replace(hour=hh, minute=mm)
+
+
+def socs0(case) -> list[float]:
+    return [min(100.0, max(MIN_SOC, case[1] + off)) for off in FLEETS[case[0]]]
+
+
+def known_days(case, at: datetime) -> list[datetime]:
+    """Price days the feed holds at ``at``: today, and tomorrow from the start
+    (``tomorrow`` cases) or from the publication."""
+    today = at.replace(hour=0, minute=0, second=0, microsecond=0)
+    published = case[3] or (at.hour, at.minute) >= PUBLISH_AT
+    return [today, today + timedelta(days=1)] if published else [today]
+
+
+def _slots(case, days) -> tuple[PriceSlot, ...]:
+    return tuple(
+        PriceSlot(start, start + timedelta(minutes=15), PRICES[case[2]](hour))
+        for day in days
+        for hour in range(24)
+        for start in (day + timedelta(hours=hour, minutes=15 * q) for q in range(4))
+    )
+
+
+def _periods(case, factor=1.0) -> tuple[SolarForecastPeriod, ...]:
+    zone = ZoneInfo(sw.TZ)
+    hours = range(9, 18)
+    weights = [min(hr - 8, 18 - hr) for hr in hours]
+    total = SOLAR[case[4]] * factor
+    if not total:
+        return ()
+    return tuple(
+        SolarForecastPeriod(
+            (day + timedelta(hours=hr)).replace(tzinfo=zone),
+            (day + timedelta(hours=hr + 1)).replace(tzinfo=zone),
+            total * w / sum(weights),
+        )
+        for day in (DAY, DAY + timedelta(days=1), DAY + timedelta(days=2))
+        for hr, w in zip(hours, weights)
+    )
+
+
+BINS = tuple(
+    [kw for at, kw in [(h._hours(a), k) for a, k in sw.LOADS["evening"]] if at <= i / 4.0][-1] * 0.25
+    for i in range(96)
+)
+
+
+def scenario(case, *, at: datetime, socs, pending: bool) -> h.Scenario:
+    zone = ZoneInfo(sw.TZ)
+    periods = _periods(case)
+    aware = at.replace(tzinfo=zone)
+    remaining = sum(
+        p.energy_kwh * max(0.0, min(1.0, (p.end - aware).total_seconds() / 3600))
+        for p in periods
+        if p.start.date() == at.date()
+    )
+    fleet = tuple(
+        dict(capacity_kwh=5.12, max_charge_w=POWER_W, max_discharge_w=POWER_W,
+             soc=soc, min_soc=MIN_SOC, max_soc=MAX_SOC)
+        for soc in socs
+    )
+    return h.Scenario(
+        name=case_id(case), level="engine", now=at, time_zone=sw.TZ,
+        sunrise_h=sw.SUNRISE, solar_noon_h=sw.NOON, slots=_slots(case, known_days(case, at)),
+        bins_kwh=BINS, solar_remaining_kwh=remaining, solar_periods=periods, fleet=fleet,
+        settings=dict(
+            max_price_threshold=1.0, min_arbitrage_margin=None, round_trip_efficiency=RTE,
+            discharge_reserve=case[6], peak_shaving=None, contracted_power_w=CONTRACTED_W,
+            guaranteed_floor_soc=None, safety_margin_kwh=0.0,
+        ),
+        expected={},
+        weekly={"target_day": TARGET, "pending": pending},
+    )
+
+
+def run(sc: h.Scenario, *, old: bool = False, daily: bool = False):
+    """One evaluation: outcome, decision data, plan and the controller. ``old``
+    forces the previous allocator for a pending weekly day."""
+    box = {}
+    controller = h._controller
+    real = pricing_engine.optimizer_fallback_reason
+
+    def capture(s):
+        box["c"] = controller(s)
+        box["c"].discharge_reserve_min_saving = 0.02
+        if daily:
+            box["c"].config_entry.data["solar_forecast_remaining_sensor"] = "sensor.sweep"
+        return box["c"]
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(h, "_controller", capture)
+        if old and sc.weekly["pending"]:
+            mp.setattr(pricing_engine, "optimizer_fallback_reason",
+                       lambda r: "weekly_full_charge" if r.import_value_efficiency else real(r))
+        if daily:
+            mp.setattr(h, "DynamicPricingEvaluationHorizon", SimpleNamespace(
+                REMAINING=h.DynamicPricingEvaluationHorizon.DAILY))
+        outcome = h._run_engine(sc, mp)
+    c = box["c"]
+    return SimpleNamespace(o=outcome, d=c._last_decision_data or {}, plan=outcome.plan, c=c)
+
+
+# ----------------------------------------------------------------------
+# The arbiter
+# ----------------------------------------------------------------------
+
+@dataclasses.dataclass
+class Policy:
+    """What the controller executes from one evaluation."""
+
+    quotas: dict  # slot -> quota kWh, None = to the top
+    to_end: frozenset
+    holds: frozenset  # the plan's holds (reserve, and weekly once published)
+    weekly_holds: frozenset
+    optimizer: bool
+    run_slots: tuple  # the old weekly hold's charge slots
+    full_at: object = None  # when the plan touches 100 % (the overdue re-plan)
+
+
+def policy_of(r) -> Policy:
+    c = r.c
+    schedule = c._dynamic_pricing_schedule
+    quotas, to_end, run_slots = {}, frozenset(), ()
+    if schedule is not None and schedule.charging_needed:
+        targets = schedule.slot_energy_targets_kwh or {}
+        quotas = {s: targets.get(s) for s in schedule.selected_slots}
+        to_end = frozenset(schedule.slot_charge_to_end or ())
+        run_slots = tuple(schedule.selected_slots)
+    holds = getattr(c, "_dp_plan_holds", None) if r.o.request.hold_allowed else None
+    return Policy(
+        quotas, to_end, frozenset(holds or ()),
+        frozenset(getattr(c, "_dp_plan_weekly_holds", None) or ()),
+        r.d.get("planner") == "optimizer", run_slots,
+        getattr(c, "_dp_weekly_full_at", None),
+    )
+
+
+def _split(stored: float, socs) -> list[float]:
+    """Battery SOCs holding ``stored`` kWh, moved by the same SOC points."""
+    def at(delta):
+        return [min(100.0, max(0.0, s + delta)) for s in socs]
+
+    lo, hi = -100.0, 100.0
+    for _ in range(60):
+        mid = (lo + hi) / 2
+        if sum(5.12 * s / 100 for s in at(mid)) < stored:
+            lo = mid
+        else:
+            hi = mid
+    return at(hi)
+
+
+def _world_quarters(case, factor, start, end):
+    zone = ZoneInfo(sw.TZ)
+    periods = _periods(case, factor)
+    prices = {s.start: s.price for s in _slots(case, [DAY, DAY + timedelta(days=1), DAY + timedelta(days=2)])}
+    n = len(FLEETS[case[0]])
+    out = []
+    for a, b in build_boundaries(start, end):
+        hours = (b - a).total_seconds() / 3600
+        slot_start = a.replace(minute=a.minute // 15 * 15, second=0, microsecond=0)
+        out.append((a, b, slot_start, Quarter(
+            house_kwh=BINS[a.hour * 4 + a.minute // 15] * hours / 0.25,
+            solar_kwh=solar_forecast_period_energy_between(periods, a, b, timezone=zone),
+            import_price=prices[slot_start],
+            export_price=0.0,
+            grid_charge_allowed=True,
+            charge_kwh=min(CONTRACTED_W, POWER_W * n) / 1000 * hours,
+            discharge_kwh=POWER_W * n / 1000 * hours,
+            ceiling_kwh=CONTRACTED_W / 1000 * hours,
+            band_charge_kwh=POWER_W * 0.5 * n / 1000 * hours,  # WEEKLY_CHARGE_TAIL_POWER_RATIO
+        )))
+    return out
+
+
+def _charging(case, q, e):
+    """The quarter with the charge power of the batteries still short of
+    100 %: the same capacity, so they charge the same SOC points, and one
+    that is full stops (a 90 % battery fills in minutes, the other goes on
+    alone at its own power)."""
+    floor = _fleet(case)[1]
+    open_ = sum(1 for soc in _split(floor + e, socs0(case)) if soc < 100.0 - 1e-6)
+    hours = q.charge_kwh / (min(CONTRACTED_W, POWER_W * len(FLEETS[case[0]])) / 1000)
+    return dataclasses.replace(
+        q,
+        charge_kwh=min(CONTRACTED_W, POWER_W * open_) / 1000 * hours,
+        band_charge_kwh=POWER_W * 0.5 * open_ / 1000 * hours,
+    )
+
+
+def _fleet(case):
+    n = len(FLEETS[case[0]])
+    capacity = 5.12 * n
+    floor = capacity * MIN_SOC / 100
+    return capacity, floor, capacity - floor, capacity * MAX_SOC / 100 - floor
+
+
+def _model(case, pending):
+    capacity, floor, cap100, cap_done = _fleet(case)
+    return BatteryModel(
+        capacity_kwh=capacity, round_trip_efficiency=RTE, floor_kwh=floor,
+        usable_kwh=cap100 if pending else cap_done,
+        band_kwh=0.05 * capacity if pending else 0.0,  # WEEKLY_CHARGE_TAIL_PCT
+    )
+
+
+def fits(case, factor) -> bool:
+    """W1's "it fits": charging at full power in every quarter from now."""
+    model = _model(case, True)
+    e = sum(5.12 * s / 100 for s in socs0(case)) - _fleet(case)[1]
+    for _a, b, _s, q in _world_quarters(case, factor, start_of(case), WINDOW_END):
+        q = _charging(case, q, e)
+        if _peak(model, q, e, model.cap) >= model.cap - FULL_TOL:
+            return True
+        e, _c = model.normal_step(q, e, target=model.cap)
+    return False
+
+
+def _peak(model, q, e, target) -> float:
+    """The quarter's highest energy: after its charge phase, or at its end
+    (the manager sees 100 % within the quarter, the house may drain it after)."""
+    add = float(model.charge_phase(q, e, target)[0]) if target is not None else 0.0
+    return max(e + add, float(model.normal_step(q, e, target)[0]))
+
+
+def sun_fills(case) -> bool:
+    """The forecast sun alone (no grid charge) fills the gap before the window ends."""
+    model = _model(case, True)
+    e = sum(5.12 * s / 100 for s in socs0(case)) - _fleet(case)[1]
+    for _a, _b, _s, q in _world_quarters(case, 1.0, start_of(case), WINDOW_END):
+        e, _c = model.normal_step(_charging(case, q, e), e)
+        if float(e) >= model.cap - FULL_TOL:
+            return True
+    return False
+
+
+def simulate(case, factor, *, old=False, weekly=True):
+    """Execute the published plans through the window in one world: (cost,
+    completion time or None, bought grid kWh, W5 breaches, first run)."""
+    t0 = start_of(case)
+    capacity, floor, cap100, cap_done = _fleet(case)
+    socs = socs0(case)
+    e = sum(5.12 * s / 100 for s in socs) - floor
+    pending = weekly
+    triggers = []
+    for day in (DAY, DAY + timedelta(days=1)):
+        publish = day.replace(hour=PUBLISH_AT[0], minute=PUBLISH_AT[1])
+        if not case[3] and t0 < publish:
+            triggers.append(publish)
+    triggers += [
+        t for t in (DAY.replace(hour=16), DAY + timedelta(days=1, minutes=5),
+                    DAY + timedelta(days=1, hours=16))
+        if t > t0
+    ]
+    triggers.sort()
+
+    def evaluate(at, daily):
+        sc = scenario(case, at=at, socs=_split(floor + e, socs), pending=pending)
+        return run(sc, old=old, daily=daily)
+
+    first = evaluate(t0, t0.hour == 0 and t0.minute == 5)
+    policy = policy_of(first)
+    model = _model(case, pending)
+    total = bought = 0.0
+    complete_at, breaches, replan_now = None, [], False
+    targets: dict = {}
+    for a, b, slot, q in _world_quarters(case, factor, t0, SIM_END):
+        if pending and a >= WINDOW_END:  # the window closed short: the manager resets
+            pending = False
+            model = _model(case, False)
+        if (pending and not old and policy.full_at is not None
+                and a >= policy.full_at + timedelta(minutes=10)):
+            replan_now = True  # the engine's overdue trigger (new code only)
+            policy.full_at = None
+        due = [t for t in triggers if t <= a]
+        if due or replan_now:
+            triggers = [t for t in triggers if t > a]
+            policy = policy_of(evaluate(a, any(t.hour == 0 for t in due)))
+            targets, replan_now = {}, False
+        # The quarter's slot: the price slot it starts in (15 min in this grid).
+        ps = next((s for s in policy.quotas if s.start == slot), None)
+        target = None
+        if ps is not None:
+            if ps not in targets:
+                quota = policy.quotas[ps]
+                if quota is None or (pending and ps in policy.to_end):
+                    # An old weekly slot, or a slot charged to its end while
+                    # the weekly charge is pending: to its end or the top.
+                    targets[ps] = model.cap
+                else:
+                    ask = quota + (capacity / 100 if ps in policy.to_end else 0.0)
+                    targets[ps] = float(model.slot_target(e, ask))
+            target = targets[ps] if e < targets[ps] - FULL_TOL else None
+        held = any(s.start == slot for s in policy.holds)
+        weekly_held = False
+        if pending and policy.optimizer:
+            # The plan's weekly hold; in a charge slot it holds once the
+            # target is reached (the slot is then over for the controller).
+            weekly_held = any(s.start == slot for s in policy.weekly_holds)
+        elif pending and target is None:  # apply_weekly_refill_hold's threshold
+            later = [s for s in policy.run_slots if s.start > a]
+            if later:
+                weekly_held = q.import_price < max(s.price for s in later) / RTE
+        if held or weekly_held:
+            q = dataclasses.replace(q, discharge_kwh=0.0)
+        q = _charging(case, q, e)
+        e1, c = model.normal_step(q, e, target)
+        e1 = float(e1)
+        if target is not None:
+            add, _busy = model.charge_phase(q, e, target)
+            if a < WINDOW_END:
+                bought += float(add) / model.eff
+        total += float(c)
+        peak = _peak(model, q, e, target)
+        e = e1
+        if pending and peak >= model.cap - FULL_TOL:
+            complete_at, pending = b, False
+            # W5: what the plan in force at that moment would still hold.
+            late = [s for s in policy.weekly_holds if s.start >= b]
+            if late:
+                breaches.append(f"full at {b:%d %H:%M}, the plan holds {len(late)} slots after it")
+            model = _model(case, False)
+            replan_now = D9_REPLAN and not old  # D-9: the new arm re-plans on completion
+    prices = [p for p in (PRICES[case[2]](hr) for hr in range(24)) if p > 0]
+    total -= min(prices) * math.sqrt(RTE) * e
+    return SimpleNamespace(cost=total, complete_at=complete_at, bought=bought,
+                           breaches=breaches, first=first)
+
+
+# ----------------------------------------------------------------------
+# Rules
+# ----------------------------------------------------------------------
+
+def evaluate_case(case) -> list[tuple[str, str]]:
+    findings = []
+    new = {w: simulate(case, f) for w, f in WORLDS.items()}
+    old = {w: simulate(case, f, old=True) for w, f in WORLDS.items()}
+    for w, f in WORLDS.items():
+        if fits(case, f) and new[w].complete_at is None:
+            findings.append((f"W1{w}", "100 % fits before the window ends and is not reached"))
+        if new[w].cost > old[w].cost + COST_EPS:
+            findings.append((f"W3{w}", f"new {new[w].cost:.4f} > old {old[w].cost:.4f}"))
+        if new[w].breaches:
+            findings.append((f"W5{w}", "; ".join(new[w].breaches[:3])))
+    if sun_fills(case):
+        plain = simulate(case, 1.0, weekly=False)
+        if new["forecast"].bought > plain.bought + EPS:
+            findings.append(("W2", f"buys {new['forecast'].bought:.2f} kWh, "
+                                   f"{plain.bought:.2f} without the weekly charge"))
+    r = new["forecast"].first
+    findings += _held_after_full(r)
+    if r.d.get("planner") != "optimizer":
+        findings.append(("W4", f"planner {r.d.get('planner')}"))
+    elif case[6] and getattr(r.c, "_dp_plan_holds", None) is None:
+        findings.append(("W4", "reserve on, no plan holds published"))
+    published = float(r.d.get("planned_grid_charge_kwh") or 0.0)
+    if abs(published - sw.total(r)) > EPS:
+        findings.append(("I4", f"published {published:.2f} vs booked+deferred {sw.total(r):.2f}"))
+    lost = sw.spill(r)
+    if lost > EPS:
+        findings.append(("I6", f"{lost:.2f} kWh booked with no room"))
+    findings += _stability(case, r)
+    return findings
+
+
+def _held_after_full(r) -> list[tuple[str, str]]:
+    """W5 on the published plan: once its own trajectory touches the top, no
+    weekly hold (a plan that must be full AT the deadline holds and buys back)."""
+    plan = r.plan
+    reach = getattr(plan, "weekly_full_at", None)
+    late = [s for s in getattr(plan, "weekly_holds", ()) if reach is not None and s.start >= reach]
+    if late:
+        return [("W5plan", f"full at {reach:%d %H:%M}, {len(late)} weekly holds after it")]
+    return []
+
+
+def _stability(case, a) -> list[tuple[str, str]]:
+    t0 = start_of(case)
+    later = t0 + timedelta(hours=1)
+    later += timedelta(minutes=(-later.minute) % 15)
+    if any(x.slot.start < later for x in a.plan.allocations) or later >= WINDOW_END:
+        return []
+    sc = scenario(case, at=t0, socs=socs0(case), pending=True)
+    soc = sw.projected_soc(sc, a, later)
+    b = run(scenario(case, at=later, socs=[soc] * len(socs0(case)), pending=True))
+    rest = sum(x.planned_battery_kwh for x in a.plan.allocations if x.slot.start >= later)
+    again = b.plan.allocated_kwh
+    if abs(again - rest) > max(0.3, 0.15 * rest):
+        return [("I5", f"plan at {t0:%H:%M} keeps {rest:.2f} kWh after {later:%H:%M}; "
+                       f"re-evaluated there it books {again:.2f}")]
+    return []
+
+
+SAMPLE = int(os.environ.get("OMNI_SWEEP_SAMPLE") or 1)
+
+
+@pytest.mark.parametrize("case", CASES[::SAMPLE], ids=case_id)
+def test_weekly_sweep(case):
+    sw.check("weekly " + case_id(case), evaluate_case(case))

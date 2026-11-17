@@ -838,10 +838,7 @@ def _room_engine(monkeypatch, *, enabled=True, sensor=True, negative=False, week
         from custom_components.omnibattery.pricing.optimizer import optimize_charge as real
 
         monkeypatch.setattr(engine_module, "optimize_charge", lambda r: calls.append(r) or real(r))
-    try:
-        outcome = h._run_engine(sw.scenario(case), monkeypatch)
-    except h.ScenarioError:  # a weekly day's schedule is the old allocator's
-        outcome = None
+    outcome = h._run_engine(sw.scenario(case), monkeypatch)
     return outcome, box["c"]
 
 
@@ -885,10 +882,70 @@ def test_the_negative_price_calendar_still_fills_inside_the_risk(monkeypatch):
     assert negative[0] == "11:00" and negative[-1] == "14:45" and len(negative) == 16
 
 
-def test_a_weekly_full_charge_day_leaves_pre_discharge_to_the_module(monkeypatch):
-    _outcome, c = _room_engine(monkeypatch, weekly=True)
-    assert (c._last_decision_data or {}).get("planner") != "optimizer"
-    assert c._dp_plan_room is None
+def test_a_weekly_full_charge_day_is_the_optimizer_s(monkeypatch):
+    """Step 4: a pending weekly day is planned by the optimizer, Smart
+    Pre-Discharge included (no room made while the 100 % is pending). With
+    no manager (the force button outside the target day) the deadline is
+    tomorrow's sunrise."""
+    from tests import test_predictive_sweep as sw
+
+    outcome, c = _room_engine(monkeypatch, weekly=True)
+    assert outcome.planner == "optimizer"
+    req = outcome.request
+    assert req.full_by == sw.DAY + timedelta(days=1, hours=sw.SUNRISE)
+    # 10 kWh at 15 %: the top band is 5 % (0.5 kWh) at half of 2.5 kW.
+    assert req.top_band_kwh == pytest.approx(0.5)
+    assert req.top_band_kw == pytest.approx(1.25)
+    assert req.full_by_power_kw == pytest.approx(2.5)
+    assert c._dp_plan_weekly_holds is not None
+    assert c._dp_plan_room is not None
+    assert not [s for s in c._dp_plan_room.orders if s.start < req.full_by]
+
+
+def test_without_a_weekly_charge_the_request_carries_none(monkeypatch):
+    outcome, c = _room_engine(monkeypatch)
+    assert outcome.request.full_by is None and outcome.request.top_band_kwh == 0.0
+    assert c._dp_plan_weekly_holds is None
+
+
+def test_a_plan_that_delays_the_sun_unlocks_the_weekly_ceiling(monkeypatch):
+    """With "skip the delay" off, the plan owns the delay and the module that
+    unlocks 100 % stands aside: the plan unlocks it (latched), or the
+    ceiling stayed at max_soc and the run never completed."""
+    from tests import test_predictive_scenarios as h
+    from tests import test_predictive_sweep as sw
+
+    box = {}
+    real_controller = h._controller
+
+    def build(s):
+        c = real_controller(s)
+        c.charge_delay_enabled = True
+        c._charge_delay_unlocked = False
+        c._weekly_delay_released = False
+        c._weekly_full_charge_pending = lambda: True
+        box["c"] = c
+        return c
+
+    monkeypatch.setattr(h, "_controller", build)
+    outcome = h._run_engine(
+        sw.scenario(("1x5k-2500", 60, "flat0.4", "night-cheap", False, "sunny", "00:05")), monkeypatch
+    )
+    c = box["c"]
+    assert outcome.planner == "optimizer" and c._dp_plan_solar_delay
+    assert c._weekly_delay_released is True
+    # Neither the next evaluation's clear nor the delay module's midnight reset
+    # (inside the run's night after) undoes it: with SOC above max_soc the
+    # ceiling stays at 100 %, no max_soc block, no hysteresis latch.
+    c._pricing_mgr._clear_plan_orders()
+    c._charge_delay_unlocked = False
+    c._weekly_charge_mgr = type("M", (), {"is_active": lambda self: True})()
+    c._balance_monitor_overrides_delay = lambda: False
+    assert ChargeDischargeController._weekly_full_charge_unlocked(c) is True
+    # Once the run is over it is cleared.
+    c._weekly_charge_mgr = type("M", (), {"is_active": lambda self: False})()
+    assert ChargeDischargeController._weekly_full_charge_unlocked(c) is False
+    assert c._weekly_delay_released is False
 
 
 def test_room_prices_leave_out_slots_where_the_battery_may_not_discharge(monkeypatch):
@@ -984,3 +1041,20 @@ def test_a_real_room_order_runs_stops_at_its_level_and_does_not_re_plan(monkeypa
     assert manager._is_dp_soc_drop_reeval() is False
     battery.data["battery_soc"] -= 3.0
     assert manager._is_dp_soc_drop_reeval() is True
+
+
+def test_a_weekly_charge_behind_its_plan_re_plans_once():
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    at = datetime(2026, 11, 11, 6, 45)
+    ctrl = SimpleNamespace(_dp_weekly_full_at=at, _weekly_full_charge_pending=lambda: True)
+    manager = PricingManager(SimpleNamespace(), ctrl)
+    assert not manager._is_weekly_overdue(at + timedelta(minutes=9))
+    assert manager._is_weekly_overdue(at + timedelta(minutes=10))
+    assert not manager._is_weekly_overdue(at + timedelta(minutes=20))  # once per plan
+    ctrl._dp_weekly_full_at = at
+    ctrl._weekly_full_charge_pending = lambda: False  # completed meanwhile
+    assert not manager._is_weekly_overdue(at + timedelta(minutes=30))

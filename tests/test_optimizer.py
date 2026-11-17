@@ -946,3 +946,95 @@ def test_under_its_level_a_room_slot_stores_the_sun_as_the_controller_does():
     assert plan.room_sales
     cost, _sold, _path = _replay_room(req, plan)
     assert cost == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+# --- Weekly Full Charge (step 4) --------------------------------------------
+
+def _weekly(request, full_by_quarter, band_kwh=0.0, band_kw=0.0):
+    import dataclasses
+    return dataclasses.replace(request, full_by=T0 + full_by_quarter * Q,
+                               top_band_kwh=band_kwh, top_band_kw=band_kw)
+
+
+def _reach(plan, cap):
+    """When the plan touches the top (it may touch it inside a quarter and
+    cover the house after: the quarter's end is below it)."""
+    assert plan.weekly_full_at is not None, "never full"
+    return plan.weekly_full_at
+
+
+def test_a_weekly_charge_touches_the_top_by_its_planned_deadline():
+    # Flat prices: nothing pays, so without the weekly charge nothing is
+    # bought. With it the 2.5 kWh to the top are bought by full_by - 0.5 h.
+    request = _request([0.20] * 24, usable=0.5, room=3.0)
+    assert not optimize_charge(request).plan.allocations
+    plan = optimize_charge(_weekly(request, 24)).plan
+    assert plan.allocations
+    assert _reach(plan, 3.0) <= T0 + 22 * Q
+
+
+def test_no_obligation_while_the_deadline_is_past_the_published_prices():
+    # D-3: the 00:05 run of a provider that publishes tomorrow at 13:00.
+    request = _request([0.20] * 24, usable=0.5, room=3.0)
+    assert not optimize_charge(_weekly(request, 30)).plan.allocations
+
+
+def test_the_sun_fills_the_top_and_nothing_is_bought():
+    sun = [0.0] * 4 + [1.0] * 8 + [0.0] * 12
+    request = _request([0.20] * 24, usable=0.5, room=3.0, solar=sun)
+    plan = optimize_charge(_weekly(request, 24)).plan
+    assert not plan.allocations and _reach(plan, 3.0) <= T0 + 12 * Q
+
+
+def test_once_full_the_battery_is_free_again():
+    # D-1: touched by the sun at midday, the battery covers the dear evening
+    # and is not held or bought back to be full again at the deadline.
+    sun = [0.0] * 4 + [1.0] * 8 + [0.0] * 12
+    prices = [0.20] * 12 + [0.30] * 8 + [0.10] * 4
+    request = _request(prices, usable=0.5, room=3.0, solar=sun)
+    plan = optimize_charge(_weekly(request, 24)).plan
+    reach = _reach(plan, 3.0)
+    assert reach <= T0 + 12 * Q
+    assert not [s for s in plan.weekly_holds if s.start >= reach]
+    assert not [a for a in plan.allocations if a.slot.start >= reach]
+    assert plan.trajectory[-1][1] < 3.0 - 0.5
+
+
+def test_a_pending_weekly_charge_holds_without_the_reserve():
+    # D-5: a flat day, 2 of 3 kWh stored. Covering the house and buying it
+    # back loses the round trip: the plan holds, Discharge Reserve off.
+    request = _request([0.20] * 24, usable=2.0, room=3.0)
+    assert not request.hold_allowed
+    plan = optimize_charge(_weekly(request, 24)).plan
+    assert plan.weekly_holds and not plan.holds
+    assert _reach(plan, 3.0) <= T0 + 22 * Q
+
+
+def test_the_top_band_charges_slower():
+    # The last 0.5 kWh at 0.5 kW: no quarter adds more than 0.5 x 0.25 x eff there.
+    request = _weekly(_request([0.20] * 24, usable=0.5, room=3.0), 24, band_kwh=0.5, band_kw=0.5)
+    plan = optimize_charge(request).plan
+    band = 0.5 * 0.25 * math.sqrt(0.85)
+    previous = 0.5
+    for _t, e in plan.trajectory:
+        if previous >= 3.0 - 0.5:
+            assert e - previous <= band + 1e-6
+        previous = e
+    assert _reach(plan, 3.0) <= T0 + 22 * Q
+
+
+def test_a_missed_planned_deadline_keeps_charging_to_the_window_end():
+    # 2.5 kWh at 0.576 a quarter need 5 quarters: full_by - 0.5 h (quarter 4)
+    # is too early, the window's end (quarter 6) is not.
+    request = _request([0.20] * 24, usable=0.5, room=3.0, house=0.0)
+    plan = optimize_charge(_weekly(request, 6)).plan
+    assert _reach(plan, 3.0) <= T0 + 6 * Q
+
+
+def test_a_pending_weekly_charge_neither_sells_nor_exports():
+    prices = [0.20] * 10 + [0.60] * 4 + [0.20] * 10
+    request = _with_sale(_request(prices, house=0.05, usable=2.5, room=3.0), [0.5] * 24)
+    assert optimize_charge(request).plan.sales
+    plan = optimize_charge(_weekly(request, 24)).plan
+    reach = _reach(plan, 3.0)
+    assert not [s for s, _kw in plan.sales if reach is None or s.start < reach]

@@ -220,3 +220,58 @@ def test_safety_paths_may_still_discharge_through_the_hold():
         )
         is False
     )
+
+
+# --- The optimizer's plan decides the weekly hold (step 4, D-5) -------------
+
+HELD = [_slot(17, 30, 0.588), _slot(17, 45, 0.587)]  # NOW = 17:40 falls in the second
+
+
+def _planned(holds, **kwargs):
+    manager, blocks = _manager(**kwargs)
+    manager._controller._dp_plan_weekly_holds = frozenset(holds)
+    return manager, blocks
+
+
+def test_with_the_plan_the_battery_is_held_in_its_held_slots_only():
+    # The threshold would not hold at 0.80 (it pays); the plan holds anyway.
+    manager, blocks = _planned(HELD, current=0.80)
+    manager.apply_weekly_refill_hold()
+    assert blocks[GAP] == {"origin": "plan"}
+    # Outside the held slots nothing is held, whatever the threshold says.
+    manager, blocks = _planned([_slot(18, 0, 0.75)], current=0.50)
+    manager.apply_weekly_refill_hold()
+    assert GAP not in blocks
+    # While a charge slot runs the charge owns the battery.
+    manager, blocks = _planned(HELD, in_slot=True)
+    manager.apply_weekly_refill_hold()
+    assert GAP not in blocks
+
+
+def test_with_the_plan_a_full_battery_keeps_still_in_held_and_charge_slots():
+    manager, blocks = _planned(HELD, full=("Marstek",))
+    manager.apply_weekly_refill_hold()
+    assert _full_hold("Marstek") in blocks and _full_hold("Zendure") not in blocks
+    manager, blocks = _planned([], full=("Marstek",), in_slot=True)
+    manager.apply_weekly_refill_hold()
+    assert _full_hold("Marstek") in blocks
+    # Neither held nor charging: it covers the house (the plan chose that).
+    manager, blocks = _planned([], full=("Marstek",))
+    manager.apply_weekly_refill_hold()
+    assert _full_hold("Marstek") not in blocks
+
+
+def test_the_plan_s_holds_count_only_while_the_weekly_charge_is_pending():
+    manager, blocks = _planned(HELD, pending=False)
+    manager.apply_weekly_refill_hold()
+    assert GAP not in blocks
+    assert manager.weekly_refill_hold_fn() is None
+
+
+def test_the_projection_draws_the_plan_s_weekly_holds():
+    manager, _blocks = _planned(HELD)
+    hold = manager.weekly_refill_hold_fn()
+    assert hold(NOW.replace(minute=35), 3.0, 1.0) == 3.0
+    assert hold(NOW.replace(hour=19, minute=0), 3.0, 1.0) is None
+    # Full: nothing left to keep for.
+    assert hold(NOW.replace(minute=35), 3.0, 0.0) is None

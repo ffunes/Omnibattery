@@ -4151,12 +4151,20 @@ class ChargeDischargeController:
                 )
 
     def _weekly_full_charge_unlocked(self) -> bool:
-        """Return True when charging to 100% should bypass configured max SOC."""
+        """Return True when charging to 100% should bypass configured max SOC.
+
+        ``_weekly_delay_released``: Dynamic Pricing's optimizer plans the solar
+        delay of this run (its exports keep 100 % reachable). Its own flag,
+        cleared only when the run is no longer pending: the delay module's
+        unlock resets at midnight, inside the run's night after."""
         weekly_charge_active = self._weekly_charge_mgr.is_active()
+        if not weekly_charge_active:
+            self._weekly_delay_released = False
         return weekly_charge_active and (
             not self.charge_delay_enabled
             or self._charge_delay_unlocked
             or self._balance_monitor_overrides_delay()
+            or getattr(self, "_weekly_delay_released", False)
         )
 
     def _weekly_full_charge_tomorrow(self, now: datetime) -> bool:
@@ -6664,6 +6672,11 @@ class ChargeDischargeController:
                 planned_kwh = schedule.slot_energy_targets_kwh.get(active_slot)
                 window_hours = max(0.0, (active_slot.end - now).total_seconds() / 3600.0)
                 to_slot_end = active_slot in getattr(schedule, "slot_charge_to_end", ())
+                if to_slot_end and ChargeDischargeController._weekly_full_charge_pending(self):
+                    # A pending weekly charge's slot charged to its end runs to
+                    # its end or to 100 %: the plan's quota, from a battery
+                    # behind the plan, stopped it short of the top.
+                    planned_kwh = math.inf
                 if planned_kwh is not None:
                     planned_kwh = max(
                         0.0,

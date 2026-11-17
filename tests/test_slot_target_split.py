@@ -292,3 +292,23 @@ def test_a_slot_quota_does_not_depend_on_the_published_decision():
     assert _share_kwh(venus, targets) + _share_kwh(solarflow, targets) == pytest.approx(1.02)
     # Without a quota the global decision is still required.
     assert ChargeDischargeController._compute_deficit_target_soc(ctrl) is None
+
+
+def test_a_pending_weekly_charge_s_slot_to_its_end_runs_to_its_end():
+    """Weekly Full Charge in the optimizer: a slot published "to the end"
+    charges for the rest of the slot (or to 100 %), not the plan's quota plus a
+    step: a battery behind the plan stopped short of the top with it."""
+    venus, solarflow = _fleet()
+    now = datetime.now()
+    slot = PriceSlot(now - timedelta(minutes=5), now + timedelta(minutes=10), 0.44)
+    ctrl = _slot_ctrl(slot, [venus, solarflow], kwh=0.1)
+    ctrl._dynamic_pricing_schedule.slot_charge_to_end = frozenset({slot})
+    ctrl._charged_in_slot = lambda _slot: 0.0
+    ctrl._weekly_charge_mgr = SimpleNamespace(is_active=lambda: True)
+    targets = ChargeDischargeController._compute_predictive_target_soc(ctrl)
+    # Every battery aims at 100 % (the weekly ceiling); the slot's end stops it.
+    assert targets == {venus: 100.0, solarflow: 100.0}
+    # Not pending: the quota.
+    ctrl._weekly_charge_mgr = SimpleNamespace(is_active=lambda: False)
+    targets = ChargeDischargeController._compute_predictive_target_soc(ctrl)
+    assert _still_to_charge([venus, solarflow], targets) < 0.1 + 2 * 0.09

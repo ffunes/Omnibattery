@@ -274,6 +274,15 @@ class ChronologicalEvaluationRequest:
     room_power_kw: float = 0.0
     room_floor_kwh: float = 0.0
     room_export_prices: Mapping[datetime, float] | None = None
+    # Weekly Full Charge pending (step 4): the fleet must touch its top
+    # (``usable_initial_kwh + headroom_kwh``, 100 %) once by ``full_by``, the
+    # window's end; None = no weekly charge. The last ``top_band_kwh`` charge
+    # at ``top_band_kw`` (the 100 % taper), grid and sun alike, and
+    # ``full_by_power_kw`` is the fleet's average power over the whole gap.
+    full_by: datetime | None = None
+    top_band_kwh: float = 0.0
+    top_band_kw: float = 0.0
+    full_by_power_kw: float | None = None
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

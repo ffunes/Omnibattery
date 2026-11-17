@@ -279,6 +279,9 @@ class DynamicPricingEvaluationHorizon(Enum):
 # Points of fleet SOC below the plan's projected line that re-plan (step 10,
 # measured: 3 recovers 87 % of what a consumption-deviation rule did, 5 less).
 SOC_DROP_BELOW_PROJECTION = 3.0
+# After the plan's own completion time, how long a pending weekly full charge
+# waits for the manager to see 100 % before the plan is rebuilt.
+WEEKLY_OVERDUE_GRACE = timedelta(minutes=10)
 
 
 class PricingManager:
@@ -3821,6 +3824,8 @@ class PricingManager:
         no order of a plan it replaced."""
         controller = self._controller
         controller._dp_plan_holds = None
+        controller._dp_plan_weekly_holds = None
+        controller._dp_weekly_full_at = None
         controller._dp_plan_exports = None
         controller._dp_export_decision = None
         controller._dp_plan_sales = None
@@ -3837,6 +3842,20 @@ class PricingManager:
             and self._discharge_reserve_holds()
             else None
         )
+        # Step 4: a pending weekly charge's holds, executed by the weekly
+        # hold whether the Discharge Reserve is on or not (D-5).
+        weekly_pending = getattr(self._controller, "_weekly_full_charge_pending", None)
+        weekly_on = (
+            decision_data.get("planner") == "optimizer"
+            and callable(weekly_pending)
+            and weekly_pending()
+        )
+        self._controller._dp_plan_weekly_holds = (
+            frozenset(getattr(plan, "weekly_holds", None) or ()) if weekly_on else None
+        )
+        self._controller._dp_weekly_full_at = (
+            getattr(plan, "weekly_full_at", None) if weekly_on else None
+        )
         # Step 6: likewise the exports replace the surplus price hold's own plan,
         # when the plan could choose them (export prices known).
         request_allowed = bool(getattr(plan, "export_choice_allowed", False))
@@ -3846,6 +3865,13 @@ class PricingManager:
             getattr(plan, "solar_delay", False)
         )
         self._controller._dp_plan_solar_delay = solar_delay
+        if solar_delay and weekly_on:
+            # The plan delays the sun and plans the 100 % (the delay's export
+            # keeps it reachable): the delay counts as over for the weekly
+            # charge, latched for the run, or the ceiling stayed at max_soc
+            # and the run never completed (the module that unlocks it stands
+            # aside, and its own unlock resets at midnight).
+            self._controller._weekly_delay_released = True
         if solar_delay and getattr(plan, "solar_delay_day_closed", False):
             # Kept until the date changes (not by the next evaluation's clear):
             # in memory, a restart evaluates the day again.
@@ -4603,6 +4629,11 @@ class PricingManager:
                     t: p for t, p in room_prices.items()
                     if t not in blocked and (floor_price is None or by_start.get(t, math.inf) > floor_price)
                 }
+            # Weekly Full Charge pending (step 4): the optimizer plans the day
+            # to touch 100 % by the window's end, the fleet's power sized on the
+            # whole gap (D-6), the last percent at the taper's power (D-7).
+            full_by = self._weekly_full_by(now)
+            tails = list(self._weekly_tails()) if full_by is not None else []
             evaluation = yield (
                 ChronologicalEvaluationRequest(
                     now=now,
@@ -4705,6 +4736,14 @@ class PricingManager:
                     room_power_kw=room_kw,
                     room_floor_kwh=room_floor,
                     room_export_prices=room_prices,
+                    full_by=full_by,
+                    top_band_kwh=sum(tail[1] for tail in tails),
+                    top_band_kw=sum(tail[3] for tail in tails) / 1000.0,
+                    full_by_power_kw=(
+                        self._fleet_charge_power_kw(eligible, room_kwh, headroom)
+                        if full_by is not None
+                        else None
+                    ),
                 )
             )
             plan = evaluation.plan
@@ -5573,8 +5612,13 @@ class PricingManager:
         else:
             deficit_selected = []
 
-        weekly_reserve_kwh = float(
-            decision_data.get("weekly_reserve_kwh", 0.0) or 0.0
+        # The previous allocator's add-on for a pending weekly charge: the
+        # optimizer plans the 100 % itself (step 4), so its reservation, the
+        # slots put back around a risk and their cost estimate are skipped.
+        weekly_reserve_kwh = (
+            0.0
+            if decision_data.get("planner") == "optimizer"
+            else float(decision_data.get("weekly_reserve_kwh", 0.0) or 0.0)
         )
         try:
             weekly_reserve_not_before = datetime.fromisoformat(
@@ -6048,6 +6092,25 @@ class PricingManager:
         hours = calculations.calculate_exact_charging_hours_needed(
             energy_kwh, contracted, self._controller.max_charge_capacity
         )
+        for gap_kwh, tail_kwh, power_w, tail_power_w in self._weekly_tails():
+            hours = max(
+                hours,
+                (gap_kwh - tail_kwh) / (power_w / 1000.0 * CHARGE_EFFICIENCY)
+                + tail_kwh / (tail_power_w / 1000.0 * CHARGE_EFFICIENCY),
+            )
+        if hours <= 0.0:
+            # No power figure at all: keep the planner's one-hour fallback.
+            return calculations.calculate_charging_hours_needed(
+                energy_kwh, contracted, self._controller.max_charge_capacity
+            )
+        hours += max(WEEKLY_CHARGE_MARGIN_MIN_H, hours * WEEKLY_CHARGE_MARGIN_RATIO)
+        return math.ceil(hours * 2) / 2
+
+    def _weekly_tails(self):
+        """Per automatic battery still short of 100 %: (gap kWh, top-band kWh,
+        charge W, top-band W). The last WEEKLY_CHARGE_TAIL_PCT charge at the
+        100 % voltage taper's power (200 W) or at half power (BMS derating)."""
+        contracted = self._contracted_charge_ceiling()
         for coordinator in getattr(self._controller, "coordinators", ()) or ():
             if getattr(coordinator, "battery_manual_mode_enabled", False):
                 continue
@@ -6078,18 +6141,26 @@ class PricingManager:
                 if getattr(coordinator, CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, False)
                 else power_w * WEEKLY_CHARGE_TAIL_POWER_RATIO
             )
-            hours = max(
-                hours,
-                (gap_kwh - tail_kwh) / (power_w / 1000.0 * CHARGE_EFFICIENCY)
-                + tail_kwh / (tail_power_w / 1000.0 * CHARGE_EFFICIENCY),
-            )
-        if hours <= 0.0:
-            # No power figure at all: keep the planner's one-hour fallback.
-            return calculations.calculate_charging_hours_needed(
-                energy_kwh, contracted, self._controller.max_charge_capacity
-            )
-        hours += max(WEEKLY_CHARGE_MARGIN_MIN_H, hours * WEEKLY_CHARGE_MARGIN_RATIO)
-        return math.ceil(hours * 2) / 2
+            yield gap_kwh, tail_kwh, power_w, tail_power_w
+
+    def _weekly_full_by(self, now: datetime) -> datetime | None:
+        """The weekly full charge's deadline (D-2): the window's end, or with
+        the force button outside the target day tomorrow's sunrise (midnight
+        without one). None when no weekly charge is pending."""
+        pending = getattr(self._controller, "_weekly_full_charge_pending", None)
+        if not (callable(pending) and pending()):
+            return None
+        end, _overnight = self._weekly_charge_window(now)
+        if end is not None:
+            return end
+        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        tracker = getattr(self._controller, "_consumption_tracker", None)
+        calculate = getattr(tracker, "calculate_sunrise", None)
+        try:
+            hours = calculate(tomorrow.date()) if callable(calculate) else None
+        except Exception:  # noqa: BLE001 - midnight, as the window without a sunrise
+            hours = None
+        return tomorrow + timedelta(hours=float(hours)) if hours is not None else tomorrow
 
     async def _send_dynamic_pricing_slot_start_notification(self, slot: PriceSlot) -> None:
         """Send notification when a cheap pricing slot starts."""
@@ -6374,6 +6445,21 @@ class PricingManager:
                     delta = v0 + (value - v0) * (now - t0) / (when - t0)
                 break
         return ref + delta / capacity * 100.0
+
+    def _is_weekly_overdue(self, now: datetime) -> bool:
+        """The published plan touched 100 % ``WEEKLY_OVERDUE_GRACE`` ago and
+        the weekly charge is still pending; consumes the plan's time."""
+        controller = self._controller
+        at = getattr(controller, "_dp_weekly_full_at", None)
+        pending = getattr(controller, "_weekly_full_charge_pending", None)
+        if at is None or not (callable(pending) and pending()):
+            return False
+        if (at.tzinfo is None) != (now.tzinfo is None):
+            at = at.replace(tzinfo=now.tzinfo)
+        if now < at + WEEKLY_OVERDUE_GRACE:
+            return False
+        controller._dp_weekly_full_at = None
+        return True
 
     def _is_dp_soc_drop_reeval(self) -> bool:
         """Return True when live SOC has fallen below what the plan projected.
@@ -7531,6 +7617,12 @@ class PricingManager:
                 if plan_efficiency is not None:
                     missing = max(0.0, missing - (1.0 if to_end else 0.0) - 1.0)
                 shortfall += missing / 100.0 * capacity
+            weekly_pending = getattr(controller, "_weekly_full_charge_pending", None)
+            if to_end and callable(weekly_pending) and weekly_pending():
+                # A pending weekly charge's slot ran to its end aiming at 100 %
+                # (``_compute_predictive_target_soc``): its targets are the
+                # whole gap, not a shortfall. The re-plans size what is left.
+                shortfall = 0.0
             if shortfall_kwh is not None:
                 shortfall = max(0.0, float(shortfall_kwh))
             deadline = schedule.slot_deadlines.get(active_slot)
@@ -7783,6 +7875,15 @@ class PricingManager:
         # The rebuild refreshes _dp_last_eval_soc itself.
         elif self._is_dp_soc_drop_reeval():
             _LOGGER.info("Dynamic pricing: SOC fell below the evaluated level — re-evaluating")
+            await self._evaluate_dynamic_pricing(
+                horizon=DynamicPricingEvaluationHorizon.REMAINING,
+            )
+
+        # Phase 2.62: the plan had the weekly full charge done by now and it is
+        # still pending (a battery behind the plan): nothing else re-plans
+        # before the window closes with the plan's slots spent. Once per plan.
+        elif self._is_weekly_overdue(now):
+            _LOGGER.info("Dynamic pricing: weekly full charge behind the plan — re-evaluating")
             await self._evaluate_dynamic_pricing(
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
             )
@@ -8836,31 +8937,39 @@ class PricingManager:
         """
         ctrl = self._controller
         now = self._now()
-        run_slots = self._weekly_refill_slots(now)
-        threshold = self._weekly_refill_threshold(
-            [slot for slot in run_slots if slot.start > now]
-        )
-        current_price = self._get_current_price() if run_slots else None
-        pays = (
-            threshold is not None
-            and current_price is not None
-            and current_price >= threshold
-        )
-        details = {
-            "current_price": current_price,
-            "threshold": None if threshold is None else round(threshold, 4),
-        }
-        if (
-            threshold is None
-            or current_price is None
-            or pays
-            or getattr(ctrl, "_current_price_slot_active", False)
-        ):
-            ctrl.remove_discharge_block("weekly_refill_hold")
+        charging = getattr(ctrl, "_current_price_slot_active", False)
+        planned = self._weekly_plan_holds()
+        if planned is not None:
+            # The optimizer planned the weekly day (step 4): the battery is
+            # held in the slots it holds; a full battery keeps still there and
+            # while a charge slot runs (the others are still filling).
+            held = any(slot.start <= now < slot.end for slot in planned)
+            details = {"origin": "plan"}
+            if held and not charging:
+                ctrl.set_discharge_block("weekly_refill_hold", "weekly_refill", details)
+            else:
+                ctrl.remove_discharge_block("weekly_refill_hold")
+            hold_full = held or bool(charging)
         else:
-            ctrl.set_discharge_block("weekly_refill_hold", "weekly_refill", details)
-
-        hold_full = bool(run_slots) and not pays
+            run_slots = self._weekly_refill_slots(now)
+            threshold = self._weekly_refill_threshold(
+                [slot for slot in run_slots if slot.start > now]
+            )
+            current_price = self._get_current_price() if run_slots else None
+            pays = (
+                threshold is not None
+                and current_price is not None
+                and current_price >= threshold
+            )
+            details = {
+                "current_price": current_price,
+                "threshold": None if threshold is None else round(threshold, 4),
+            }
+            if threshold is None or current_price is None or pays or charging:
+                ctrl.remove_discharge_block("weekly_refill_hold")
+            else:
+                ctrl.set_discharge_block("weekly_refill_hold", "weekly_refill", details)
+            hold_full = bool(run_slots) and not pays
         manager = getattr(ctrl, "_weekly_charge_mgr", None)
         is_full = getattr(manager, "is_battery_full", None)
         for coordinator in getattr(ctrl, "coordinators", ()) or ():
@@ -8915,6 +9024,20 @@ class PricingManager:
             {"floor_kwh": round(floor, 2), "stored_kwh": round(stored, 2)},
         )
 
+    def _weekly_plan_holds(self) -> frozenset | None:
+        """The optimizer's weekly holds while the weekly charge is pending in
+        Dynamic Pricing; None leaves the hold to its threshold."""
+        ctrl = self._controller
+        holds = getattr(ctrl, "_dp_plan_weekly_holds", None)
+        pending = getattr(ctrl, "_weekly_full_charge_pending", None)
+        if (
+            holds is None
+            or getattr(ctrl, "predictive_charging_mode", None) != PREDICTIVE_MODE_DYNAMIC_PRICING
+            or not (callable(pending) and pending())
+        ):
+            return None
+        return holds
+
     def weekly_refill_hold_fn(self):
         """The same hold for the projection, as a reserve floor, or None.
 
@@ -8922,9 +9045,23 @@ class PricingManager:
         interval the hold covers, None elsewhere. Inside a charge slot only a
         full battery could discharge, so holding everything is that battery
         keeping still; once the fleet has no free space left the run is
-        complete. Side-effect free.
+        complete. With the optimizer's plan, its weekly holds (the panel draws
+        the reserve's own only with the reserve on). Side-effect free.
         """
         from homeassistant.util import dt as dt_util
+
+        planned = self._weekly_plan_holds()
+        if planned is not None:
+            plan_tz = next((s.start.tzinfo for s in planned), None)
+
+            def plan_hold(start: datetime, usable_kwh: float, free_kwh: float) -> float | None:
+                if plan_tz is None and start.tzinfo is not None:
+                    start = dt_util.as_local(start).replace(tzinfo=None)
+                if free_kwh <= ENERGY_TOLERANCE_KWH:
+                    return None
+                return usable_kwh if any(s.start <= start < s.end for s in planned) else None
+
+            return plan_hold if planned else None
 
         now = self._now()
         run_slots = self._weekly_refill_slots(now)
