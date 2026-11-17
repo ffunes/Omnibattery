@@ -2557,7 +2557,15 @@ class ChargeDischargeController:
         if holds is not None and callable(enabled) and enabled():
             # The optimizer's holds (step 5): everything stored is kept in a
             # held slot, nothing elsewhere.
+            # The projection's intervals are local aware; price slots may be
+            # naive local (same handling as the reserve module's projection).
+            hold_tz = next((s.start.tzinfo for s in holds), None)
+
             def reserve_fn(start, usable_kwh, _free_kwh):
+                if hold_tz is None and start.tzinfo is not None:
+                    start = start.replace(tzinfo=None)
+                elif hold_tz is not None and start.tzinfo is None:
+                    start = start.replace(tzinfo=hold_tz)
                 return usable_kwh if any(s.start <= start < s.end for s in holds) else 0.0
         elif callable(projected):
             try:

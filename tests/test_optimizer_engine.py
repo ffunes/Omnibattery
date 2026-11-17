@@ -297,6 +297,13 @@ def test_the_dashboard_projection_keeps_what_a_held_slot_holds():
     floor = ChargeDischargeController._daily_operation_reserve_floor(ctrl)
     assert floor(a.start, 3.0, 2.0) == 3.0
     assert floor(b.start, 3.0, 2.0) == 0.0
+    # The projection's intervals are local aware while price slots are naive:
+    # this TypeError emptied the whole forecast half of the chart.
+    from datetime import timezone
+
+    assert a.start.tzinfo is None
+    assert floor(a.start.replace(tzinfo=timezone.utc), 3.0, 2.0) == 3.0
+    assert floor(b.start.replace(tzinfo=timezone.utc), 3.0, 2.0) == 0.0
 
 
 def test_export_prices_come_from_the_export_sensor_lowest_overlap():
