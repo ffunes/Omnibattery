@@ -310,7 +310,8 @@ class DischargeReserveSensor(BinarySensorEntity):
 
     ``on`` means part of the stored energy is being kept back because a dearer
     hour is still ahead today. The reserve itself is published as
-    ``reserve_soc_pct``: everything above it stays available right now.
+    ``reserve_soc_pct``: everything above it stays available right now. With
+    the optimizer's holds the whole battery is kept for the held slot.
     """
 
     _unrecorded_attributes = frozenset({"reserved_slots", "claims"})
@@ -334,8 +335,11 @@ class DischargeReserveSensor(BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
+        status = self._status()
+        if status.get("state") == "reserving":
+            return True
         try:
-            return float(self._status().get("reserve_soc_pct", 0.0) or 0.0) > 0.0
+            return float(status.get("reserve_soc_pct", 0.0) or 0.0) > 0.0
         except (TypeError, ValueError):
             return False
 

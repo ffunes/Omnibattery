@@ -24,6 +24,8 @@ from custom_components.omnibattery.control.discharge_reserve import (
     GUARD_NEW_DAY,
     GUARD_NOT_ENABLED,
     GUARD_NO_PLAN,
+    REASON_PLAN_HOLD,
+    REASON_PLAN_NO_HOLD,
     DischargeReserveManager,
 )
 from custom_components.omnibattery.pricing import PriceSlot
@@ -1643,3 +1645,95 @@ def test_without_an_extended_horizon_a_dull_tomorrow_keeps_sunrise():
     manager = _full_day_manager(_periods(TOMORROW, DULL_DAY), extended=None)
 
     assert manager.plan.horizon_end == TOMORROW_SUNRISE
+
+
+# ----------------------------------------------------------------------
+# The optimizer's holds (2.0.0, step 5)
+# ----------------------------------------------------------------------
+
+
+def _plan_hold_controller(holds, now: datetime = NOW, **overrides):
+    """A controller on which the optimizer published ``holds``."""
+    from custom_components.omnibattery import ChargeDischargeController
+
+    controller = _controller(**overrides)
+    controller._dp_plan_holds = frozenset(holds)
+    controller._pricing_mgr._now = lambda: now
+    blocks: dict = {}
+    controller.set_discharge_block = (
+        lambda source, reason, details=None, coordinator=None: blocks.__setitem__(
+            coordinator.name, details
+        )
+    )
+    controller.remove_discharge_block = lambda source, coordinator=None: blocks.pop(
+        coordinator.name, None
+    )
+    manager = _manager(controller, now)
+    controller._discharge_reserve_mgr = manager
+    # What the module says before the first plan: the snapshot the sensor
+    # kept showing while the plan was holding the battery.
+    manager.reserve_soc_pct()
+    if not overrides.get("manual_mode_enabled"):
+        assert manager.get_status()["reason"] == GUARD_NO_PLAN
+    ChargeDischargeController._refresh_price_reserve_blocks(controller)
+    return controller, manager, blocks
+
+
+def _status_sensor(controller):
+    from custom_components.omnibattery.binary_sensor import DischargeReserveSensor
+
+    return DischargeReserveSensor(None, None, controller)
+
+
+def test_a_plan_hold_is_reported_as_reserving():
+    """The plan's hold blocked the battery while the status still read
+    ``released`` / ``no_plan``: the module is not asked on that path."""
+    controller, manager, blocks = _plan_hold_controller(
+        [_slot(13, 0.20), _slot(14, 0.20), _slot(17, 0.30)]
+    )
+
+    assert blocks["battery-1"]["origin"] == "plan"
+    status = manager.get_status()
+    assert status["state"] == "reserving"
+    assert status["reason"] == REASON_PLAN_HOLD
+    assert status["origin"] == "plan"
+    # Everything stored above the floor: 80 % - 10 % of 10 kWh.
+    assert status["reserve_kwh"] == pytest.approx(7.0)
+    assert status["reserve_soc_pct"] == pytest.approx(70.0)
+    # The run of held slots the current one belongs to, not the later one.
+    assert status["held_until"] == (DAY + timedelta(hours=15)).isoformat()
+    assert _status_sensor(controller).is_on
+
+
+def test_a_plan_hold_on_an_empty_battery_still_reads_reserving():
+    controller, manager, _blocks = _plan_hold_controller(
+        [_slot(13, 0.20)], coordinators=[_coordinator(soc=10.0)]
+    )
+
+    assert manager.get_status()["reserve_soc_pct"] == 0.0
+    assert manager.get_status()["state"] == "reserving"
+    assert _status_sensor(controller).is_on
+
+
+def test_outside_a_held_slot_the_plan_status_is_released():
+    controller, manager, blocks = _plan_hold_controller(
+        [_slot(11, 0.20), _slot(17, 0.30)]
+    )
+
+    assert blocks == {}
+    status = manager.get_status()
+    assert (status["state"], status["reason"]) == ("released", REASON_PLAN_NO_HOLD)
+    assert status["reserve_soc_pct"] == 0.0
+    assert status["next_hold"] == (DAY + timedelta(hours=17)).isoformat()
+    assert not _status_sensor(controller).is_on
+
+
+def test_a_guard_that_releases_a_plan_hold_is_named():
+    controller, manager, blocks = _plan_hold_controller(
+        [_slot(13, 0.20)], manual_mode_enabled=True
+    )
+
+    assert blocks == {}
+    status = manager.get_status()
+    assert (status["state"], status["reason"]) == ("released", GUARD_MANUAL)
+    assert not _status_sensor(controller).is_on

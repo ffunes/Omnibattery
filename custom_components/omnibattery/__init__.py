@@ -4603,11 +4603,13 @@ class ChargeDischargeController:
             now = _pricing_clock_now(self)
             # The reserve's own guards: manual control, anti-curtailment and
             # peak shaving spend the battery on purpose.
-            guard = getattr(manager, "_release_guard", None)
-            held = (not callable(guard) or guard() is None) and any(
+            guard_fn = getattr(manager, "_release_guard", None)
+            guard = guard_fn() if callable(guard_fn) else None
+            held = guard is None and any(
                 slot.start <= now < slot.end for slot in holds
             )
             slot_owned = getattr(self, "_is_manual_slot_owned", None)
+            blocked = False
             for coordinator in self.coordinators:
                 if (
                     held
@@ -4622,8 +4624,14 @@ class ChargeDischargeController:
                         {"battery": coordinator.name, "origin": "plan"},
                         coordinator=coordinator,
                     )
+                    blocked = True
                 else:
                     self.remove_discharge_block("price_reserve", coordinator=coordinator)
+            # The reserve module is not asked on this path, so its status
+            # would stay at whatever it last said while the plan holds.
+            publish = getattr(manager, "publish_plan_hold", None)
+            if callable(publish):
+                publish(holds, now, guard=guard, blocked=blocked)
             return
         reserve_pct = self._price_discharge_reserve_pct()
         manager = getattr(self, "_discharge_reserve_mgr", None)

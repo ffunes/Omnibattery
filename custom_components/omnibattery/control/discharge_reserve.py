@@ -42,6 +42,7 @@ from ..pricing.discharge_reserve import (
     RefillTerms,
     ReservePlan,
     STATUS_DISABLED,
+    STATUS_RESERVING,
     battery_reserve_soc_pct,
     consumption_by_slot,
     eligible_capacity_kwh,
@@ -71,6 +72,10 @@ GUARD_CURTAILMENT = "curtailment_active"
 GUARD_CAPACITY_PROTECTION = "capacity_protection"
 GUARD_NEW_DAY = "new_day"
 GUARD_FLEET_UNKNOWN = "battery_state_unknown"
+
+# The optimizer decides the holds (step 5): the status reports its decision.
+REASON_PLAN_HOLD = "held_by_plan"
+REASON_PLAN_NO_HOLD = "not_held_by_plan"
 
 # When the reserve claims everything stored, floor + the battery's reserve is
 # the SOC itself, give or take float rounding (5 + 22.999999999999996 against 28). Far below
@@ -244,6 +249,54 @@ class DischargeReserveManager:
             snapshot.name: round(share, 2) for snapshot, share in zip(fleet, shares)
         }
         return pct
+
+    def publish_plan_hold(
+        self, holds, now: datetime, *, guard: str | None, blocked: bool
+    ) -> None:
+        """Publish the optimizer's hold as this feature's status.
+
+        With the optimizer's holds in force the controller never asks
+        ``reserve_soc_pct``, so the snapshot stayed at what this module last
+        said (``released`` / ``no_plan`` after a restart) while the battery
+        was being held. ``blocked`` says whether a battery is held right now.
+        """
+        self._battery_pct = {}
+        status: dict[str, Any] = {
+            "state": "released",
+            "reason": guard or REASON_PLAN_NO_HOLD,
+            "reserve_soc_pct": 0.0,
+            "origin": "plan",
+        }
+        ordered = sorted(holds, key=lambda slot: slot.start)
+        if blocked:
+            # A held slot keeps everything stored.
+            fleet = [snapshot for _, snapshot in self._fleet() or ()]
+            usable = usable_energy_kwh(fleet)
+            capacity = eligible_capacity_kwh(fleet)
+            until = None
+            for slot in ordered:
+                if until is None:
+                    if slot.start <= now < slot.end:
+                        until = slot.end
+                elif slot.start <= until:
+                    until = max(until, slot.end)
+                else:
+                    break
+            status.update(
+                {
+                    "state": STATUS_RESERVING,
+                    "reason": REASON_PLAN_HOLD,
+                    "reserve_soc_pct": round(_reserve_soc_pct(usable, capacity), 2),
+                    "reserve_kwh": round(usable, 3),
+                    "usable_energy_kwh": round(usable, 3),
+                    "total_capacity_kwh": round(capacity, 3),
+                    "held_until": until.isoformat() if until else None,
+                }
+            )
+        else:
+            upcoming = next((slot.start for slot in ordered if slot.start > now), None)
+            status["next_hold"] = upcoming.isoformat() if upcoming else None
+        self._status = status
 
     def plan_horizon_end(self) -> datetime | None:
         """Where today's reserve plan ends, or None without a plan."""

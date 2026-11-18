@@ -184,7 +184,7 @@ Optional controls in the **Control** tab solve different problems:
 
     The reserve ends at the next sunrise. Missing prices, consumption profile, usable energy, or future demand leaves it at the configured minimum SOC. Manual control, anti-curtailment, peak shaving, operating-time ownership, and an explicit per-period SOC override also release it.
 
-    **Discharge Reserve Status** reports active state, reason, reserved energy/percentage, reference price, claims, expected solar credit, grid refill credit (`refill_credit_kwh`, `refills`, `refill_from`), horizon demand, and horizon surplus. **Integration Status** reports `price_reserve_hold` while a battery is held.
+    **Discharge Reserve Status** reports active state, reason, reserved energy/percentage, reference price, claims, expected solar credit, grid refill credit (`refill_credit_kwh`, `refills`, `refill_from`), horizon demand, and horizon surplus. While the planner decides the holds, it reports `held_by_plan` with the energy kept and `held_until` during a held period, and `not_held_by_plan` with `next_hold` outside one. **Integration Status** reports `price_reserve_hold` while a battery is held.
 
     ### Minimum Arbitrage Margin and round-trip efficiency
 

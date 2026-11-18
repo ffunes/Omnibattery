@@ -184,7 +184,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     La reserva termina en el próximo amanecer. La falta de precios, perfil de consumo, energía utilizable o demanda futura la deja en el SOC mínimo configurado. Control manual, antilimitación de producción, protección de picos, control de franjas horarias y una anulación explícita de SOC por periodo también la liberan.
 
-    **Estado de reserva de descarga** informa de estado activo, motivo, energía/porcentaje reservado, precio de referencia, reclamaciones, crédito solar esperado, crédito de recarga de red (`refill_credit_kwh`, `refills`, `refill_from`), demanda de horizonte y excedente de horizonte. **Estado de integración** informa de `price_reserve_hold` mientras una batería está retenida.
+    **Estado de reserva de descarga** informa de estado activo, motivo, energía/porcentaje reservado, precio de referencia, reclamaciones, crédito solar esperado, crédito de recarga de red (`refill_credit_kwh`, `refills`, `refill_from`), demanda de horizonte y excedente de horizonte. Mientras el planificador decide las retenciones, informa de `held_by_plan` con la energía retenida y `held_until` durante un periodo retenido, y de `not_held_by_plan` con `next_hold` fuera de él. **Estado de integración** informa de `price_reserve_hold` mientras una batería está retenida.
 
     ### Margen mínimo de arbitraje y eficiencia de ciclo completo
 
