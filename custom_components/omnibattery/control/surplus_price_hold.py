@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
+from ..infra.clock import local_now
 from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..pricing.curtailment import distribute_solar_forecast, estimate_consumption_by_slot
 from ..pricing.plan_inputs import energy_over
@@ -95,7 +96,7 @@ class SurplusPriceHoldManager:
 
     def _now(self) -> datetime:
         """Return local wall-clock time, isolated for deterministic tests."""
-        return datetime.now()
+        return local_now()
 
     @property
     def plan(self) -> AbsorptionPlan | None:

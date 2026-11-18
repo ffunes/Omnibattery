@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.util import dt as dt_util
 
+from ..infra.clock import local_now
 from ..energy import effective_round_trip_efficiency
 from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..pricing import PriceSlot
@@ -285,7 +286,7 @@ class HighPriceDischargeManager:
 
     def _now(self) -> datetime:
         """Local wall clock, naive like the rest of the pricing layer."""
-        return datetime.now()
+        return local_now()
 
     @staticmethod
     def _aware(moment: datetime) -> datetime:

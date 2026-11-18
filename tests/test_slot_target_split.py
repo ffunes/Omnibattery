@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from custom_components.omnibattery.infra.clock import local_now
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import CHARGE_EFFICIENCY
 from custom_components.omnibattery.pricing import SLOT_PURPOSE_DEFICIT, PriceSlot
@@ -121,7 +122,7 @@ def test_without_a_slot_window_the_split_stays_by_gap():
 
 def test_the_active_chronological_slot_passes_its_remaining_time():
     venus, solarflow = _fleet()
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=5), now + timedelta(minutes=10), 0.44)
     schedule = SimpleNamespace(
         chronological_planning_active=True,
@@ -170,7 +171,7 @@ def test_a_mid_slot_recompute_asks_only_for_what_is_left_of_the_slot():
     the targets were rebuilt from the SOC reached plus the slot's whole 1.02 kWh,
     so the slot that had delivered 1.1 kWh was logged as 1.02 kWh short."""
     venus, solarflow = _fleet()
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=1), now + timedelta(minutes=14), 0.466)
     ctrl = _slot_ctrl(slot, [venus, solarflow])
 
@@ -186,7 +187,7 @@ def test_a_mid_slot_recompute_asks_only_for_what_is_left_of_the_slot():
 
 def test_a_slot_that_delivered_its_energy_asks_for_nothing_more():
     venus, solarflow = _fleet()
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=1), now + timedelta(minutes=14), 0.466)
     ctrl = _slot_ctrl(slot, [venus, solarflow])
     ChargeDischargeController._compute_predictive_target_soc(ctrl)
@@ -201,7 +202,7 @@ def test_a_slot_that_delivered_its_energy_asks_for_nothing_more():
 
 def test_the_next_slot_counts_from_its_own_start():
     venus, solarflow = _fleet()
-    now = datetime.now()
+    now = local_now()
     first_slot = PriceSlot(now - timedelta(minutes=16), now - timedelta(minutes=1), 0.466)
     ctrl = _slot_ctrl(first_slot, [venus, solarflow])
     ChargeDischargeController._charged_in_slot(ctrl, first_slot)
@@ -224,7 +225,7 @@ def test_a_mid_slot_replan_with_a_net_quota_keeps_asking_for_the_remainder():
     quota for the slot is already net: 0.12. That is what is still asked for,
     not 0.12 minus the 0.9 a second time."""
     venus, solarflow = _fleet()
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=5), now + timedelta(minutes=10), 0.466)
     ctrl = _slot_ctrl(slot, [venus, solarflow])
     ChargeDischargeController._compute_predictive_target_soc(ctrl)
@@ -245,7 +246,7 @@ def test_a_merge_into_the_same_schedule_keeps_counting():
     """The evening pass adds slots to the schedule it already has; the running
     slot's quota is not rebuilt, so what it charged still counts."""
     venus, solarflow = _fleet()
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=5), now + timedelta(minutes=10), 0.466)
     ctrl = _slot_ctrl(slot, [venus, solarflow])
     ChargeDischargeController._compute_predictive_target_soc(ctrl)
@@ -262,7 +263,7 @@ def test_a_merge_into_the_same_schedule_keeps_counting():
 
 def test_clearing_the_predictive_runtime_forgets_the_count():
     venus, solarflow = _fleet()
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=5), now + timedelta(minutes=10), 0.466)
     ctrl = _slot_ctrl(slot, [venus, solarflow])
     ChargeDischargeController._charged_in_slot(ctrl, slot)
@@ -299,7 +300,7 @@ def test_a_pending_weekly_charge_s_slot_to_its_end_runs_to_its_end():
     charges for the rest of the slot (or to 100 %), not the plan's quota plus a
     step: a battery behind the plan stopped short of the top with it."""
     venus, solarflow = _fleet()
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=5), now + timedelta(minutes=10), 0.44)
     ctrl = _slot_ctrl(slot, [venus, solarflow], kwh=0.1)
     ctrl._dynamic_pricing_schedule.slot_charge_to_end = frozenset({slot})

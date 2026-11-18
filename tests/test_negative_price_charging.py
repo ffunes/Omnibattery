@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from custom_components.omnibattery.infra.clock import local_now
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import (
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
@@ -138,7 +139,7 @@ def _evaluate(ctrl: SimpleNamespace, slots: list[PriceSlot]) -> PricingManager:
 
 
 def _future_slots(prices: list[float], minutes: int = 60) -> list[PriceSlot]:
-    start = datetime.now() + timedelta(hours=2)
+    start = local_now() + timedelta(hours=2)
     return [
         PriceSlot(
             start=start + timedelta(minutes=minutes * index),
@@ -169,7 +170,7 @@ def _schedule(
         average_price=sum(slot.price for slot in slots) / len(slots),
         estimated_cost=0.0,
         total_available_slots=len(slots),
-        evaluation_time=datetime.now(),
+        evaluation_time=local_now(),
         energy_deficit_kwh=1.0 if deficit_needed else 0.0,
         charging_needed=True,
         slot_purposes=purposes,
@@ -255,7 +256,7 @@ def test_threshold_is_inclusive_and_most_negative_slots_are_selected():
 
 
 def test_current_partial_slot_counts_only_its_remaining_duration():
-    now = datetime.now()
+    now = local_now()
     almost_finished = PriceSlot(
         start=now - timedelta(minutes=14),
         end=now + timedelta(minutes=1),
@@ -391,8 +392,8 @@ def test_pre_slot_reevaluation_preserves_valid_opportunity_without_deficit_call(
     battery = _Battery("b1", 30, 10)
     ctrl = _controller([battery])
     slot = PriceSlot(
-        datetime.now() + timedelta(hours=1),
-        datetime.now() + timedelta(hours=2),
+        local_now() + timedelta(hours=1),
+        local_now() + timedelta(hours=2),
         -0.10,
     )
     ctrl._dynamic_pricing_schedule = _schedule(
@@ -622,8 +623,8 @@ def _prepare_runtime_manager(
     ctrl._dynamic_pricing_schedule = _schedule(
         [slot], {slot: SLOT_PURPOSE_NEGATIVE_PRICE}
     )
-    ctrl._dynamic_pricing_evaluated_date = datetime.now().date()
-    ctrl._dp_evening_reevaluated_date = datetime.now().date()
+    ctrl._dynamic_pricing_evaluated_date = local_now().date()
+    ctrl._dp_evening_reevaluated_date = local_now().date()
     ctrl._current_price_slot_active = True
     ctrl._active_dynamic_slot_purpose = SLOT_PURPOSE_NEGATIVE_PRICE
     ctrl.grid_charging_active = True
@@ -649,7 +650,7 @@ def _prepare_runtime_manager(
 def test_demand_protection_keeps_slot_owned_by_predictive_controller():
     battery = _Battery("b1", 30, 10)
     ctrl = _controller([battery])
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=10), now + timedelta(minutes=50), 0.10)
     state_holder = {"state": SimpleNamespace(state="1900")}
     ctrl._dynamic_pricing_schedule = _schedule(
@@ -740,7 +741,7 @@ def test_safety_discharge_bypasses_only_economic_blockers():
 def test_reaching_target_stops_inside_slot_prunes_future_and_does_not_resume():
     battery = _Battery("b1", 80, 10, max_soc=80)
     ctrl = _controller([battery])
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=10), now + timedelta(minutes=50), -0.20)
     commands: list = []
     manager = _prepare_runtime_manager(ctrl, slot, commands)
@@ -763,7 +764,7 @@ def test_reaching_target_stops_inside_slot_prunes_future_and_does_not_resume():
 def test_live_nonnegative_price_stops_active_pure_opportunity_safely():
     battery = _Battery("b1", 30, 10)
     ctrl = _controller([battery])
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=10), now + timedelta(minutes=50), -0.20)
     commands: list = []
     manager = _prepare_runtime_manager(ctrl, slot, commands)
@@ -779,7 +780,7 @@ def test_live_nonnegative_price_stops_active_pure_opportunity_safely():
 def test_charge_blocker_prevents_entering_an_opportunity_slot():
     battery = _Battery("b1", 30, 10)
     ctrl = _controller([battery])
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(now - timedelta(minutes=10), now + timedelta(minutes=50), -0.20)
     ctrl._dynamic_pricing_schedule = _schedule(
         [slot], {slot: SLOT_PURPOSE_NEGATIVE_PRICE}
@@ -896,7 +897,7 @@ def test_combined_runtime_stops_when_opportunity_already_covers_deficit():
         [battery],
         decision=_decision(should_charge=True, deficit=2.0),
     )
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(
         now - timedelta(minutes=10),
         now + timedelta(minutes=50),
@@ -1025,7 +1026,7 @@ def test_cycle_without_available_battery_keeps_future_negative_slots():
     """No eligible battery means unknown, not target reached."""
     battery = _Battery("b1", 20, 10)
     ctrl = _controller([battery])
-    now = datetime.now()
+    now = local_now()
     future = PriceSlot(now + timedelta(hours=3), now + timedelta(hours=4), -0.20)
     manager = _prepare_runtime_manager(ctrl, future, [])
     ctrl._current_price_slot_active = False

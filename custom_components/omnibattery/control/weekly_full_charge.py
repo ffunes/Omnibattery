@@ -24,6 +24,7 @@ from homeassistant.components import persistent_notification
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from ..infra.clock import local_now
 from .charge_delay import _PROVISIONAL_ZERO_HOLD_HOUR, _energy_needed_kwh
 from .pack_soc import cell_voltage_profile, control_vmax, soc_vs_ceiling
 from ..const import (
@@ -376,7 +377,7 @@ class WeeklyFullChargeManager:
         if not ctrl.weekly_full_charge_complete:
             self._already_complete_logged = False
 
-        now = datetime.now()
+        now = local_now()
         current_weekday = now.weekday()
         target_weekday = WEEKDAY_MAP[ctrl.weekly_full_charge_day]
 
@@ -543,7 +544,7 @@ class WeeklyFullChargeManager:
             # A run saved on the target day carries on in the night after it.
             same_run = stored_date == today_iso or (
                 stored_date == (date.today() - timedelta(days=1)).isoformat()
-                and self.in_overnight_extension(datetime.now())
+                and self.in_overnight_extension(local_now())
             )
 
             # Only restore state if saved on the same calendar date (prevents last week's
@@ -605,7 +606,7 @@ class WeeklyFullChargeManager:
             return
 
         try:
-            now = datetime.now()
+            now = local_now()
             data = {
                 "complete": ctrl.weekly_full_charge_complete,
                 "registers_written": ctrl.weekly_full_charge_registers_written,

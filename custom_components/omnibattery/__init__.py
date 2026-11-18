@@ -38,6 +38,7 @@ from homeassistant.util import dt as dt_util
 import voluptuous as vol
 from pymodbus.exceptions import ConnectionException
 
+from .infra.clock import local_now
 from .const import (
     DOMAIN,
     NOTIFICATION_ID_PREFIX,
@@ -674,7 +675,7 @@ def _pricing_clock_now(controller) -> datetime:
     used in tests, which carry no pricing manager.
     """
     clock = getattr(getattr(controller, "_pricing_mgr", None), "_now", None)
-    return clock() if callable(clock) else datetime.now()
+    return clock() if callable(clock) else local_now()
 
 
 # Discharge blockers set for money, not for the battery's sake.
@@ -4120,7 +4121,7 @@ class ChargeDischargeController:
         if not any(s.get(field, False) for s in relevant):
             return True
 
-        now = datetime.now()
+        now = local_now()
         current_time = now.time()
         current_day = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][now.weekday()]
 
@@ -4885,7 +4886,7 @@ class ChargeDischargeController:
         if not slots:
             return None
 
-        now = datetime.now()
+        now = local_now()
         current_time = now.time()
         current_day = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][now.weekday()]
 

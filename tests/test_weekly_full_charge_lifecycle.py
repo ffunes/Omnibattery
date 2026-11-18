@@ -204,6 +204,7 @@ def _clock(monkeypatch, moment):
             return moment
 
     monkeypatch.setattr(weekly_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(weekly_module, "local_now", FixedDateTime.now)
 
 
 def _night_manager(**overrides):

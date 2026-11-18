@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Mapping, Sequence
 
+from ..infra.clock import local_now
 from ..const import CHARGE_EFFICIENCY
 from . import PriceSlot
 from .curtailment import BatterySnapshot
@@ -249,7 +250,7 @@ def plan_surplus_absorption(
     batteries can physically take at ``max_charge_power_w`` and converts it to
     battery-side energy with the integration's charge efficiency.
     """
-    evaluated_at = now or datetime.now()
+    evaluated_at = now or local_now()
     plan = AbsorptionPlan(evaluation_time=evaluated_at, deadline=deadline)
     plan.min_saving = max(0.0, float(min_saving)) if _finite(min_saving) else 0.0
 

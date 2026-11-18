@@ -223,7 +223,9 @@ def _evaluate_with_weekly_reserve(
             return now
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
     monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine.calculations, "local_now", FixedDateTime.now)
     ctrl = _ctrl([_Coord(50.0, 10.0)], weekly=True, solar="8.0")
     decision = {**_run(ctrl), **decision_overrides}
 
@@ -319,6 +321,7 @@ def test_weekly_reserved_slot_is_cancelled_only_after_reaching_full_soc(monkeypa
             return now
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
     slot = PriceSlot(now + timedelta(hours=1), now + timedelta(hours=2), 0.10)
 
     for soc, expected in ((100.0, False), (62.0, True)):

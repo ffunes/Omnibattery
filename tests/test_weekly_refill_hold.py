@@ -34,6 +34,7 @@ def _fixed_now(monkeypatch):
             return NOW
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
 
 
 def _slot(hour, minute, price):

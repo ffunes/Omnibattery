@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- **Prices and schedules follow Home Assistant's time zone** (#898): on installs whose system clock is on UTC (a Docker container without TZ, for example) the current price slot was one or two hours off, in the notification and when charging started; "now" is now read in Home Assistant's time zone.
 - **Manual battery control can be turned off with RS485 control off** (#895): the switch no longer fails with "Could not leave safely idle" when the battery's RS485 control mode is off, because there is nothing to write and the battery is already under its own app.
 - **PD no longer stays idle while importing just above the Direction Hysteresis** (#849): with the battery idle and the grid import hovering around that threshold, the hysteresis kept resetting the direction-flip hold timer, so the discharge never started; the timer now survives those cycles.
 - **Daily Operation: the forecast SOC starts at the live SOC and rises with the drawn sun**: in Dynamic Pricing the line came from the last plan's own levels, so hours after an evaluation it jumped from the live SOC to a far lower one, and with the solar safety margin eating the day's sun it stayed flat under a sunny forecast. It now replays the plan from the live level and adds back the sun the margin took off.
