@@ -747,6 +747,10 @@ class ChargeDischargeController:
         # requests the opposite charge/discharge direction; the flip is clamped to
         # 0 until the request persists past the actuator settle window.
         self._zero_cross_since = None
+        # True when this cycle's 0 W request came from the direction hysteresis
+        # suppressing a flip (not from a real idle decision): the armed
+        # zero-cross timer must survive it (#849).
+        self._flip_hyst_suppressed = False
         # Event-driven cycle rate limit: drop grid-sensor triggers that arrive
         # closer together than this, so fast meters can't flood the Modbus bridge.
         # NOT raised to the slowest actuator's latency: a slow battery (Zendure HTTP)
@@ -2994,6 +2998,7 @@ class ChargeDischargeController:
             ("last_output_sign", 0),
             ("sign_changes", 0),
             ("_zero_cross_since", None),
+            ("_flip_hyst_suppressed", False),
             ("_relay_shutoff_since", None),
             ("_saturation_cycles", 0),
             ("_saturation_shortfall_since", None),
@@ -9486,6 +9491,7 @@ class ChargeDischargeController:
         # DIRECTIONAL HYSTERESIS: Prevent rapid switching between charge/discharge
         # If we're changing direction, the new power must overcome the hysteresis threshold
         current_output_sign = 1 if new_power > 0 else (-1 if new_power < 0 else 0)
+        self._flip_hyst_suppressed = False
         
         if self.last_output_sign != 0 and current_output_sign != 0:
             if self.last_output_sign != current_output_sign:
@@ -9504,6 +9510,7 @@ class ChargeDischargeController:
                                 new_power, error, self.direction_hysteresis)
                     new_power = 0
                     current_output_sign = 0
+                    self._flip_hyst_suppressed = True
                 else:
                     _LOGGER.info("PD: Direction change ALLOWED - output=%.1fW or error=%.1fW > threshold=%dW",
                                 abs(new_power), abs(error), self.direction_hysteresis)
@@ -9664,10 +9671,22 @@ class ChargeDischargeController:
         decision, so the armed timer must survive it.
         """
         requested_sign = 1 if new_power > 0 else (-1 if new_power < 0 else 0)
+        # Consume once: no-PD paths never reach _compute_pd_new_power, so a flag
+        # left over from an earlier PD cycle must not survive into them.
+        hyst_suppressed, self._flip_hyst_suppressed = self._flip_hyst_suppressed, False
         if stale_recalc and requested_sign == 0 and self._zero_cross_since is not None:
             # Issue #117: on a sensor slower than the stale window, every
             # stale recalc in between cleared the timer, so the flip re-armed at
             # 0.0s on each fresh sample and could never accumulate the window.
+            return new_power
+        if (
+            requested_sign == 0
+            and self._zero_cross_since is not None
+            and hyst_suppressed
+        ):
+            # Issue #849: the 0 W is the direction hysteresis suppressing a
+            # sub-threshold flip, not an idle decision. Clearing the timer here
+            # made ALLOWED/suppressed cycles alternate and never reach the window.
             return new_power
         if (
             self.last_output_sign == 0

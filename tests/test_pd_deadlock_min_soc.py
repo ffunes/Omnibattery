@@ -51,6 +51,7 @@ def _hold_ctrl(last_output_sign, *, zero_cross_since=None, latencies=(0.8,)):
     return SimpleNamespace(
         last_output_sign=last_output_sign,
         _zero_cross_since=zero_cross_since,
+        _flip_hyst_suppressed=False,
         coordinators=[_coord(lat) for lat in latencies],
     )
 
