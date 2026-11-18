@@ -3002,7 +3002,11 @@ class ChargeDischargeController:
                 setattr(self, attr, value)
 
     async def _set_battery_manual_mode(self, coordinator, enabled: bool) -> None:
-        """Enter or leave individual manual control with a verified idle handoff."""
+        """Enter or leave individual manual control with a verified idle handoff.
+
+        With RS485 control off by the user nothing is written (the battery runs
+        under its own app), so idle counts as already reached.
+        """
         async with self._control_lock:
             if enabled:
                 # Persist ownership before touching the network. A restart in
@@ -3022,7 +3026,9 @@ class ChargeDischargeController:
                 coordinator.persist_battery_config("manual_set_charge_power", 0)
                 coordinator.persist_battery_config("manual_set_discharge_power", 0)
 
-                idle_ok = await self._set_battery_power(
+                idle_ok = getattr(
+                    coordinator, "rs485_user_disabled", False
+                ) or await self._set_battery_power(
                     coordinator,
                     0,
                     0,
@@ -3044,7 +3050,9 @@ class ChargeDischargeController:
             # Keep ownership asserted while the final zero-power command is
             # acknowledged, so an automatic cycle cannot race the handoff.
             coordinator.battery_manual_mode_enabled = True
-            idle_ok = await self._set_battery_power(
+            idle_ok = getattr(
+                coordinator, "rs485_user_disabled", False
+            ) or await self._set_battery_power(
                 coordinator,
                 0,
                 0,
