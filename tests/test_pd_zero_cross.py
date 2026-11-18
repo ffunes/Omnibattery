@@ -194,3 +194,15 @@ def test_export_transient_after_discharge_still_no_charge_849():
     assert ctrl._zero_cross_since is not None
     assert _hold(ctrl, new_power=0, error=10) == 0  # genuine idle (flag False)
     assert ctrl._zero_cross_since is None
+
+
+def test_hysteresis_flag_is_consumed_once_849():
+    # A suppression flag left by one PD cycle must not shield a later genuine
+    # 0 W (no-PD paths never clear it in _compute_pd_new_power).
+    since = dt_util.utcnow()
+    ctrl = _ctrl(last_output_sign=1, zero_cross_since=since)
+    ctrl._flip_hyst_suppressed = True
+    assert _hold(ctrl, new_power=0) == 0
+    assert ctrl._zero_cross_since == since
+    assert _hold(ctrl, new_power=0) == 0
+    assert ctrl._zero_cross_since is None
