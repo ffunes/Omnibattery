@@ -217,6 +217,36 @@ async def test_manual_mode_stays_enabled_when_deactivation_idle_fails():
 
 
 @pytest.mark.asyncio
+async def test_manual_mode_can_be_left_when_rs485_control_is_off():
+    """#895: no write is possible, so idle is already reached and the flag clears."""
+    coordinator = HashableNamespace(
+        name="Battery A",
+        rs485_user_disabled=True,
+        battery_manual_mode_enabled=True,
+        manual_force_mode="Charge",
+        manual_set_charge_power=2300,
+        manual_set_discharge_power=0,
+        persist_battery_config=Mock(),
+        async_request_refresh=AsyncMock(),
+    )
+    set_power = AsyncMock(return_value=False)
+    controller = _controller_with_reset(
+        _control_lock=asyncio.Lock(),
+        _set_battery_power=set_power,
+        schedule_control_cycle=Mock(),
+    )
+
+    await ChargeDischargeController._set_battery_manual_mode(
+        controller, coordinator, False
+    )
+
+    assert coordinator.battery_manual_mode_enabled is False
+    assert coordinator.manual_force_mode == "None"
+    assert coordinator.manual_set_charge_power == 0
+    set_power.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_manual_mode_deactivation_preserves_automatic_pd_command():
     coordinator = HashableNamespace(
         name="Battery A",
