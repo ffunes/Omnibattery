@@ -50,11 +50,12 @@ def _lifetime_efficiency_sensor(
     return sensor
 
 
-def test_lifetime_counter_efficiency_is_capped_at_physical_maximum():
-    """Independent Anker counter baselines must not surface 300% efficiency."""
+def test_lifetime_counters_above_100_percent_read_unknown():
+    """Independent counter baselines must not surface 300% efficiency, nor a
+    made-up 100% (#613): an impossible ratio is unknown."""
     sensor = _lifetime_efficiency_sensor(charge_kwh=10.0, discharge_kwh=30.0)
 
-    assert sensor.native_value == 100.0
+    assert sensor.native_value is None
 
 
 def test_lifetime_counter_efficiency_preserves_valid_ratio():
@@ -111,6 +112,31 @@ def test_dual_plane_sampling_falls_back_to_the_measured_ac_port():
     assert sensor._discharge_dc_kwh == pytest.approx(0.05, abs=1e-3)
     assert sensor._discharge_ac_kwh == pytest.approx(0.045, abs=1e-3)
     assert sensor.native_value == pytest.approx(81.0, abs=0.5)
+
+
+def test_dc_power_key_is_the_dc_plane_when_published():
+    """#625: Hoymiles battery_power is AC-side; the DC plane comes from
+    battery_dc_power (V x I) so the loss between the planes is measured."""
+    sensor = object.__new__(MarstekVenusEfficiencySensor)
+    sensor._integrate_mode = True
+    sensor._charge_ac_kwh = sensor._charge_dc_kwh = 0.0
+    sensor._discharge_ac_kwh = sensor._discharge_dc_kwh = 0.0
+    sensor.coordinator = SimpleNamespace(
+        data={
+            "battery_power": -450.0,       # AC-side on Hoymiles
+            "battery_dc_power": -500.0,    # V x I
+            "ac_delivered_power": -450.0,
+            "solar_power": 0.0,
+        },
+        capabilities=SimpleNamespace(has_mppt_pv=False),
+    )
+    sensor._last_mono = None
+    sensor._accumulate()
+    sensor._last_mono -= 360.0
+    sensor._accumulate()
+
+    assert sensor._discharge_dc_kwh == pytest.approx(0.05, abs=1e-3)
+    assert sensor._discharge_ac_kwh == pytest.approx(0.045, abs=1e-3)
 
 
 @pytest.mark.parametrize("model", [

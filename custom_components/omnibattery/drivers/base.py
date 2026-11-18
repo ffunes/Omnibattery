@@ -52,6 +52,12 @@ _LOGGER = logging.getLogger(__name__)
 # control layer keeps judging delivery from the cells alone.
 DELIVERED_AC_POWER_KEY = "ac_delivered_power"
 
+# Cell-side (DC) battery power, same sign convention as ``battery_power``, for a
+# driver whose ``battery_power`` is really an AC-side figure (Hoymiles, #625) and
+# that can measure the DC side separately (voltage x current). The efficiency
+# sensor uses it as the DC plane when present.
+BATTERY_DC_POWER_KEY = "battery_dc_power"
+
 # --- canonical keys ----------------------------------------------------------
 # Logical keys the platforms treat specially. They are the vocabulary the first
 # drivers (Marstek registers) gave to the entities, and a driver that wants the
@@ -427,6 +433,11 @@ class DriverCapabilities:
     # identical AC and cell power while discharging, which reads as 100% (#556),
     # so it keeps the cumulative charge/discharge counters. Defaults True.
     independent_power_planes: bool = True
+
+    # False if the lifetime charge/discharge counters are battery-side (DC to DC),
+    # so their ratio is the cell efficiency and not the AC round trip (Anker,
+    # #706). Such a ratio must not feed the arbitrage efficiency. Defaults True.
+    lifetime_counters_ac: bool = True
 
     # Approximate physical response time (seconds) after issuing a setpoint. The
     # zero-cross guard uses it to avoid commanding the opposite direction while

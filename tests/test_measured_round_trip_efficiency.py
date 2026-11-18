@@ -39,6 +39,19 @@ def test_dual_plane_without_its_sensor_ignores_the_lifetime_counters():
     assert measured_battery_efficiency(battery) is None
 
 
+def test_battery_side_counters_do_not_feed_the_arbitrage():
+    """#706: Anker's counters are DC to DC (cell efficiency), not the AC round trip."""
+    battery = lifetime(1000, 930)
+    battery.capabilities = SimpleNamespace(
+        has_mppt_pv=False, has_solar_telemetry=False, lifetime_counters_ac=False
+    )
+    assert measured_battery_efficiency(battery) is None
+    battery.capabilities = SimpleNamespace(
+        has_mppt_pv=False, has_solar_telemetry=False, lifetime_counters_ac=True
+    )
+    assert measured_battery_efficiency(battery) == pytest.approx(0.93)
+
+
 def ctrl(coordinators, configured=0.85):
     return SimpleNamespace(round_trip_efficiency=configured, coordinators=coordinators)
 

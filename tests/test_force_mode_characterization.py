@@ -159,7 +159,7 @@ EXPECTED_CRITICAL = {
     "huawei": (
         ["battery_power", "battery_soc", "force_mode", "inverter_state",
          "set_charge_power", "set_discharge_power"], [19, 6]),
-    "hoymiles": (["battery_power", "battery_soc", "inverter_state"], [15]),
+    "hoymiles": (["battery_power", "battery_soc", "inverter_state"], [16]),
 }
 
 
