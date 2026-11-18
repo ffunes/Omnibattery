@@ -54,6 +54,11 @@ MAX_ASKS = 24
 # lost up to 0.23 c).
 PENDING_MAX_ASKS = 12
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
+# #899, #571: a charge that stops mid-slot, with the next slot charging again,
+# gives way to one still charging at the slot's end: fewer relay starts. Only
+# near-ties: the whole plan gives up at most this much (of the order of the
+# lattice's error), so it never buys a run at a real price.
+RUN_TIE_EUR = 0.001
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
 SELL = "sell"  # menu option ("sell", kW): the grid is held at -kW for the slot
@@ -89,6 +94,11 @@ def _bands(request, cap) -> tuple:
         for below, kw in request.charge_curve or ()
         if 0.0 < float(below) <= cap
     ))
+
+
+def _is_charge(option) -> bool:
+    """A grid charge quota (with or without the hold), not a sale or room."""
+    return isinstance(option, tuple) and option[0] not in (SELL, ROOM)
 
 
 def _reached(peaks, ends, deadline, cap):
@@ -444,6 +454,18 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     values.reverse()
     pending_values.reverse()
 
+    def next_charges(j, e_j):
+        """Whether the plan charges in group ``j`` from ``e_j`` (#899: a stop
+        is a restart only when the next slot charges again)."""
+        slot_j, _quarters, ends_j = groups[j]
+        best = None
+        for option, (e1, _c, decide, stored, *_rest) in run_menu(
+                slot_j, done_quarters[j], [e_j], ends_j):
+            v = float(decide[0] + np.interp(e1[0], levels, values[j + 1]))
+            if best is None or v < best[0] - (TIE_EUR if best[1] is None else 0.0):
+                best = (v, option, float(stored[0]))
+        return _is_charge(best[1]) and best[2] > _TOL
+
     # Forward pass from the exact energy.
     e = e0
     total = 0.0
@@ -456,10 +478,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     trajectory: list = []
     pending = pending0
     full_at = None  # when the plan touches the top of a pending weekly charge
+    slack = RUN_TIE_EUR
     for k, (slot, quarters, ends) in enumerate(groups):
         nxt = values[k + 1]
         layer = pending and k <= last_k
         chosen = None
+        rows = []
         for option, (e1, c, decide, stored, open_, path, peaks) in run_menu(
                 slot, quarters if layer else done_quarters[k], [e], ends, layer):
             if layer:
@@ -467,10 +491,26 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 v, hit = float(decide[0] + after[0]), bool(hit[0])
             else:
                 v, hit = float(decide[0] + np.interp(e1[0], levels, nxt)), False
+            row = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
+                   bool(open_[0]), [float(x[0]) for x in path], hit,
+                   [float(x[0]) for x in peaks])
+            rows.append(row)
             if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
-                chosen = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
-                          bool(open_[0]), [float(x[0]) for x in path], hit,
-                          [float(x[0]) for x in peaks])
+                chosen = row
+        charge = chosen[1]
+        if (not pending0 and _is_charge(charge) and chosen[4] > _TOL and not chosen[5]
+                and k + 1 < len(groups) and next_charges(k + 1, chosen[2])):
+            run_on = min(
+                (r for r in rows
+                 if r[5] and _is_charge(r[1]) and len(r[1]) == len(charge) and r[4] > _TOL
+                 and max(r[8]) < done_model.cap - _FULL_TOL  # charging at the end, not at the top
+                 and r[0] <= chosen[0] + slack
+                 and next_charges(k + 1, r[2])),  # still one block after it
+                key=lambda r: r[0], default=None,
+            )
+            if run_on is not None:
+                slack -= run_on[0] - chosen[0]
+                chosen = run_on
         _v, option, e_end, c, stored, open_, path, hit, top = chosen
         if layer and hit:
             full_at = next(end for end, x in zip(ends, top)

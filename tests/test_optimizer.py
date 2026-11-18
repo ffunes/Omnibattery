@@ -45,9 +45,11 @@ def _request(prices, *, house=0.1, solar=0.0, cap=10.0, soc=15.0, usable=0.5, ro
     )
 
 
-def _replay(request, plan, held=(), exported=()):
+def _replay(request, plan, held=(), exported=(), starts=None):
     """Cost of executing the published plan, as the controller does it. In a
-    ``held`` slot the battery covers nothing (solar surplus still stores)."""
+    ``held`` slot the battery covers nothing (solar surplus still stores).
+    ``starts`` (a list) gets the charger's starts appended: a charge that
+    reaches its target inside a quarter has stopped there."""
     m = BatteryModel(capacity_kwh=request.fleet_capacity_kwh, round_trip_efficiency=0.85,
                      floor_kwh=request.fleet_capacity_kwh * request.fleet_soc_pct / 100
                      - request.usable_initial_kwh,
@@ -56,6 +58,7 @@ def _replay(request, plan, held=(), exported=()):
     step = request.fleet_capacity_kwh * request.soc_resolution_pct / 100
     quota = {a.slot: (a.planned_battery_kwh, a.to_slot_end) for a in plan.allocations}
     e, total, target, done, prices = request.usable_initial_kwh, 0.0, {}, set(), []
+    n, running = 0, False
     for i in request.intervals:
         s = next(s for s in request.price_slots if s.start <= i.start < s.end)
         prices.append(s.price)
@@ -74,9 +77,14 @@ def _replay(request, plan, held=(), exported=()):
             t = target[s]
             if t - e <= m.charge_rate(q) + 1e-9:
                 done.add(s)
+        add = float(m.charge_phase(q, e, t)[0]) if t is not None else 0.0
+        n += add > 1e-9 and not running
+        running = add > 1e-9 and e + add < t - 1e-6
         e1, c = m.normal_step(q, e, t)
         total += float(c)
         e = float(e1)
+    if starts is not None:
+        starts.append(n)
     end = min((p for p in prices if p > 0), default=0.0) * m.eff
     return total - end * e
 
@@ -102,6 +110,45 @@ def test_an_hourly_slot_sets_its_target_once_and_completes():
     plan = optimize_charge(request).plan
     assert [a.slot.price for a in plan.allocations] == [0.10]
     assert _replay(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+@pytest.mark.parametrize("prices", [[0.10] * 4, [0.12, 0.10, 0.11, 0.13], [0.13, 0.12, 0.11, 0.10]])
+@pytest.mark.parametrize(("soc", "usable"), [(10.0, 0.3), (40.0, 2.7)])
+def test_cheap_hours_at_one_price_stop_less(monkeypatch, prices, soc, usable):
+    # #899, #571: 2400 W on 8.16 kWh, four cheap hours before a dear evening.
+    # At one price the plan split the charge into quotas stopping mid-hour:
+    # 4 starts. Two are the fewest at that price (one block costs ~4.7 c more:
+    # it ends the cheap hours less full). Different prices keep their plan,
+    # up to the tie-break's budget.
+    from custom_components.omnibattery.pricing import optimizer
+
+    request = _request(prices + [0.40] * 4, house=[0.05] * 16 + [0.5] * 16, slot_quarters=4,
+                       cap=8.16, soc=soc, usable=usable, room=7.3, power=2.4, discharge=2.4)
+    plan = optimize_charge(request).plan
+    budget = optimizer.RUN_TIE_EUR
+    monkeypatch.setattr(optimizer, "RUN_TIE_EUR", 0.0)
+    off = optimize_charge(request).plan
+    starts, starts_off = [], []
+    assert _replay(request, plan, starts=starts) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+    _replay(request, off, starts=starts_off)
+    assert plan.optimizer_cost <= off.optimizer_cost + budget + 1e-9
+    assert starts[0] <= starts_off[0]
+    if len(set(prices)) == 1:
+        assert starts_off[0] == 4 and starts[0] == 2
+
+
+def test_the_last_charge_of_a_run_keeps_its_quota(monkeypatch):
+    # Nothing charges after it: run to its end, it would save no start and
+    # only spend the tie-break's budget (+0.1 c).
+    from custom_components.omnibattery.pricing import optimizer
+
+    request = _request([0.30, 0.11, 0.20, 0.20], house=0.2, usable=0.0, room=8.0, soc=10.0,
+                       power=2.4, discharge=2.4)
+    plan = optimize_charge(request).plan
+    monkeypatch.setattr(optimizer, "RUN_TIE_EUR", 0.0)
+    assert [(a.planned_battery_kwh, a.to_slot_end) for a in plan.allocations] == [
+        (a.planned_battery_kwh, a.to_slot_end) for a in optimize_charge(request).plan.allocations]
+    assert not plan.allocations[0].to_slot_end
 
 
 def test_a_threshold_forbids_the_slot():
@@ -1029,6 +1076,22 @@ def test_a_missed_planned_deadline_keeps_charging_to_the_window_end():
     request = _request([0.20] * 24, usable=0.5, room=3.0, house=0.0)
     plan = optimize_charge(_weekly(request, 6)).plan
     assert _reach(plan, 3.0) <= T0 + 6 * Q
+
+
+def test_a_pending_weekly_charge_keeps_its_quotas(monkeypatch):
+    # #899's tie-break is off while a weekly charge is pending: the controller
+    # charges such a plan's "to the end" slots to 100 %, so marking one more
+    # is not a tie (the weekly sweep's new arm paid 1 EUR more over its grid).
+    from custom_components.omnibattery.pricing import optimizer
+
+    request = _weekly(_request([0.10] * 4 + [0.40] * 4, house=[0.05] * 16 + [0.5] * 16,
+                               slot_quarters=4, cap=8.16, soc=60.0, usable=4.3, room=7.3,
+                               power=2.4, discharge=2.4), 24)
+    plan = optimize_charge(request).plan
+    monkeypatch.setattr(optimizer, "RUN_TIE_EUR", 0.0)
+    off = optimize_charge(request).plan
+    assert [(a.slot, a.planned_battery_kwh, a.to_slot_end) for a in plan.allocations] == [
+        (a.slot, a.planned_battery_kwh, a.to_slot_end) for a in off.allocations]
 
 
 def test_a_pending_weekly_charge_neither_sells_nor_exports():
