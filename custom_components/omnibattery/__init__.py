@@ -9663,6 +9663,9 @@ class ChargeDischargeController:
         decision, so the armed timer must survive it.
         """
         requested_sign = 1 if new_power > 0 else (-1 if new_power < 0 else 0)
+        # Consume once: no-PD paths never reach _compute_pd_new_power, so a flag
+        # left over from an earlier PD cycle must not survive into them.
+        hyst_suppressed, self._flip_hyst_suppressed = self._flip_hyst_suppressed, False
         if stale_recalc and requested_sign == 0 and self._zero_cross_since is not None:
             # Issue #117: on a sensor slower than the stale window, every
             # stale recalc in between cleared the timer, so the flip re-armed at
@@ -9671,7 +9674,7 @@ class ChargeDischargeController:
         if (
             requested_sign == 0
             and self._zero_cross_since is not None
-            and self._flip_hyst_suppressed
+            and hyst_suppressed
         ):
             # Issue #849: the 0 W is the direction hysteresis suppressing a
             # sub-threshold flip, not an idle decision. Clearing the timer here
