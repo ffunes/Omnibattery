@@ -41,6 +41,7 @@ def _ctrl(
     return SimpleNamespace(
         last_output_sign=last_output_sign,
         _zero_cross_since=zero_cross_since,
+        _flip_hyst_suppressed=False,
         coordinators=[_coord(lat) for lat in latencies],
     )
 
@@ -129,6 +130,7 @@ def test_transient_export_never_emits_charge_order():
     ctrl = SimpleNamespace(
         last_output_sign=-1,
         _zero_cross_since=None,
+        _flip_hyst_suppressed=False,
         coordinators=[_coord()],
         # _apply_min_power / _apply_relay_dwell fields
         min_charge_power=200,
@@ -149,4 +151,46 @@ def test_transient_export_never_emits_charge_order():
     # Import returns: discharge resumes immediately, no window applies.
     power = ChargeDischargeController._apply_zero_cross_hold(ctrl, -350, 400)
     assert power == -350
+    assert ctrl._zero_cross_since is None
+
+
+def test_hysteresis_suppression_does_not_reset_armed_timer_849():
+    """#849: idle battery, last_output_sign latched +1, grid import hovering
+    around the 60 W Direction Hysteresis (errors 64/57 W, Kp 0.5). The ALLOWED
+    cycle arms the zero-cross timer, the suppressed one used to reset it, so the
+    window was never reached. Chain compute -> hold like _run_control_cycle,
+    ageing the stored timestamp instead of sleeping."""
+    ctrl = SimpleNamespace(
+        previous_power=0,
+        _measured_battery_power=lambda: None,
+        ki=0, kp=0.5, kd=0, dt=2.0, derivative_tau=3.0, derivative_filtered=0.0,
+        previous_error=0.0, error_integral=0.0, _stale_cycles=0,
+        max_power_change_per_cycle=800,
+        _should_log_rate_limiter=lambda change: False,
+        _clear_rate_limiter_state=lambda: None,
+        last_output_sign=1,
+        direction_hysteresis=60,
+        _zero_cross_since=None,
+        _flip_hyst_suppressed=False,
+        coordinators=[_coord(3.0)],  # window = 6 s
+    )
+    emitted = []
+    for error in (64, 57) * 4:  # 8 cycles, alternating allowed / suppressed
+        power = ChargeDischargeController._compute_pd_new_power(
+            ctrl, error, sensor_elapsed_s=2.0, stale_safety_recalc=False
+        )
+        power = ChargeDischargeController._apply_zero_cross_hold(ctrl, power, error)
+        emitted.append(power)
+        if ctrl._zero_cross_since is not None:
+            ctrl._zero_cross_since -= timedelta(seconds=2)  # one cycle elapsed
+    assert any(p < 0 for p in emitted), f"no discharge emitted: {emitted}"
+
+
+def test_export_transient_after_discharge_still_no_charge_849():
+    # Hysteresis suppression of a flip must not weaken the original protection:
+    # a flip armed by a real request is still clamped, and a genuine 0 resets.
+    ctrl = _ctrl(last_output_sign=-1, zero_cross_since=dt_util.utcnow())
+    assert _hold(ctrl, new_power=250, error=-800) == 0
+    assert ctrl._zero_cross_since is not None
+    assert _hold(ctrl, new_power=0, error=10) == 0  # genuine idle (flag False)
     assert ctrl._zero_cross_since is None
