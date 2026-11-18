@@ -364,6 +364,7 @@ class AnkerModbusDriver(BatteryDriver):
             setpoint_confirm_reliable=False,
             delivered_power_reliable=False,
             actuator_latency_s=1.0,
+            lifetime_counters_ac=False,  # 10262/10264 count DC to DC (#706)
         )
 
     @property

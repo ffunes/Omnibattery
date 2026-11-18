@@ -32,6 +32,9 @@
 
 ### Fixed
 
+- **Hoymiles efficiency measures the battery's DC side from voltage x current** (#625): it no longer reads about 100 %.
+- **Anker's battery-side counters no longer feed the arbitrage efficiency** (#706): the default 0.85 or your own value is used.
+- **Efficiency shows unknown instead of 100 %** (#613) when the lifetime counters don't add up.
 - **Prices and schedules follow Home Assistant's time zone** (#898): on installs whose system clock is on UTC (a Docker container without TZ, for example) the current price slot was one or two hours off, in the notification and when charging started; "now" is now read in Home Assistant's time zone.
 - **Manual battery control can be turned off with RS485 control off** (#895): the switch no longer fails with "Could not leave safely idle" when the battery's RS485 control mode is off, because there is nothing to write and the battery is already under its own app.
 - **PD no longer stays idle while importing just above the Direction Hysteresis** (#849): with the battery idle and the grid import hovering around that threshold, the hysteresis kept resetting the direction-flip hold timer, so the discharge never started; the timer now survives those cycles.

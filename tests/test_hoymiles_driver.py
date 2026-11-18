@@ -78,6 +78,23 @@ async def test_mqtt_telemetry_uses_aggregate_values_and_inverts_wire_sign(mqtt_m
 
 
 @pytest.mark.asyncio
+async def test_dc_battery_power_comes_from_voltage_times_current(mqtt_mock):
+    """#625: sys_bat_p is AC-side, so the DC plane is |V x I| with battery_power's sign."""
+    driver = HoymilesMqttDriver(
+        _hass(), "MSA-dc", max_charge_power_w=1800, max_discharge_power_w=1800
+    )
+    await driver.connect()
+    mqtt_mock.callbacks[driver._device_topic](SimpleNamespace(payload='{"bat_v":50.0,"bat_i":-10}'))
+    mqtt_mock.callbacks[driver._quick_topic](SimpleNamespace(payload='{"sys_soc":50,"sys_bat_p":440}'))
+    snap = await driver.read_telemetry(["battery_power", "battery_dc_power"])
+    assert snap == {"battery_power": -440, "battery_dc_power": -500.0}
+    mqtt_mock.callbacks[driver._quick_topic](SimpleNamespace(payload='{"sys_soc":50,"sys_bat_p":-300}'))
+    snap = await driver.read_telemetry(["battery_power", "battery_dc_power"])
+    assert snap == {"battery_power": 300, "battery_dc_power": 500.0}
+    await driver.close()
+
+
+@pytest.mark.asyncio
 async def test_polling_groups_deliver_detected_capacity(mqtt_mock):
     driver = HoymilesMqttDriver(
         _hass(), "MSA-capacity", max_charge_power_w=1800, max_discharge_power_w=1800

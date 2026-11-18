@@ -127,6 +127,10 @@ def measured_battery_efficiency(coordinator) -> float | None:
             return None
         value = charge_eff * discharge_eff
     else:
+        # Battery-side counters (Anker) give the cell efficiency, not the AC
+        # round trip the arbitrage needs.
+        if not getattr(capabilities, "lifetime_counters_ac", True):
+            return None
         data = getattr(coordinator, "data", None) or {}
         try:
             charge = float(data.get("total_charging_energy"))
