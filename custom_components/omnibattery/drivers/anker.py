@@ -56,9 +56,11 @@ _DEVICE_MODEL_REG_COUNT = 5
 _ADDR_DEVICE_SN = 10100
 _DEVICE_SN_REG_COUNT = 12
 
-# Family continuous envelope (Max AC). Live caps come from 10036/10038; this is
-# only an upper clamp so peak/aggregate readings cannot inflate PD limits.
-_HW_MAX_POWER_W = 3500
+# Hardware ceiling: two combined Max AC units report 7000 W in 10036/10038 (#646).
+# Live caps come from those registers; this is only an upper clamp. The EFFECTIVE
+# limit is min(register, user-configured max), and the configured value defaults
+# to 3500 W (anker_flow), so a lone unit's 7000 W peak reading never raises it.
+_HW_MAX_POWER_W = 7000
 # A setpoint at least this large counts as "latched" for the 0 W glitch filter.
 # Not a hardware floor: 10071 accepts any value from 0 W (#734).
 _GLITCH_LATCH_MIN_W = 100
@@ -621,9 +623,8 @@ class AnkerModbusDriver(BatteryDriver):
                     if product_code:
                         self._set_product_code(product_code)
                 if field["key"] == "max_charge_power" and isinstance(value, (int, float)):
-                    # Cap at the static family envelope so peak/aggregate readings
-                    # (e.g. 7000 W) do not inflate the PD clamp beyond continuous
-                    # rating; live 10036/10038 still set the effective device cap.
+                    # Cap at the hardware ceiling; the user-configured max (default
+                    # 3500 W) still bounds the effective limit upstream.
                     capped = max(0, min(_HW_MAX_POWER_W, int(value)))
                     snapshot[field["key"]] = capped or _HW_MAX_POWER_W
                     self._dynamic_max_charge_w = snapshot[field["key"]]
