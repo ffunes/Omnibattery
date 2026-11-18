@@ -33,6 +33,7 @@ from datetime import datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
+from ..infra.clock import local_now
 from ..const import CHARGE_EFFICIENCY, PREDICTIVE_MODE_DYNAMIC_PRICING
 from ..drivers.base import has_solar_production_source
 from ..energy import effective_round_trip_efficiency
@@ -133,7 +134,7 @@ class DischargeReserveManager:
 
     def _now(self) -> datetime:
         """Return local wall-clock time, isolated for deterministic tests."""
-        return datetime.now()
+        return local_now()
 
     @property
     def plan(self) -> ReservePlan | None:

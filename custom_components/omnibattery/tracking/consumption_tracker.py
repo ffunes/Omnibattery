@@ -30,6 +30,7 @@ from astral.sun import noon as astral_noon, sunrise as astral_sunrise, sunset as
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from ..infra.clock import local_now
 from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN, MISSING_DAY_FLEET_SHARE
 from ..infra.entity_naming import is_omnibattery_solar_entity
 from ..drivers.base import AC_PORT_FIRST, has_connected_mppt_pv, mppt_power_keys
@@ -1853,7 +1854,7 @@ class ConsumptionTracker:
         Returns solar noon as a float hour (e.g. 13.25 = 13:15).
         Cached per date to handle DST transitions.
         """
-        target_date = for_date or datetime.now().date()
+        target_date = for_date or local_now().date()
         if target_date in self._solar_noon_cache:
             return self._solar_noon_cache[target_date]
 
@@ -1883,7 +1884,7 @@ class ConsumptionTracker:
             if config.latitude is None:
                 return None
 
-            target_date = for_date or datetime.now().date()
+            target_date = for_date or local_now().date()
             observer = Observer(latitude=config.latitude, longitude=config.longitude)
             return self._local_hours(
                 astral_sunrise(observer, target_date, tzinfo=ZoneInfo(config.time_zone)),
@@ -1899,7 +1900,7 @@ class ConsumptionTracker:
             if config.latitude is None:
                 return None
 
-            target_date = for_date or datetime.now().date()
+            target_date = for_date or local_now().date()
             observer = Observer(latitude=config.latitude, longitude=config.longitude)
             return self._local_hours(
                 astral_sunset(observer, target_date, tzinfo=ZoneInfo(config.time_zone)),
@@ -1932,7 +1933,7 @@ class ConsumptionTracker:
         if ctrl._solar_t_start is not None:
             return  # Already detected today
 
-        now = datetime.now()
+        now = local_now()
         if now.hour < 7:
             return  # Too early, any export is likely from nocturnal grid charging
 
@@ -1980,7 +1981,7 @@ class ConsumptionTracker:
         t_end = 2 * solar_noon - ctrl._solar_t_start
 
         # Dynamic extension: if current time is past T_end but batteries still charging
-        now = datetime.now()
+        now = local_now()
         now_h = now.hour + now.minute / 60.0
         if now_h > t_end:
             any_charging = any(

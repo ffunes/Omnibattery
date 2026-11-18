@@ -43,6 +43,7 @@ def _frozen_clock(monkeypatch):
             return cls._value
 
     monkeypatch.setattr(engine_module, "datetime", _FixedDatetime)
+    monkeypatch.setattr(engine_module, "local_now", _FixedDatetime.now)
     return _FixedDatetime
 
 

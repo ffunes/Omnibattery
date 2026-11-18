@@ -10,6 +10,7 @@ import logging
 import math
 from datetime import datetime, timedelta
 
+from ..infra.clock import local_now
 from . import PriceSlot
 from ..const import (
     CHARGE_EFFICIENCY,
@@ -1052,7 +1053,7 @@ def effective_charge_ceilings(
     estimate needs are by definition above the static ceiling.
     """
     if now is None:
-        now = datetime.now()
+        now = local_now()
     future_slots = [s for s in slots if s.end > now]
 
     min_arbitrage_margin = max(0.0, float(min_arbitrage_margin or 0.0))
@@ -1103,7 +1104,7 @@ def select_cheapest_hours(
         Sorted (by start time) list of selected PriceSlot
     """
     if now is None:
-        now = datetime.now()
+        now = local_now()
 
     # Remove past slots
     future_slots = [s for s in slots if s.end > now]
@@ -1175,7 +1176,7 @@ def select_cheapest_slots_by_duration(
     granularity.  The threshold comparison is inclusive.
     """
     if now is None:
-        now = datetime.now()
+        now = local_now()
     if hours_needed <= 0:
         return []
 

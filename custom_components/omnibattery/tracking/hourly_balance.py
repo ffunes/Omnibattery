@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from ..infra.clock import local_now
 from ..const import (
     DOMAIN,
     HOURLY_BALANCE_STORAGE_KEY,
@@ -499,7 +500,7 @@ class HourlyBalanceManager:
         if not enabled_slots:
             return True
 
-        now = datetime.now()
+        now = local_now()
         current_time = now.time()
         current_day = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"][now.weekday()]
 

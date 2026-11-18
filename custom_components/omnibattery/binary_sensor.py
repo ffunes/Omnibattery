@@ -12,6 +12,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.restore_state import RestoreEntity
 
+from .infra.clock import local_now
 from .const import (
     DOMAIN,
     CONF_CAPACITY_PROTECTION_ENABLED,
@@ -433,7 +434,7 @@ class CurtailmentStatusSensor(BinarySensorEntity):
         }
         if plan is None:
             return self._plan_room_attrs(attrs)
-        now = datetime.now()
+        now = local_now()
         next_window = next(
             (slot.start.isoformat() for slot in plan.risk_slots if slot.end > now),
             None,
@@ -503,7 +504,7 @@ class CurtailmentStatusSensor(BinarySensorEntity):
         room = pricing._plan_room() if pricing is not None else None
         if room is None:
             return attrs
-        now = datetime.now()
+        now = local_now()
         risk = sorted(room.risk, key=lambda slot: slot.start)
         attrs.update({
             "decided_by": "plan",
@@ -859,7 +860,7 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
             try:
                 forecast = read_solar_forecast_kwh(self.hass, self.controller)
                 if forecast is not None:
-                    now = datetime.now()
+                    now = local_now()
                     remaining = self.controller._pricing_mgr._remaining_solar_today_kwh(now)
                     attrs["remaining_solar_kwh"] = round(max(0.0, float(remaining)), 2)
             except (AttributeError, TypeError, ValueError):

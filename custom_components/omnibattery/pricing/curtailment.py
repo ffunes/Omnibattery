@@ -13,6 +13,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Callable, Iterable, Mapping, Sequence
 
+from ..infra.clock import local_now
 from ..const import CHARGE_EFFICIENCY
 from . import PriceSlot
 
@@ -458,7 +459,7 @@ def plan_curtailment(
     now: datetime | None = None,
 ) -> CurtailmentPlan:
     """Build an anti-curtailment plan from normalized prices and live capacity."""
-    evaluated_at = now or datetime.now()
+    evaluated_at = now or local_now()
     plan = CurtailmentPlan(evaluation_time=evaluated_at)
 
     normalized_export_mode = normalize_export_mode(export_mode, max_export_power_w)

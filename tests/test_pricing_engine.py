@@ -21,6 +21,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from custom_components.omnibattery.infra.clock import local_now
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.button import ReevaluateDynamicPricingButton
 from custom_components.omnibattery.const import (
@@ -227,14 +228,14 @@ def test_in_slot_false_when_no_schedule():
 
 
 def test_in_slot_true_when_now_inside_a_slot():
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(start=now - timedelta(minutes=30), end=now + timedelta(minutes=30), price=0.1)
     ctrl = _controller(_dynamic_pricing_schedule=_schedule([slot]))
     assert _mgr(ctrl).is_in_dynamic_pricing_slot() is True
 
 
 def test_in_slot_false_when_slot_in_the_past():
-    now = datetime.now()
+    now = local_now()
     slot = PriceSlot(start=now - timedelta(hours=2), end=now - timedelta(hours=1), price=0.1)
     ctrl = _controller(_dynamic_pricing_schedule=_schedule([slot]))
     assert _mgr(ctrl).is_in_dynamic_pricing_slot() is False
@@ -245,7 +246,7 @@ def test_in_slot_false_when_slot_in_the_past():
 # ----------------------------------------------------------------------
 
 def test_evening_reeval_false_when_already_done_today():
-    ctrl = _controller(_dp_evening_reevaluated_date=datetime.now().date())
+    ctrl = _controller(_dp_evening_reevaluated_date=local_now().date())
     assert _mgr(ctrl)._is_evening_reevaluation_time() is False
 
 
@@ -390,7 +391,7 @@ def test_dynamic_pricing_builds_diagnostics_when_balance_needs_no_charge():
     async def no_op(*_args, **_kwargs):
         return None
 
-    start = datetime.now() + timedelta(hours=1)
+    start = local_now() + timedelta(hours=1)
     slots = [PriceSlot(start=start, end=start + timedelta(hours=1), price=0.1)]
     ctrl = _controller(
         config_entry=SimpleNamespace(data={}, options={}),
@@ -784,6 +785,7 @@ def test_excluded_demand_trigger_moves_reference_before_rebuilding(monkeypatch):
             return _CLAIM_NOW
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
     ctrl = _claim_ctrl(
         7.53, 0.0,
         _dp_excluded_demand_reeval_count=4,
@@ -1066,7 +1068,7 @@ def test_dynamic_pricing_rebuilds_once_on_a_dirty_configuration():
         calls.append(kwargs)
 
     ctrl = _controller(
-        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        _dynamic_pricing_evaluated_date=local_now().date(),
         _dp_config_dirty=True,
         predictive_charging_overridden=False,
         _current_price_slot_active=False,
@@ -1109,7 +1111,7 @@ def test_a_configuration_change_re_plans_once_the_settings_stand_still():
         calls.append(kwargs)
 
     ctrl = _controller(
-        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        _dynamic_pricing_evaluated_date=local_now().date(),
         _dp_config_dirty=True,
         _dp_config_dirty_at=monotonic(),
         predictive_charging_overridden=False,
@@ -1154,7 +1156,7 @@ async def _async_noop(*_args, **_kwargs):
 
 def _publication_ctrl(**overrides):
     base = dict(
-        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        _dynamic_pricing_evaluated_date=local_now().date(),
         _dp_price_publication_reeval_date=None,
         _current_price_slot_active=False,
         predictive_charging_overridden=False,
@@ -1189,7 +1191,7 @@ def test_price_publication_reeval_fires_once_per_day():
 
     asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
     assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
-    assert ctrl._dp_price_publication_reeval_date == datetime.now().date()
+    assert ctrl._dp_price_publication_reeval_date == local_now().date()
 
     # Same day, second cycle: the stored date disarms it even though tomorrow's
     # prices are still visible.
@@ -1225,9 +1227,9 @@ def test_first_cycle_after_midnight_resets_the_day_and_does_not_re_plan():
 
     async def _evaluate(**kwargs):
         calls.append(kwargs)
-        ctrl._dynamic_pricing_evaluated_date = datetime.now().date()
+        ctrl._dynamic_pricing_evaluated_date = local_now().date()
 
-    yesterday = datetime.now().date() - timedelta(days=1)
+    yesterday = local_now().date() - timedelta(days=1)
     ctrl = _publication_ctrl(
         _dynamic_pricing_evaluated_date=yesterday,
         _dp_price_publication_reeval_date=yesterday,
@@ -1271,7 +1273,7 @@ def test_price_publication_reeval_disarmed_when_the_daily_eval_already_saw_tomor
             "avg_consumption_kwh": 0.0,
         }
 
-    start = datetime.now() + timedelta(hours=1)
+    start = local_now() + timedelta(hours=1)
     slots = [PriceSlot(start=start, end=start + timedelta(hours=1), price=0.1)]
     ctrl = _controller(
         config_entry=SimpleNamespace(data={}, options={}),
@@ -1301,11 +1303,11 @@ def test_price_publication_reeval_disarmed_when_the_daily_eval_already_saw_tomor
         )
     )
 
-    today = datetime.now().date()
+    today = local_now().date()
     assert ctrl._dp_price_publication_reeval_date == today
     # So the trigger stays silent for the rest of the day even though tomorrow
     # is still visible.
-    assert manager._is_price_publication_reeval(datetime.now()) is False
+    assert manager._is_price_publication_reeval(local_now()) is False
 
 
 def test_price_publication_reeval_never_runs_outside_dynamic_pricing_mode():
@@ -1476,7 +1478,7 @@ def _reevaluation_trigger_calls(*, evening, soc_drop):
         calls.append(kwargs)
 
     ctrl = _controller(
-        _dynamic_pricing_evaluated_date=datetime.now().date(),
+        _dynamic_pricing_evaluated_date=local_now().date(),
         predictive_charging_overridden=False,
         _current_price_slot_active=False,
         grid_charging_active=False,
@@ -1505,7 +1507,7 @@ def test_evening_reevaluation_rebuilds_the_remaining_horizon_once():
     # It runs once even when the SOC-drop trigger is also due.
     ctrl, calls = _reevaluation_trigger_calls(evening=True, soc_drop=True)
     assert calls == [{"horizon": DynamicPricingEvaluationHorizon.REMAINING}]
-    assert ctrl._dp_evening_reevaluated_date == datetime.now().date()
+    assert ctrl._dp_evening_reevaluated_date == local_now().date()
 
 
 # ----------------------------------------------------------------------
@@ -1611,6 +1613,7 @@ def test_pre_slot_reevaluation_uses_remaining_consumption_and_solar(monkeypatch)
             return now
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
 
     async def get_average_consumption():
         return 20.0
@@ -1671,6 +1674,7 @@ def test_midday_calendar_rebuild_uses_remaining_consumption_and_solar(monkeypatc
             return now
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
 
     async def get_average_consumption():
         return 5.8
@@ -1940,6 +1944,7 @@ def test_startup_rebuild_uses_remaining_horizon(monkeypatch):
         return None
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
     monkeypatch.setattr(pricing_engine.asyncio, "sleep", no_sleep)
     calls = []
 
@@ -1976,6 +1981,7 @@ def test_price_retry_uses_remaining_horizon(monkeypatch):
         return None
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
     calls = []
 
     async def evaluate(**kwargs):
@@ -2623,7 +2629,7 @@ def test_dynamic_pricing_sizes_slots_from_planned_charge_not_full_deficit():
     async def no_op(*_args, **_kwargs):
         return None
 
-    start = datetime.now() + timedelta(hours=1)
+    start = local_now() + timedelta(hours=1)
     slots = [
         PriceSlot(
             start=start + timedelta(minutes=15 * i),
@@ -2819,7 +2825,7 @@ def test_official_nordpool_refresh_requests_today_and_selected_area(monkeypatch)
     import asyncio
     from homeassistant.util import dt as dt_util
 
-    now = datetime.now()
+    now = local_now()
     services = _FakeNordPoolServices(
         {
             "ES": [
@@ -2919,7 +2925,7 @@ def test_official_nordpool_refresh_includes_tomorrow_once_published(monkeypatch)
     """An evening plan must see the cheaper post-midnight hours."""
     import asyncio
 
-    midnight = datetime.now().replace(
+    midnight = local_now().replace(
         hour=0, minute=0, second=0, microsecond=0
     ) + timedelta(days=1)
     services = _FakeNordPoolTwoDayServices(
@@ -2952,7 +2958,7 @@ def test_official_nordpool_refresh_includes_tomorrow_once_published(monkeypatch)
 def test_official_nordpool_refresh_keeps_today_when_tomorrow_unpublished(monkeypatch):
     import asyncio
 
-    start = datetime.now().replace(minute=0, second=0, microsecond=0)
+    start = local_now().replace(minute=0, second=0, microsecond=0)
     services = _FakeNordPoolTwoDayServices(
         {"NL": [_nordpool_entry(start, 150.0)]},
         None,
@@ -2987,8 +2993,8 @@ def test_hacs_nordpool_raw_today_does_not_call_official_service():
         attributes={
             "raw_today": [
                 {
-                    "start": datetime.now(),
-                    "end": datetime.now() + timedelta(hours=1),
+                    "start": local_now(),
+                    "end": local_now() + timedelta(hours=1),
                     "value": 0.10,
                 }
             ]
@@ -3047,7 +3053,7 @@ def test_smart_predischarge_cleanup_removes_override_and_blockers():
 
 
 def test_smart_predischarge_runtime_starts_stops_and_protects_negative_window():
-    now = datetime.now()
+    now = local_now()
     active_pre_slot = PreDischargeSlot(
         now - timedelta(minutes=1), now + timedelta(minutes=10), 0.40
     )
@@ -3126,7 +3132,7 @@ def test_smart_predischarge_runtime_starts_stops_and_protects_negative_window():
 
 
 def test_curtailment_auto_replans_after_headroom_changes():
-    now = datetime.now()
+    now = local_now()
     risk = PriceSlot(now + timedelta(hours=2), now + timedelta(hours=3), -0.10)
     candidate = PriceSlot(now + timedelta(minutes=30), now + timedelta(hours=1, minutes=30), 0.30)
     coordinator = SimpleNamespace(data={"battery_soc": 70.0}, is_available=True, name="b1")
@@ -3165,7 +3171,7 @@ def test_curtailment_auto_replans_after_headroom_changes():
 
 
 def test_curtailment_runtime_releases_space_for_underproduction_and_stops_on_excess():
-    now = datetime.now()
+    now = local_now()
     risk = PriceSlot(now + timedelta(minutes=5), now + timedelta(hours=1), -0.10)
     plan = CurtailmentPlan(
         status="protected",
@@ -3203,7 +3209,7 @@ def test_curtailment_runtime_releases_space_for_underproduction_and_stops_on_exc
 
 
 def test_curtailment_daily_solar_accumulator_releases_space_progressively():
-    now = datetime.now()
+    now = local_now()
     risk = PriceSlot(now + timedelta(minutes=5), now + timedelta(hours=1), -0.10)
     plan = CurtailmentPlan(
         status="protected",
@@ -3228,7 +3234,7 @@ def test_curtailment_daily_solar_accumulator_releases_space_progressively():
 
 
 def test_remaining_forecast_is_not_scaled_against_daily_solar_accumulator():
-    now = datetime.now()
+    now = local_now()
     risk = PriceSlot(now + timedelta(minutes=5), now + timedelta(hours=1), -0.10)
     plan = CurtailmentPlan(
         status="protected",
@@ -3253,7 +3259,7 @@ def test_remaining_forecast_is_not_scaled_against_daily_solar_accumulator():
 def test_smart_predischarge_runtime_exports_only_when_the_slot_allows_it(
     export_allowed, exports
 ):
-    now = datetime.now()
+    now = local_now()
     active_pre_slot = PreDischargeSlot(
         now - timedelta(minutes=1), now + timedelta(minutes=10), 0.40,
         export_allowed=export_allowed,
@@ -3722,6 +3728,7 @@ def test_price_horizon_uses_control_end_and_twelve_hour_extension(monkeypatch):
             return now
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
     control_end = datetime(2026, 9, 20, 2, 0)
     captured = []
 
@@ -3827,6 +3834,7 @@ def test_midnight_reset_retains_post_midnight_slots(monkeypatch):
             return now
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
     expired = PriceSlot(now - timedelta(hours=2), now - timedelta(hours=1), 0.20)
     retained = PriceSlot(now + timedelta(minutes=20), now + timedelta(hours=1), 0.10)
     schedule = pricing_engine.DynamicPricingSchedule(

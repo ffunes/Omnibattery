@@ -438,7 +438,9 @@ def _pin_clock(monkeypatch, manager: PricingManager, scenario: Scenario) -> None
 
     manager._now = lambda: scenario.now
     monkeypatch.setattr(pricing_engine, "datetime", _Clock, raising=False)
+    monkeypatch.setattr(pricing_engine, "local_now", _Clock.now, raising=False)
     monkeypatch.setattr(calculations, "datetime", _Clock, raising=False)
+    monkeypatch.setattr(calculations, "local_now", _Clock.now, raising=False)
 
 
 def _controller(scenario: Scenario) -> SimpleNamespace:

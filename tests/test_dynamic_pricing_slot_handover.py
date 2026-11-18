@@ -59,7 +59,9 @@ def clock(monkeypatch):
             return cls.value
 
     monkeypatch.setattr(engine_module, "datetime", _Clock)
+    monkeypatch.setattr(engine_module, "local_now", _Clock.now)
     monkeypatch.setattr(omnibattery_module, "datetime", _Clock)
+    monkeypatch.setattr(omnibattery_module, "local_now", _Clock.now)
     return _Clock
 
 

@@ -19,7 +19,9 @@ from zoneinfo import ZoneInfo
 
 from homeassistant.helpers import entity_registry as er
 from homeassistant.loader import async_get_integration
+from homeassistant.util import dt as dt_util
 
+from .infra.clock import local_now
 from .const import (
     CONF_SOLAR_FORECAST_REMAINING_SENSOR,
     CONF_SOLAR_FORECAST_SENSOR,
@@ -510,7 +512,7 @@ def _controller_local_date(controller: Any) -> date:
                     return value
             except Exception:  # noqa: BLE001
                 pass
-    return datetime.now().date()
+    return local_now().date()
 
 
 def solar_forecast_local_timezone(
@@ -541,7 +543,7 @@ def solar_forecast_local_timezone(
             pass
     if isinstance(now, datetime) and now.tzinfo is not None:
         return now.tzinfo
-    return datetime.now().astimezone().tzinfo
+    return dt_util.get_default_time_zone()
 
 
 # Sorted start index per forecast tuple, for the per-interval sums below. A
@@ -583,7 +585,7 @@ def solar_forecast_period_energy_between(
     local wall-clock values and therefore require the caller's local timezone.
     """
     if timezone is None:
-        timezone = start.tzinfo or end.tzinfo or datetime.now().astimezone().tzinfo
+        timezone = start.tzinfo or end.tzinfo or dt_util.get_default_time_zone()
     if start.tzinfo is None:
         start = start.replace(tzinfo=timezone)
     if end.tzinfo is None:
@@ -677,7 +679,8 @@ def _current_hour(controller: Any, now: datetime | float | None) -> float:
             return value
     except (AttributeError, TypeError, ValueError):
         pass
-    return datetime.now().hour + datetime.now().minute / 60.0
+    current = local_now()
+    return current.hour + current.minute / 60.0
 
 
 def read_remaining_solar_kwh(

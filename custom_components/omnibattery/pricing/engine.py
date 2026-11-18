@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from homeassistant.helpers import issue_registry as ir
 
+from ..infra.clock import local_now
 from ..const import (
     DOMAIN,
     PRICE_DATA_ISSUE_DELAY_S,
@@ -324,7 +325,7 @@ class PricingManager:
 
     def _now(self) -> datetime:
         """Return local wall-clock time, isolated for deterministic slot tests."""
-        return datetime.now()
+        return local_now()
 
     def energy_horizon_end(self, now: datetime) -> datetime:
         """Return the next local day's sunrise, bounded to its first 12 hours."""

@@ -39,7 +39,9 @@ def _evening_evaluation(monkeypatch, now, slots, build_plan, *, claim=None, **ct
             return now
 
     monkeypatch.setattr(pricing_engine, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine, "local_now", FixedDateTime.now)
     monkeypatch.setattr(pricing_engine.calculations, "datetime", FixedDateTime)
+    monkeypatch.setattr(pricing_engine.calculations, "local_now", FixedDateTime.now)
     ctrl = _ctrl([_Coord(20.0, 10.0)], weekly=False, solar="0.0")
     ctrl.__dict__.update(
         _dynamic_pricing_evaluated_date=None,

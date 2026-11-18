@@ -34,6 +34,7 @@ async def test_disabled_charge_delay_does_not_limit_solar_window_to_next_hour(
             return now.astimezone(tz)
 
     monkeypatch.setattr(tracker_module, "datetime", FrozenDateTime)
+    monkeypatch.setattr(tracker_module, "local_now", FrozenDateTime.now)
 
     controller = SimpleNamespace(
         charge_delay_enabled=True,
@@ -84,6 +85,7 @@ def test_charge_delay_disabled_across_midnight_does_not_limit_solar_window(
             return now.astimezone(tz)
 
     monkeypatch.setattr(tracker_module, "datetime", FrozenDateTime)
+    monkeypatch.setattr(tracker_module, "local_now", FrozenDateTime.now)
 
     controller = SimpleNamespace(
         charge_delay_enabled=False,
