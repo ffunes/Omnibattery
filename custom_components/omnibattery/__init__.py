@@ -2377,10 +2377,15 @@ class ChargeDischargeController:
                 ),
             )
         )
-        return ChargeDischargeController._daily_operation_plan_overlay(self, dto, now)
+        return ChargeDischargeController._daily_operation_plan_overlay(
+            self, dto, now, battery_inputs
+        )
 
     def _daily_operation_plan_overlay(
-        self, dto: dict[str, Any] | None, now: datetime
+        self,
+        dto: dict[str, Any] | None,
+        now: datetime,
+        battery_inputs: Sequence[Any] = (),
     ) -> dict[str, Any] | None:
         """With the optimizer planning, the panel draws the published plan.
 
@@ -2392,6 +2397,14 @@ class ChargeDischargeController:
 
         rows = getattr(self, "_dp_eval_rows", None)
         start_kwh, capacity = getattr(self, "_dp_eval_anchor", None) or (0.0, 0.0)
+        floor_kwh, top_kwh = getattr(self, "_dp_eval_bounds", None) or (0.0, capacity)
+        # The line starts at the live stored energy: the projection's battery
+        # snapshot, on the anchor's convention (every battery, every capacity).
+        # A fleet that changed since the evaluation keeps the plan's anchor.
+        if battery_inputs and abs(
+            sum(b.capacity_kwh for b in battery_inputs) - capacity
+        ) < 1e-6:
+            start_kwh = sum(b.stored_kwh for b in battery_inputs)
         if (
             not dto
             or not dto.get("intervals")
@@ -2420,6 +2433,8 @@ class ChargeDischargeController:
                 capacity_kwh=capacity,
                 efficiency=float(getattr(self, "_dp_eval_efficiency", None) or 1.0),
                 now=aligned(now),
+                floor_kwh=floor_kwh,
+                top_kwh=top_kwh,
             )
         except Exception as exc:  # noqa: BLE001 - dashboard projection is optional
             _LOGGER.debug("Daily operation plan overlay failed: %s", exc)

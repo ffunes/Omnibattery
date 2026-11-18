@@ -6431,25 +6431,39 @@ class PricingManager:
             (end, energy - usable) for end, energy in trajectory
         )
         controller._dp_eval_projection_capacity_kwh = self._fleet_capacity_kwh()
-        # The panel draws the optimizer's own quarters (step 11).
+        from ..tracking.daily_projection import margin_sun_kwh
+
+        # The panel draws the optimizer's own quarters (step 11), with the sun
+        # the safety margin took off (the panel's sun) added back.
         ends = dict(controller._dp_eval_projection)
         house = getattr(plan, "house_forecast", None) or {}
-        controller._dp_eval_rows = (
-            tuple(
-                (
+        shown = {s.start: s for s in getattr(plan, "shown_intervals", None) or ()}
+        eff = getattr(plan, "charge_efficiency", None) or 1.0
+        rows = []
+        previous = 0.0
+        if getattr(plan, "trajectory", None):
+            for i in plan.intervals:
+                if i.end not in ends:
+                    continue
+                delta = ends[i.end]
+                seen = shown.get(i.start)
+                rows.append((
                     i.start,
                     i.end,
                     *house.get(i.start, (i.solar_kwh, i.grid_load_kwh)),
-                    ends[i.end],
-                )
-                for i in plan.intervals
-                if i.end in ends
-            )
-            if getattr(plan, "trajectory", None)
-            else None
-        )
+                    delta,
+                    0.0 if seen is None else margin_sun_kwh(i, seen, delta - previous, eff),
+                ))
+                previous = delta
+        controller._dp_eval_rows = tuple(rows) or None
         controller._dp_eval_efficiency = getattr(plan, "charge_efficiency", None)
-        controller._dp_eval_anchor = getattr(plan, "panel_anchor", None)
+        anchor = getattr(plan, "panel_anchor", None)
+        controller._dp_eval_anchor = anchor
+        # Stored kWh at the plan's floor and top, on the anchor's convention.
+        controller._dp_eval_bounds = (
+            None if anchor is None
+            else (anchor[0] - usable, anchor[0] - usable + capacity)
+        )
 
     def projected_soc_now(self, at: datetime | None = None) -> float | None:
         """Fleet SOC the published plan projects for now (or ``at``): the SOC at

@@ -504,40 +504,90 @@ def build_daily_operation_projection(
     }
 
 
+def margin_sun_kwh(planned: Any, shown: Any, change: float, efficiency: float) -> float:
+    """Stored kWh a quarter gains from the sun the safety margin took off.
+
+    ``planned`` and ``shown`` are the battery's view of the quarter
+    (``consumption_kwh`` drain, ``solar_kwh``) with and without the margin;
+    ``change`` is the plan's stored change there. The extra sun first spares
+    what the battery gave the house, then its new surplus charges it.
+    """
+    eff = max(efficiency, 1e-9)
+    net_plan = planned.consumption_kwh - planned.solar_kwh
+    net_shown = shown.consumption_kwh - shown.solar_kwh
+    out = max(0.0, -change) * eff
+    # Only the house's share of the drop: a sale's export stays.
+    spared = min(out, max(0.0, net_plan)) - min(out, max(0.0, net_shown))
+    surplus = max(0.0, max(0.0, -net_shown) - max(0.0, -net_plan))
+    return spared / eff + surplus * eff
+
+
 def overlay_plan_rows(
     dto: dict[str, Any],
-    rows: Sequence[tuple[datetime, datetime, float, float, float]],
+    rows: Sequence[tuple[datetime, datetime, float, float, float, float]],
     *,
     start_kwh: float,
     capacity_kwh: float,
     efficiency: float,
     now: datetime,
+    floor_kwh: float = 0.0,
+    top_kwh: float | None = None,
 ) -> dict[str, Any]:
     """Draw the published optimizer plan's own quarters over the projection.
 
-    ``rows`` are the plan's ``(start, end, solar, house, delta_kwh)`` with the
-    stored-energy change since the evaluation at each quarter's end; the SOC
-    is the plan's, not shifted to the live reading. Context masks stay the
+    ``rows`` are the plan's ``(start, end, solar, house, delta_kwh, sun_kwh)``
+    with the stored-energy change since the evaluation at each quarter's end
+    and the stored kWh the margin's sun adds there (``margin_sun_kwh``). The
+    line starts at the live ``start_kwh`` and replays each quarter's change
+    plus that sun, kept within ``floor_kwh``..``top_kwh``: a plan evaluated
+    hours ago, or with the margin eating the day's sun, would otherwise draw a
+    cliff at now and a flat line under the drawn sun. Context masks stay the
     projection's; quarters past the plan's last point are dropped (the plan
     does not know them).
     """
+    # ponytail: the replay keeps the plan's own changes; a grid charge to a
+    # target overshoots it when the line runs above the plan, until the next
+    # evaluation re-plans. No charge-rate limit on the margin's sun.
+    top = capacity_kwh if top_kwh is None else top_kwh
+    replay: dict[datetime, tuple[float, float]] = {}
+    level = start_kwh
+    previous = 0.0
+    for row in sorted(rows, key=lambda r: r[1]):
+        start, end, _solar, _house, delta, sun = row
+        change = delta - previous + sun
+        previous = delta
+        if end <= now:
+            continue
+        length = (end - start).total_seconds()
+        left = (end - max(start, now)).total_seconds()
+        step = change * (max(0.0, min(1.0, left / length)) if length > 0.0 else 0.0)
+        # Only the moving direction is clamped: a live level past a bound
+        # stays where it is instead of jumping to it.
+        after = (
+            max(level, min(top, level + step))
+            if step >= 0.0
+            else min(level, max(floor_kwh, level + step))
+        )
+        replay[end] = (level, after)
+        level = after
     # ponytail: flows are net per quarter, from the energy change: a rise is
     # bought from the solar surplus first and the grid for the rest, a fall
     # covers the house first. A sale's or a delay export's energy has no field,
     # so the SOC falls (or stays) without a drawn flow.
     by_end = {row[1]: row for row in rows}
-    prev = {row[1]: (rows[i - 1][4] if i else 0.0) for i, row in enumerate(rows)}
     eff = max(efficiency, 1e-9)
 
     def redraw(item: dict[str, Any]) -> bool:
         row = by_end.get(item.get("end"))
-        if row is None:
+        if row is None or row[1] not in replay:
             return False
-        start, end, solar, house, delta = row
+        start, end, solar, house, _delta, _sun = row
         length = (end - start).total_seconds()
         left = (end - max(start, now)).total_seconds()
         ratio = max(0.0, min(1.0, left / length)) if length > 0.0 else 0.0
-        change = delta - prev[end]
+        before, after = replay[end]
+        # The quarter's whole change, of which the rest (``ratio``) is left.
+        change = (after - before) / ratio if ratio > 0.0 else 0.0
         inn = max(0.0, change) / eff
         out = max(0.0, -change) * eff
         solar_home = min(solar, house)
@@ -562,7 +612,7 @@ def overlay_plan_rows(
         hours = left / 3600.0
         item["charge_power_w"] = inn * ratio / hours * 1000.0 if hours > 0.0 else 0.0
         item["discharge_power_w"] = battery_home * ratio / hours * 1000.0 if hours > 0.0 else 0.0
-        item["stored_energy_end_kwh"] = start_kwh + delta
+        item["stored_energy_end_kwh"] = after
         item["soc_end_pct"] = item["stored_energy_end_kwh"] / capacity_kwh * 100.0
         item["action_mask"] = compose_action_mask(
             solar_charge=solar_battery > 1e-6,

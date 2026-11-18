@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- **Daily Operation: the forecast SOC starts at the live SOC and rises with the drawn sun**: in Dynamic Pricing the line came from the last plan's own levels, so hours after an evaluation it jumped from the live SOC to a far lower one, and with the solar safety margin eating the day's sun it stayed flat under a sunny forecast. It now replays the plan from the live level and adds back the sun the margin took off.
 - **Real-Time Price: a load above the battery's discharge power no longer zeroes the planned charge** (PR#845): the load the grid carries came off the room-capped charge instead of the deficit, so a long horizon booked 0 kWh while the battery still ran empty. Thanks to @pocketware.
 - **A battery tapering on cell voltage below 99 % is no longer marked non-responsive** (PR#871): the top-of-charge grace now also opens with the top cell in the taper zone, the same gate as the BMS-cutoff detector (a Zendure 2400 AC+ fell to 190 W at 97 % and was excluded twice). Thanks to @anorakophobia.
 - **A Repair raised before a restart is cleared once the fault is gone** (PR#851): a non-delivering battery, a degraded phase sensor or a missing configured sensor came back after a restart and was never deleted. Thanks to @sphings79.

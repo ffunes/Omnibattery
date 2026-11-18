@@ -2350,7 +2350,7 @@ def test_plan_rows_for_the_panel_carry_the_house_not_the_battery_drain():
     )
 
     assert (held.solar_kwh, held.consumption_kwh) == (0.0, 0.0)
-    assert controller._dp_eval_rows == ((start, end, 0.05, 0.2, 0.0),)
+    assert controller._dp_eval_rows == ((start, end, 0.05, 0.2, 0.0, 0.0),)
 
 
 def test_panel_sun_is_drawn_without_the_safety_margin():
