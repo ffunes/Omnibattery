@@ -3,7 +3,13 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from custom_components.omnibattery.drivers.anker_flow import _validate_anker_connection
+from custom_components.omnibattery.drivers.anker_flow import (
+    ANKER_SETUP,
+    _anker_power_ceilings,
+    _validate_anker_connection,
+)
+from custom_components.omnibattery.drivers.setup import FlowKind, SetupContext
+from custom_components.omnibattery.infra.coordinator import MarstekVenusDataUpdateCoordinator
 from custom_components.omnibattery.const import DOMAIN
 from custom_components.omnibattery.drivers.anker import AnkerModbusDriver
 
@@ -123,3 +129,46 @@ async def test_matching_marstek_coordinator_is_not_reused_for_anker(monkeypatch)
 
     assert result == (True, {})
     probe.assert_awaited_once_with("192.0.2.10", 502, 1)
+
+
+def test_flow_ceiling_accepts_7000_and_rejects_above():
+    """Combined units read 7000 W (#646); nothing above is offered."""
+    assert _anker_power_ceilings(
+        {"device_max_charge_power": 7000, "device_max_discharge_power": 7000}
+    ) == (7000, 7000)
+    assert _anker_power_ceilings(
+        {"device_max_charge_power": 9000, "device_max_discharge_power": 9000}
+    ) == (7000, 7000)
+    assert _anker_power_ceilings({}) == (7000, 7000)
+
+
+def _stored_limits(kind, battery_data):
+    ctx = SetupContext(kind=kind, battery=None, entry=None, coordinator=None)
+    merged = dict(battery_data)
+    ANKER_SETUP.finalize_limits(merged, {}, battery_data, ctx)
+    return merged["max_charge_power"], merged["max_discharge_power"]
+
+
+def test_default_stored_max_stays_3500_when_registers_read_7000():
+    """A lone unit's 7000 W peak reading must not raise the configured limit."""
+    data = {"device_max_charge_power": 7000, "device_max_discharge_power": 7000}
+    assert _stored_limits(FlowKind.CONFIG, data) == (3500, 3500)
+    assert _stored_limits(FlowKind.OPTIONS, data) == (3500, 3500)
+    low = {"device_max_charge_power": 2800, "device_max_discharge_power": 3000}
+    assert _stored_limits(FlowKind.CONFIG, low) == (2800, 3000)
+
+
+def _effective(device_w, configured_w):
+    coordinator = object.__new__(MarstekVenusDataUpdateCoordinator)
+    coordinator._device_max_charge_power = device_w
+    coordinator._device_max_discharge_power = device_w
+    coordinator._configured_max_charge_power = configured_w
+    coordinator._configured_max_discharge_power = configured_w
+    coordinator._recompute_effective_power_limits()
+    return coordinator.effective_max_charge_power, coordinator.effective_max_discharge_power
+
+
+def test_effective_limit_is_min_of_register_and_configured():
+    assert _effective(7000, 3500) == (3500, 3500)  # single unit, 7000 W peak, default
+    assert _effective(7000, 7000) == (7000, 7000)  # combined units, user raised it
+

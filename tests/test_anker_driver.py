@@ -51,8 +51,8 @@ def test_capabilities():
     assert caps.has_solar_telemetry is False
     assert caps.has_energy_counters is True
     assert caps.has_daily_energy_counters is False
-    assert caps.max_charge_power_w == 3500
-    assert caps.max_discharge_power_w == 3500
+    assert caps.max_charge_power_w == 7000
+    assert caps.max_discharge_power_w == 7000
     assert caps.min_charge_power_w == 0
     assert caps.min_discharge_power_w == 0
     assert caps.setpoint_confirm_reliable is False
@@ -404,11 +404,29 @@ async def test_all_battery_status_values_map_to_shared_inverter_state(
 
 
 @pytest.mark.asyncio
-async def test_read_telemetry_caps_peak_charge_power_at_hw_max():
-    """Register 10036 can report peak/aggregate values (e.g. 7000 W); clamp to 3500."""
+async def test_read_telemetry_reports_combined_units_7000_w():
+    """Two combined units report 7000/7000 W in 10036/10038 (#646)."""
     client = _fake_client()
     buf = [0] * 51
     buf[36], buf[37] = encode_int32(7000)
+    buf[38], buf[39] = encode_int32(7000)
+    client.async_read_input_block = AsyncMock(return_value=buf)
+    client.async_read_holding_block = AsyncMock(return_value=None)
+
+    drv = _driver(client=client)
+    snap = await drv.read_telemetry(["max_charge_power", "max_discharge_power"])
+
+    assert snap["max_charge_power"] == 7000
+    assert snap["max_discharge_power"] == 7000
+    assert drv._clamp_net_power(7000) == 7000
+    assert drv._clamp_net_power(-7000) == -7000
+
+
+@pytest.mark.asyncio
+async def test_read_telemetry_caps_readings_above_hw_max():
+    client = _fake_client()
+    buf = [0] * 51
+    buf[36], buf[37] = encode_int32(9000)
     buf[38], buf[39] = encode_int32(3000)
     client.async_read_input_block = AsyncMock(return_value=buf)
     client.async_read_holding_block = AsyncMock(return_value=None)
@@ -416,7 +434,7 @@ async def test_read_telemetry_caps_peak_charge_power_at_hw_max():
     drv = _driver(client=client)
     snap = await drv.read_telemetry(["max_charge_power", "max_discharge_power"])
 
-    assert snap["max_charge_power"] == 3500
+    assert snap["max_charge_power"] == 7000
     assert snap["max_discharge_power"] == 3000
 
 
@@ -508,12 +526,12 @@ async def test_apply_setpoint_passes_sub_100w_target():
 
 
 @pytest.mark.asyncio
-async def test_apply_setpoint_clamps_to_3500():
+async def test_apply_setpoint_clamps_to_hw_max():
     client = _fake_client()
     drv = _driver(client=client)
-    result = await drv.apply_setpoint(5000)
-    assert result.net_power_w == 3500
-    client.async_write_registers_int32.assert_awaited_with(10071, -3500)
+    result = await drv.apply_setpoint(9000)
+    assert result.net_power_w == 7000
+    client.async_write_registers_int32.assert_awaited_with(10071, -7000)
 
 
 @pytest.mark.asyncio

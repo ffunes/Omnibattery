@@ -203,7 +203,7 @@ EXPECTED = {
             "needs_software_power_cap": False, "needs_software_max_charge": True,
             "needs_software_max_discharge": True, "needs_software_manual_control": True,
             # The driver ignores the user limits and declares the hardware maximum.
-            "device_max_charge_power": 3500, "device_max_discharge_power": 3500,
+            "device_max_charge_power": 7000, "device_max_discharge_power": 7000,
             "configured_max_charge_power": 2000, "configured_max_discharge_power": 2000,
         },
         {"manufacturer": "Anker", "model": "Solarbank Max AC"},

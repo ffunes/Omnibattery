@@ -34,7 +34,11 @@ _LOGGER = logging.getLogger(__name__)
 STEP_CONNECTION = "battery_connection_anker"
 STEP_RECONFIGURE = "reconfigure_battery_anker"
 
-_ANKER_MAX_POWER_W = 3500
+# Hardware ceiling (two combined units read 7000 W, #646) and the default the
+# stored max charge/discharge starts at: a 7000 W reading from one unit must not
+# raise it. The user raises it with the Max charge/discharge power number.
+_ANKER_MAX_POWER_W = 7000
+_ANKER_DEFAULT_POWER_W = 3500
 
 
 def _anker_apply_probe_caps(battery_data: dict, caps: dict) -> None:
@@ -274,8 +278,8 @@ class _AnkerSetup(DriverSetup):
         # options flow reads them from the stored battery laid over the new one.
         source = merged if ctx.kind is FlowKind.OPTIONS else battery_data
         charge_w, discharge_w = _anker_power_ceilings(source)
-        merged["max_charge_power"] = charge_w
-        merged["max_discharge_power"] = discharge_w
+        merged["max_charge_power"] = min(charge_w, _ANKER_DEFAULT_POWER_W)
+        merged["max_discharge_power"] = min(discharge_w, _ANKER_DEFAULT_POWER_W)
         merged[CONF_DC_PV_CONNECTED] = saved_dc_pv_connected(AnkerModbusDriver, merged, user_input)
         merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = False
 

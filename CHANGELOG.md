@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- **Anker: two combined units can use up to 7000 W** (#646): the driver capped every Anker at 3500 W; you can now raise Max charge/discharge power up to 7000 W. The default stays 3500 W, and a 7000 W reading from a single unit no longer raises it.
 - **Hoymiles efficiency measures the battery's DC side from voltage x current** (#625): it no longer reads about 100 %.
 - **Anker's battery-side counters no longer feed the arbitrage efficiency** (#706): the default 0.85 or your own value is used.
 - **Efficiency shows unknown instead of 100 %** (#613) when the lifetime counters don't add up.
