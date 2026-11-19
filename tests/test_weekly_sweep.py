@@ -418,8 +418,6 @@ def simulate(case, factor, *, old=False, weekly=True):
         # up to the first re-plan) and, once the weekly charge is over,
         # between the arms.
         key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily, charging)
-        if os.environ.get("OMNI_WEEKLY_TRACE"):
-            print(f"re-plan {at:%d %H:%M} pending={pending} charging={charging} old={old}")
         if key not in _EVALS:
             sc = scenario(case, at=at, socs=now_socs, pending=pending)
             _EVALS[key] = run(sc, old=old, daily=daily, charging=charging)
