@@ -160,6 +160,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
     | `manual_batteries` | Baterías bajo control manual |
     | `non_responsive_batteries` | Baterías excluidas tras fallos de comunicación o entrega |
     | `balance_hold_batteries` | Baterías retenidas por protección de balance de celdas |
+    | `backup_cooldown_batteries` | Inversores Huawei retenidos durante y después de un corte de red |
     | `ev_chargers_active`, `ev_pause_until` | Exclusiones y pausas de cargadores activos |
     | `hourly_balance_status`, `hourly_balance_offset_w`, `hourly_balance_net_kwh` | Estado del controlador de balance neto |
     | `temperature_charge_limit` | Decisión actual de límite térmico |

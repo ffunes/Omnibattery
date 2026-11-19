@@ -1392,6 +1392,11 @@ class HuaweiSolarDriver(BatteryDriver):
             return None
         return max(0, ceiling - non_battery_ac)
 
+    def on_backup_power(self, data: dict) -> bool:
+        # A hybrid inverter reports going off-grid; it must not take commands
+        # through a power cut.
+        return data.get("backup_function") == "Off-grid"
+
     @property
     def manual_control_by_registers(self) -> bool:
         # The capability is True (the hybrid inverter has a forcible-charge

@@ -14,6 +14,7 @@ La batería puede estar en reposo intencionadamente cuando la red ya está cerca
 | El control automático está pausado | **Manual Mode** y **Manual Battery Control** por batería | Desactiva el control manual cuando quieras control automático |
 | La batería no es apta | **Allow Charge**, **Allow Discharge** y `battery_charge_blockers` / `battery_discharge_blockers` en **Integration Status** | Activa el sentido requerido o elimina el bloqueador indicado |
 | La batería no está disponible o está excluida | Entidades de batería, **Non-Responsive Batteries** y **Repairs** de Home Assistant | Sigue [Las entidades no están disponibles](#las-entidades-no-estan-disponibles) |
+| Un inversor Huawei está en off-grid | **Backup Function** y `backup_cooldown_batteries` | Espera a que vuelva la red; el control se reanuda `5 min` después |
 | El medidor de red no es válido | Estado y hora de actualización del sensor de red principal | Sigue [El medidor de red no está disponible o está bloqueado](#el-medidor-de-red-no-esta-disponible-o-esta-bloqueado) |
 
 **Resultado esperado:** **Integration Status** cambia de un estado bloqueado/manual a carga, descarga o reposo cuando cambia el flujo de red. Consulta [varias baterías](features/multi-battery.md) para el control por batería.

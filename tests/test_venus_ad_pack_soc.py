@@ -165,6 +165,7 @@ def _dischargeable(data, *, min_soc=10):
     ctrl = SimpleNamespace(
         coordinators=[coordinator],
         _non_responsive=SimpleNamespace(is_excluded=lambda c: False),
+        _is_backup_function_active=lambda c: False,
         _is_manual_slot_owned=lambda c: False,
         is_discharge_blocked=lambda c: False,
     )
@@ -178,6 +179,7 @@ def _chargeable(data, *, max_soc=100):
     ctrl = SimpleNamespace(
         coordinators=[coordinator],
         _non_responsive=SimpleNamespace(is_excluded=lambda c: False),
+        _is_backup_function_active=lambda c: False,
         _is_manual_slot_owned=lambda c: False,
         is_charge_blocked=lambda c: False,
         get_charge_blockers=lambda c: {},

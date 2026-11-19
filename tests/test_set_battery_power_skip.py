@@ -103,6 +103,7 @@ def _ok(net, *, confirmed=True, battery_power_w=None):
 
 def _controller():
     ctrl = SimpleNamespace(
+        _is_backup_function_active=lambda c: False,
         _is_manual_slot_owned=lambda c: False,
         get_charge_blockers=lambda c: {},
         get_discharge_blockers=lambda c: {},

@@ -1734,6 +1734,7 @@
           "cell_balance_hold": "Celbalans Hold",
           "ev_charger_pause": "EV-lader Pauze",
           "ev_discharge_blocked": "EV Ontladen Geblokkeerd",
+          "backup_mode": "Backupmodus",
           "time_slot_manual": "Handmatig Tijdvenster",
           "no_discharge_slot": "Ontlaad-Blokkeervenster",
           "no_charge_slot": "Laad-Blokkeervenster",

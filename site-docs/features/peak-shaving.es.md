@@ -88,7 +88,7 @@ Consulta la [cronología diaria de funcionamiento](daily-operation-timeline.md) 
 | Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
 | La batería sigue cubriendo demanda ordinaria | El SOC medio de batería está por encima del umbral de conservación | **Umbral de SOC de Peak Shaving** y **Peak Shaving activo** |
-| Un pico permanece por encima del Máximo de importación de red | La potencia de descarga disponible o alguna regla de seguridad limita la salida | SOC mínimo, disponibilidad de batería, límites de fase y límites de potencia |
+| Un pico permanece por encima del Máximo de importación de red | La potencia de descarga disponible o alguna regla de seguridad limita la salida | SOC mínimo, disponibilidad de batería, límites de fase, estado de respaldo y límites de potencia |
 | No se cubre una carga excluida dentro de una franja predictiva | La opción de dispositivos excluidos está desactivada | **Peak Shaving para dispositivos excluidos** |
 | La batería no pasa a inactividad inmediatamente | El enfriamiento de relé mantiene potencia mínima o la telemetría se está estabilizando | Enfriamiento de relé PD y potencia instantánea de batería |
 | Se pausa la carga predictiva desde red | La importación del hogar alcanzó el techo aplicable | Estado de carga predictiva y **Máximo de importación de red** |
@@ -101,7 +101,7 @@ Consulta la [cronología diaria de funcionamiento](daily-operation-timeline.md) 
     battery_discharge = max(0, household_load - max_grid_import)
     ```
 
-    El SOC medio excluye baterías no disponibles y controladas manualmente. Siguen aplicándose SOC mínimo, disponibilidad, control manual o por franja, protección de fase y límites de potencia de batería/sistema.
+    El SOC medio excluye baterías no disponibles y controladas manualmente. Siguen aplicándose SOC mínimo, disponibilidad, control manual o por franja, restricciones de respaldo, protección de fase y límites de potencia de batería/sistema.
 
     **Peak Shaving para dispositivos excluidos** está desactivado de forma predeterminada y solo importa dentro de una franja de carga predictiva; en cualquier otro momento el Máximo de importación de red ya cubre los dispositivos excluidos. Con `1,000 W` de demanda normal, `4,000 W` excluidos y un tope de `3,000 W`, la batería suministra `2,000 W`: `1,000 W` para demanda normal y `1,000 W` para cubrir el exceso de la carga excluida.
 

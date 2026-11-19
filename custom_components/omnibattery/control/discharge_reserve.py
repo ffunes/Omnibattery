@@ -642,6 +642,13 @@ class DischargeReserveManager:
                     return True
             except Exception:  # noqa: BLE001
                 return True
+        backup_active = getattr(controller, "_is_backup_function_active", None)
+        if callable(backup_active):
+            try:
+                if backup_active(coordinator):
+                    return True
+            except Exception:  # noqa: BLE001
+                return True
         return False
 
     def _slot_owned(self, coordinator) -> bool:

@@ -258,6 +258,7 @@ El código compartido pregunta esto al driver en lugar de leer claves propias de
 | Método | Por defecto |
 |---|---|
 | `inverter_status(data)` | Lee `inverter_state` como los códigos numéricos de `InverterStatus` (sleep, standby, charge, discharge, backup, OTA upgrade, bypass); `None` significa "no se puede saber", nunca reposo. |
+| `on_backup_power(data)` | `False`. Sobrescribir solo cuando el dispositivo informa él mismo de un corte de red (el estado off-grid de Huawei): la batería sale entonces del control automático. |
 | `active_alarms(data)` | `[]`. Devuelve elementos `DriverAlarm(kind, code, description)`, primero los fallos, cada grupo en orden ascendente de código. |
 | `is_self_managed(data)` | `False`. Devuelve `True` mientras el dispositivo ejecuta su propia rutina (como una calibración de SOC) e ignora consignas. |
 | `device_max_soc(data)` | `None`: el dispositivo no guarda un techo propio. |

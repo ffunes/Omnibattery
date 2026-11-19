@@ -258,6 +258,7 @@ Shared code asks these questions of the driver instead of reading brand-native k
 | Method | Default |
 |---|---|
 | `inverter_status(data)` | Reads `inverter_state` as the numeric codes of `InverterStatus` (sleep, standby, charge, discharge, backup, OTA upgrade, bypass); `None` means "cannot tell", never idle. |
+| `on_backup_power(data)` | `False`. Override only when the device reports a grid outage itself (Huawei's off-grid state): the battery then leaves automatic control. |
 | `active_alarms(data)` | `[]`. Return `DriverAlarm(kind, code, description)` items, faults first, each group in ascending code order. |
 | `is_self_managed(data)` | `False`. Return `True` while the device runs its own routine (such as an SOC calibration) and ignores setpoints. |
 | `device_max_soc(data)` | `None`: the device keeps no ceiling of its own. |

@@ -688,6 +688,8 @@ class WeeklyFullChargeManager:
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
                 continue
+            if ctrl._is_backup_function_active(coordinator):
+                continue
             if not coordinator.capabilities.hardware_soc_cutoff:
                 _LOGGER.debug(
                     "%s: No hardware cutoff to restore (software-enforced battery)",
@@ -802,6 +804,7 @@ class WeeklyFullChargeManager:
             coordinator.name
             for coordinator in ctrl.coordinators
             if not getattr(coordinator, "battery_manual_mode_enabled", False)
+            and not ctrl._is_backup_function_active(coordinator)
             and coordinator.capabilities.hardware_soc_cutoff
         }
         need_write = (
@@ -817,6 +820,9 @@ class WeeklyFullChargeManager:
                 _LOGGER.info("Weekly Full Charge: Activating for compatible batteries")
             for coordinator in ctrl.coordinators:
                 if getattr(coordinator, "battery_manual_mode_enabled", False):
+                    continue
+                if ctrl._is_backup_function_active(coordinator):
+                    _LOGGER.debug("%s: Skipping weekly full charge - backup function is active", coordinator.name)
                     continue
 
                 if not coordinator.capabilities.hardware_soc_cutoff:

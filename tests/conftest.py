@@ -129,6 +129,7 @@ class _FakeMarstekDriver:
         return 0
 
     inverter_status = BatteryDriver.inverter_status
+    on_backup_power = BatteryDriver.on_backup_power
     is_self_managed = BatteryDriver.is_self_managed
     active_alarms = BatteryDriver.active_alarms
     device_max_soc = BatteryDriver.device_max_soc

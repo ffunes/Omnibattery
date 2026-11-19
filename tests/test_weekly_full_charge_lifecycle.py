@@ -131,6 +131,7 @@ async def test_failed_cutoff_restore_is_reported_for_retry():
     )
     controller = _controller()
     controller.coordinators = [coordinator]
+    controller._is_backup_function_active = lambda _coordinator: False
     manager = _manager(controller)
 
     restored = await manager._restore_hardware_cutoffs("test")
@@ -153,6 +154,7 @@ async def test_restore_uses_persisted_config_when_saved_soc_is_missing():
     )
     controller = _controller(_weekly_charge_saved_max_soc={})
     controller.coordinators = [coordinator]
+    controller._is_backup_function_active = lambda _coordinator: False
     manager = _manager(controller)
 
     restored = await manager._restore_hardware_cutoffs("legacy state")
@@ -172,6 +174,7 @@ async def test_pending_restore_runs_before_weekly_state_is_evaluated():
     )
     controller = _controller(_weekly_charge_needs_restore=True)
     controller.coordinators = [coordinator]
+    controller._is_backup_function_active = lambda _coordinator: False
     manager = _manager(controller)
     manager.tick_bms_cutoff = MagicMock()
     manager.is_active = MagicMock(return_value=False)

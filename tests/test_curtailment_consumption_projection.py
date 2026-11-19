@@ -21,6 +21,7 @@ def test_curtailment_pre_discharge_sizes_house_load_from_the_profile(monkeypatch
     ctrl.smart_predischarge_enabled = True
     ctrl.predischarge_reserve_soc = 0.0
     ctrl.negative_injection_threshold = 0.0
+    ctrl._is_backup_function_active = lambda *_a, **_k: False
     ctrl.backup_function_enabled = False
     ctrl._non_responsive = SimpleNamespace(is_excluded=lambda _c: False)
     ctrl._is_manual_slot_owned = lambda _c: False

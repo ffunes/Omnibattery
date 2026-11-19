@@ -30,6 +30,7 @@ def _ctrl(coords):
     return SimpleNamespace(
         coordinators=list(coords),
         _non_responsive=SimpleNamespace(is_excluded=lambda c: False),
+        _is_backup_function_active=lambda c: False,
         _is_manual_slot_owned=lambda c: False,
         is_discharge_blocked=lambda c: False,
     )

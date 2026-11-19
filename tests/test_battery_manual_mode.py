@@ -317,6 +317,7 @@ def _available_pool_controller(manual, automatic):
     controller = ChargeDischargeController.__new__(ChargeDischargeController)
     controller.coordinators = [manual, automatic]
     controller._non_responsive = SimpleNamespace(is_excluded=lambda _c: False)
+    controller._is_backup_function_active = lambda _c: False
     controller._is_manual_slot_owned = lambda _c: False
     controller.get_charge_blockers = lambda _c: {}
     controller.is_discharge_blocked = lambda _c: False

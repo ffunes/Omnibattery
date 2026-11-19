@@ -2337,6 +2337,36 @@ async def test_the_service_path_still_releases_through_the_service():
 
 
 # ----------------------------------------------------------------------
+# backup mode
+#
+# A hybrid has no backup switch to read: it reports a state, and this driver
+# names the three a SUN2000 distinguishes. Only "Off-grid" is an outage; without
+# this query a Huawei would keep taking commands through a power cut.
+# ----------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "value, outage",
+    [
+        ("Off-grid", True),    # feeding the backup circuit right now
+        ("Ready", False),      # switch armed, still on grid
+        ("Disabled", False),
+        (None, False),
+    ],
+)
+def test_only_off_grid_takes_the_battery_out_of_control(value, outage):
+    assert _driver().on_backup_power({"backup_function": value}) is outage
+
+
+def test_the_driver_still_publishes_the_off_grid_state():
+    """Another spelling would silently disable the guard."""
+    import inspect
+
+    from custom_components.omnibattery.drivers import huawei
+
+    source = inspect.getsource(huawei.HuaweiSolarDriver.read_telemetry)
+    assert '"Off-grid" if off_grid' in source
+
+
+# ----------------------------------------------------------------------
 # the flows that come after setup
 #
 # Setup had a Huawei branch from the start; the two flows a user reaches later

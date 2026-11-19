@@ -236,6 +236,7 @@ def _hysteresis_ctrl(coord):
         _weekly_charge_mgr=SimpleNamespace(is_battery_full=lambda c: False),
         _should_charge_to_bms_cutoff=lambda *_a: False,
         _non_responsive=SimpleNamespace(is_excluded=lambda _c: False),
+        _is_backup_function_active=lambda _c: False,
         _is_manual_slot_owned=lambda _c: False,
         get_charge_blockers=lambda _c: {},
         set_charge_block=lambda source, *_a, coordinator=None, **_k: blocks.setdefault(

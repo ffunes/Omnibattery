@@ -126,3 +126,9 @@ Después de cambiar un ajuste, deja que la métrica de calidad refleje el nuevo 
     La métrica de calidad usa una ventana de promedio exponencial de `60 s` y se pausa tras cambios de objetivo o mientras el control está limitado. Si no avanza durante `300 s`, el estado vuelve a **Collecting data**.
 
     Los atributos de diagnóstico son `rms_error_w`, `oscillation_per_min`, `metric_age_s`, `kp`, `kd`, `deadband_w`, `max_power_change_w` y `active_profile`.
+
+    ### Exclusión de salida de respaldo
+
+    Un inversor Huawei queda excluido mientras informa del estado off-grid, y durante `5 min` después de que vuelva la red. Ninguna otra marca se excluye por respaldo: ni una carga en la salida de respaldo ni el estado Backup del inversor sacan una batería del control.
+
+    Mientras está excluida, Omnibattery sigue consultando datos de solo lectura, pero no envía a esa batería órdenes de potencia, modo forzado, configuración ni carga completa semanal. Cuando vuelve la red, la exclusión se mantiene `5 min`.

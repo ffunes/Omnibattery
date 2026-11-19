@@ -126,3 +126,9 @@ After changing a setting, allow the quality metric to reflect the new behavior b
     The quality metric uses a `60 s` exponential averaging window and pauses after target changes or while control is limited. If it has not advanced for `300 s`, the state returns to **Collecting data**.
 
     The diagnostic attributes are `rms_error_w`, `oscillation_per_min`, `metric_age_s`, `kp`, `kd`, `deadband_w`, `max_power_change_w`, and `active_profile`.
+
+    ### Backup output exclusion
+
+    A Huawei inverter is excluded while it reports the off-grid state, and for `5 min` after the grid is back. No other brand is excluded for backup: a load on the backup output, or the Backup inverter state, does not take a battery out of control.
+
+    While excluded, Omnibattery continues polling read-only data but sends no power, forced-mode, configuration, or weekly full-charge commands to that battery. After the grid is back, exclusion remains for `5 min`.

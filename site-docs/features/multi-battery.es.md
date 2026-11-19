@@ -173,7 +173,7 @@ Consulta [solución de problemas](../troubleshooting.md) para comprobaciones por
 
     Los permisos de carga y descarga se resuelven mediante un registro de bloqueadores en tiempo de ejecución. Los bloqueadores pueden ser globales o aplicarse a una batería. El controlador consulta este registro antes de retornos tempranos por banda muerta y sensor obsoleto, de modo que una orden activa se detiene en cuanto aparece un bloqueador.
 
-    Los bloqueadores globales incluyen retraso de carga solar, reglas de carga/descarga de franjas horarias, control de descarga basado en precios y pausas de cargador VE sin telemetría. Los bloqueadores por batería incluyen los interruptores `Allow Charge` y `Allow Discharge`, SOC máximo, SOC mínimo e histéresis de carga. Otras comprobaciones de disponibilidad como la exclusión por falta de respuesta siguen separadas del registro.
+    Los bloqueadores globales incluyen retraso de carga solar, reglas de carga/descarga de franjas horarias, control de descarga basado en precios y pausas de cargador VE sin telemetría. Los bloqueadores por batería incluyen los interruptores `Allow Charge` y `Allow Discharge`, SOC máximo, SOC mínimo e histéresis de carga. Otras comprobaciones de disponibilidad como la exclusión por respaldo/fuera de red y por falta de respuesta siguen separadas del registro.
 
     Los atributos de nivel superior `charge_blocked` y `discharge_blocked` informan del estado efectivo del sistema: pasan a `true` cuando hay un bloqueador global activo o cuando todas las baterías conocidas están bloqueadas en esa dirección. Los detalles por batería siguen visibles en `battery_charge_blockers` y `battery_discharge_blockers`.
 

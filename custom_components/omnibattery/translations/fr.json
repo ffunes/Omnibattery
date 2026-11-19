@@ -1734,6 +1734,7 @@
           "cell_balance_hold": "Maintien Équilibrage Cellules",
           "ev_charger_pause": "Pause Chargeur VE",
           "ev_discharge_blocked": "Décharge VE Bloquée",
+          "backup_mode": "Mode Secours",
           "time_slot_manual": "Plage Manuelle",
           "no_discharge_slot": "Plage sans Décharge",
           "no_charge_slot": "Plage sans Charge",

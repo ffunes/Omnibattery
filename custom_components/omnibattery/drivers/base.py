@@ -1094,6 +1094,14 @@ class BatteryDriver(ABC):
         except ValueError:
             return None
 
+    def on_backup_power(self, data: dict) -> bool:
+        """Whether a grid outage has the battery feeding its backup output.
+
+        While it is True the battery is left out of automatic control. False
+        unless the driver reports the outage itself (only Huawei does).
+        """
+        return False
+
     def active_alarms(self, data: dict) -> list[DriverAlarm]:
         """The alarms and faults currently active, decoded from ``data``.
 

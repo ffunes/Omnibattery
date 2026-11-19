@@ -1729,6 +1729,7 @@
           "cell_balance_hold": "Cell Balance Hold",
           "ev_charger_pause": "EV Charger Pause",
           "ev_discharge_blocked": "EV Discharge Blocked",
+          "backup_mode": "Backup Mode",
           "time_slot_manual": "Manual Time Slot",
           "no_discharge_slot": "No-Discharge Window",
           "no_charge_slot": "No-Charge Window",
