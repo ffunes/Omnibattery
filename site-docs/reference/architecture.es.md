@@ -44,7 +44,7 @@ El controlador y las plataformas de entidades no usan direcciones de registros, 
 - `BatteryDriver` representa una batería física y posee su transporte.
 - `DriverCapabilities` describe rasgos estáticos en los que puede basarse el código compartido, por instancia conectada.
 - `DriverTraits` contiene los rasgos de clase que el código compartido necesita antes de conectar un controlador, y `DriverContext` lleva lo que el coordinador entrega al `from_config()` de un controlador.
-- Los métodos de consulta (`inverter_status()`, `backup_enabled()`, `active_alarms()`, `is_self_managed()`, `device_max_soc()`, `ac_contribution_w()` y otros) responden preguntas de marca en un vocabulario canónico, de modo que el código compartido nunca lee claves nativas de una marca.
+- Los métodos de consulta (`inverter_status()`, `active_alarms()`, `is_self_managed()`, `device_max_soc()`, `ac_contribution_w()` y otros) responden preguntas de marca en un vocabulario canónico, de modo que el código compartido nunca lee claves nativas de una marca.
 - `ReadGroup` agrupa claves lógicas de telemetría por cadencia de sondeo.
 - `TelemetrySnapshot` es un mapeo plano de claves lógicas a valores decodificados.
 - `SetpointResult` informa de la orden con signo aplicada, el estado de confirmación, la entrega medida, el motivo de fallo y cualquier estado nativo que deba fusionarse en la caché del coordinador.

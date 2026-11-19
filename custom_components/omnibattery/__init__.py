@@ -980,9 +980,6 @@ class ChargeDischargeController:
         # PD/predictive logic must not touch these — _set_battery_power short-circuits.
         self._manual_slot_owned: set = set()
 
-        # Backup function cooldown: prevents re-entering PD control immediately after offgrid load drops.
-        # Format: coordinator -> datetime (UTC) until which the battery stays excluded
-        self._backup_cooldown_until: dict = {}
 
         # EV charger no-telemetry state tracking
         self._ev_charging_states: dict[str, bool] = {}  # sensor_id -> is EV currently charging
@@ -3163,8 +3160,6 @@ class ChargeDischargeController:
                 continue
             if not coord.is_available:
                 continue
-            if self._is_backup_function_active(coord):
-                continue
             if coord.rs485_user_disabled:
                 continue
 
@@ -4969,11 +4964,6 @@ class ChargeDischargeController:
                 _LOGGER.debug("%s: Skipping - excluded due to non-responsive behavior", coordinator.name)
                 continue
 
-            # Skip batteries with backup function active (they manage themselves autonomously)
-            if self._is_backup_function_active(coordinator):
-                _LOGGER.debug("%s: Skipping - backup function is active", coordinator.name)
-                continue
-
             # Skip batteries the user excluded from integration control: RS485 control
             # disabled means the battery is driven by the official app / its own logic.
             if coordinator.rs485_user_disabled:
@@ -5188,52 +5178,6 @@ class ChargeDischargeController:
     # -------------------------------------------------------------------------
     # Non-responsive battery detection helpers
     # -------------------------------------------------------------------------
-
-    def _is_backup_function_active(self, coordinator) -> bool:
-        """Return True while the battery must stay out of automatic control
-        because a grid outage has it feeding its backup port from the cells.
-
-        The outage is the driver's explicit signal (``on_backup_power``), never
-        the load on the port: with the grid present that load is the same
-        permanent rack or router as during an outage. Whoever runs a whole
-        house from the backup port takes the battery out with its manual-mode
-        switch instead.
-
-        The battery stays excluded for 5 minutes after the outage ends, to
-        avoid sending write commands right after the grid comes back. The
-        Backup Function switch turning OFF clears that cooldown immediately.
-        """
-        if coordinator.data is None:
-            return False
-
-        now = dt_util.utcnow()
-
-        if not coordinator.driver.backup_enabled(coordinator.data):
-            # Switch is off — clear any lingering cooldown and allow PD control
-            self._backup_cooldown_until.pop(coordinator, None)
-            return False
-
-        if not coordinator.driver.on_backup_power(coordinator.data):
-            cooldown_until = self._backup_cooldown_until.get(coordinator)
-            if cooldown_until and now < cooldown_until:
-                remaining = int((cooldown_until - now).total_seconds() / 60)
-                _LOGGER.debug(
-                    "%s: Backup cooldown active — %d min remaining before re-entering PD control",
-                    coordinator.name, remaining
-                )
-                return True
-            # Cooldown expired (or was never set) — allow PD control
-            self._backup_cooldown_until.pop(coordinator, None)
-            return False
-
-        # Grid outage: refresh the cooldown window so it starts counting from
-        # the last reading that reported it.
-        _LOGGER.debug(
-            "%s: Grid outage — backup port fed from the cells, excluding from PD control",
-            coordinator.name,
-        )
-        self._backup_cooldown_until[coordinator] = now + timedelta(minutes=5)
-        return True
 
     @property
     def non_responsive_battery_names(self) -> list[str]:
@@ -7774,14 +7718,6 @@ class ChargeDischargeController:
             _LOGGER.debug(
                 "[%s] Skipping power write - battery unreachable (failures: %d)",
                 coordinator.name, coordinator._consecutive_failures
-            )
-            return False
-
-        # Skip if backup function is active (battery manages itself autonomously)
-        if self._is_backup_function_active(coordinator):
-            _LOGGER.debug(
-                "[%s] Skipping power write - backup function is active",
-                coordinator.name
             )
             return False
 
@@ -12917,15 +12853,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         "Skipping shutdown writes for %s - device was not connected",
                         coordinator.name,
                     )
-                    continue
-
-                # Skip batteries feeding their backup port during a grid outage
-                if (
-                    coordinator.data
-                    and coordinator.driver.backup_enabled(coordinator.data)
-                    and coordinator.driver.on_backup_power(coordinator.data)
-                ):
-                    _LOGGER.info("%s: Skipping shutdown writes - grid outage, backup port fed from the cells", coordinator.name)
                     continue
 
                 # Set all power commands to 0 (idle) via the driver. standby()

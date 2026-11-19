@@ -66,7 +66,7 @@ The minimum of 2% is deliberate and cannot be lowered. Near the top, the SOC a b
 
     Runtime power and state-of-charge limits are persisted and restored after a Home Assistant restart. **Battery Manual Control** first verifies an idle target, removes the battery from the automatic pool, and also restores that ownership after restart.
 
-    During a grid outage a battery with **Backup Function** enabled feeds its backup output from the cells. Omnibattery then excludes it from automatic control, and returns it to the automatic pool `5 min` after the grid is back. A load on the backup output never excludes the battery while the grid is present. To run a whole house from the backup output, take that battery out with **Battery Manual Control**.
+    A load on a battery's backup output does not change how Omnibattery controls it. To run a whole house from the backup output, take that battery out of automatic control with **Battery Manual Control**.
 
     Related configuration:
 

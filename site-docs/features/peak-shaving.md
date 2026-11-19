@@ -88,7 +88,7 @@ See the [daily operation timeline](daily-operation-timeline.md) to compare peak-
 | Symptom | Likely cause | What to check |
 |---|---|---|
 | The battery still covers ordinary demand | Average battery SOC is above the conservation threshold | **Peak Shaving SOC Threshold** and **Peak Shaving Active** |
-| A peak remains above the Maximum grid import | Available battery discharge power or another safety rule is limiting output | Minimum SOC, battery availability, phase limits, backup state, and power limits |
+| A peak remains above the Maximum grid import | Available battery discharge power or another safety rule is limiting output | Minimum SOC, battery availability, phase limits, and power limits |
 | An excluded load is not covered inside a predictive slot | The excluded-device option is off | **Peak Shaving for Excluded Devices** |
 | The battery does not fall to idle immediately | Relay cooldown is holding minimum power or telemetry is settling | PD relay cooldown and live battery power |
 | Predictive grid charging pauses | Household import reached the applicable ceiling | Predictive charging status and **Maximum grid import** |
@@ -101,7 +101,7 @@ See the [daily operation timeline](daily-operation-timeline.md) to compare peak-
     battery_discharge = max(0, household_load - max_grid_import)
     ```
 
-    The average SOC excludes unavailable and manually controlled batteries. Minimum SOC, battery availability, manual or time-slot control, backup restrictions, phase protection, and battery/system power limits still apply.
+    The average SOC excludes unavailable and manually controlled batteries. Minimum SOC, battery availability, manual or time-slot control, phase protection, and battery/system power limits still apply.
 
     **Peak Shaving for Excluded Devices** is disabled by default and only matters inside a predictive charging slot; everywhere else the Maximum grid import already covers excluded devices. With `1,000 W` of normal demand, `4,000 W` excluded, and a `3,000 W` cap, the battery supplies `2,000 W`: `1,000 W` for normal demand and `1,000 W` to cover the excess of the excluded load.
 

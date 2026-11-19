@@ -88,7 +88,6 @@ def _setup(clock, *, command, battery_power, soc=60):
     direction = 1 if command > 0 else -1
     long_ago = clock.now - timedelta(minutes=10)
     ctrl = SimpleNamespace(
-        _is_backup_function_active=lambda c: False,
         _is_manual_slot_owned=lambda c: False,
         get_charge_blockers=lambda c: {},
         get_discharge_blockers=lambda c: {},

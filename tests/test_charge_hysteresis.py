@@ -132,7 +132,6 @@ def _cutoff_setup():
     weekly.is_active = lambda: False
     ctrl._weekly_charge_mgr = weekly
     ctrl._non_responsive = SimpleNamespace(is_excluded=lambda _coord: False)
-    ctrl._is_backup_function_active = lambda _coord: False
     ctrl._is_manual_slot_owned = lambda _coord: False
     sensor = ChargeHysteresisActiveSensor.__new__(ChargeHysteresisActiveSensor)
     sensor.coordinator = c
@@ -247,7 +246,6 @@ def test_venus_ad_top_voltage_remains_available_at_reported_100_soc():
     )
     ctrl = _controller(c)
     ctrl._non_responsive = SimpleNamespace(is_excluded=lambda _coord: False)
-    ctrl._is_backup_function_active = lambda _coord: False
     ctrl._is_manual_slot_owned = lambda _coord: False
     ctrl.get_charge_blockers = lambda _coord: {}
     ctrl.is_discharge_blocked = lambda _coord: False

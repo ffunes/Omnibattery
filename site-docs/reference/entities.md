@@ -160,7 +160,6 @@ Battery entities depend on the driver. A missing entity usually means that the d
     | `manual_batteries` | Batteries under manual ownership |
     | `non_responsive_batteries` | Batteries excluded after communication or delivery failures |
     | `balance_hold_batteries` | Batteries held by cell-balance protection |
-    | `backup_cooldown_batteries` | Batteries held after backup output activity |
     | `ev_chargers_active`, `ev_pause_until` | Active charger exclusions and pauses |
     | `hourly_balance_status`, `hourly_balance_offset_w`, `hourly_balance_net_kwh` | Net-balance controller state |
     | `temperature_charge_limit` | Current thermal-limit decision |

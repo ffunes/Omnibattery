@@ -66,7 +66,7 @@ El mínimo del 2% es deliberado y no se puede reducir. Cerca del tope, el SOC qu
 
     Los límites de potencia y estado de carga en tiempo de ejecución se conservan y restauran después de reiniciar Home Assistant. **Battery Manual Control** primero verifica un objetivo en reposo, saca la batería del grupo automático y también restaura ese control tras el reinicio.
 
-    Durante un corte de red, una batería con **Backup Function** activada alimenta su salida de respaldo desde las celdas. Omnibattery la excluye entonces del control automático y la devuelve al grupo automático `5 min` después de que vuelva la red. Una carga en la salida de respaldo nunca excluye la batería mientras hay red. Para alimentar una casa entera desde la salida de respaldo, saca esa batería con **Battery Manual Control**.
+    Una carga en la salida de respaldo de una batería no cambia cómo la controla Omnibattery. Para alimentar una casa entera desde la salida de respaldo, saca esa batería del control automático con **Battery Manual Control**.
 
     Configuración relacionada:
 

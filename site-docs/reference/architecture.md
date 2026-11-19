@@ -44,7 +44,7 @@ The controller and entity platforms do not use register addresses, HTTP paths, o
 - `BatteryDriver` represents one physical battery and owns its transport.
 - `DriverCapabilities` describes static traits that shared code may branch on, per connected instance.
 - `DriverTraits` holds the class-level traits shared code needs before a driver is connected, and `DriverContext` carries what the coordinator hands a driver's `from_config()`.
-- The query methods (`inverter_status()`, `backup_enabled()`, `active_alarms()`, `is_self_managed()`, `device_max_soc()`, `ac_contribution_w()` and others) answer brand questions in a canonical vocabulary, so shared code never reads a brand's native keys.
+- The query methods (`inverter_status()`, `active_alarms()`, `is_self_managed()`, `device_max_soc()`, `ac_contribution_w()` and others) answer brand questions in a canonical vocabulary, so shared code never reads a brand's native keys.
 - `ReadGroup` groups logical telemetry keys by polling cadence.
 - `TelemetrySnapshot` is a flat mapping of logical keys to decoded values.
 - `SetpointResult` reports the applied signed command, confirmation state, measured delivery, failure reason, and any native state to merge into the coordinator cache.

@@ -53,7 +53,6 @@ def _controller():
     coord._is_shutting_down = False
     controller.coordinators = [coord]
     controller._non_responsive = NonResponsiveTracker(fail_threshold=3)
-    controller._is_backup_function_active = lambda c: False
     controller._is_manual_slot_owned = lambda c: False
     controller.get_charge_blockers = lambda c: {}
     controller.get_discharge_blockers = lambda c: {}

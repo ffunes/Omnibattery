@@ -29,7 +29,6 @@ def _controller(coords, quota_kwh, window_hours=None):
         _weekly_charge_mgr=SimpleNamespace(is_active=lambda: False, is_battery_full=lambda c: False),
         _last_decision_data={"planned_grid_charge_kwh": quota_kwh},
         _non_responsive=SimpleNamespace(is_excluded=lambda c: False),
-        _is_backup_function_active=lambda c: False,
         _is_manual_slot_owned=lambda c: False,
         _is_battery_manual_owned=lambda c: False,
         is_charge_blocked=lambda c: False,

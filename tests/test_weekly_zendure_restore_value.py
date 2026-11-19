@@ -60,7 +60,6 @@ def _run(*coordinators):
         charge_delay_enabled=False,
     )
     controller.coordinators = list(coordinators)
-    controller._is_backup_function_active = lambda _coordinator: False
     manager = _manager(controller)
     manager.tick_bms_cutoff = MagicMock()
     manager._bms_cutoff_counts = {}

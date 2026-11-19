@@ -431,7 +431,6 @@ def _pool_controller():
     controller = ChargeDischargeController.__new__(ChargeDischargeController)
     controller.coordinators = [battery]
     controller._non_responsive = SimpleNamespace(is_excluded=lambda _c: False)
-    controller._is_backup_function_active = lambda _c: False
     controller._is_manual_slot_owned = lambda _c: False
     controller.is_discharge_blocked = lambda _c, **_kw: False
     controller.get_discharge_blockers = lambda _c: {}

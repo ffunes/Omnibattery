@@ -981,18 +981,6 @@ class IntegrationStatusSensor(SensorEntity):
             if "price_reserve" in controller.get_discharge_blockers(coordinator)
         ]
 
-    def _backup_cooldown_batteries(self) -> list[str]:
-        """Return batteries temporarily excluded because backup/offgrid load was active."""
-        from homeassistant.util import dt as dt_util
-
-        now = dt_util.utcnow()
-        return [
-            coordinator.name
-            for coordinator, cooldown_until in self._controller._backup_cooldown_until.items()
-            if not getattr(coordinator, "battery_manual_mode_enabled", False)
-            if cooldown_until and now < cooldown_until
-        ]
-
     @property
     def native_value(self) -> str:
         """Return the current integration status as a translation key."""
@@ -1057,9 +1045,6 @@ class IntegrationStatusSensor(SensorEntity):
         hourly_state = self._hourly_balance_state_key()
         if hourly_state:
             return hourly_state
-
-        if self._backup_cooldown_batteries():
-            return "backup_mode"
 
         # Priority 6: Manual time slot forcing batteries off the PD path
         if getattr(c, "_manual_slot_owned", None):
@@ -1158,10 +1143,6 @@ class IntegrationStatusSensor(SensorEntity):
         balance_hold_batteries = self._balance_hold_batteries()
         if balance_hold_batteries:
             attrs["balance_hold_batteries"] = balance_hold_batteries
-
-        backup_cooldown_batteries = self._backup_cooldown_batteries()
-        if backup_cooldown_batteries:
-            attrs["backup_cooldown_batteries"] = backup_cooldown_batteries
 
         ev_chargers = [entity_id for entity_id, active in c._ev_charging_states.items() if active]
         if ev_chargers:

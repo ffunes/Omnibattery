@@ -28,7 +28,6 @@ The battery may be idle by design when the grid is already near target. If house
 | Automatic control is paused | **Manual Mode** and per-battery **Manual Battery Control** | Turn off manual ownership when you want automatic control |
 | The battery is not eligible | **Allow Charge**, **Allow Discharge**, and `battery_charge_blockers` / `battery_discharge_blockers` on **Integration Status** | Enable the required direction or remove the reported blocker |
 | The battery is unavailable or excluded | Battery entities, **Non-Responsive Batteries**, and Home Assistant **Repairs** | Follow [Entities are unavailable](#entities-are-unavailable) |
-| A backup output is active | **Backup Function**, backup power, and `backup_cooldown_batteries` | Let backup activity finish before expecting grid control |
 | The grid meter is invalid | Main grid sensor state and update time | Follow [Grid meter is unavailable or frozen](#grid-meter-is-unavailable-or-frozen) |
 
 **Expected result:** **Integration Status** changes from a blocked/manual state to charging, discharging, or standby as grid flow changes. See [multiple batteries](features/multi-battery.md) for per-battery ownership.

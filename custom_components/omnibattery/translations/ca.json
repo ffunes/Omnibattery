@@ -1734,7 +1734,6 @@
           "cell_balance_hold": "Retenció per Balanç de Cel·les",
           "ev_charger_pause": "Pausa per Carregador EV",
           "ev_discharge_blocked": "Descàrrega EV Bloquejada",
-          "backup_mode": "Mode Backup",
           "time_slot_manual": "Franja Manual",
           "no_discharge_slot": "Franja sense Descàrrega",
           "no_charge_slot": "Franja sense Càrrega",

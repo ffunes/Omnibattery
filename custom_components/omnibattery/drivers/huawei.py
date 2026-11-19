@@ -1392,18 +1392,6 @@ class HuaweiSolarDriver(BatteryDriver):
             return None
         return max(0, ceiling - non_battery_ac)
 
-    def backup_enabled(self, data: dict) -> Optional[bool]:
-        # A hybrid inverter has no backup switch: it reports a state, and only
-        # off-grid or ready-to-go-off-grid mean the output is armed.
-        value = data.get("backup_function")
-        if isinstance(value, str):
-            return value in ("Off-grid", "Ready")
-        return super().backup_enabled(data)
-
-    def on_backup_power(self, data: dict) -> bool:
-        # The storage status carries no backup state; the off-grid bit does.
-        return data.get("backup_function") == "Off-grid"
-
     @property
     def manual_control_by_registers(self) -> bool:
         # The capability is True (the hybrid inverter has a forcible-charge

@@ -1393,17 +1393,6 @@ def test_the_status_attributes_carry_the_audit_trail():
     ]
 
 
-def test_a_battery_serving_the_backup_port_does_not_size_the_reserve():
-    """Its energy never reaches the house, so it must not raise the reserve."""
-    healthy = _coordinator(name="battery-1")
-    backup = _coordinator(name="battery-2")
-    controller = _controller(coordinators=[healthy, backup])
-    controller._is_backup_function_active = lambda coordinator: coordinator is backup
-    manager = _built(controller)
-    # Only the healthy 10 kWh battery backs the 4 kWh claim.
-    assert manager.reserve_soc_pct() == pytest.approx(40.0)
-
-
 def test_a_non_responsive_battery_does_not_size_the_reserve():
     healthy = _coordinator(name="battery-1")
     dead = _coordinator(name="battery-2")
