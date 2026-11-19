@@ -15,6 +15,7 @@ Transport: aiohttp polling.
 
 Control mapping (net_power_w sign: +charge / -discharge, same as Marstek convention):
   net > 0  → acMode=1 (charge from grid), inputLimit=power,  smartMode=1
+             (smartMode=0 while the off-grid port is on, see apply_setpoint)
   net < 0  → acMode=2 (discharge to home), outputLimit=|power|, smartMode=1
   net == 0 → acMode=2, outputLimit=0, smartMode=1
 
@@ -520,6 +521,8 @@ class ZendureLocalDriver(BatteryDriver):
         self._session: Optional[aiohttp.ClientSession] = session
         self._connected = False
         self._shutting_down = False
+        # gridOffMode normal (0) or economy (1); refreshed on every poll (#882).
+        self._offgrid_port_on = False
         self._sn: Optional[str] = None  # populated from first GET response
         self._product: Optional[str] = None  # device model from the report root
         self._model = model
@@ -721,6 +724,7 @@ class ZendureLocalDriver(BatteryDriver):
         synthesised battery_power stay in one place.
         """
         props = data.get("properties", {})
+        self._offgrid_port_on = props.get("gridOffMode") in (0, 1)
         snapshot: TelemetrySnapshot = {}
         for prop, key in _PROP_TO_KEY.items():
             if prop in props:
@@ -898,10 +902,21 @@ class ZendureLocalDriver(BatteryDriver):
         write_control) send smartMode=0 so they commit to flash and survive
         reboots — smartMode is sticky, so they can't rely on omitting it (the
         power loop leaves the device in smartMode=1).
+
+        Exception (#882, verified on a 2400 AC+): with the off-grid port in
+        normal or economy mode and a load on it, a smartMode=1 charge goes to
+        bypass (pass=3): the grid feeds only the off-grid load and the pack
+        gets 0 W. The same write with smartMode=0 charges. So a charge sends
+        smartMode=0 while the port is on, at the cost of a likely flash write
+        per charge setpoint change (RAM vs flash is not observable through the
+        API). Discharge with smartMode=1 is unaffected.
         """
         if net_power_w > 0:
             power = min(net_power_w, self._capabilities.max_charge_power_w)
-            payload: dict[str, Any] = {"acMode": _AC_MODE_CHARGE, "inputLimit": power, "smartMode": 1}
+            payload: dict[str, Any] = {
+                "acMode": _AC_MODE_CHARGE, "inputLimit": power,
+                "smartMode": 0 if self._offgrid_port_on else 1,
+            }
             applied_net = power
         elif net_power_w < 0:
             power = min(-net_power_w, self._capabilities.max_discharge_power_w)
