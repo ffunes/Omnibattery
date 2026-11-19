@@ -160,6 +160,7 @@ from .drivers.zendure import (
 )
 from .drivers.anker import AnkerModbusDriver
 from .drivers.sessy import SessyLocalDriver
+from .drivers.apsystems_ezhi import ApsystemsEzhiDriver
 from .drivers.indevolt import IndevoltDriver
 from .drivers.indevolt_settings import SYNCED_PREFIX as INDEVOLT_SYNCED_PREFIX
 from .infra.indevolt_client import DEFAULT_REQUEST_SPEED, REQUEST_SPEED_SLOT_S, IndevoltAuthenticationError
@@ -1519,6 +1520,9 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         elif brand == "sessy":
             _LOGGER.info("Probing Sessy device at %s:%s", host, port)
             result = await SessyLocalDriver.probe(host, port, username, password)
+        elif brand == "apsystems_ezhi":
+            _LOGGER.info("Probing APsystems EZHI at %s:%s", host, port)
+            result = await ApsystemsEzhiDriver.probe(host, port)
         elif brand == "anker":
             _LOGGER.info("Probing Anker Solarbank at %s:%s slave %s", host, port, slave_id)
             result, _ = await AnkerModbusDriver.probe(host, port, slave_id)
@@ -1752,6 +1756,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 return await self.async_step_battery_connection_hoymiles()
             if brand == "sessy":
                 return await self.async_step_battery_connection_sessy()
+            if brand == "apsystems_ezhi":
+                return await self.async_step_battery_connection_apsystems_ezhi()
             if brand == "indevolt":
                 return await self.async_step_battery_connection_indevolt()
             if brand == "huawei":
@@ -1770,6 +1776,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                                 {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
                                 {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
                                 {"value": "sessy", "label": "Sessy"},
+                                {"value": "apsystems_ezhi", "label": "APsystems EZHI"},
                                 {"value": "indevolt", "label": "Indevolt SolidFlex / PowerFlex"},
                                 {"value": "hoymiles", "label": "Hoymiles MQTT"},
                                 {"value": "huawei", "label": "Huawei SUN2000 + LUNA2000"},
@@ -1931,6 +1938,64 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             ),
             errors=errors,
             description_placeholders=placeholders,
+        )
+
+    async def async_step_battery_connection_apsystems_ezhi(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Configure an APsystems EZHI via its local HTTP API."""
+        errors = {}
+        if not hasattr(self, "_current_battery_data") or self._current_battery_data is None:
+            self._current_battery_data = {}
+        battery_num = self.battery_index + 1
+        if user_input is not None:
+            host = (user_input.get(CONF_HOST) or "").strip()
+            port = int(user_input.get(CONF_PORT, 80))
+            if await ApsystemsEzhiDriver.probe(host, port):
+                self._current_battery_data.update({
+                    CONF_NAME: user_input[CONF_NAME],
+                    CONF_HOST: host,
+                    CONF_PORT: port,
+                    "brand": "apsystems_ezhi",
+                })
+                return await self.async_step_battery_limits()
+            errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="battery_connection_apsystems_ezhi",
+            data_schema=vol.Schema({
+                vol.Required(CONF_NAME, default=f"APsystems EZHI {battery_num}"): str,
+                vol.Required(CONF_HOST): str,
+                vol.Optional(CONF_PORT, default=80): int,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_battery_apsystems_ezhi(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Reconfigure an APsystems EZHI battery."""
+        errors = {}
+        current = self._reconfigure_battery_current()
+        if user_input is not None:
+            host = (user_input.get(CONF_HOST) or "").strip()
+            port = int(user_input.get(CONF_PORT, 80))
+            if not await ApsystemsEzhiDriver.probe(host, port):
+                errors["base"] = "cannot_connect"
+            else:
+                self._current_battery_data = dict(current)
+                self._current_battery_data.update({
+                    CONF_NAME: user_input[CONF_NAME],
+                    CONF_HOST: host,
+                    CONF_PORT: port,
+                    "brand": "apsystems_ezhi",
+                })
+                return await self.async_step_reconfigure_battery_limits()
+
+        return self.async_show_form(
+            step_id="reconfigure_battery_apsystems_ezhi",
+            data_schema=vol.Schema({
+                vol.Required(CONF_NAME, default=current.get(CONF_NAME, "APsystems EZHI")): str,
+                vol.Required(CONF_HOST, default=current.get(CONF_HOST, "")): str,
+                vol.Optional(CONF_PORT, default=int(current.get(CONF_PORT, 80))): int,
+            }),
+            errors=errors,
         )
 
     async def async_step_battery_connection_sessy(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -2331,6 +2396,9 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         elif brand == "sessy":
             max_charge_power = _SESSY_MAX_CHARGE_POWER_W
             max_discharge_power = _SESSY_MAX_DISCHARGE_POWER_W
+        elif brand == "apsystems_ezhi":
+            max_charge_power = 1200
+            max_discharge_power = 1200
         elif brand == "indevolt":
             max_charge_power, max_discharge_power = _indevolt_power_ceilings(self._current_battery_data)
         elif brand == "hoymiles":
@@ -2385,7 +2453,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     user_input.get(CONF_DC_PV_CONNECTED, True)
                 ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
                 merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt")
+                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt", "apsystems_ezhi")
                     else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
                 )
                 if brand in ("zendure", "sessy", "hoymiles"):
@@ -2436,14 +2504,14 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             and self._current_battery_data.get(CONF_BATTERY_VERSION) in ("vA", "vD")
         ):
             _schema[vol.Required(CONF_DC_PV_CONNECTED, default=True)] = BooleanSelector()
-        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
+        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt", "apsystems_ezhi"):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)] = bool
-        if brand == "sessy":
-            # Sessy does not report a nominal capacity or identifiable packs.
+        if brand in ("sessy", "apsystems_ezhi"):
+            # Sessy and APsystems EZHI do not report a nominal capacity or identifiable packs.
             _schema[vol.Required("battery_capacity_kwh")] = NumberSelector(
                 NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
-        elif brand in ("zendure", "hoymiles"):
+        elif brand in ("zendure", "hoymiles", "anker"):
             _schema[
                 vol.Optional(
                     "battery_capacity_kwh",
@@ -3125,6 +3193,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             return await self.async_step_reconfigure_battery_anker(user_input)
         if current.get("brand", "marstek") == "sessy":
             return await self.async_step_reconfigure_battery_sessy(user_input)
+        if current.get("brand", "marstek") == "apsystems_ezhi":
+            return await self.async_step_reconfigure_battery_apsystems_ezhi(user_input)
         if current.get("brand", "marstek") == "indevolt":
             return await self.async_step_reconfigure_battery_indevolt(user_input)
         if current.get("brand", "marstek") == "hoymiles":
@@ -4354,6 +4424,8 @@ class OptionsFlowHandler(OptionsFlow):
                 return await self.async_step_battery_connection_anker()
             if brand == "sessy":
                 return await self.async_step_battery_connection_sessy()
+            if brand == "apsystems_ezhi":
+                return await self.async_step_battery_connection_apsystems_ezhi()
             if brand == "indevolt":
                 return await self.async_step_battery_connection_indevolt()
             if brand == "huawei":
@@ -4374,6 +4446,7 @@ class OptionsFlowHandler(OptionsFlow):
                                 {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
                                 {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
                                 {"value": "sessy", "label": "Sessy"},
+                                {"value": "apsystems_ezhi", "label": "APsystems EZHI"},
                                 {"value": "indevolt", "label": "Indevolt SolidFlex / PowerFlex"},
                                 {"value": "hoymiles", "label": "Hoymiles MQTT"},
                                 {"value": "huawei", "label": "Huawei SUN2000 + LUNA2000"},
@@ -4537,6 +4610,106 @@ class OptionsFlowHandler(OptionsFlow):
             ),
             errors=errors,
             description_placeholders={"battery_num": str(battery_num)},
+        )
+
+    async def async_step_battery_connection_apsystems_ezhi(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Configure an APsystems EZHI via its local HTTP API."""
+        errors = {}
+        if not hasattr(self, "_current_battery_data") or self._current_battery_data is None:
+            self._current_battery_data = {}
+        battery_num = self.battery_index + 1
+        if user_input is not None:
+            host = (user_input.get(CONF_HOST) or "").strip()
+            port = int(user_input.get(CONF_PORT, 80))
+            if await ApsystemsEzhiDriver.probe(host, port):
+                self._current_battery_data.update({
+                    CONF_NAME: user_input[CONF_NAME],
+                    CONF_HOST: host,
+                    CONF_PORT: port,
+                    "brand": "apsystems_ezhi",
+                })
+                return await self.async_step_battery_limits()
+            errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="battery_connection_apsystems_ezhi",
+            data_schema=vol.Schema({
+                vol.Required(CONF_NAME, default=f"APsystems EZHI {battery_num}"): str,
+                vol.Required(CONF_HOST): str,
+                vol.Optional(CONF_PORT, default=80): int,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_battery_apsystems_ezhi(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Reconfigure an APsystems EZHI battery."""
+        errors = {}
+        current = self._reconfigure_battery_current()
+        if user_input is not None:
+            host = (user_input.get(CONF_HOST) or "").strip()
+            port = int(user_input.get(CONF_PORT, 80))
+            if not await ApsystemsEzhiDriver.probe(host, port):
+                errors["base"] = "cannot_connect"
+            else:
+                self._current_battery_data = dict(current)
+                self._current_battery_data.update({
+                    CONF_NAME: user_input[CONF_NAME],
+                    CONF_HOST: host,
+                    CONF_PORT: port,
+                    "brand": "apsystems_ezhi",
+                })
+                return await self.async_step_reconfigure_battery_limits()
+
+        return self.async_show_form(
+            step_id="reconfigure_battery_apsystems_ezhi",
+            data_schema=vol.Schema({
+                vol.Required(CONF_NAME, default=current.get(CONF_NAME, "APsystems EZHI")): str,
+                vol.Required(CONF_HOST, default=current.get(CONF_HOST, "")): str,
+                vol.Optional(CONF_PORT, default=int(current.get(CONF_PORT, 80))): int,
+            }),
+            errors=errors,
+        )
+
+    async def async_step_battery_connection_apsystems_ezhi(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Configure an APsystems EZHI via its local HTTP API in OptionsFlow."""
+        errors = {}
+        battery_num = self.battery_index + 1
+        current_batteries = self.config_entry.data.get("batteries", [])
+        current_battery = (
+            current_batteries[self.battery_index]
+            if self.battery_index < len(current_batteries)
+            else {}
+        )
+        if user_input is not None:
+            host = (user_input.get(CONF_HOST) or "").strip()
+            port = int(user_input.get(CONF_PORT, 80))
+            if await ApsystemsEzhiDriver.probe(host, port):
+                self._current_battery_data.update({
+                    CONF_NAME: user_input[CONF_NAME],
+                    CONF_HOST: host,
+                    CONF_PORT: port,
+                    "brand": "apsystems_ezhi",
+                })
+                return await self.async_step_battery_limits()
+            errors["base"] = "cannot_connect"
+
+        return self.async_show_form(
+            step_id="battery_connection_apsystems_ezhi",
+            data_schema=vol.Schema({
+                vol.Required(
+                    CONF_NAME,
+                    default=current_battery.get(CONF_NAME, f"APsystems EZHI {battery_num}"),
+                ): str,
+                vol.Required(
+                    CONF_HOST,
+                    default=current_battery.get(CONF_HOST, ""),
+                ): str,
+                vol.Optional(
+                    CONF_PORT,
+                    default=int(current_battery.get(CONF_PORT, 80)),
+                ): int,
+            }),
+            errors=errors,
         )
 
     async def async_step_battery_connection_sessy(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -5060,6 +5233,9 @@ class OptionsFlowHandler(OptionsFlow):
             elif brand == "sessy":
                 max_charge_power = _SESSY_MAX_CHARGE_POWER_W
                 max_discharge_power = _SESSY_MAX_DISCHARGE_POWER_W
+            elif brand == "apsystems_ezhi":
+                max_charge_power = 1200
+                max_discharge_power = 1200
             elif brand == "indevolt":
                 max_charge_power, max_discharge_power = _indevolt_power_ceilings(self._current_battery_data)
             elif brand == "hoymiles":
@@ -5128,7 +5304,7 @@ class OptionsFlowHandler(OptionsFlow):
                     user_input.get(CONF_DC_PV_CONNECTED, True)
                 ) if merged.get(CONF_BATTERY_VERSION) in ("vA", "vD") else False
                 merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = (
-                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt")
+                    False if brand in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt", "apsystems_ezhi")
                     else user_input.get(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED)
                 )
                 if brand in ("zendure", "sessy", "hoymiles"):
@@ -5239,9 +5415,9 @@ class OptionsFlowHandler(OptionsFlow):
                     default=defaults[CONF_DC_PV_CONNECTED],
                 )
             ] = BooleanSelector()
-        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt"):
+        if brand not in ("zendure", "anker", "sessy", "hoymiles", "huawei", "indevolt", "apsystems_ezhi"):
             _schema[vol.Required(CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, default=defaults[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED])] = bool
-        if brand == "sessy":
+        if brand in ("sessy", "apsystems_ezhi"):
             saved_capacity = float(defaults["battery_capacity_kwh"])
             capacity_field = (
                 vol.Required("battery_capacity_kwh", default=saved_capacity)
@@ -5251,7 +5427,7 @@ class OptionsFlowHandler(OptionsFlow):
             _schema[capacity_field] = NumberSelector(
                 NumberSelectorConfig(min=0.01, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
-        elif brand in ("zendure", "hoymiles"):
+        elif brand in ("zendure", "hoymiles", "anker"):
             _schema[vol.Optional("battery_capacity_kwh", default=defaults["battery_capacity_kwh"])] = NumberSelector(
                 NumberSelectorConfig(min=0, max=100, step=0.01, unit_of_measurement="kWh", mode=NumberSelectorMode.BOX)
             )
