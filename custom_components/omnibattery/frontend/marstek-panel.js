@@ -5396,7 +5396,19 @@ class MarstekVenusPanel extends HTMLElement {
       el.title = `${this._t(row.lk)}: ${text}`; // full value on hover (chips ellipsize)
     }
 
-    this._patchDailyOperationTimeline();
+    // ponytail: hass is set on every state change in HA (~1/s); redraw the
+    // ~100 KB timeline only when its own inputs changed.
+    const dop = this._r.dailyOperation;
+    const dopId = this._dailyOperationEntityId();
+    const dopState = dopId ? this._hass.states[dopId] : null;
+    const dopHourly = this._stateFor(this._index().byKey, "hourly_balance");
+    const dopLang = this._lang();
+    const dopSettled = dop && (dop.scrollState.initialized || dop.scrollState.manual);
+    if (!dopSettled || dop.seenState !== dopState || dop.seenHourly !== dopHourly
+      || dop.seenLang !== dopLang) {
+      if (dop) Object.assign(dop, { seenState: dopState, seenHourly: dopHourly, seenLang: dopLang });
+      this._patchDailyOperationTimeline();
+    }
   }
 
   // --- history (SOC sparkline + Potencias + Energía semanal) -----------------
