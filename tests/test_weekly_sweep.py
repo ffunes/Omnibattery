@@ -190,9 +190,10 @@ def scenario(case, *, at: datetime, socs, pending: bool) -> h.Scenario:
     )
 
 
-def run(sc: h.Scenario, *, old: bool = False, daily: bool = False):
+def run(sc: h.Scenario, *, old: bool = False, daily: bool = False, charging: bool = False):
     """One evaluation: outcome, decision data, plan and the controller. ``old``
-    forces the previous allocator for a pending weekly day."""
+    forces the previous allocator for a pending weekly day; ``charging``: a
+    price slot is charging at the evaluation (the optimizer's start cost)."""
     box = {}
     controller = h._controller
     real = pricing_engine.optimizer_fallback_reason
@@ -200,6 +201,7 @@ def run(sc: h.Scenario, *, old: bool = False, daily: bool = False):
     def capture(s):
         box["c"] = controller(s)
         box["c"].discharge_reserve_min_saving = 0.02
+        box["c"]._current_price_slot_active = box["c"].grid_charging_active = charging
         if daily:
             box["c"].config_entry.data["solar_forecast_remaining_sensor"] = "sensor.sweep"
         return box["c"]
@@ -402,6 +404,11 @@ def simulate(case, factor, *, old=False, weekly=True):
     ]
     triggers.sort()
 
+    # Grid charge starts once the weekly charge is over, as the optimizer's
+    # start cost counts them (the pending layer pays none); a re-plan while a
+    # charge runs tells the engine.
+    starts, charging = 0, False
+
     def evaluate(at, daily):
         now_socs = _split(floor + e, socs)
         # The 00:05 run with a zero forecast defers to the retry ladder, whose
@@ -410,19 +417,18 @@ def simulate(case, factor, *, old=False, weekly=True):
         # The same inputs plan the same: shared between the worlds (identical
         # up to the first re-plan) and, once the weekly charge is over,
         # between the arms.
-        key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily)
+        key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily, charging)
+        if os.environ.get("OMNI_WEEKLY_TRACE"):
+            print(f"re-plan {at:%d %H:%M} pending={pending} charging={charging} old={old}")
         if key not in _EVALS:
             sc = scenario(case, at=at, socs=now_socs, pending=pending)
-            _EVALS[key] = run(sc, old=old, daily=daily)
+            _EVALS[key] = run(sc, old=old, daily=daily, charging=charging)
         return _EVALS[key]
 
     first = evaluate(t0, t0.hour == 0 and t0.minute == 5)
     policy = policy_of(first)
     model = _model(case, pending)
     total = bought = 0.0
-    # Grid charge starts once the weekly charge is over, as the optimizer's
-    # start cost counts them (the pending layer pays none).
-    starts, charging = 0, False
     complete_at, breaches, replan_now = None, [], False
     targets: dict = {}
     for a, b, slot, q in _world_quarters(case, factor, t0, SIM_END):
