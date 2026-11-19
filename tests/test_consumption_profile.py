@@ -29,14 +29,13 @@ from custom_components.omnibattery.tracking.consumption_profile import (
 MADRID = ZoneInfo("Europe/Madrid")
 
 
-def _profile(days=None, *, slots=None, fallback_daily=5.0):
+def _profile(days=None, *, fallback_daily=5.0):
     profile = ConsumptionProfileTracker.__new__(ConsumptionProfileTracker)
     profile._aggregate_cache = {}
     profile._level_cache = {}
     profile._aggregate_cache_date = None
     profile._days = days or {}
     profile._controller = SimpleNamespace(
-        charging_time_slots=slots or [],
         get_avg_daily_consumption=lambda: fallback_daily,
     )
     profile._fallback_daily_kwh = fallback_daily
@@ -531,30 +530,6 @@ def test_live_fallback_adjustment_waits_for_enough_observation():
     assert adjusted == pytest.approx(18.0)
 
 
-def test_legacy_fallback_does_not_redistribute_masked_charging_window():
-    monday = date(2026, 8, 17)
-    profile = _profile(
-        slots=[{
-            "days": ["mon"],
-            "start_time": "00:00",
-            "end_time": "06:00",
-        }],
-        fallback_daily=30.0,
-    )
-    start = datetime.combine(monday, datetime.min.time()).replace(tzinfo=MADRID)
-
-    result = profile.forecast_energy_between(
-        start,
-        start + timedelta(days=1),
-        exclude_charging_windows=True,
-        fallback="legacy_daily",
-    )
-
-    assert result.source == "legacy_daily"
-    full_day = fallback_daily_intervals(30.0)
-    assert result.energy_kwh == pytest.approx(sum(full_day[24:]))
-
-
 @pytest.mark.parametrize(
     "local_date",
     [date(2026, 3, 29), date(2026, 10, 25)],
@@ -570,7 +545,6 @@ def test_legacy_fallback_preserves_daily_total_across_dst(local_date):
     result = profile.forecast_energy_between(
         start,
         end,
-        exclude_charging_windows=False,
         fallback="legacy_daily",
     )
 
@@ -615,7 +589,6 @@ def test_range_forecast_keeps_dst_scaled_shape_by_date(local_date):
     result = profile.forecast_energy_between(
         start,
         end,
-        exclude_charging_windows=False,
         fallback="legacy_daily",
     )
     dated_shape = result.intervals_by_date[local_date]
@@ -650,7 +623,6 @@ def test_range_forecast_keeps_the_nominal_shape_for_each_date():
     result = profile.forecast_energy_between(
         start,
         end,
-        exclude_charging_windows=False,
         fallback="legacy_daily",
     )
 
@@ -661,29 +633,21 @@ def test_range_forecast_keeps_the_nominal_shape_for_each_date():
     assert result.intervals_by_date[tomorrow][40] == pytest.approx(9.0)
 
 
-def test_range_query_prorates_partial_interval_and_masks_slot_days():
+def test_range_query_prorates_partial_interval():
     today = date.today()
     profile = _profile(
         {today - timedelta(days=offset): _day(today - timedelta(days=offset), 1.0)
          for offset in range(14)},
-        slots=[{
-            "days": ["mon"],
-            "start_time": "10:00",
-            "end_time": "11:00",
-        }],
     )
-    monday = today + timedelta(days=(0 - today.weekday()) % 7)
-    start = datetime.combine(monday, datetime.min.time()).replace(tzinfo=MADRID)
+    start = datetime.combine(today, datetime.min.time()).replace(tzinfo=MADRID)
     result = profile.forecast_energy_between(
         start + timedelta(hours=9, minutes=52),
         start + timedelta(hours=10, minutes=8),
-        exclude_charging_windows=True,
         fallback="legacy_daily",
     )
 
-    # The 16 minutes are all in one nominal 1 kWh/hour profile, but the middle
-    # 8 minutes are a configured Monday charging window.
-    assert result.energy_kwh == pytest.approx(8 / 15, abs=1e-6)
+    # 16 minutes of a profile at 1 kWh per quarter hour.
+    assert result.energy_kwh == pytest.approx(16 / 15, abs=1e-6)
 
 
 def test_a_source_change_keeps_the_learned_days():

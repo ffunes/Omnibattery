@@ -1657,64 +1657,8 @@ class ConsumptionProfileTracker:
         )
 
     # ------------------------------------------------------------------
-    # Date-range queries and charging-window masks
+    # Date-range queries
     # ------------------------------------------------------------------
-
-    @staticmethod
-    def _day_name(local_date: date) -> str:
-        return ("mon", "tue", "wed", "thu", "fri", "sat", "sun")[local_date.weekday()]
-
-    @staticmethod
-    def _parse_slot(slot: dict[str, Any]) -> tuple[time, time] | None:
-        try:
-            return time.fromisoformat(slot["start_time"]), time.fromisoformat(slot["end_time"])
-        except (KeyError, TypeError, ValueError):
-            return None
-
-    def _slot_active(self, local_dt: datetime) -> bool:
-        """Respect each slot's weekday, including the overnight predecessor."""
-        slots = getattr(self._controller, "charging_time_slots", []) or []
-        if not slots:
-            return False
-        current_name = self._day_name(local_dt.date())
-        previous_name = self._day_name(local_dt.date() - timedelta(days=1))
-        current_time = local_dt.timetz().replace(tzinfo=None)
-        for slot in slots:
-            if not isinstance(slot, dict) or slot.get("enabled", True) is False:
-                continue
-            parsed = self._parse_slot(slot)
-            if parsed is None:
-                continue
-            start, end = parsed
-            days = slot.get("days", []) or []
-            if start <= end:
-                if current_name in days and start <= current_time < end:
-                    return True
-            else:
-                if current_name in days and current_time >= start:
-                    return True
-                if previous_name in days and current_time < end:
-                    return True
-        return False
-
-    def _day_has_operating_slot(self, local_date: date) -> bool:
-        """Return whether any configured slot can operate on this local date."""
-        slots = getattr(self._controller, "charging_time_slots", []) or []
-        if not slots:
-            return True
-        name = self._day_name(local_date)
-        previous_name = self._day_name(local_date - timedelta(days=1))
-        for slot in slots:
-            if not isinstance(slot, dict) or slot.get("enabled", True) is False:
-                continue
-            parsed = self._parse_slot(slot)
-            if parsed is None:
-                continue
-            start, end = parsed
-            days = slot.get("days", []) or []
-            if name in days or (start > end and previous_name in days):
-                return True
-        return False
 
     def _legacy_fallback_day_scale(
         self,
@@ -1725,8 +1669,6 @@ class ConsumptionProfileTracker:
 
         The stored shape has 24 nominal hours.  A local day can contain 23 or 25
         real hours, so normalize the actually traversed wall-clock segments.
-        Charging-window masks intentionally do not affect this scale: excluded
-        hours must remove their household demand rather than redistribute it.
         """
         if forecast.source != "legacy_daily":
             return 1.0
@@ -1766,7 +1708,6 @@ class ConsumptionProfileTracker:
         start: datetime,
         end: datetime,
         *,
-        exclude_charging_windows: bool,
         fallback: FallbackKind,
     ) -> ConsumptionForecast:
         """Return predicted energy in an arbitrary local-time range."""
@@ -1788,18 +1729,9 @@ class ConsumptionProfileTracker:
             )
 
         segments = _local_segments(start, end)
-        usable_segments: list[tuple[float, float, datetime]] = []
-        for segment_start, segment_end, midpoint in segments:
-            local_date = midpoint.date()
-            if exclude_charging_windows and (
-                not self._day_has_operating_slot(local_date)
-                or self._slot_active(midpoint)
-            ):
-                continue
-            usable_segments.append((segment_start, segment_end, midpoint))
 
         interval_indices_by_date: dict[date, set[int]] = {}
-        for _, _, midpoint in usable_segments:
+        for _, _, midpoint in segments:
             interval_indices_by_date.setdefault(midpoint.date(), set()).add(
                 _interval_index(midpoint.timetz().replace(tzinfo=None))
             )
@@ -1818,7 +1750,7 @@ class ConsumptionProfileTracker:
         newest: date | None = None
         fallback_scales: dict[date, float] = {}
         level_weighted = 0.0
-        for segment_start, segment_end, midpoint in usable_segments:
+        for segment_start, segment_end, midpoint in segments:
             local_date = midpoint.date()
             forecast = forecasts.get(local_date)
             if forecast is None:
