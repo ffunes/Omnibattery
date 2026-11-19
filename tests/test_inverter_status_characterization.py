@@ -205,20 +205,19 @@ async def test_check_non_delivery(brand, value):
 
 
 # ---------------------------------------------------------------------------
-# Site 2: _is_backup_function_active -> _inverter_in_ac_bypass (bypass)
+# Site 2: _is_backup_function_active -> on_backup_power (backup state)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize(("brand", "value"), CASES, ids=IDS)
-async def test_backup_function_active_in_bypass(brand, value):
+async def test_backup_function_active_in_backup_state(brand, value):
     coord = _Hashable(
-        name="BAT1", driver=_coordinator(brand).driver, backup_offgrid_threshold=50,
-        readings_from_same_poll=lambda *keys: True,
+        name="BAT1", driver=_coordinator(brand).driver,
         data=_data(value, backup_function=0, ac_offgrid_power=200),
     )
     ctrl = SimpleNamespace(_backup_cooldown_until={})
     active = ChargeDischargeController._is_backup_function_active(ctrl, coord)
-    # A grid-bypass reading says the port load is passthrough, not the battery.
-    assert active is (not _is(value, 6))
+    # Only the backup state means an outage; a load on the port never does.
+    assert active is _is(value, 4)
 
 
 # ---------------------------------------------------------------------------

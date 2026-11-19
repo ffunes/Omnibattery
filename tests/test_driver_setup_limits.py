@@ -240,7 +240,7 @@ class LimitsSetup(DriverSetup):
 
     def limits_schema(self, battery_data, base_fields, ctx):
         SEEN.append(("schema", ctx.kind))
-        drop = {"backup_offgrid_threshold"}
+        drop = {"charge_hysteresis_percent"}
         if BEHAVIOUR["remove_power"]:
             drop |= {"max_charge_power", "max_discharge_power"}
         fields = {k: v for k, v in base_fields.items() if str(k.schema) not in drop}
@@ -330,7 +330,7 @@ async def test_config_flow_limits_use_the_hooks(flow_env, limits_brand):
     assert _slider_max(form, "max_charge_power") == 1500   # power_ceilings
     assert _slider_max(form, "max_discharge_power") == 1200
     names = _names(form)
-    assert "backup_offgrid_threshold" not in names          # field removed
+    assert "charge_hysteresis_percent" not in names         # field removed
     assert "limits_note" in names                           # field added
     assert "full_charge_voltage_taper_enabled" not in names  # no legacy brand field leaks in
     assert ("schema", FlowKind.CONFIG) in SEEN
@@ -340,7 +340,7 @@ async def test_config_flow_limits_use_the_hooks(flow_env, limits_brand):
     assert battery["limits_note_saved"] == "hello"          # finalize_limits
     assert battery["finalized_from"] == "config"
     assert battery["max_charge_power"] == 1500 and battery["max_discharge_power"] == 1200
-    assert battery["backup_offgrid_threshold"] == 50        # shared default, field was removed
+    assert battery["charge_hysteresis_percent"] == 2        # shared default, field was removed
     assert "dc_pv_connected" not in battery                 # nothing legacy runs for it
 
 
@@ -377,7 +377,7 @@ async def test_options_flow_limits_use_the_hooks(flow_env, limits_brand):
     assert _slider_max(form, "max_charge_power") == 1500
     assert _slider_max(form, "max_discharge_power") == 1200
     names = _names(form)
-    assert "backup_offgrid_threshold" not in names and "limits_note" in names
+    assert "charge_hysteresis_percent" not in names and "limits_note" in names
     assert ("schema", FlowKind.OPTIONS) in SEEN
 
     run = await flow_env.edit_via_options_flow(LIMITS_CASE, entry)

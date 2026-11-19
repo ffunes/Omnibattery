@@ -5190,56 +5190,30 @@ class ChargeDischargeController:
     # -------------------------------------------------------------------------
 
     def _is_backup_function_active(self, coordinator) -> bool:
-        """Return True if the battery must be excluded from PD control due to backup mode.
+        """Return True while the battery must stay out of automatic control
+        because a grid outage has it feeding its backup port from the cells.
 
-        A battery is excluded when:
-          - The Backup Function switch is enabled (register value == 0) AND
-          - The AC offgrid power sensor reads above the user-configured threshold
-            (default 50 W), OR the sensor is unavailable.
+        The outage is the driver's explicit signal (``on_backup_power``), never
+        the load on the port: with the grid present that load is the same
+        permanent rack or router as during an outage. Whoever runs a whole
+        house from the backup port takes the battery out with its manual-mode
+        switch instead.
 
-        Additionally, a 5-minute cooldown is applied after the offgrid load
-        drops to 0: the battery stays excluded until the cooldown expires to
-        avoid sending write commands immediately after a backup event ends.
-
-        The switch turning OFF clears the cooldown immediately.
+        The battery stays excluded for 5 minutes after the outage ends, to
+        avoid sending write commands right after the grid comes back. The
+        Backup Function switch turning OFF clears that cooldown immediately.
         """
         if coordinator.data is None:
             return False
 
         now = dt_util.utcnow()
 
-        # From SWITCH_DEFINITIONS: command_on = 0 (enabled), command_off = 1 (disabled)
         if not coordinator.driver.backup_enabled(coordinator.data):
             # Switch is off — clear any lingering cooldown and allow PD control
             self._backup_cooldown_until.pop(coordinator, None)
             return False
 
-        # Switch is ON. Check whether the battery is actively providing offgrid power.
-        ac_offgrid = coordinator.data.get("ac_offgrid_power")
-
-        # In Bypass the grid is passed through to the backup port, so a load
-        # connected there reads as off-grid power although the battery supplies
-        # nothing. Only a real outage (backup state) means the battery is
-        # feeding the port, so treat the port as idle here and let the normal
-        # post-backup cooldown run out. The two values are read in separate
-        # register groups, and a failed read leaves the old value in place, so a
-        # stale Bypass must not hide a fresh port load: only trust it when both
-        # came from the same poll.
-        if coordinator.driver.inverter_status(
-            coordinator.data
-        ) is InverterStatus.BYPASS and coordinator.readings_from_same_poll(
-            "inverter_state", "ac_offgrid_power"
-        ):
-            ac_offgrid = 0
-
-        # Small permanent loads (e.g. a PoE switch, router, or AP connected to the
-        # offgrid port) should not trigger backup exclusion. Only a substantial load
-        # — indicative of a real grid-outage scenario — warrants excluding the battery
-        # from PD control. The threshold is user-configurable (default 50 W).
-        threshold = coordinator.backup_offgrid_threshold
-
-        if ac_offgrid is not None and ac_offgrid <= threshold:
-            # Offgrid power is zero or a small standby load — check post-backup cooldown
+        if not coordinator.driver.on_backup_power(coordinator.data):
             cooldown_until = self._backup_cooldown_until.get(coordinator)
             if cooldown_until and now < cooldown_until:
                 remaining = int((cooldown_until - now).total_seconds() / 60)
@@ -5252,13 +5226,12 @@ class ChargeDischargeController:
             self._backup_cooldown_until.pop(coordinator, None)
             return False
 
-        # Offgrid power > threshold (or sensor not available): backup is actively running.
-        # Refresh the cooldown window so it starts counting from the last active reading.
-        if ac_offgrid is not None:
-            _LOGGER.debug(
-                "%s: Backup active — offgrid load %.0fW exceeds %.0fW threshold, excluding from PD control",
-                coordinator.name, ac_offgrid, threshold
-            )
+        # Grid outage: refresh the cooldown window so it starts counting from
+        # the last reading that reported it.
+        _LOGGER.debug(
+            "%s: Grid outage — backup port fed from the cells, excluding from PD control",
+            coordinator.name,
+        )
         self._backup_cooldown_until[coordinator] = now + timedelta(minutes=5)
         return True
 
@@ -11419,8 +11392,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v16 -> v17: one grid import cap (#506). Peak shaving's own limit folds into
                 max_contracted_power (the lower of the two when peak shaving was
                 on); the limit key and its number entity are removed.
+    v17 -> v18: the backup offgrid threshold is removed from every battery,
+                with its number entity.
     """
-    if entry.version >= 17:
+    if entry.version >= 18:
         return True
 
     new_data = dict(entry.data)
@@ -11835,11 +11810,32 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(one grid import cap: %sW)", cap,
         )
 
+    if entry.version < 18:
+        from homeassistant.helpers import entity_registry as er
+
+        # The backup offgrid threshold is gone: the backup exclusion follows
+        # the inverter's outage state, not the load on the port.
+        new_data["batteries"] = [
+            {k: v for k, v in battery.items() if k != "backup_offgrid_threshold"}
+            for battery in new_data.get("batteries", [])
+        ]
+        ent_reg = er.async_get(hass)
+        for registered in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
+            if registered.domain == "number" and registered.unique_id.endswith(
+                "_backup_offgrid_threshold"
+            ):
+                ent_reg.async_remove(registered.entity_id)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 18 "
+            "(backup offgrid threshold removed)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=17,
+        version=18,
     )
     return True
 
@@ -12923,15 +12919,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     )
                     continue
 
-                # Skip batteries that are actively providing offgrid backup power
-                # (backup switch ON and ac_offgrid_power exceeds threshold, or sensor unavailable)
-                if coordinator.data and coordinator.driver.backup_enabled(
+                # Skip batteries feeding their backup port during a grid outage
+                if (
                     coordinator.data
+                    and coordinator.driver.backup_enabled(coordinator.data)
+                    and coordinator.driver.on_backup_power(coordinator.data)
                 ):
-                    ac_offgrid = coordinator.data.get("ac_offgrid_power")
-                    if ac_offgrid is None or ac_offgrid > coordinator.backup_offgrid_threshold:
-                        _LOGGER.info("%s: Skipping shutdown writes - backup function active with offgrid load", coordinator.name)
-                        continue
+                    _LOGGER.info("%s: Skipping shutdown writes - grid outage, backup port fed from the cells", coordinator.name)
+                    continue
 
                 # Set all power commands to 0 (idle) via the driver. standby()
                 # paces its own writes — the client's inter-message pacing is

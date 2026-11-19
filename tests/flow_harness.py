@@ -118,7 +118,6 @@ def _stored(**brand_fields: Any) -> dict:
         "min_soc": 15,
         "enable_charge_hysteresis": True,
         "charge_hysteresis_percent": 5,
-        "backup_offgrid_threshold": 50,
         "dc_pv_connected": False,
         "full_charge_voltage_taper_enabled": False,
         "track_mac": False,

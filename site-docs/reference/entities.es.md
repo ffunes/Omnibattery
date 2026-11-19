@@ -139,7 +139,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
     | Número | `set_charge_power`, `set_discharge_power` | Control por registro o control manual mediante software |
     | Número | `max_charge_power`, `max_discharge_power`, `inverse_max_power` | Límite de hardware o software admitido |
     | Número | `charging_cutoff_capacity`, `discharging_cutoff_capacity`, `charge_to_soc`, `soc_set`, `min_soc` | Corte de hardware o límite de software, según el controlador |
-    | Número | `backup_offgrid_threshold`, `charge_hysteresis_percent`, `battery_capacity` | Controlador/configuración pertinente |
+    | Número | `charge_hysteresis_percent`, `battery_capacity` | Controlador/configuración pertinente |
     | Interruptor | `battery_allow_charge`, `battery_allow_discharge`, `battery_manual_mode` | Cada batería controlada |
     | Interruptor | `full_charge_voltage_taper` | Telemetría de celdas compatible |
     | Interruptor | `backup_function`, `rs485_control_mode`, `lamp_switch` | El controlador expone el control |

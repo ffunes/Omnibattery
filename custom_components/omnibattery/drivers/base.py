@@ -1106,6 +1106,15 @@ class BatteryDriver(ABC):
             return None
         return value == 0
 
+    def on_backup_power(self, data: dict) -> bool:
+        """Whether a grid outage has the battery feeding its backup port.
+
+        True only on the inverter's explicit backup state; a state the driver
+        cannot name counts as "no outage". A driver that reports the outage
+        another way overrides this.
+        """
+        return self.inverter_status(data) is InverterStatus.BACKUP
+
     def active_alarms(self, data: dict) -> list[DriverAlarm]:
         """The alarms and faults currently active, decoded from ``data``.
 

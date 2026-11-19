@@ -398,7 +398,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             MIN_CHARGE_HYSTERESIS_PERCENT,
             int(battery_config.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
         )
-        self.backup_offgrid_threshold = battery_config.get("backup_offgrid_threshold", 50)
         # User-set nominal capacity (kWh) for drivers that don't report it
         # (has_nominal_capacity=False, e.g. Zendure and Sessy). Injected into data as
         # battery_total_energy each poll so stored_energy / predictive / pricing
@@ -460,9 +459,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Timestamp-based update tracking
         self._last_update_times = {}
-        # Per key, not per group: a group is stamped when any one of its keys is
-        # stored, so it cannot tell which values a partial read refreshed.
-        self._key_update_times = {}
         self._critical_group_failures = {}
         self._refresh_count = 0
         self._refresh_times: deque[float] = deque(maxlen=256)
@@ -804,19 +800,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         """
         return self.traits.hardware_power_cap_choices
 
-    def readings_from_same_poll(self, key_a: str, key_b: str) -> bool:
-        """Whether two keys were last stored by the same poll cycle.
-
-        A key whose read fails keeps its previous value in ``data``. Every key
-        stored in one cycle shares the cycle's timestamp, so equal timestamps
-        mean both values came from the same poll. Tracked per key because a
-        group can be read partially: the ESPHome driver puts every key in one
-        group and omits the unavailable ones. A key never read is not a match.
-        """
-        times = getattr(self, "_key_update_times", {})
-        stamp_a, stamp_b = times.get(key_a), times.get(key_b)
-        return stamp_a is not None and stamp_a == stamp_b
-
     @property
     def is_available(self) -> bool:
         """Return whether the battery is currently reachable."""
@@ -1126,10 +1109,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         now = utcnow()
         updated_data = {}
-        # Per-key read times for readings_from_same_poll(), published together
-        # with updated_data: the loop below yields between groups, so a check
-        # made mid-poll must not see a fresh time next to the previous value.
-        updated_times = {}
         critical_groups_attempted = set()
         critical_groups_succeeded = set()
 
@@ -1339,7 +1318,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                         continue
 
                 updated_data[key] = value
-                updated_times[key] = now
                 stored += 1
                 if DEBUG_POLL_SENSOR_VALUES and group.scan_interval == "high":
                     _LOGGER.debug("[%s] Updated %s: %s", self.name, key, value)
@@ -1434,7 +1412,6 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Update the coordinator's data
         self.data.update(updated_data)
-        self._key_update_times.update(updated_times)
 
         update_backup_discharge = getattr(
             self, "_update_backup_discharge_energy", None

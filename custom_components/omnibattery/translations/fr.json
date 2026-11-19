@@ -204,7 +204,6 @@
           "max_soc": "SOC maximum (%)",
           "min_soc": "SOC minimum (%)",
           "charge_hysteresis_percent": "Hystérésis de charge (%)",
-          "backup_offgrid_threshold": "Seuil de charge hors réseau de secours (W)",
           "full_charge_voltage_taper_enabled": "Activer la réduction de charge à 100% par tension",
           "battery_capacity_kwh": "Capacité nominale de la batterie (kWh)",
           "battery_phase": "Phase physique de la batterie",
@@ -218,7 +217,6 @@
           "max_soc": "État de charge maximum - la batterie ne se chargera pas au-dessus de cette valeur",
           "min_soc": "État de charge minimum - la batterie ne se déchargera pas en dessous de cette valeur",
           "charge_hysteresis_percent": "Toujours active (minimum 2%). Une fois le maximum atteint, la batterie ne se recharge pas tant que le SOC ne descend pas à (SOC max − hystérésis). Ex : SOC max 100% avec 2% = pas de charge avant 98%.",
-          "backup_offgrid_threshold": "Une charge hors réseau supérieure à cette valeur est traitée comme un événement de secours actif, excluant la batterie du contrôle PD. Augmenter si des charges permanentes (routeur, caméras) sont connectées au port hors réseau.",
           "full_charge_voltage_taper_enabled": "Lorsque la cible est 100%, limite la charge à 200 W à partir de 3.48 V de tension maximale de cellule. Les Venus E s'arrêtent à 3.60 V pour mesurer le déséquilibre après 60 secondes ; les Venus A/D avec des packs couplés continuent à 200 W jusqu'à la coupure du BMS.",
           "battery_capacity_kwh": "Capacité utilisable nominale du pack de batteries. Elle sert à calculer l'énergie stockée et l'efficacité à partir du SOC. Mettez 0 pour une détection automatique sur les modèles/packs compatibles. Saisissez une valeur positive pour remplacer la détection ou si les packs sont inconnus. Sessy requiert sa capacité réelle.",
           "battery_phase": "Phase AC physique (L1/L2/L3) à laquelle cette batterie est raccordée, ou Non assignée hors du schéma de phases protégées. Une batterie sans phase est exclue de l'enveloppe triphasée et continue à fonctionner normalement en automatique.",
@@ -981,7 +979,6 @@
           "max_soc": "SOC maximum (%)",
           "min_soc": "SOC minimum (%)",
           "charge_hysteresis_percent": "Hystérésis de charge (%)",
-          "backup_offgrid_threshold": "Seuil de charge hors réseau de secours (W)",
           "full_charge_voltage_taper_enabled": "Activer la réduction de charge à 100% par tension",
           "battery_capacity_kwh": "Capacité nominale de la batterie (kWh)",
           "battery_phase": "Phase physique de la batterie",
@@ -995,7 +992,6 @@
           "max_soc": "État de charge maximum",
           "min_soc": "État de charge minimum",
           "charge_hysteresis_percent": "Toujours active (minimum 2%). Une fois le maximum atteint, la batterie ne se recharge pas tant que le SOC ne descend pas à (SOC max − hystérésis). Ex : SOC max 100% avec 2% = pas de charge avant 98%.",
-          "backup_offgrid_threshold": "Une charge hors réseau supérieure à cette valeur est traitée comme un événement de secours actif, excluant la batterie du contrôle PD. Augmenter si des charges permanentes (routeur, caméras) sont connectées au port hors réseau.",
           "full_charge_voltage_taper_enabled": "Lorsque la cible est 100%, limite la charge à 200 W à partir de 3.48 V de tension maximale de cellule. Les Venus E s'arrêtent à 3.60 V pour mesurer le déséquilibre après 60 secondes ; les Venus A/D avec des packs couplés continuent à 200 W jusqu'à la coupure du BMS.",
           "battery_capacity_kwh": "Capacité utilisable nominale du pack de batteries. Elle sert à calculer l'énergie stockée et l'efficacité à partir du SOC. Mettez 0 pour une détection automatique sur les modèles/packs compatibles. Saisissez une valeur positive pour remplacer la détection ou si les packs sont inconnus. Sessy requiert sa capacité réelle.",
           "battery_phase": "Phase AC physique (L1/L2/L3) à laquelle cette batterie est raccordée, ou Non assignée hors du schéma de phases protégées. Une batterie sans phase est exclue de l'enveloppe triphasée et continue à fonctionner normalement en automatique.",
@@ -2739,9 +2735,6 @@
       },
       "temp_charge_limit_floor_pct": {
         "name": "Puissance de charge minimale"
-      },
-      "backup_offgrid_threshold": {
-        "name": "Seuil Offgrid Backup"
       },
       "charge_hysteresis_percent": {
         "name": "Pourcentage Hystérésis Charge"

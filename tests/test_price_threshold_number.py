@@ -15,10 +15,7 @@ import pytest
 from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.omnibattery.const import effective_price_threshold
-from custom_components.omnibattery.number import (
-    BackupThresholdNumber,
-    PriceThresholdNumber,
-)
+from custom_components.omnibattery.number import PriceThresholdNumber
 
 
 def _entity(kind, data):
@@ -66,13 +63,3 @@ def test_disabled_sibling_threshold_skips_validation():
 )
 def test_effective_price_threshold(data, expected):
     assert effective_price_threshold(data, "max_price_threshold", "max_price_threshold_enabled") == expected
-
-
-def test_backup_offgrid_threshold_range_matches_configuration_flow():
-    entity = BackupThresholdNumber(
-        SimpleNamespace(device_key="test_502", name="Test battery")
-    )
-
-    assert entity.native_min_value == 0
-    assert entity.native_max_value == 2500
-    assert entity.native_step == 10

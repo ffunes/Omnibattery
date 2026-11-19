@@ -204,7 +204,6 @@
           "max_soc": "Maximaler SOC (%)",
           "min_soc": "Minimaler SOC (%)",
           "charge_hysteresis_percent": "Ladehysterese (%)",
-          "backup_offgrid_threshold": "Schwellenwert für Backup-Offgrid-Last (W)",
           "full_charge_voltage_taper_enabled": "100%-Ladung per Zellspannung reduzieren",
           "battery_capacity_kwh": "Nominale Batteriekapazität (kWh)",
           "battery_phase": "Physische Batteriephase",
@@ -218,7 +217,6 @@
           "max_soc": "Maximaler Ladezustand - Batterie lädt nicht über diesen Wert",
           "min_soc": "Minimaler Ladezustand - Batterie entlädt nicht unter diesen Wert",
           "charge_hysteresis_percent": "Immer aktiv (mindestens 2%). Nach Erreichen des Maximums lädt die Batterie erst wieder, wenn der SOC auf (Max SOC − Hysterese) fällt. Bsp.: Max SOC 100% mit 2% = kein Laden bis 98%.",
-          "backup_offgrid_threshold": "Eine Offgrid-Last über diesem Wert wird als aktives Backup-Ereignis behandelt und schließt die Batterie aus der PD-Regelung aus. Erhöhen, wenn dauerhafte Lasten (Router, Kameras) am Offgrid-Port angeschlossen sind.",
           "full_charge_voltage_taper_enabled": "Wenn das Ziel 100% ist, wird die Ladung ab 3.48 V maximaler Zellspannung auf 200 W begrenzt. Venus-E-Modelle stoppen bei 3.60 V zur Messung des Zellversatzes nach 60 Sekunden; Venus A/D mit gekoppelten Packs laden mit 200 W weiter, bis das BMS abschaltet.",
           "battery_capacity_kwh": "Nominale nutzbare Kapazität des Batteriepacks. Sie dient zur Berechnung der gespeicherten Energie und Effizienz aus dem SOC. 0 setzen für automatische Erkennung bei unterstützten Modellen/Packs. Einen positiven Wert eingeben, um die Erkennung zu überschreiben oder wenn die Packs unbekannt sind. Sessy erfordert die tatsächliche Kapazität.",
           "battery_phase": "Physische AC-Phase (L1/L2/L3), an die diese Batterie angeschlossen ist, oder Nicht zugewiesen außerhalb des geschützten Phasenschemas. Eine Batterie ohne Phase liegt außerhalb der Dreiphasen-Schutzhülle und arbeitet im Automatikbetrieb normal weiter.",
@@ -981,7 +979,6 @@
           "max_soc": "Maximaler SOC (%)",
           "min_soc": "Minimaler SOC (%)",
           "charge_hysteresis_percent": "Ladehysterese (%)",
-          "backup_offgrid_threshold": "Schwellenwert für Backup-Offgrid-Last (W)",
           "full_charge_voltage_taper_enabled": "100%-Ladung per Zellspannung reduzieren",
           "battery_capacity_kwh": "Nominale Batteriekapazität (kWh)",
           "battery_phase": "Physische Batteriephase",
@@ -995,7 +992,6 @@
           "max_soc": "Maximaler Ladezustand",
           "min_soc": "Minimaler Ladezustand",
           "charge_hysteresis_percent": "Immer aktiv (mindestens 2%). Nach Erreichen des Maximums lädt die Batterie erst wieder, wenn der SOC auf (Max SOC − Hysterese) fällt. Bsp.: Max SOC 100% mit 2% = kein Laden bis 98%.",
-          "backup_offgrid_threshold": "Eine Offgrid-Last über diesem Wert wird als aktives Backup-Ereignis behandelt und schließt die Batterie aus der PD-Regelung aus. Erhöhen, wenn dauerhafte Lasten (Router, Kameras) am Offgrid-Port angeschlossen sind.",
           "full_charge_voltage_taper_enabled": "Wenn das Ziel 100% ist, wird die Ladung ab 3.48 V maximaler Zellspannung auf 200 W begrenzt. Venus-E-Modelle stoppen bei 3.60 V zur Messung des Zellversatzes nach 60 Sekunden; Venus A/D mit gekoppelten Packs laden mit 200 W weiter, bis das BMS abschaltet.",
           "battery_capacity_kwh": "Nominale nutzbare Kapazität des Batteriepacks. Sie dient zur Berechnung der gespeicherten Energie und Effizienz aus dem SOC. 0 setzen für automatische Erkennung bei unterstützten Modellen/Packs. Einen positiven Wert eingeben, um die Erkennung zu überschreiben oder wenn die Packs unbekannt sind. Sessy erfordert die tatsächliche Kapazität.",
           "battery_phase": "Physische AC-Phase (L1/L2/L3), an die diese Batterie angeschlossen ist, oder Nicht zugewiesen außerhalb des geschützten Phasenschemas. Eine Batterie ohne Phase liegt außerhalb der Dreiphasen-Schutzhülle und arbeitet im Automatikbetrieb normal weiter.",
@@ -2739,9 +2735,6 @@
       },
       "temp_charge_limit_floor_pct": {
         "name": "Minimale Ladeleistung"
-      },
-      "backup_offgrid_threshold": {
-        "name": "Backup Offgrid Schwellenwert"
       },
       "charge_hysteresis_percent": {
         "name": "Ladehysterese Prozent"

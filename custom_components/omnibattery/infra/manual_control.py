@@ -17,7 +17,7 @@ from homeassistant.exceptions import HomeAssistantError
 from ..const import CONF_BATTERY_MANUAL_MODE_ENABLED, DOMAIN
 
 # Register keys the control loop rewrites every cycle. Anything else on the
-# battery device (SOC cutoffs, power caps, backup threshold) is configuration
+# battery device (SOC cutoffs, power caps) is configuration
 # the controller reads rather than owns, so those stay freely writable.
 CONTROLLER_OWNED_KEYS = frozenset(
     {"force_mode", "set_charge_power", "set_discharge_power"}

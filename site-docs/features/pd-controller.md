@@ -129,6 +129,6 @@ After changing a setting, allow the quality metric to reflect the new behavior b
 
     ### Backup output exclusion
 
-    A battery with **Backup Function** enabled is excluded when **AC Offgrid Power** exceeds its **Backup Offgrid Threshold**, or when that power reading is unavailable. The default threshold is `50 W`, so small permanent loads on the backup output do not remove the battery from normal control.
+    A battery with **Backup Function** enabled is excluded while a grid outage has it feeding the backup output from the cells (the Backup inverter state, or the off-grid state on Huawei), and for `5 min` after the grid is back. A load on the backup output does not exclude it while the grid is present.
 
     While excluded, Omnibattery continues polling read-only data but sends no power, forced-mode, configuration, or weekly full-charge commands to that battery. After off-grid power returns below the threshold, exclusion remains for `5 min`; turning **Backup Function** off clears the cooldown immediately.

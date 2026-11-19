@@ -59,6 +59,12 @@ def _coordinator(brand):
         return _build_coordinator(BRAND_CONFIGS[brand])
 
 
+def _outage(value):
+    """Armed and in a grid outage: the data below carries the backup state (4),
+    which Huawei ignores in favour of its own off-grid bit."""
+    return value == "Off-grid" if isinstance(value, str) else _armed(value)
+
+
 def _armed(value):
     """What the core made of the value before the query existed."""
     if value is ABSENT or value is None:
@@ -88,15 +94,14 @@ class _Hashable(SimpleNamespace):
 @pytest.mark.parametrize(("brand", "value"), CASES, ids=IDS)
 async def test_backup_function_active(brand, value):
     coord = _Hashable(
-        name="BAT1", driver=_coordinator(brand).driver, backup_offgrid_threshold=50,
-        readings_from_same_poll=lambda *keys: True,
-        data=_data(value, ac_offgrid_power=200),
+        name="BAT1", driver=_coordinator(brand).driver,
+        data=_data(value, ac_offgrid_power=200, inverter_state=4),
     )
     ctrl = SimpleNamespace(
         _backup_cooldown_until={coord: dt_util.utcnow()},
     )
     active = ChargeDischargeController._is_backup_function_active(ctrl, coord)
-    assert active is _armed(value)
+    assert active is _outage(value)
     if not _armed(value):
         # A switch that is not armed also clears a lingering cooldown.
         assert coord not in ctrl._backup_cooldown_until
@@ -121,7 +126,7 @@ async def test_shutdown_skips_an_armed_backup(brand, value, monkeypatch):
 
     coord = SimpleNamespace(
         name="BAT1", driver=_coordinator(brand).driver, _is_connected=True,
-        backup_offgrid_threshold=50, data=_data(value, ac_offgrid_power=200),
+        data=_data(value, ac_offgrid_power=200, inverter_state=4),
         capabilities=SimpleNamespace(has_rs485_control=False),
         set_shutting_down=lambda _flag: None, standby=standby, disconnect=_noop,
     )
@@ -138,4 +143,4 @@ async def test_shutdown_skips_an_armed_backup(brand, value, monkeypatch):
         ),
     )
     assert await integration.async_unload_entry(hass, entry) is True
-    assert standby_calls == ([] if _armed(value) else [1])
+    assert standby_calls == ([] if _outage(value) else [1])

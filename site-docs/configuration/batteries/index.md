@@ -39,7 +39,6 @@ The LilyGo option is a separate connection route for a Marstek battery. Choose i
 | **Max charge power** / **Max discharge power** | Caps what Omnibattery may request. A device-reported hardware limit can reduce the effective value. |
 | **Max SOC** / **Min SOC** | Sets the upper charging limit and lower discharging limit. SOC means state of charge. |
 | **Charge hysteresis** | Prevents rapid cycling after the battery reaches its upper limit. The minimum is 2%; see [charge hysteresis](#charge-hysteresis). |
-| **Backup Offgrid Threshold** | Keeps a battery out of automatic control while its backup output is serving a load above this value. |
 | **Nominal capacity** | Enables stored-energy and efficiency calculations when the battery does not report its capacity. |
 
 The integration creates runtime controls for state-of-charge and power limits, so you can adjust them without running the setup flow again. **Battery Manual Control** reserves one battery for your own charge, discharge, or idle commands; see [manual control in a multi-battery installation](../../features/multi-battery.md#manual-control-per-battery).
@@ -67,7 +66,7 @@ The minimum of 2% is deliberate and cannot be lowered. Near the top, the SOC a b
 
     Runtime power and state-of-charge limits are persisted and restored after a Home Assistant restart. **Battery Manual Control** first verifies an idle target, removes the battery from the automatic pool, and also restores that ownership after restart.
 
-    **Backup Offgrid Threshold** defaults to `50 W`. Leave it at zero when no standby load is connected, or set it above the normal permanent backup-port load so a router or network switch does not look like a backup event. When **Backup Function** is enabled and the measured load exceeds the threshold, Omnibattery excludes the battery from proportional–derivative (PD) control. It waits `5 min` after the load falls before returning the battery to the automatic pool.
+    During a grid outage a battery with **Backup Function** enabled feeds its backup output from the cells. Omnibattery then excludes it from automatic control, and returns it to the automatic pool `5 min` after the grid is back. A load on the backup output never excludes the battery while the grid is present. To run a whole house from the backup output, take that battery out with **Battery Manual Control**.
 
     Related configuration:
 
