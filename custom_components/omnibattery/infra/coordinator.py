@@ -25,6 +25,7 @@ from ..drivers.marstek import MarstekModbusDriver
 from ..drivers.zendure import ZendureLocalDriver, ZENDURE_MODEL_2400AC_PRO
 from ..drivers.anker import AnkerModbusDriver
 from ..drivers.sessy import SessyLocalDriver
+from ..drivers.apsystems_ezhi import ApsystemsEzhiDriver
 from ..drivers.indevolt import IndevoltDriver
 from ..drivers.indevolt_settings import stored_battery_value
 from .indevolt_client import slot_for_request_speed
@@ -549,6 +550,12 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 max_charge_power_w=self.configured_max_charge_power,
                 max_discharge_power_w=self.configured_max_discharge_power,
             )
+        elif self.brand == "apsystems_ezhi":
+            self.driver = ApsystemsEzhiDriver(
+                self.host, port=self.port,
+                max_charge_power_w=self.configured_max_charge_power,
+                max_discharge_power_w=self.configured_max_discharge_power,
+            )
         elif self.brand == "indevolt":
             # The driver paces all device traffic itself; polls read its cache.
             self.driver = IndevoltDriver(
@@ -917,6 +924,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 "Zendure" if self.brand == "zendure"
                 else "Anker" if self.brand == "anker"
                 else "Sessy" if self.brand == "sessy"
+                else "APsystems" if self.brand == "apsystems_ezhi"
                 else "Hoymiles" if self.brand == "hoymiles"
                 else "Huawei" if self.brand == "huawei"
                 else "Indevolt" if self.brand == "indevolt"
@@ -926,6 +934,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
                 "Zendure" if self.brand == "zendure"
                 else "Solarbank Max AC" if self.brand == "anker"
                 else "Sessy" if self.brand == "sessy"
+                else "APsystems" if self.brand == "apsystems_ezhi"
                 else "MS-A2" if self.brand == "hoymiles"
                 else "Indevolt" if self.brand == "indevolt"
                 else "Venus"
@@ -951,7 +960,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # The firmware line on the device page. Home Assistant keeps the last
         # value written there, so a brand whose software version is the
         # battery's firmware writes it on every start.
-        if self.brand in ("sessy", "indevolt"):
+        if self.brand in ("sessy", "indevolt", "apsystems_ezhi"):
             software_version = (getattr(self, "data", None) or {}).get("software_version")
             if software_version:
                 info["sw_version"] = str(software_version)
