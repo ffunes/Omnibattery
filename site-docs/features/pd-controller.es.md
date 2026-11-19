@@ -129,6 +129,6 @@ Después de cambiar un ajuste, deja que la métrica de calidad refleje el nuevo 
 
     ### Exclusión de salida de respaldo
 
-    Una batería con **Backup Function** activada queda excluida cuando **AC Offgrid Power** supera su **Backup Offgrid Threshold**, o cuando esa lectura de potencia no está disponible. El umbral predeterminado es `50 W`, por lo que pequeñas cargas permanentes en la salida de respaldo no retiran la batería del control normal.
+    Un inversor Huawei queda excluido mientras informa del estado off-grid, y durante `5 min` después de que vuelva la red. Ninguna otra marca se excluye por respaldo: ni una carga en la salida de respaldo ni el estado Backup del inversor sacan una batería del control.
 
-    Mientras está excluida, Omnibattery sigue consultando datos de solo lectura, pero no envía a esa batería órdenes de potencia, modo forzado, configuración ni carga completa semanal. Tras volver la potencia aislada por debajo del umbral, la exclusión se mantiene `5 min`; desactivar **Backup Function** elimina el periodo de espera inmediatamente.
+    Mientras está excluida, Omnibattery sigue consultando datos de solo lectura, pero no envía a esa batería órdenes de potencia, modo forzado, configuración ni carga completa semanal. Cuando vuelve la red, la exclusión se mantiene `5 min`.

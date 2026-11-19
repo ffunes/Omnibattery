@@ -1,6 +1,5 @@
 {
   "battery": {
-    "backup_offgrid_threshold": 50,
     "battery_version": "vD",
     "brand": "marstek",
     "charge_hysteresis_percent": 5,

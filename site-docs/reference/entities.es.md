@@ -139,7 +139,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
     | Número | `set_charge_power`, `set_discharge_power` | Control por registro o control manual mediante software |
     | Número | `max_charge_power`, `max_discharge_power`, `inverse_max_power` | Límite de hardware o software admitido |
     | Número | `charging_cutoff_capacity`, `discharging_cutoff_capacity`, `charge_to_soc`, `soc_set`, `min_soc` | Corte de hardware o límite de software, según el controlador |
-    | Número | `backup_offgrid_threshold`, `charge_hysteresis_percent`, `battery_capacity` | Controlador/configuración pertinente |
+    | Número | `charge_hysteresis_percent`, `battery_capacity` | Controlador/configuración pertinente |
     | Interruptor | `battery_allow_charge`, `battery_allow_discharge`, `battery_manual_mode` | Cada batería controlada |
     | Interruptor | `full_charge_voltage_taper` | Telemetría de celdas compatible |
     | Interruptor | `backup_function`, `rs485_control_mode`, `lamp_switch` | El controlador expone el control |
@@ -160,7 +160,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
     | `manual_batteries` | Baterías bajo control manual |
     | `non_responsive_batteries` | Baterías excluidas tras fallos de comunicación o entrega |
     | `balance_hold_batteries` | Baterías retenidas por protección de balance de celdas |
-    | `backup_cooldown_batteries` | Baterías retenidas tras actividad de salida de respaldo |
+    | `backup_cooldown_batteries` | Inversores Huawei retenidos durante y después de un corte de red |
     | `ev_chargers_active`, `ev_pause_until` | Exclusiones y pausas de cargadores activos |
     | `hourly_balance_status`, `hourly_balance_offset_w`, `hourly_balance_net_kwh` | Estado del controlador de balance neto |
     | `temperature_charge_limit` | Decisión actual de límite térmico |

@@ -1223,7 +1223,7 @@ async def _dispatch_brand_entry(flow, brand: str):
 class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Omnibattery."""
 
-    VERSION = 17
+    VERSION = 18
 
     def __init__(self):
         """Initialize the config flow."""
@@ -1486,7 +1486,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     MIN_CHARGE_HYSTERESIS_PERCENT,
                     int(user_input.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
                 )
-                merged["backup_offgrid_threshold"] = int(user_input.get("backup_offgrid_threshold", 50))
                 _apply_mac_tracking(user_input, merged)
                 self.battery_configs.append(merged)
                 self.battery_index += 1
@@ -1520,8 +1519,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             ): NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("charge_hysteresis_percent", default=DEFAULT_CHARGE_HYSTERESIS_PERCENT):
                 NumberSelector(NumberSelectorConfig(min=MIN_CHARGE_HYSTERESIS_PERCENT, max=MAX_CHARGE_HYSTERESIS_PERCENT, step=1, mode=NumberSelectorMode.SLIDER)),
-            vol.Required("backup_offgrid_threshold", default=50):
-                NumberSelector(NumberSelectorConfig(min=0, max=2500, step=10, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
         })
         _schema = limits.limits_schema(self._current_battery_data, _schema, ctx)
         if self.config_data.get(CONF_THREE_PHASE_ENABLED):
@@ -2771,7 +2768,6 @@ class OptionsFlowHandler(OptionsFlow):
                     MIN_CHARGE_HYSTERESIS_PERCENT,
                     int(user_input.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
                 )
-                merged["backup_offgrid_threshold"] = int(user_input.get("backup_offgrid_threshold", 50))
                 _apply_mac_tracking(user_input, merged)
                 self.battery_configs.append(merged)
                 self.battery_index += 1
@@ -2794,7 +2790,6 @@ class OptionsFlowHandler(OptionsFlow):
                         MIN_CHARGE_HYSTERESIS_PERCENT,
                         int(current_battery.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
                     ),
-                    "backup_offgrid_threshold": current_battery.get("backup_offgrid_threshold", 50),
                     CONF_BATTERY_PHASE: normalize_battery_phase(
                         current_battery.get(CONF_BATTERY_PHASE, PHASE_UNASSIGNED)
                     ),
@@ -2818,7 +2813,6 @@ class OptionsFlowHandler(OptionsFlow):
                     "max_soc": soc_max_default,
                     "min_soc": self._current_battery_data.get("min_soc", soc_min_default),
                     "charge_hysteresis_percent": DEFAULT_CHARGE_HYSTERESIS_PERCENT,
-                    "backup_offgrid_threshold": 50,
                     CONF_BATTERY_PHASE: PHASE_UNASSIGNED,
                 }
         except Exception as e:
@@ -2839,8 +2833,6 @@ class OptionsFlowHandler(OptionsFlow):
                 NumberSelector(NumberSelectorConfig(min=soc_min_lo, max=soc_min_hi, step=1, mode=NumberSelectorMode.SLIDER)),
             vol.Required("charge_hysteresis_percent", default=defaults["charge_hysteresis_percent"]):
                 NumberSelector(NumberSelectorConfig(min=MIN_CHARGE_HYSTERESIS_PERCENT, max=MAX_CHARGE_HYSTERESIS_PERCENT, step=1, mode=NumberSelectorMode.SLIDER)),
-            vol.Required("backup_offgrid_threshold", default=defaults["backup_offgrid_threshold"]):
-                NumberSelector(NumberSelectorConfig(min=0, max=2500, step=10, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)),
         })
         _schema = limits.limits_schema(self._current_battery_data, _schema, ctx)
         if self.config_entry.data.get(

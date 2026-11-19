@@ -123,7 +123,7 @@ class DriverSetup:
         """Adjust the battery dict right before it is stored. Default: nothing.
 
         ``merged`` already holds the shared values (the power limits from the form
-        when it has those fields, SOC, hysteresis, backup threshold, phase);
+        when it has those fields, SOC, hysteresis, phase);
         ``battery_data`` is the battery as the connection steps left it.
         """
 

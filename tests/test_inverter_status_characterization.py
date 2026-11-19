@@ -16,9 +16,8 @@ The core reads the key as Marstek's register table: 1 Standby, 4 Backup Mode,
   which never matches a code;
 * sessy, zendure  never publish the key.
 
-The six sites (rows of ``tests/guard_allowlists/no_native_keys.txt``):
-``_check_non_delivery`` (standby), ``_is_backup_function_active`` via
-``_inverter_in_ac_bypass`` (bypass), ``_daily_operation_runtime_decision`` (backup),
+The five sites (rows of ``tests/guard_allowlists/no_native_keys.txt``):
+``_check_non_delivery`` (standby), ``_daily_operation_runtime_decision`` (backup),
 ``MaxSocChargeManager._bms_cut_signature`` (standby),
 ``WeeklyFullChargeManager.tick_bms_cutoff`` (standby, or a missing key on a driver
 with ``cutoff_without_inverter_state``) and
@@ -202,23 +201,6 @@ async def test_check_non_delivery(brand, value):
     reasons, wakes = await _judge(brand, value, soc=16)
     assert reasons == []
     assert wakes == (1 if standby else 0)
-
-
-# ---------------------------------------------------------------------------
-# Site 2: _is_backup_function_active -> _inverter_in_ac_bypass (bypass)
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize(("brand", "value"), CASES, ids=IDS)
-async def test_backup_function_active_in_bypass(brand, value):
-    coord = _Hashable(
-        name="BAT1", driver=_coordinator(brand).driver, backup_offgrid_threshold=50,
-        readings_from_same_poll=lambda *keys: True,
-        data=_data(value, backup_function=0, ac_offgrid_power=200),
-    )
-    ctrl = SimpleNamespace(_backup_cooldown_until={})
-    active = ChargeDischargeController._is_backup_function_active(ctrl, coord)
-    # A grid-bypass reading says the port load is passthrough, not the battery.
-    assert active is (not _is(value, 6))
 
 
 # ---------------------------------------------------------------------------

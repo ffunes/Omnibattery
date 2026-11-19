@@ -1,5 +1,4 @@
 {
-  "backup_offgrid_threshold": 50,
   "battery_capacity_kwh": 1.92,
   "brand": "zendure",
   "charge_hysteresis_percent": 5,

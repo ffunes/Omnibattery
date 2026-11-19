@@ -1,5 +1,4 @@
 {
-  "backup_offgrid_threshold": 50,
   "battery_capacity_kwh": 5.2,
   "brand": "sessy",
   "charge_hysteresis_percent": 5,

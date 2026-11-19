@@ -39,7 +39,6 @@ La opción LilyGo es una vía de conexión independiente para una batería Marst
 | **Max charge power** / **Max discharge power** | Limita lo que Omnibattery puede solicitar. Un límite de hardware comunicado por el dispositivo puede reducir el valor efectivo. |
 | **Max SOC** / **Min SOC** | Establece el límite superior de carga y el límite inferior de descarga. SOC significa estado de carga. |
 | **Charge hysteresis** | Evita ciclos rápidos tras llegar la batería a su límite superior. El mínimo es del 2%; consulta la [histéresis de carga](#histeresis-de-carga). |
-| **Backup Offgrid Threshold** | Mantiene una batería fuera del control automático mientras su salida de respaldo alimenta una carga por encima de este valor. |
 | **Nominal capacity** | Activa los cálculos de energía almacenada y eficiencia cuando la batería no comunica su capacidad. |
 
 La integración crea controles en tiempo de ejecución para los límites de estado de carga y potencia, así que puedes ajustarlos sin volver a ejecutar el asistente de configuración. **Battery Manual Control** reserva una batería para tus propias órdenes de carga, descarga o reposo; consulta el [control manual en una instalación con varias baterías](../../features/multi-battery.md#control-manual-por-bateria).
@@ -67,7 +66,7 @@ El mínimo del 2% es deliberado y no se puede reducir. Cerca del tope, el SOC qu
 
     Los límites de potencia y estado de carga en tiempo de ejecución se conservan y restauran después de reiniciar Home Assistant. **Battery Manual Control** primero verifica un objetivo en reposo, saca la batería del grupo automático y también restaura ese control tras el reinicio.
 
-    **Backup Offgrid Threshold** tiene como valor predeterminado `50 W`. Déjalo en cero cuando no haya ninguna carga permanente conectada, o establécelo por encima de la carga normal permanente del puerto de respaldo para que un router o conmutador de red no parezca un evento de respaldo. Cuando **Backup Function** está activado y la carga medida supera el umbral, Omnibattery excluye la batería del control proporcional–derivativo (PD). Espera `5 min` después de que baje la carga antes de devolver la batería al grupo automático.
+    Una carga en la salida de respaldo de una batería no cambia cómo la controla Omnibattery. Para alimentar una casa entera desde la salida de respaldo, saca esa batería del control automático con **Battery Manual Control**. La excepción es un inversor Huawei que informa de que pasa a off-grid: queda fuera del control automático durante el corte y `5 min` después de que vuelva la red.
 
     Configuración relacionada:
 

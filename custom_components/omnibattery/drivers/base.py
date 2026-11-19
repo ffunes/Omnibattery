@@ -1094,17 +1094,13 @@ class BatteryDriver(ABC):
         except ValueError:
             return None
 
-    def backup_enabled(self, data: dict) -> Optional[bool]:
-        """Whether the battery's backup output is armed.
+    def on_backup_power(self, data: dict) -> bool:
+        """Whether a grid outage has the battery feeding its backup output.
 
-        Reads ``backup_function`` from the telemetry cache as Marstek's switch:
-        0 is armed, anything else is off. Returns None when the driver publishes
-        no value. A driver whose telemetry uses another encoding overrides this.
+        While it is True the battery is left out of automatic control. False
+        unless the driver reports the outage itself (only Huawei does).
         """
-        value = data.get("backup_function")
-        if value is None:
-            return None
-        return value == 0
+        return False
 
     def active_alarms(self, data: dict) -> list[DriverAlarm]:
         """The alarms and faults currently active, decoded from ``data``.

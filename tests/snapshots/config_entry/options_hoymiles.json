@@ -1,5 +1,4 @@
 {
-  "backup_offgrid_threshold": 50,
   "battery_capacity_kwh": 2.24,
   "brand": "hoymiles",
   "charge_hysteresis_percent": 5,

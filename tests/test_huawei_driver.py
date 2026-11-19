@@ -2340,44 +2340,30 @@ async def test_the_service_path_still_releases_through_the_service():
 # backup mode
 #
 # A hybrid has no backup switch to read: it reports a state, and this driver
-# names the three a SUN2000 distinguishes. The control layer compared against
-# the register convention alone (0 = on), which reads every one of those
-# strings as "off" — so a Huawei would keep taking commands through a power cut.
+# names the three a SUN2000 distinguishes. Only "Off-grid" is an outage; without
+# this query a Huawei would keep taking commands through a power cut.
 # ----------------------------------------------------------------------
 @pytest.mark.parametrize(
-    "value, armed",
+    "value, outage",
     [
         ("Off-grid", True),    # feeding the backup circuit right now
-        ("Ready", True),       # switch armed, still on grid
+        ("Ready", False),      # switch armed, still on grid
         ("Disabled", False),
-        (0, True),             # the register convention: 0 is on
-        (1, False),
         (None, False),
     ],
 )
-def test_both_shapes_of_backup_state_are_understood(value, armed):
-    # The core only asks whether it is armed: "cannot tell" (None) is not armed.
-    assert bool(_driver().backup_enabled({"backup_function": value})) is armed
+def test_only_off_grid_takes_the_battery_out_of_control(value, outage):
+    assert _driver().on_backup_power({"backup_function": value}) is outage
 
 
-def test_the_driver_only_ever_reports_states_the_guard_knows():
-    """A fourth spelling would silently disable the guard again."""
+def test_the_driver_still_publishes_the_off_grid_state():
+    """Another spelling would silently disable the guard."""
     import inspect
 
     from custom_components.omnibattery.drivers import huawei
 
     source = inspect.getsource(huawei.HuaweiSolarDriver.read_telemetry)
-    published = {
-        line.split('"')[1]
-        for line in source.split("\n")
-        if line.strip().startswith(('"Off-grid" if', 'else "Ready" if', 'else "Disabled"'))
-    }
-    assert published == {"Off-grid", "Ready", "Disabled"}
-    # Every one of them decides the guard one way or the other, none by accident.
-    driver = _driver()
-    assert driver.backup_enabled({"backup_function": "Off-grid"})
-    assert driver.backup_enabled({"backup_function": "Ready"})
-    assert not driver.backup_enabled({"backup_function": "Disabled"})
+    assert '"Off-grid" if off_grid' in source
 
 
 # ----------------------------------------------------------------------

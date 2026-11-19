@@ -125,7 +125,7 @@ Use these conventions:
 | `max_cell_voltage`, `min_cell_voltage` | Top-of-charge behavior and balance monitoring | Disable voltage-dependent features. |
 | `internal_temperature` | Thermal power limiting | Disable temperature limiting. |
 | `inverter_state` | Standby and BMS-cutoff confirmation | Use measured power and omit dependent detection. |
-| `ac_offgrid_power` | Backup-load exclusion | Disable automatic backup exclusion. |
+| `ac_offgrid_power` | Backup output power and energy | Omit the backup output from the totals. |
 | MPPT or aggregate solar power | DC production and solar calculations | Declare the applicable solar capabilities false. |
 | Alarm or fault state | Alarm notifications | Omit the dependent sensor and notifier input. |
 | Battery voltage | Diagnostics | Omit the entity. |
@@ -258,7 +258,7 @@ Shared code asks these questions of the driver instead of reading brand-native k
 | Method | Default |
 |---|---|
 | `inverter_status(data)` | Reads `inverter_state` as the numeric codes of `InverterStatus` (sleep, standby, charge, discharge, backup, OTA upgrade, bypass); `None` means "cannot tell", never idle. |
-| `backup_enabled(data)` | Reads `backup_function` as Marstek's switch (`0` is armed); `None` when not published. |
+| `on_backup_power(data)` | `False`. Override only when the device reports a grid outage itself (Huawei's off-grid state): the battery then leaves automatic control. |
 | `active_alarms(data)` | `[]`. Return `DriverAlarm(kind, code, description)` items, faults first, each group in ascending code order. |
 | `is_self_managed(data)` | `False`. Return `True` while the device runs its own routine (such as an SOC calibration) and ignores setpoints. |
 | `device_max_soc(data)` | `None`: the device keeps no ceiling of its own. |

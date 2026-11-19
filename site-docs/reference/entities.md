@@ -139,7 +139,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
     | Number | `set_charge_power`, `set_discharge_power` | Register control or software manual control |
     | Number | `max_charge_power`, `max_discharge_power`, `inverse_max_power` | Supported hardware or software limit |
     | Number | `charging_cutoff_capacity`, `discharging_cutoff_capacity`, `charge_to_soc`, `soc_set`, `min_soc` | Hardware cutoff or software limit, depending on driver |
-    | Number | `backup_offgrid_threshold`, `charge_hysteresis_percent`, `battery_capacity` | Relevant driver/configuration |
+    | Number | `charge_hysteresis_percent`, `battery_capacity` | Relevant driver/configuration |
     | Switch | `battery_allow_charge`, `battery_allow_discharge`, `battery_manual_mode` | Every controlled battery |
     | Switch | `full_charge_voltage_taper` | Compatible cell telemetry |
     | Switch | `backup_function`, `rs485_control_mode`, `lamp_switch` | Driver exposes the control |
@@ -160,7 +160,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
     | `manual_batteries` | Batteries under manual ownership |
     | `non_responsive_batteries` | Batteries excluded after communication or delivery failures |
     | `balance_hold_batteries` | Batteries held by cell-balance protection |
-    | `backup_cooldown_batteries` | Batteries held after backup output activity |
+    | `backup_cooldown_batteries` | Huawei inverters held during and after a grid outage |
     | `ev_chargers_active`, `ev_pause_until` | Active charger exclusions and pauses |
     | `hourly_balance_status`, `hourly_balance_offset_w`, `hourly_balance_net_kwh` | Net-balance controller state |
     | `temperature_charge_limit` | Current thermal-limit decision |

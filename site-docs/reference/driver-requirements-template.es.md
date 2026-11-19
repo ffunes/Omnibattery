@@ -125,7 +125,7 @@ Usa estas convenciones:
 | `max_cell_voltage`, `min_cell_voltage` | Comportamiento en la parte superior de la carga y monitorización de equilibrio | Desactivar características dependientes del voltaje. |
 | `internal_temperature` | Limitación de potencia térmica | Desactivar limitación de temperatura. |
 | `inverter_state` | Reposo y confirmación de corte BMS | Usar potencia medida y omitir detección dependiente. |
-| `ac_offgrid_power` | Exclusión de carga de respaldo | Desactivar exclusión automática de respaldo. |
+| `ac_offgrid_power` | Potencia y energía de la salida de respaldo | Omitir la salida de respaldo de los totales. |
 | MPPT o potencia solar agregada | Producción CC y cálculos solares | Declarar las capacidades solares aplicables como falsas. |
 | Estado de alarma o fallo | Notificaciones de alarma | Omitir la entrada del sensor y notificador dependiente. |
 | Voltaje de batería | Diagnósticos | Omitir la entidad. |
@@ -258,7 +258,7 @@ El código compartido pregunta esto al driver en lugar de leer claves propias de
 | Método | Por defecto |
 |---|---|
 | `inverter_status(data)` | Lee `inverter_state` como los códigos numéricos de `InverterStatus` (sleep, standby, charge, discharge, backup, OTA upgrade, bypass); `None` significa "no se puede saber", nunca reposo. |
-| `backup_enabled(data)` | Lee `backup_function` como el interruptor de Marstek (`0` es armado); `None` si no se publica. |
+| `on_backup_power(data)` | `False`. Sobrescribir solo cuando el dispositivo informa él mismo de un corte de red (el estado off-grid de Huawei): la batería sale entonces del control automático. |
 | `active_alarms(data)` | `[]`. Devuelve elementos `DriverAlarm(kind, code, description)`, primero los fallos, cada grupo en orden ascendente de código. |
 | `is_self_managed(data)` | `False`. Devuelve `True` mientras el dispositivo ejecuta su propia rutina (como una calibración de SOC) e ignora consignas. |
 | `device_max_soc(data)` | `None`: el dispositivo no guarda un techo propio. |

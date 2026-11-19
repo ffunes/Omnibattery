@@ -204,7 +204,6 @@
           "max_soc": "Maximale SOC (%)",
           "min_soc": "Minimale SOC (%)",
           "charge_hysteresis_percent": "Laadhysterese (%)",
-          "backup_offgrid_threshold": "Drempelwaarde backup offgrid-belasting (W)",
           "full_charge_voltage_taper_enabled": "100%-lading op spanning begrenzen",
           "battery_capacity_kwh": "Nominale batterijcapaciteit (kWh)",
           "battery_phase": "Fysieke batterijfase",
@@ -218,7 +217,6 @@
           "max_soc": "Maximale laadtoestand - batterij laadt niet boven deze waarde",
           "min_soc": "Minimale laadtoestand - batterij ontlaadt niet onder deze waarde",
           "charge_hysteresis_percent": "Altijd aan (minimaal 2%). Na het bereiken van het maximum laadt de batterij pas weer als de SOC daalt naar (Max SOC − hysterese). Bijv.: Max SOC 100% met 2% = geen laden tot 98%.",
-          "backup_offgrid_threshold": "Een offgrid-belasting boven deze waarde wordt behandeld als een actieve back-upgebeurtenis en sluit de batterij uit van PD-regeling. Verhoog dit als er permanente lasten (router, camera's) op de offgrid-poort zijn aangesloten.",
           "full_charge_voltage_taper_enabled": "Wanneer het doel 100% is, wordt laden vanaf 3.48 V maximale celspanning beperkt tot 200 W. Venus E-modellen stoppen bij 3.60 V om de onbalans na 60 seconden te meten; Venus A/D met gekoppelde packs blijven laden op 200 W totdat de BMS uitschakelt.",
           "battery_capacity_kwh": "Nominale bruikbare capaciteit van het batterijpakket. Deze wordt gebruikt om opgeslagen energie en efficiëntie uit SOC te berekenen. Stel 0 in voor automatische detectie van ondersteunde batterijmodellen/pakketten. Voer een positieve waarde in om de detectie te overschrijven of als de pakketten onbekend zijn. Voor Sessy is de werkelijke capaciteit verplicht.",
           "battery_phase": "Fysieke AC-fase (L1/L2/L3) waarop deze batterij is aangesloten, of Niet toegewezen buiten het beschermde faseschema. Een batterij zonder fase valt buiten de driefasenbeveiliging en blijft normaal automatisch werken.",
@@ -981,7 +979,6 @@
           "max_soc": "Maximale SOC (%)",
           "min_soc": "Minimale SOC (%)",
           "charge_hysteresis_percent": "Laadhysterese (%)",
-          "backup_offgrid_threshold": "Drempelwaarde backup offgrid-belasting (W)",
           "full_charge_voltage_taper_enabled": "100%-lading op spanning begrenzen",
           "battery_capacity_kwh": "Nominale batterijcapaciteit (kWh)",
           "battery_phase": "Fysieke batterijfase",
@@ -995,7 +992,6 @@
           "max_soc": "Maximale laadtoestand",
           "min_soc": "Minimale laadtoestand",
           "charge_hysteresis_percent": "Altijd aan (minimaal 2%). Na het bereiken van het maximum laadt de batterij pas weer als de SOC daalt naar (Max SOC − hysterese). Bijv.: Max SOC 100% met 2% = geen laden tot 98%.",
-          "backup_offgrid_threshold": "Een offgrid-belasting boven deze waarde wordt behandeld als een actieve back-upgebeurtenis en sluit de batterij uit van PD-regeling. Verhoog dit als er permanente lasten (router, camera's) op de offgrid-poort zijn aangesloten.",
           "full_charge_voltage_taper_enabled": "Wanneer het doel 100% is, wordt laden vanaf 3.48 V maximale celspanning beperkt tot 200 W. Venus E-modellen stoppen bij 3.60 V om de onbalans na 60 seconden te meten; Venus A/D met gekoppelde packs blijven laden op 200 W totdat de BMS uitschakelt.",
           "battery_capacity_kwh": "Nominale bruikbare capaciteit van het batterijpakket. Deze wordt gebruikt om opgeslagen energie en efficiëntie uit SOC te berekenen. Stel 0 in voor automatische detectie van ondersteunde batterijmodellen/pakketten. Voer een positieve waarde in om de detectie te overschrijven of als de pakketten onbekend zijn. Voor Sessy is de werkelijke capaciteit verplicht.",
           "battery_phase": "Fysieke AC-fase (L1/L2/L3) waarop deze batterij is aangesloten, of Niet toegewezen buiten het beschermde faseschema. Een batterij zonder fase valt buiten de driefasenbeveiliging en blijft normaal automatisch werken.",
@@ -2739,9 +2735,6 @@
       },
       "temp_charge_limit_floor_pct": {
         "name": "Minimaal laadvermogen"
-      },
-      "backup_offgrid_threshold": {
-        "name": "Backup Offgrid Drempel"
       },
       "charge_hysteresis_percent": {
         "name": "Laadhysterese Percentage"
