@@ -20,7 +20,9 @@ valued the same.
   at full power in every quarter from now), in both worlds.
 * W2 with the forecast sun alone filling the gap, the weekly day buys no more
   from the grid than the same day without the weekly charge.
-* W3 the new arm costs no more than the old one + COST_EPS, in both worlds.
+* W3 the new arm costs no more than the old one + COST_EPS, in both worlds,
+  each charge start the arbiter executes once the weekly charge is over
+  counted at the optimizer's start cost.
 * W4 the optimizer plans the weekly day, and with the Discharge Reserve on its
   holds are published.
 * W5 once complete, no weekly hold: in the arbiter, and in the published plan
@@ -45,6 +47,7 @@ import pytest
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing import engine as pricing_engine
 from custom_components.omnibattery.pricing.battery_model import BatteryModel, Quarter
+from custom_components.omnibattery.pricing.optimizer import START_COST_EUR
 from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
 from custom_components.omnibattery.solar_forecast import (
     SolarForecastPeriod,
@@ -187,9 +190,10 @@ def scenario(case, *, at: datetime, socs, pending: bool) -> h.Scenario:
     )
 
 
-def run(sc: h.Scenario, *, old: bool = False, daily: bool = False):
+def run(sc: h.Scenario, *, old: bool = False, daily: bool = False, charging: bool = False):
     """One evaluation: outcome, decision data, plan and the controller. ``old``
-    forces the previous allocator for a pending weekly day."""
+    forces the previous allocator for a pending weekly day; ``charging``: a
+    price slot is charging at the evaluation (the optimizer's start cost)."""
     box = {}
     controller = h._controller
     real = pricing_engine.optimizer_fallback_reason
@@ -197,6 +201,7 @@ def run(sc: h.Scenario, *, old: bool = False, daily: bool = False):
     def capture(s):
         box["c"] = controller(s)
         box["c"].discharge_reserve_min_saving = 0.02
+        box["c"]._current_price_slot_active = box["c"].grid_charging_active = charging
         if daily:
             box["c"].config_entry.data["solar_forecast_remaining_sensor"] = "sensor.sweep"
         return box["c"]
@@ -315,9 +320,10 @@ def _power_w(case, e, pending) -> float:
 
 
 def _step(case, model, q, hours, e, target, pending):
-    """(energy after, cost, kWh stored from the grid, highest energy) of one
-    quarter, in SUBSTEPS slices with the power re-read each slice. A slot
-    charge stops once its target is reached (the controller completes it)."""
+    """(energy after, cost, kWh stored from the grid, highest energy, still
+    charging at its end) of one quarter, in SUBSTEPS slices with the power
+    re-read each slice. A slot charge stops once its target is reached (the
+    controller completes it)."""
     k = SUBSTEPS
     cost = grid = 0.0
     peak = e
@@ -337,7 +343,7 @@ def _step(case, model, q, hours, e, target, pending):
         e1, c = model.normal_step(sub, e, t)
         e, cost = float(e1), cost + float(c)
         peak = max(peak, e)
-    return e, cost, grid, peak
+    return e, cost, grid, peak, target is not None and peak < model.cap - FULL_TOL
 
 
 def _fleet(case):
@@ -361,7 +367,7 @@ def fits(case, factor) -> bool:
     model = _model(case, True)
     e = sum(5.12 * s / 100 for s in socs0(case)) - _fleet(case)[1]
     for a, b, _s, q in _world_quarters(case, factor, start_of(case), WINDOW_END):
-        e, _c, _g, peak = _step(case, model, q, (b - a).total_seconds() / 3600, e, model.cap, True)
+        e, _c, _g, peak, _o = _step(case, model, q, (b - a).total_seconds() / 3600, e, model.cap, True)
         if peak >= model.cap - FULL_TOL:
             return True
     return False
@@ -372,7 +378,7 @@ def sun_fills(case) -> bool:
     model = _model(case, True)
     e = sum(5.12 * s / 100 for s in socs0(case)) - _fleet(case)[1]
     for a, b, _s, q in _world_quarters(case, 1.0, start_of(case), WINDOW_END):
-        e, _c, _g, peak = _step(case, model, q, (b - a).total_seconds() / 3600, e, None, True)
+        e, _c, _g, peak, _o = _step(case, model, q, (b - a).total_seconds() / 3600, e, None, True)
         if peak >= model.cap - FULL_TOL:
             return True
     return False
@@ -398,6 +404,11 @@ def simulate(case, factor, *, old=False, weekly=True):
     ]
     triggers.sort()
 
+    # Grid charge starts once the weekly charge is over, as the optimizer's
+    # start cost counts them (the pending layer pays none); a re-plan while a
+    # charge runs tells the engine.
+    starts, charging = 0, False
+
     def evaluate(at, daily):
         now_socs = _split(floor + e, socs)
         # The 00:05 run with a zero forecast defers to the retry ladder, whose
@@ -406,10 +417,10 @@ def simulate(case, factor, *, old=False, weekly=True):
         # The same inputs plan the same: shared between the worlds (identical
         # up to the first re-plan) and, once the weekly charge is over,
         # between the arms.
-        key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily)
+        key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily, charging)
         if key not in _EVALS:
             sc = scenario(case, at=at, socs=now_socs, pending=pending)
-            _EVALS[key] = run(sc, old=old, daily=daily)
+            _EVALS[key] = run(sc, old=old, daily=daily, charging=charging)
         return _EVALS[key]
 
     first = evaluate(t0, t0.hour == 0 and t0.minute == 5)
@@ -459,7 +470,10 @@ def simulate(case, factor, *, old=False, weekly=True):
                 weekly_held = q.import_price < max(s.price for s in later) / RTE
         if held or weekly_held:
             q = dataclasses.replace(q, discharge_kwh=0.0)
-        e, c, grid, peak = _step(case, model, q, (b - a).total_seconds() / 3600, e, target, pending)
+        e, c, grid, peak, open_ = _step(case, model, q, (b - a).total_seconds() / 3600, e, target,
+                                        pending)
+        starts += grid > 1e-9 and not charging and not pending
+        charging = grid > 1e-9 and open_
         if a < WINDOW_END:
             bought += grid / model.eff
         total += c
@@ -479,7 +493,7 @@ def simulate(case, factor, *, old=False, weekly=True):
     prices = [p for p in (PRICES[case[2]](hr) for hr in range(24)) if p > 0]
     total -= min(prices) * math.sqrt(RTE) * e
     return SimpleNamespace(cost=total, complete_at=complete_at, bought=bought,
-                           breaches=breaches, first=first)
+                           breaches=breaches, first=first, starts=starts)
 
 
 # ----------------------------------------------------------------------
@@ -503,8 +517,10 @@ def evaluate_case(case) -> list[tuple[str, str]]:
     for w, f in WORLDS.items():
         if fits(case, f) and new[w].complete_at is None:
             findings.append((f"W1{w}", "100 % fits before the window ends and is not reached"))
-        if new[w].cost > old[w].cost + COST_EPS:
-            findings.append((f"W3{w}", f"new {new[w].cost:.4f} > old {old[w].cost:.4f}"))
+        n, o = (x[w].cost + START_COST_EUR * x[w].starts for x in (new, old))
+        if n > o + COST_EPS:
+            findings.append((f"W3{w}", f"new {n:.4f} > old {o:.4f} ({new[w].starts} / "
+                                       f"{old[w].starts} starts)"))
         if new[w].breaches:
             findings.append((f"W5{w}", "; ".join(new[w].breaches[:3])))
     if sun_fills(case):

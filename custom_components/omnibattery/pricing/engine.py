@@ -4765,6 +4765,12 @@ class PricingManager:
                         if tails
                         else None
                     ),
+                    # A slot charging now goes on without the optimizer's
+                    # start cost (a re-plan would otherwise cut it).
+                    charging_now=bool(
+                        getattr(self._controller, "_current_price_slot_active", False)
+                        and getattr(self._controller, "grid_charging_active", False)
+                    ),
                 )
             )
             plan = evaluation.plan

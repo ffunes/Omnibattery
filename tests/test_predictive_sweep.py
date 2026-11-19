@@ -7,7 +7,8 @@ harness, and each run is held to rules that must hold whatever the inputs:
 * I1 more load never books less: the same night with 30 % more load. For a
   plan of the 2.0.0 optimizer (D8): with prices >= 0, more load never makes
   the plan cheaper (it may book less: the load above the discharge power
-  goes to the grid, the contracted power leaves less for the charge).
+  goes to the grid, the contracted power leaves less for the charge). Its
+  cost counts each charge start at the start cost, as the plan decides.
 * I4 the published planned charge equals what the schedule books plus what
   the extended horizon defers to tomorrow.
 * I5 stable: re-evaluating at the next quarter after one hour, with the SOC
@@ -42,6 +43,7 @@ import pytest
 
 from custom_components.omnibattery.const import CHARGE_EFFICIENCY
 from custom_components.omnibattery.pricing import PriceSlot
+from custom_components.omnibattery.pricing.optimizer import START_COST_EUR
 from custom_components.omnibattery.solar_forecast import SolarForecastPeriod
 from tests import test_predictive_scenarios as h
 
@@ -250,6 +252,7 @@ def evaluate_pair(case, *, daily=False) -> list[tuple[str, str]]:
     low, high = runs[1.0], runs[LOAD_SCALE]
     costs = [getattr(r.plan, "optimizer_cost", None) for r in (low, high)]
     if None not in costs:
+        costs = [c + START_COST_EUR * r.plan.charge_starts for c, r in zip(costs, (low, high))]
         q = low.o.request
         priced = [s.price for s in q.price_slots if s.end > q.now and s.start < q.horizon_end]
         if min(priced, default=0.0) >= 0 and costs[1] + COST_EPS < costs[0]:

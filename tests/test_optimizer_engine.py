@@ -381,6 +381,28 @@ def test_the_control_lock_is_held_while_the_optimizer_runs(monkeypatch):
     assert seen["worker"] and seen["locked"]
 
 
+@pytest.mark.parametrize(("slot_active", "charging", "expected"), [
+    (True, True, True), (True, False, False), (False, False, False)])
+def test_a_re_plan_while_a_slot_charges_tells_the_optimizer(monkeypatch, slot_active, charging,
+                                                            expected):
+    """The start cost must not cut a running charge: going on is no start."""
+    from tests import test_predictive_scenarios as h
+
+    real_controller = h._controller
+
+    def controller(s):
+        c = real_controller(s)
+        c._current_price_slot_active = slot_active
+        c.grid_charging_active = charging
+        return c
+
+    monkeypatch.setattr(h, "_controller", controller)
+    scenario = h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json")
+    outcome = h._run_engine(scenario, monkeypatch)
+    assert outcome.planner == "optimizer"
+    assert outcome.request.charging_now is expected
+
+
 def test_a_plan_without_charge_keeps_its_projection_for_the_soc_drop_trigger(monkeypatch):
     """Without a charge slot there is no schedule; the SOC-drop re-evaluation
     then fell back to a 30-point drop. The optimizer's trajectory is kept."""

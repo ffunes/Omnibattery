@@ -119,19 +119,20 @@ def test_cheap_hours_at_one_price_stop_less(monkeypatch, prices, soc, usable):
     # At one price the plan split the charge into quotas stopping mid-hour:
     # 4 starts. Two are the fewest at that price (one block costs ~4.7 c more:
     # it ends the cheap hours less full). Different prices keep their plan,
-    # up to the tie-break's budget.
+    # up to the start cost of the starts it saves.
     from custom_components.omnibattery.pricing import optimizer
 
     request = _request(prices + [0.40] * 4, house=[0.05] * 16 + [0.5] * 16, slot_quarters=4,
                        cap=8.16, soc=soc, usable=usable, room=7.3, power=2.4, discharge=2.4)
     plan = optimize_charge(request).plan
-    budget = optimizer.RUN_TIE_EUR
-    monkeypatch.setattr(optimizer, "RUN_TIE_EUR", 0.0)
+    c = optimizer.START_COST_EUR
+    monkeypatch.setattr(optimizer, "START_COST_EUR", 0.0)
     off = optimize_charge(request).plan
     starts, starts_off = [], []
     assert _replay(request, plan, starts=starts) == pytest.approx(plan.optimizer_cost, abs=1e-4)
     _replay(request, off, starts=starts_off)
-    assert plan.optimizer_cost <= off.optimizer_cost + budget + 1e-9
+    assert (plan.optimizer_cost + c * starts[0]
+            <= off.optimizer_cost + c * starts_off[0] + 1e-4)
     assert starts[0] <= starts_off[0]
     if len(set(prices)) == 1:
         assert starts_off[0] == 4 and starts[0] == 2
@@ -139,16 +140,91 @@ def test_cheap_hours_at_one_price_stop_less(monkeypatch, prices, soc, usable):
 
 def test_the_last_charge_of_a_run_keeps_its_quota(monkeypatch):
     # Nothing charges after it: run to its end, it would save no start and
-    # only spend the tie-break's budget (+0.1 c).
+    # only cost more.
     from custom_components.omnibattery.pricing import optimizer
 
     request = _request([0.30, 0.11, 0.20, 0.20], house=0.2, usable=0.0, room=8.0, soc=10.0,
                        power=2.4, discharge=2.4)
     plan = optimize_charge(request).plan
-    monkeypatch.setattr(optimizer, "RUN_TIE_EUR", 0.0)
+    monkeypatch.setattr(optimizer, "START_COST_EUR", 0.0)
     assert [(a.planned_battery_kwh, a.to_slot_end) for a in plan.allocations] == [
         (a.planned_battery_kwh, a.to_slot_end) for a in optimize_charge(request).plan.allocations]
     assert not plan.allocations[0].to_slot_end
+
+
+# --- Charge start cost ------------------------------------------------------
+
+def _evening(prices, evening=0.265):
+    """Cheap quarters, then four dear ones the battery covers: at 0.265 kWh a
+    quarter, two quarters of charge at 2.5 kW pay."""
+    n = len(prices)
+    return _request(list(prices) + [0.40] * 4, house=[0.0] * n + [evening] * 4,
+                    usable=0.0, room=3.0, soc=10.0, discharge=2.5)
+
+
+def _starts(request, plan):
+    starts = []
+    cost = _replay(request, plan, starts=starts)
+    assert cost == pytest.approx(plan.optimizer_cost, abs=1e-4)  # starts are never published
+    return starts[0]
+
+
+def test_a_charge_joins_quarters_half_a_cent_apart():
+    # Joined: 0.3 c dearer, under a start's 1 c (without the cost: 3 starts).
+    request = _evening([0.10, 0.105, 0.105, 0.10])
+    plan = optimize_charge(request).plan
+    assert _starts(request, plan) == plan.charge_starts == 1
+
+
+def test_a_charge_does_not_join_quarters_far_apart():
+    request = _evening([0.10, 0.13, 0.13, 0.10])
+    plan = optimize_charge(request).plan
+    assert _starts(request, plan) == plan.charge_starts == 2
+
+
+def test_no_top_up_that_saves_less_than_a_start():
+    # Full after the first two quarters; the house drains it a hair before
+    # another cheap quarter. Refilling that hair saves well under 1 c.
+    request = _request([0.10, 0.10, 0.30, 0.10] + [0.40] * 4,
+                       house=[0.01] * 4 + [0.45] * 4, usable=0.0, room=1.1, soc=10.0,
+                       discharge=2.5)
+    plan = optimize_charge(request).plan
+    assert [a.slot.start for a in plan.allocations] == [T0, T0 + Q]
+    assert _starts(request, plan) == plan.charge_starts == 1
+
+
+def test_a_charge_running_at_now_goes_on():
+    # Needs three quarters. From T0 one block (0, 1, 2) beats two starts for
+    # 0.1 c. Re-planned at quarter 1 while charging, it goes on; a plan that
+    # counted a start there would move to (2, 3), a hair cheaper.
+    import dataclasses
+
+    prices = [0.10, 0.104, 0.10, 0.103]
+    request = _evening(prices, evening=0.39)
+    plan = optimize_charge(request).plan
+    assert [a.slot.start for a in plan.allocations] == [T0, T0 + Q, T0 + 2 * Q]
+    e1 = dict(plan.trajectory)[T0 + Q]
+    rest = [(a.slot.start, round(a.planned_battery_kwh, 3), a.to_slot_end)
+            for a in plan.allocations if a.slot.start >= T0 + Q]
+
+    def replan(charging):
+        later = dataclasses.replace(
+            request, now=T0 + Q, usable_initial_kwh=e1, headroom_kwh=3.0 - e1,
+            fleet_soc_pct=10.0 + e1 / 10.0 * 100.0, charging_now=charging)
+        return [(a.slot.start, round(a.planned_battery_kwh, 3), a.to_slot_end)
+                for a in optimize_charge(later).plan.allocations]
+
+    assert replan(True) == rest
+    assert replan(False) != rest
+
+
+def test_the_guaranteed_floor_holds_even_when_it_costs_a_start():
+    prices = [0.40] * 8 + [0.05] * 4 + [0.50] * 4
+    request = _with_floor(_request(prices, house=0.3, usable=1.0), 2.0, 8)
+    plan = optimize_charge(request).plan
+    energy = dict(plan.trajectory)
+    assert min(energy[T0 + k * Q] for k in range(2, 9)) >= 2.0 - 0.01
+    assert _starts(request, plan) == plan.charge_starts >= 2
 
 
 def test_a_threshold_forbids_the_slot():
@@ -188,7 +264,10 @@ def test_the_trajectory_follows_the_plan():
 
 def test_the_plan_is_as_cheap_as_any_plan_the_controller_can_run():
     """Exhaustive search over small nights: every quota on a 0.05 grid, or to
-    the slot end, per slot. The optimizer may not lose more than its lattice."""
+    the slot end, per slot. The optimizer may not lose more than its lattice,
+    each charge start (counted by the replay) at its start cost."""
+    from custom_components.omnibattery.pricing.optimizer import START_COST_EUR
+
     rng = random.Random(7)
     worst = 0.0
     for _ in range(25):
@@ -198,8 +277,11 @@ def test_the_plan_is_as_cheap_as_any_plan_the_controller_can_run():
                            cap=3.0, soc=20.0, usable=rng.choice((0.0, 0.1, 0.23)), room=0.6,
                            power=0.8, discharge=0.8)
         plan = optimize_charge(request).plan
-        got = _replay(request, plan)
+        starts = []
+        got = _replay(request, plan, starts=starts)
         assert got == pytest.approx(plan.optimizer_cost, abs=1e-4)
+        assert starts[0] == plan.charge_starts
+        got += START_COST_EUR * starts[0]
         options = [None] + [(k * 0.05, False) for k in range(1, 5)] + [(0.2 * math.sqrt(0.85), True)]
         best = math.inf
         for combo in itertools.product(options, repeat=len(prices)):
@@ -208,7 +290,8 @@ def test_the_plan_is_as_cheap_as_any_plan_the_controller_can_run():
                 type("A", (), dict(slot=s, planned_battery_kwh=o[0], to_slot_end=o[1]))()
                 for s, o in zip(request.price_slots, combo) if o is not None
             ]
-            best = min(best, _replay(request, fake))
+            starts = []
+            best = min(best, _replay(request, fake, starts=starts) + START_COST_EUR * starts[0])
         worst = max(worst, got - best)
     assert worst <= 0.003
 
@@ -1079,16 +1162,17 @@ def test_a_missed_planned_deadline_keeps_charging_to_the_window_end():
 
 
 def test_a_pending_weekly_charge_keeps_its_quotas(monkeypatch):
-    # #899's tie-break is off while a weekly charge is pending: the controller
+    # The start cost is off while a weekly charge is pending: the controller
     # charges such a plan's "to the end" slots to 100 %, so marking one more
-    # is not a tie (the weekly sweep's new arm paid 1 EUR more over its grid).
+    # is not a tie (#899's tie-break there paid 1 EUR more over the weekly
+    # sweep's grid).
     from custom_components.omnibattery.pricing import optimizer
 
     request = _weekly(_request([0.10] * 4 + [0.40] * 4, house=[0.05] * 16 + [0.5] * 16,
                                slot_quarters=4, cap=8.16, soc=60.0, usable=4.3, room=7.3,
                                power=2.4, discharge=2.4), 24)
     plan = optimize_charge(request).plan
-    monkeypatch.setattr(optimizer, "RUN_TIE_EUR", 0.0)
+    monkeypatch.setattr(optimizer, "START_COST_EUR", 0.0)
     off = optimize_charge(request).plan
     assert [(a.slot, a.planned_battery_kwh, a.to_slot_end) for a in plan.allocations] == [
         (a.slot, a.planned_battery_kwh, a.to_slot_end) for a in off.allocations]

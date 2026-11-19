@@ -292,6 +292,35 @@ def test_adjacent_slot_boundary_keeps_the_charge_running(clock):
     assert b.start not in ctrl._dp_completed_slots
 
 
+def test_adjacent_to_the_end_slots_keep_one_charge_running(clock):
+    # The optimizer's start cost joins charges into blocks of slots charged
+    # "to the end": the boundary between two must not stop the charge.
+    battery = _Battery(20.0)
+    a, b = _slots(_at(9, 30), [0.30, 0.29])
+    ctrl = _controller(
+        battery,
+        _decision(2.5),
+        _schedule(
+            {a: SLOT_PURPOSE_DEFICIT, b: SLOT_PURPOSE_DEFICIT},
+            slot_energy_targets_kwh={a: 1.0, b: 1.5},
+            slot_charge_to_end=frozenset({a, b}),
+            chronological_planning_active=True,
+        ),
+    )
+    manager = _manager(ctrl, _balance(battery, 4.5))
+    _run(manager)
+    ctrl.previous_power = -1800.0
+
+    battery.soc = 30.0
+    clock.value = b.start
+    _run(manager)
+
+    assert ctrl.idle_writes == []
+    assert ctrl._active_dynamic_price_slot == b
+    assert ctrl.grid_charging_active is True
+    assert ctrl.previous_power == -1800.0
+
+
 def test_adjacent_slot_that_is_no_longer_needed_stops_without_idle_write(clock):
     battery = _Battery(20.0)
     a, b = _slots(_at(9, 30), [0.30, 0.29])
