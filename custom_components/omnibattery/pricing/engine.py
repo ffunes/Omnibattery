@@ -4661,8 +4661,6 @@ class PricingManager:
                     import_value_margin=(
                         margin if value_deadlines else 0.0
                     ),
-                    # The previous allocator holds nothing (#888, D2).
-                    reserve_holds=False,
                     # The optimizer holds whenever the plan costs less (#888).
                     hold_allowed=value_deadlines,
                     # The optimizer chooses which surplus to export (step 6).
@@ -5269,7 +5267,6 @@ class PricingManager:
         # the absorption plan was derived from the inputs it is about to replace.
         self._clear_plan_orders()
         self._mark_surplus_hold_stale(f"dp_evaluation_{horizon.value}")
-        self._mark_discharge_reserve_stale(f"dp_evaluation_{horizon.value}")
 
         now = self._now()
         today = now.date()
@@ -7744,35 +7741,6 @@ class PricingManager:
                 await controller._set_battery_power(coordinator, 0, 0)
         _LOGGER.info("Dynamic pricing: stopped active slot (%s)", reason)
 
-    def _mark_discharge_reserve_stale(self, reason: str) -> None:
-        """Ask the discharge reserve to rebuild on the next control cycle."""
-        manager = getattr(self._controller, "_discharge_reserve_mgr", None)
-        if manager is not None:
-            manager.mark_stale(reason)
-
-    def _clear_discharge_reserve(self, reason: str) -> None:
-        """Drop any cached reserve plan so no discharge floor stays raised."""
-        manager = getattr(self._controller, "_discharge_reserve_mgr", None)
-        if manager is not None:
-            manager.clear(reason)
-
-    async def _refresh_discharge_reserve_plan(
-        self, reason: str, *, force: bool = False
-    ) -> None:
-        """Rebuild the reserve plan, tolerating a partial controller.
-
-        Test doubles and early startup may not carry the manager; no plan means
-        no reserve, which is the safe direction.
-        """
-        manager = getattr(self._controller, "_discharge_reserve_mgr", None)
-        if manager is None:
-            return
-        try:
-            await manager.async_rebuild_plan(reason, force=force)
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Discharge reserve: rebuild failed (%s): %s", reason, err)
-            manager.clear("rebuild_error")
-
     def _mark_surplus_hold_stale(self, reason: str) -> None:
         """Ask the surplus-absorption plan to rebuild on the next control cycle."""
         manager = getattr(self._controller, "_surplus_hold_mgr", None)
@@ -7887,7 +7855,6 @@ class PricingManager:
                 self._reset_predictive_demand_runtime()
                 self.clear_curtailment_runtime("new_day")
                 self._clear_surplus_hold("new_day")
-                self._clear_discharge_reserve("new_day")
 
         # Phase 2: Retry if prices (or the solar forecast) weren't available at
         # 00:05. Every 15 min in the first hour, then every 30 min all day:
@@ -8012,10 +7979,6 @@ class PricingManager:
         # throttles itself; between rebuilds it only refreshes the live target,
         # which is what lets an under-delivering cheap window release the hold.
         await self._refresh_surplus_hold_plan("control_cycle")
-
-        # Phase 3.6: keep the discharge reserve current. Same throttle, same
-        # failure direction: without a plan the discharge floor is untouched.
-        await self._refresh_discharge_reserve_plan("control_cycle")
 
         # Reaching the opportunistic target outside the control handler (for
         # example through solar or a manual charge) invalidates every remaining

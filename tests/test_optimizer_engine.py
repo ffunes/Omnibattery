@@ -225,7 +225,6 @@ def test_a_held_slot_blocks_the_discharge_through_the_reserve_blocker():
         _is_battery_manual_owned=lambda c: False,
         _discharge_reserve_mgr=SimpleNamespace(
             dynamic_pricing_active=lambda: True,
-            reserve_soc_pct=lambda: (_ for _ in ()).throw(AssertionError("reserve module asked")),
         ),
         set_discharge_block=lambda source, reason, details=None, coordinator=None: blocks.__setitem__(
             (source, coordinator.name), details
@@ -252,7 +251,6 @@ def _hold_controller(holds, now, *, guard=None, discharging=(), dynamic_pricing=
         _pricing_mgr=SimpleNamespace(_now=lambda: now),
         _discharge_reserve_mgr=SimpleNamespace(
             dynamic_pricing_active=lambda: dynamic_pricing, _release_guard=lambda: guard,
-            reserve_soc_pct=lambda: (_ for _ in ()).throw(AssertionError("reserve module asked")),
         ),
         _battery_discharge_blockers={},
         _global_discharge_blockers={},

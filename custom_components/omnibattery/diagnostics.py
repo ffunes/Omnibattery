@@ -444,23 +444,10 @@ def _surplus_hold_info(controller) -> dict[str, Any]:
 
 
 def _discharge_reserve_info(controller) -> dict[str, Any]:
-    """Return price-aware discharge-reserve diagnostics.
-
-    The manager already publishes a JSON-safe snapshot, so this only adds the
-    configuration that explains it.
-    """
+    """Return the Dynamic Pricing plan's hold now (#888)."""
     if controller is None:
         return {"status": "unavailable", "reason": "controller_unavailable"}
-    manager = getattr(controller, "_discharge_reserve_mgr", None)
-    info: dict[str, Any] = {
-        "applied_soc_pct": getattr(controller, "_price_reserve_soc_pct", None),
-    }
-    if manager is None:
-        info["status"] = "unavailable"
-        info["reason"] = "manager_unavailable"
-        return info
-    info.update(manager.get_status())
-    return info
+    return dict(getattr(controller, "_plan_hold_status", None) or {})
 
 
 def _high_price_discharge_info(controller) -> dict[str, Any]:

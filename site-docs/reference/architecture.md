@@ -169,7 +169,7 @@ A driver chooses the cadence for each `ReadGroup`. During a real command change,
 | `max_soc_charge.py` | `MaxSocChargeManager` | Applies top-of-charge taper, recalibration, and cell-delta measurement. |
 | `weekly_full_charge.py` | `WeeklyFullChargeManager` | Schedules and persists periodic full-charge behavior and temporary cutoff changes. |
 | `temperature_limit.py` | `TemperatureChargeLimitManager` | Derates per-battery charge and optional discharge limits from temperature. |
-| `discharge_reserve.py` | `DischargeReserveManager` | Reserves energy for a later high-price period through discharge blockers. |
+| `discharge_reserve.py` | `DischargeReserveManager` | Decides whether the Dynamic Pricing plan's hold applies now (mode and guards). |
 | `high_price_discharge.py` | `HighPriceDischargeManager` | Builds and applies deliberate high-price discharge overrides. |
 | `surplus_price_hold.py` | `SurplusPriceHoldManager` | Delays solar absorption when exporting now is more valuable. |
 

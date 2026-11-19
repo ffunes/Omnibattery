@@ -169,7 +169,7 @@ Un controlador escoge la cadencia de cada `ReadGroup`. Durante un cambio real de
 | `max_soc_charge.py` | `MaxSocChargeManager` | Aplica reducción gradual cerca de carga completa, recalibración y medición de diferencia de celdas. |
 | `weekly_full_charge.py` | `WeeklyFullChargeManager` | Programa y conserva el comportamiento periódico de carga completa y cambios temporales de corte. |
 | `temperature_limit.py` | `TemperatureChargeLimitManager` | Reduce límites de carga y descarga opcional por batería según la temperatura. |
-| `discharge_reserve.py` | `DischargeReserveManager` | Reserva energía para un periodo posterior de precio alto mediante bloqueadores de descarga. |
+| `discharge_reserve.py` | `DischargeReserveManager` | Decide si la retención del plan de Precio dinámico se aplica ahora (modo y protecciones). |
 | `high_price_discharge.py` | `HighPriceDischargeManager` | Construye y aplica anulaciones deliberadas de descarga a precio alto. |
 | `surplus_price_hold.py` | `SurplusPriceHoldManager` | Retrasa la absorción solar cuando exportar ahora tiene más valor. |
 

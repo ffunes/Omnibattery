@@ -1244,7 +1244,6 @@ class ChargeDischargeController:
         self._high_price_discharge_mgr = HighPriceDischargeManager(hass, self)
         self._discharge_reserve_mgr = DischargeReserveManager(hass, self)
         # Per-cycle cache of the reserve, refreshed by the discharge blocker pass.
-        self._price_reserve_soc_pct = 0.0
 
         # Consumption history for dynamic base consumption (7-day rolling average)
         # Owned by ConsumptionTracker; the list lives on the controller so
@@ -2361,9 +2360,6 @@ class ChargeDischargeController:
                 operation_plan_source=operation_plan_source,
                 plan_evaluated_at=evaluated_at,
                 extension_hours=extension_hours,
-                reserve_claims=ChargeDischargeController._daily_operation_reserve_claims(
-                    self, now
-                ),
                 reserve_floor=ChargeDischargeController._daily_operation_reserve_floor(
                     self, plan
                 ),
@@ -2461,14 +2457,6 @@ class ChargeDischargeController:
         ends: list[Any] = [
             (getattr(self, "_last_decision_data", None) or {}).get("energy_horizon_end")
         ]
-        reserve_end = getattr(
-            getattr(self, "_discharge_reserve_mgr", None), "plan_horizon_end", None
-        )
-        if callable(reserve_end):
-            try:
-                ends.append(reserve_end())
-            except Exception:  # noqa: BLE001 - dashboard projection is optional
-                pass
         # Once tomorrow's prices are out the chart shows them in full, even
         # while the plan itself still ends at sunrise.
         price_slots = getattr(
@@ -2507,53 +2495,6 @@ class ChargeDischargeController:
             hours = max(hours, math.ceil((end - midnight).total_seconds() / 3600.0))
         return int(min(EXTENDED_MAX_HORIZON_HOURS, hours))
 
-    def _daily_operation_reserve_claims(
-        self, now: datetime
-    ) -> tuple[tuple[datetime, float], ...]:
-        """What the discharge reserve keeps for each later slot, for the projection.
-
-        The reserve holds stored energy back for dearer slots ahead. Without
-        its claims the projection spends that energy in the cheaper hours first,
-        so the planned discharge and SOC show what the battery will not do. Each
-        claim keeps its energy net of the sun expected to pay for it, and all of
-        them together no more than the reserve currently holds.
-        """
-        manager = getattr(self, "_discharge_reserve_mgr", None)
-        get_status = getattr(manager, "get_status", None)
-        if not callable(get_status):
-            return ()
-        try:
-            status = get_status() or {}
-        except Exception:  # noqa: BLE001 - dashboard projection is optional
-            return ()
-        if status.get("state") != "reserving":
-            return ()
-        claims: list[tuple[datetime, float]] = []
-        for claim in status.get("claims") or ():
-            try:
-                start = datetime.fromisoformat(str(claim["start"]))
-                kwh = float(claim.get("claimed_kwh") or 0.0) - float(
-                    claim.get("pv_credit_kwh") or 0.0
-                )
-            except (KeyError, TypeError, ValueError, AttributeError):
-                continue
-            if not math.isfinite(kwh) or kwh <= 0.0:
-                continue
-            if now.tzinfo is None:
-                start = start.replace(tzinfo=None)
-            elif start.tzinfo is None:
-                start = start.replace(tzinfo=now.tzinfo)
-            else:
-                start = start.astimezone(now.tzinfo)
-            claims.append((start, kwh))
-        total = sum(kwh for _start, kwh in claims)
-        held = self._daily_operation_float(status.get("reserve_kwh"), 0.0)
-        if total <= 0.0 or held <= 0.0:
-            return ()
-        scale = min(1.0, held / total)
-        return tuple((start, kwh * scale) for start, kwh in claims)
-
-
     def _daily_operation_reserve_floor(self, plan=None):
         """The reserve's decision at a later slot, for the projection, or None.
 
@@ -2563,7 +2504,6 @@ class ChargeDischargeController:
         reserve_fn = None
         weekly_fn = None
         manager = getattr(self, "_discharge_reserve_mgr", None)
-        projected = getattr(manager, "projected_reserve_fn", None)
         holds = getattr(self, "_dp_plan_holds", None)
         active = getattr(manager, "dynamic_pricing_active", None)
         if callable(active) and active():
@@ -2580,11 +2520,6 @@ class ChargeDischargeController:
                 elif hold_tz is not None and start.tzinfo is None:
                     start = start.replace(tzinfo=hold_tz)
                 return usable_kwh if any(s.start <= start < s.end for s in holds) else 0.0
-        elif callable(projected):
-            try:
-                reserve_fn = projected()
-            except Exception:  # noqa: BLE001 - dashboard projection is optional
-                reserve_fn = None
         weekly_hold = getattr(
             getattr(self, "_pricing_mgr", None), "weekly_refill_hold_fn", None
         )
@@ -4549,7 +4484,6 @@ class ChargeDischargeController:
         """
         holds = getattr(self, "_dp_plan_holds", None)
         manager = getattr(self, "_discharge_reserve_mgr", None)
-        self._price_reserve_soc_pct = 0.0
         now = _pricing_clock_now(self)
         # The reserve's own guards: manual control, anti-curtailment and
         # peak shaving spend the battery on purpose.
@@ -10250,8 +10184,6 @@ class ChargeDischargeController:
             # manual session.
             if self._surplus_hold_mgr is not None:
                 self._surplus_hold_mgr.clear("manual_mode")
-            if self._discharge_reserve_mgr is not None:
-                self._discharge_reserve_mgr.clear("manual_mode")
             _LOGGER.debug("Manual Mode active - skipping automatic control")
             # Register-based drivers (Marstek) obey the user's force_mode /
             # set_*_power register writes directly, so we just freeze the

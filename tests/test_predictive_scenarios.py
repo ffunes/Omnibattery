@@ -273,7 +273,7 @@ class Outcome:
             f" power={request.effective_power_kw:.3f} kW"
             f" value_efficiency={request.import_value_efficiency}"
             f" margin={request.import_value_margin}"
-            f" reserve_holds={request.reserve_holds}"
+            f" hold_allowed={request.hold_allowed}"
             f" from_deadlines={request.required_from_deadlines}",
         ]
         lines += [
@@ -658,8 +658,6 @@ def _check_wiring(scenario: Scenario, request, decision: dict) -> None:
             if scenario.valued
             else 0.0
         ),
-        # The previous allocator never holds in Dynamic Pricing (#888, D2).
-        "reserve_holds": False,
         "hold_allowed": True,
     }
     wrong = {

@@ -12,7 +12,6 @@ No Home Assistant and no Modbus: both managers talk to one stand-in controller
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -42,7 +41,6 @@ NOW = DAY + timedelta(hours=9, minutes=30)
 DEADLINE = DAY + timedelta(hours=19)
 
 CAPACITY_KWH = 10.0
-EVENING_DEMAND_KWH = 4.0
 
 
 class _HashableNamespace(SimpleNamespace):
@@ -78,28 +76,10 @@ def _snapshot(soc: float = 80.0) -> BatterySnapshot:
     return BatterySnapshot("battery-1", soc, CAPACITY_KWH, 100.0, 10.0, 2500.0, True)
 
 
-def _evening_profile():
-    """A learned profile with all of its energy in the 18:00-20:00 block."""
-    intervals = [0.0] * 96
-    for index in range(72, 80):
-        intervals[index] = EVENING_DEMAND_KWH / 8.0
-    return SimpleNamespace(
-        intervals_kwh=intervals,
-        intervals_by_date={DAY.date(): intervals},
-        energy_kwh=EVENING_DEMAND_KWH,
-        source="profile",
-    )
-
-
 def _pricing():
     """One pricing stand-in serving both managers."""
     return SimpleNamespace(
-        # Read by the discharge reserve.
-        get_future_price_slots=lambda horizon_end=None: list(SLOTS),
-        _profile_remaining_consumption=lambda start, end: _evening_profile(),
-        _curtailment_forecast_model=lambda now: (0.0, None, None),
-        _get_current_price=lambda: 0.28,
-        energy_horizon_end=lambda _now: DAY + timedelta(days=1, hours=7),
+        # The plan's hold reads the clock.
         _now=lambda: NOW,
         # Read by the surplus hold.
         is_in_dynamic_pricing_slot=lambda: False,
@@ -143,10 +123,6 @@ def _controller(coordinator=None):
             calculate_sunrise=lambda for_date=None: 6.0,
             calculate_solar_noon=lambda: 13.0,
         ),
-        # Discharge reserve.
-        discharge_reserve_enabled=True,
-        discharge_reserve_min_saving=0.05,
-        _price_reserve_soc_pct=0.0,
         # The plan holds the 09:00 slot (#888).
         _dp_plan_holds=frozenset({SLOTS[0]}),
     )
@@ -205,8 +181,6 @@ def _both_managers(controller):
     controller._surplus_hold_mgr = hold
 
     reserve = DischargeReserveManager(SimpleNamespace(), controller)
-    reserve._now = lambda: NOW
-    asyncio.get_event_loop().run_until_complete(reserve.async_rebuild_plan("test"))
     controller._discharge_reserve_mgr = reserve
     return hold, reserve
 
@@ -271,125 +245,3 @@ def test_neither_hold_swallows_the_other_when_one_releases():
     _refresh(controller)
     assert BLOCKER_SOURCE not in controller.get_charge_blockers()
     assert "price_reserve" in controller.get_discharge_blockers()
-
-
-# --- The reserve's PV credit against the hold's export decision (#460) -------
-#
-# The reserve lowers its floor by the sun it expects to land in the battery
-# before each claiming slot. The hold is the planner that decides part of that
-# sun should export instead. Credit for a slot the hold has not selected
-# releases the reserve against kWh that never arrive.
-
-MORNING = _slot(10, 0.28)  # dear feed-in: the hold exports here
-CHEAP = _slot(12, 0.12)  # cheapest feed-in: the hold absorbs here
-SUN_SLOTS = [MORNING, CHEAP]
-
-
-def _sunny_pricing():
-    """Both slots sunny: 2 kWh of surplus each, no load to eat it."""
-    pricing = _pricing()
-    pricing.get_future_price_slots = lambda horizon_end=None: list(SUN_SLOTS)
-    pricing._curtailment_forecast_model = lambda now: (4.0, None, None)
-    return pricing
-
-
-def _hold_plan_over_sun_slots(usable_energy_kwh: float = 0.0, now: datetime = NOW):
-    """A hold plan whose target only the cheap slot is needed to cover."""
-    return plan_surplus_absorption(
-        SUN_SLOTS,
-        {slot: 2.0 for slot in SUN_SLOTS},
-        [_snapshot()],
-        remaining_consumption_kwh=1.0,
-        usable_energy_kwh=usable_energy_kwh,
-        max_charge_power_w=2500.0,
-        deadline=DEADLINE,
-        min_saving=0.0,
-        now=now,
-    )
-
-
-def _credits(controller) -> dict:
-    """The PV credit the reserve would spend, per slot."""
-    reserve = DischargeReserveManager(SimpleNamespace(), controller)
-    reserve._now = lambda: NOW
-    controller._discharge_reserve_mgr = reserve
-    _demand, surplus = reserve._demand_and_surplus_by_slot(
-        controller._pricing_mgr, SUN_SLOTS, NOW, DEADLINE
-    )
-    return surplus
-
-
-def _with_hold(plan, *, live_target_failed: bool = False):
-    controller = _controller()
-    controller._pricing_mgr = _sunny_pricing()
-    hold = SurplusPriceHoldManager(None, controller)
-    hold._now = lambda: NOW
-    hold._plan = plan
-    hold._plan_date = NOW.date()
-    hold._live_target_kwh = None if plan is None else plan.target_kwh
-    hold._live_target_failed = live_target_failed
-    controller._surplus_hold_mgr = hold
-    return controller, hold
-
-
-def test_the_reserve_credits_only_the_sun_the_hold_will_absorb():
-    """The dear feed-in hour's surplus exports, so it pays no claim."""
-    plan = _hold_plan_over_sun_slots()
-    assert plan.status == STATUS_PLANNED
-    assert [slot.start for slot in plan.selected_slots] == [CHEAP.start]
-
-    controller, _hold = _with_hold(plan)
-    credits = _credits(controller)
-
-    assert credits[MORNING] == pytest.approx(0.0)
-    assert credits[CHEAP] > 0.0
-
-
-def test_an_unplanned_hold_leaves_the_credit_alone():
-    """With nothing blocking the charge, every sunny hour still counts."""
-    controller, _hold = _with_hold(None)
-    credits = _credits(controller)
-
-    assert credits[MORNING] > 0.0
-    assert credits[CHEAP] > 0.0
-
-
-def test_yesterdays_hold_plan_does_not_filter_todays_credit():
-    """A stale plan says nothing about which hours export today."""
-    plan = _hold_plan_over_sun_slots(now=NOW - timedelta(days=1))
-    controller, _hold = _with_hold(plan)
-    credits = _credits(controller)
-
-    assert credits[MORNING] > 0.0
-
-
-def test_an_unreliable_live_target_does_not_filter_the_credit():
-    """The hold releases on it, so the reserve must not plan around it."""
-    controller, _hold = _with_hold(_hold_plan_over_sun_slots(), live_target_failed=True)
-    credits = _credits(controller)
-
-    assert credits[MORNING] > 0.0
-
-
-def test_the_coupling_releases_itself_once_the_hold_has_no_target():
-    """The feedback loop is self-limiting, in two chained rebuilds.
-
-    Less credit means the reserve holds more energy back, which raises the
-    usable energy the hold measures, which lowers its target. The moment that
-    target reaches zero the hold stops holding at all -- and a plan that cannot
-    hold is exactly the plan the reserve stops filtering on. The loop cannot
-    tighten itself further.
-    """
-    controller, hold = _with_hold(_hold_plan_over_sun_slots())
-    assert _credits(controller)[MORNING] == pytest.approx(0.0)
-
-    # Second cycle: the battery kept the energy the reserve held back, so the
-    # hold has nothing left to absorb today.
-    hold._plan = _hold_plan_over_sun_slots(usable_energy_kwh=5.0)
-    assert hold._plan.status == STATUS_NO_TARGET
-    assert hold._plan.can_hold is False
-
-    reserve = DischargeReserveManager(SimpleNamespace(), controller)
-    reserve._now = lambda: NOW
-    assert reserve._hold_plan_state(NOW) is None
-    assert _credits(controller)[MORNING] > 0.0

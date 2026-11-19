@@ -314,8 +314,6 @@ class DischargeReserveSensor(BinarySensorEntity):
     the guard that released a hold, if any.
     """
 
-    _unrecorded_attributes = frozenset({"reserved_slots", "claims"})
-
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
         self.hass = hass
         self.entry = entry

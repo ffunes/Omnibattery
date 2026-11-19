@@ -1035,9 +1035,8 @@ def test_balance_fingerprint_moves_with_the_slot_and_weekly_knobs(field, before,
 
 def test_balance_fingerprint_ignores_settings_read_live():
     # Read every cycle, so a change needs no re-plan.
-    ctrl = _balance_ctrl(discharge_reserve_min_saving=0.02)
+    ctrl = _balance_ctrl(surplus_hold_min_saving=0.02)
     before = _fingerprint(ctrl)
-    ctrl.discharge_reserve_min_saving = 0.05
     ctrl.surplus_hold_min_saving = 0.03
     assert _fingerprint(ctrl) == before
 
@@ -1078,7 +1077,6 @@ def test_dynamic_pricing_rebuilds_once_on_a_dirty_configuration():
     manager._maybe_refresh_service_prices = _async_noop
     manager._check_dp_pre_slot_reevaluation = _async_noop
     manager._refresh_surplus_hold_plan = _async_noop
-    manager._refresh_discharge_reserve_plan = _async_noop
     manager._is_evening_reevaluation_time = lambda: False
     manager._is_dp_soc_drop_reeval = lambda: False
     manager._evaluate_dynamic_pricing = _evaluate
@@ -1122,7 +1120,6 @@ def test_a_configuration_change_re_plans_once_the_settings_stand_still():
     manager._maybe_refresh_service_prices = _async_noop
     manager._check_dp_pre_slot_reevaluation = _async_noop
     manager._refresh_surplus_hold_plan = _async_noop
-    manager._refresh_discharge_reserve_plan = _async_noop
     manager._is_evening_reevaluation_time = lambda: False
     manager._is_dp_soc_drop_reeval = lambda: False
     manager._evaluate_dynamic_pricing = _evaluate
@@ -1171,7 +1168,6 @@ def _publication_mgr(ctrl, evaluate=None):
     manager._maybe_refresh_service_prices = _async_noop
     manager._check_dp_pre_slot_reevaluation = _async_noop
     manager._refresh_surplus_hold_plan = _async_noop
-    manager._refresh_discharge_reserve_plan = _async_noop
     manager._is_evening_reevaluation_time = lambda: False
     manager._is_dp_soc_drop_reeval = lambda: False
     if evaluate is not None:
@@ -1242,7 +1238,6 @@ def test_first_cycle_after_midnight_resets_the_day_and_does_not_re_plan():
         "_reset_predictive_demand_runtime",
         "clear_curtailment_runtime",
         "_clear_surplus_hold",
-        "_clear_discharge_reserve",
         "_clear_plan_orders",
     ):
         setattr(manager, name, lambda *_args: None)
@@ -1487,7 +1482,6 @@ def _reevaluation_trigger_calls(*, evening, soc_drop):
     manager._maybe_refresh_service_prices = _async_noop
     manager._check_dp_pre_slot_reevaluation = _async_noop
     manager._refresh_surplus_hold_plan = _async_noop
-    manager._refresh_discharge_reserve_plan = _async_noop
     manager._is_evening_reevaluation_time = lambda: evening
     manager._is_dp_soc_drop_reeval = lambda: soc_drop
     manager._evaluate_dynamic_pricing = _evaluate
@@ -3878,11 +3872,9 @@ def test_midnight_reset_retains_post_midnight_slots(monkeypatch):
     manager._is_excluded_demand_reeval = lambda _now: False
     manager._is_solar_forecast_reeval = lambda _now: False
     manager._refresh_surplus_hold_plan = _async_noop
-    manager._refresh_discharge_reserve_plan = _async_noop
     manager._reset_predictive_demand_runtime = lambda: None
     manager.clear_curtailment_runtime = lambda _reason: None
     manager._clear_surplus_hold = lambda _reason: None
-    manager._clear_discharge_reserve = lambda _reason: None
 
     asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
 

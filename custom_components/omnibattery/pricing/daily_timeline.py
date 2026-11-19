@@ -1077,7 +1077,6 @@ def simulate_battery_projection(
     grid_charge_decisions: Any = None,
     charge_availability: Any = None,
     charge_ceiling_pct: Any = None,
-    discharge_reserve_kwh: Any = None,
     discharge_reserve_fn: Callable[[datetime, float, float], float | None]
     | None = None,
     system_charge_power_w: float | None = None,
@@ -1099,14 +1098,12 @@ def simulate_battery_projection(
     interval in which charging is permitted.  Optional ``charge_ceiling_pct``
     values raise a battery's max SOC for that interval (a weekly full charge
     due later in the horizon); they never lower it, and the charge-hysteresis
-    latch does not apply while raised.  Optional ``discharge_reserve_kwh``
-    values are the stored energy above the batteries' floors that the discharge
-    reserve keeps for later, dearer slots: discharge in that interval leaves at
-    least that much in the fleet.  Optional ``discharge_reserve_fn`` asks the
-    reserve itself, with ``(interval start, usable kWh, free space kWh)`` as
-    the projection has them after the interval's charge, so energy that only
-    arrives later is held too; a number it returns replaces that interval's
-    ``discharge_reserve_kwh``, None keeps it.  It must not have side effects.
+    latch does not apply while raised.  Optional ``discharge_reserve_fn`` gives
+    the stored energy above the batteries' floors kept for later in an interval
+    (the plan's holds, a weekly hold, a Time Slot window), from ``(interval
+    start, usable kWh, free space kWh)`` as the projection has them after the
+    interval's charge; discharge there leaves at least that much in the fleet,
+    None keeps nothing.  It must not have side effects.
     System-wide charge/discharge
     limits cap the aggregate AC-side flow in each interval in addition to every
     battery's own power limit.
@@ -1362,9 +1359,9 @@ def simulate_battery_projection(
 
         # Run discharge after all charge allocation.  A given battery cannot
         # charge and discharge in the same interval, but distinct batteries
-        # may still coexist in opposite directions.  Energy the discharge
-        # reserve keeps for a later slot is not spent here.
-        reserve_floor = _metadata_value(discharge_reserve_kwh, index, interval_list)
+        # may still coexist in opposite directions.  Energy kept for a later
+        # slot is not spent here.
+        reserve_floor = None
         if discharge_reserve_fn is not None and interval.start is not None:
             usable = sum(
                 max(0.0, states[key] - values["minimum"])

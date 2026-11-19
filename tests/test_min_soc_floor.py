@@ -1091,7 +1091,6 @@ def test_dynamic_pricing_lets_the_plan_hold_without_the_reserve_switch(margin, r
     )
 
     assert requests[0].hold_allowed is True
-    assert requests[0].reserve_holds is False
 
 
 @pytest.mark.parametrize(
