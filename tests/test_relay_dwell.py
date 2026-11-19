@@ -155,3 +155,60 @@ def test_cooldown_disabled_no_hold():
     out = _dwell(ctrl, new_power=0, error=300)
     assert out == 0
     assert ctrl._relay_shutoff_since is None
+
+
+def test_hold_never_raises_power_above_what_was_flowing():
+    # Charging only 15W when idle is requested: the 100W fallback would raise the
+    # charge, so the hold stays at the 15W already flowing.
+    ctrl = _ctrl(previous_power=15, min_charge=0, min_discharge=0)
+    out = _dwell(ctrl, new_power=0, error=-10)
+    assert out == 15
+    assert ctrl._relay_shutoff_since is not None
+
+
+def test_hold_capped_below_configured_min_power():
+    ctrl = _ctrl(previous_power=-30, min_discharge=50)
+    out = _dwell(ctrl, new_power=0, error=30)
+    assert out == -30
+
+
+def test_small_charge_during_import_reaches_discharge_instead_of_looping(monkeypatch):
+    # Field trace (SolarFlow 800 Plus): charging ~15W after sunset while the house
+    # imports ~240W. The PD asks for discharge, the zero-cross hold clamps the flip
+    # and the dwell held the old direction at the 100W fallback. Stepping down from
+    # 100W gave a small charge again, which reset both timers: Set Charge Power
+    # alternated 100W <-> 5..65W for hours and the battery never discharged.
+    clock = [dt_util.utcnow()]
+    monkeypatch.setattr(dt_util, "utcnow", lambda: clock[0])
+    ctrl = SimpleNamespace(
+        _relay_cooldown_s=30,
+        deadband=40,
+        min_charge_power=0,
+        min_discharge_power=0,
+        previous_power=15,
+        last_output_sign=1,
+        _flip_hyst_suppressed=False,
+        _relay_shutoff_since=None,
+        _zero_cross_since=None,
+        coordinators=[
+            SimpleNamespace(capabilities=SimpleNamespace(actuator_latency_s=0.8))
+        ],
+    )
+    # Commands flip faster than the actuator settles, so the meter keeps
+    # reading the household import.
+    kp, error = 0.35, 240.0
+    commands = []
+    for _ in range(15):
+        new_power = ctrl.previous_power - kp * error
+        new_power = ChargeDischargeController._apply_zero_cross_hold(
+            ctrl, new_power, error
+        )
+        new_power = _dwell(ctrl, new_power, error)
+        commands.append(new_power)
+        ctrl.previous_power = new_power
+        if new_power:
+            ctrl.last_output_sign = 1 if new_power > 0 else -1
+        clock[0] += timedelta(seconds=1)
+
+    assert max(commands) <= 15
+    assert any(command < 0 for command in commands)
