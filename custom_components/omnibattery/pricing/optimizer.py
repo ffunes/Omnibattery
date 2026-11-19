@@ -13,10 +13,13 @@ whole-percent target is reached early (the cause of the plan costing more than
 it promised, measured 2026-11-13).
 
 Objective: import x price - export x export price, plus the arbitrage margin
-per kWh bought to charge (decides, never reported), minus the energy left at
-the end valued at the cheapest positive import price x sqrt(rte) (D1). With
-negative-price charging off, a negative price counts as 0 for the energy the
-battery buys (D3).
+per kWh bought to charge and START_COST_EUR per grid charge start (both
+decide, never reported), minus the energy left at the end valued at the
+cheapest positive import price x sqrt(rte) (D1). A charge starts when the
+slot before it was not still charging at its end (open, under the top); the
+state carries that bit, and a slot charging at ``now`` goes on without one.
+With negative-price charging off, a negative price counts as 0 for the
+energy the battery buys (D3).
 
 Pure function of the request: it runs in an executor, off the event loop.
 """
