@@ -484,7 +484,7 @@ class ConsumptionTracker:
                 midnight = datetime.combine(today, time.min, tzinfo=dt_util.now().tzinfo)
                 prior = self._consumption_profile.forecast_energy_between(
                     midnight + timedelta(hours=1), midnight + timedelta(hours=5),
-                    exclude_charging_windows=False, fallback="legacy_daily",
+                    fallback="legacy_daily",
                 )
                 if prior.source == "profile" and prior.energy_kwh > 0:
                     return prior.energy_kwh / 4.0, "prior_night_profile"
@@ -518,7 +518,7 @@ class ConsumptionTracker:
         """Single forecast API: learned profile normally, constant baseline away."""
         if not self.is_vacation_active():
             return self._consumption_profile.forecast_energy_between(
-                start, end, exclude_charging_windows=False, fallback=fallback
+                start, end, fallback=fallback
             )
         seconds = max(0.0, end.timestamp() - start.timestamp())
         baseline_kw, source = self._vacation_baseline_kw()

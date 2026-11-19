@@ -188,7 +188,7 @@ def test_vacation_baseline_does_not_recurse_through_the_profile_fallback():
     tracker._vacation_periods = []
     calls = []
 
-    def _forecast_energy_between(start, end, *, exclude_charging_windows, fallback):
+    def _forecast_energy_between(start, end, *, fallback):
         # What ConsumptionProfileTracker._fallback_daily_value() does, and the
         # callable is the tracker's own get_avg_daily_consumption (see the
         # ConsumptionProfileTracker construction in ConsumptionTracker.__init__).
