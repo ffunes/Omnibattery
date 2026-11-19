@@ -157,6 +157,8 @@ class ChronologicalPlan:
     # and the slots with a risk quarter (Smart Pre-Discharge).
     room_sales: tuple[tuple[PriceSlot, float, float], ...] = ()
     risk_slots: tuple[PriceSlot, ...] = ()
+    # 2.0.0 optimizer: the grid charge starts the plan paid its start cost for.
+    charge_starts: int = 0
 
 
 @dataclass(frozen=True)
@@ -285,6 +287,9 @@ class ChronologicalEvaluationRequest:
     done_headroom_kwh: float | None = None
     charge_curve: tuple[tuple[float, float], ...] = ()
     full_by_power_kw: float | None = None
+    # A price slot is charging at ``now``: going on with it is no new start
+    # (the optimizer's start cost).
+    charging_now: bool = False
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

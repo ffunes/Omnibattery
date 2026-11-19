@@ -54,11 +54,11 @@ MAX_ASKS = 24
 # lost up to 0.23 c).
 PENDING_MAX_ASKS = 12
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
-# #899, #571: a charge that stops mid-slot, with the next slot charging again,
-# gives way to one still charging at the slot's end: fewer relay starts. Only
-# near-ties: the whole plan gives up at most this much (of the order of the
-# lattice's error), so it never buys a run at a real price.
-RUN_TIE_EUR = 0.001
+# Each grid charge start pays this (decides, never reported): with 15-minute
+# prices a plan split its charge over price differences of tenths of a cent.
+# ponytail: per plan, not per fleet (at 5 kW it joins half the price gap per
+# kWh); per battery if a measure by fleet asks for it.
+START_COST_EUR = 0.01
 HOLD = "hold"  # menu option: the battery covers nothing for the whole slot
 EXPORT = "export"  # menu option: the slot's solar surplus is exported, not stored
 SELL = "sell"  # menu option ("sell", kW): the grid is held at -kW for the slot
@@ -94,11 +94,6 @@ def _bands(request, cap) -> tuple:
         for below, kw in request.charge_curve or ()
         if 0.0 < float(below) <= cap
     ))
-
-
-def _is_charge(option) -> bool:
-    """A grid charge quota (with or without the hold), not a sale or room."""
-    return isinstance(option, tuple) and option[0] not in (SELL, ROOM)
 
 
 def _reached(peaks, ends, deadline, cap):
@@ -386,7 +381,10 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         # battery's top (the controller stops it there; as a plain quota it
         # would round from its own reading and stop short).
         to_end = (~done | (target >= model.cap - 1e-6)) if target is not None else done
-        return e, cost, decide, stored, to_end, ends, peaks
+        # Still charging at the slot's end (open, under the top): the next
+        # slot's charge goes on without a start (#899, #571).
+        on = (stored > _TOL) & to_end & (np.max(peaks, axis=0) < model.cap - _FULL_TOL)
+        return e, cost, decide, stored, to_end, ends, peaks, on
 
     def run_menu(slot, quarters, e, slot_ends, pending=False):
         """[(option, run)] for the slot's menu, in its order. The charge quotas
@@ -403,12 +401,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                                       pending=pending))
         for rows in stacks.values():
             asks = np.array([[options[i][0]] for i in rows], dtype=float)
-            e1, c, decide, stored, to_end, ends, peaks = run(
+            e1, c, decide, stored, to_end, ends, peaks, on = run(
                 quarters, e, options[rows[0]], slot.price, slot_ends, slot.start, asks=asks,
                 pending=pending)
             for r, i in enumerate(rows):
                 out[i] = (options[i], (e1[r], c[r], decide[r], stored[r], to_end[r],
-                                       [x[r] for x in ends], [x[r] for x in peaks]))
+                                       [x[r] for x in ends], [x[r] for x in peaks], on[r]))
         return out
 
     def shortfall(ends, path, peaks, by):
@@ -418,53 +416,52 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         return np.where(_reached(peaks, ends, by, cap), 0.0,
                         FULL_PENALTY_EUR * np.maximum(cap - path[j], 0.0))
 
-    def onward(k, ends, e1, path, peaks, done_next, pending_next):
+    def onward(k, ends, e1, path, peaks, on, done_on, done_off, pending_next):
         """(cost from a pending run's end on, whether it touched the top): the
         done value once full by the window's end, else the pending one; the
         groups holding a binding deadline pay its shortfall, and the charge
-        is over after the window's end."""
+        is over after the window's end. The pending layer pays no start cost;
+        the done one takes the run's own charging bit (off once at the top)."""
         hit = _reached(peaks, ends, deadline, cap)
-        after = np.interp(e1, levels, done_next)
+        after = np.where(on, np.interp(e1, levels, done_on), np.interp(e1, levels, done_off))
         penalty = shortfall(ends, path, peaks, early) if k == early_k else 0.0
         if k < last_k or not binding:
             return np.where(hit, after, np.interp(e1, levels, pending_next)) + penalty, hit
         return after + penalty + shortfall(ends, path, peaks, deadline), hit
 
-    # Backward pass: values[k] = cost-to-go before group k, on the lattice;
-    # pending_values[k] the same while a weekly charge is still to complete.
-    values = [-end_value * levels]
-    pending_values = [values[0]]
+    # Backward pass: values_on[k] / values_off[k] = cost-to-go before group k,
+    # on the lattice, with the previous slot still charging at its end or not
+    # (a charge from "off" pays START_COST_EUR); pending_values[k] the same
+    # while a weekly charge is still to complete (no start cost there).
+    values_on = [-end_value * levels]
+    values_off = [values_on[0]]
+    pending_values = [values_on[0]]
     for k in reversed(range(len(groups))):
         slot, quarters, slot_ends = groups[k]
-        nxt, nxt_pending = values[-1], pending_values[-1]
-        best = None
-        for _option, (e1, _c, decide, *_) in run_menu(slot, done_quarters[k], levels, slot_ends):
-            v = decide + np.interp(e1, levels, nxt)
-            best = v if best is None else np.minimum(best, v)
-        values.append(best)
+        nxt_on, nxt_off, nxt_pending = values_on[-1], values_off[-1], pending_values[-1]
+        best_on = best_off = None
+        for _option, (e1, _c, decide, stored, _te, _p, _pk, on) in run_menu(
+                slot, done_quarters[k], levels, slot_ends):
+            v = decide + np.where(on, np.interp(e1, levels, nxt_on), np.interp(e1, levels, nxt_off))
+            v_off = v + START_COST_EUR * (stored > _TOL)
+            best_on = v if best_on is None else np.minimum(best_on, v)
+            best_off = v_off if best_off is None else np.minimum(best_off, v_off)
+        values_on.append(best_on)
+        values_off.append(best_off)
+        best = best_off
         if pending0 and k <= last_k:
             best_pending = None
-            for _option, (e1, _c, decide, _st, _te, path, peaks) in run_menu(
+            for _option, (e1, _c, decide, _st, _te, path, peaks, on) in run_menu(
                     slot, quarters, levels, slot_ends, True):
-                v = decide + onward(k, slot_ends, e1, path, peaks, nxt, nxt_pending)[0]
+                v = decide + onward(k, slot_ends, e1, path, peaks, on, nxt_on, nxt_off,
+                                    nxt_pending)[0]
                 best_pending = v if best_pending is None else np.minimum(best_pending, v)
             # Full at the slot's start: already done.
             best = np.where(levels >= cap - _FULL_TOL, best, best_pending)
         pending_values.append(best)
-    values.reverse()
+    values_on.reverse()
+    values_off.reverse()
     pending_values.reverse()
-
-    def next_charges(j, e_j):
-        """Whether the plan charges in group ``j`` from ``e_j`` (#899: a stop
-        is a restart only when the next slot charges again)."""
-        slot_j, _quarters, ends_j = groups[j]
-        best = None
-        for option, (e1, _c, decide, stored, *_rest) in run_menu(
-                slot_j, done_quarters[j], [e_j], ends_j):
-            v = float(decide[0] + np.interp(e1[0], levels, values[j + 1]))
-            if best is None or v < best[0] - (TIE_EUR if best[1] is None else 0.0):
-                best = (v, option, float(stored[0]))
-        return _is_charge(best[1]) and best[2] > _TOL
 
     # Forward pass from the exact energy.
     e = e0
@@ -478,40 +475,30 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     trajectory: list = []
     pending = pending0
     full_at = None  # when the plan touches the top of a pending weekly charge
-    slack = RUN_TIE_EUR
+    charging = bool(request.charging_now)  # a slot charging at now goes on: no start
+    starts = 0
     for k, (slot, quarters, ends) in enumerate(groups):
-        nxt = values[k + 1]
         layer = pending and k <= last_k
         chosen = None
-        rows = []
-        for option, (e1, c, decide, stored, open_, path, peaks) in run_menu(
+        for option, (e1, c, decide, stored, open_, path, peaks, on) in run_menu(
                 slot, quarters if layer else done_quarters[k], [e], ends, layer):
+            start = False
             if layer:
-                after, hit = onward(k, ends, e1, path, peaks, nxt, pending_values[k + 1])
+                after, hit = onward(k, ends, e1, path, peaks, on, values_on[k + 1],
+                                    values_off[k + 1], pending_values[k + 1])
                 v, hit = float(decide[0] + after[0]), bool(hit[0])
             else:
-                v, hit = float(decide[0] + np.interp(e1[0], levels, nxt)), False
+                start = bool(stored[0] > _TOL) and not charging
+                nxt = values_on[k + 1] if on[0] else values_off[k + 1]
+                v, hit = float(decide[0] + START_COST_EUR * start
+                               + np.interp(e1[0], levels, nxt)), False
             row = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
                    bool(open_[0]), [float(x[0]) for x in path], hit,
-                   [float(x[0]) for x in peaks])
-            rows.append(row)
+                   [float(x[0]) for x in peaks], bool(on[0]), start)
             if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
                 chosen = row
-        charge = chosen[1]
-        if (not pending0 and _is_charge(charge) and chosen[4] > _TOL and not chosen[5]
-                and k + 1 < len(groups) and next_charges(k + 1, chosen[2])):
-            run_on = min(
-                (r for r in rows
-                 if r[5] and _is_charge(r[1]) and len(r[1]) == len(charge) and r[4] > _TOL
-                 and max(r[8]) < done_model.cap - _FULL_TOL  # charging at the end, not at the top
-                 and r[0] <= chosen[0] + slack
-                 and next_charges(k + 1, r[2])),  # still one block after it
-                key=lambda r: r[0], default=None,
-            )
-            if run_on is not None:
-                slack -= run_on[0] - chosen[0]
-                chosen = run_on
-        _v, option, e_end, c, stored, open_, path, hit, top = chosen
+        _v, option, e_end, c, stored, open_, path, hit, top, charging, start = chosen
+        starts += start
         if layer and hit:
             full_at = next(end for end, x in zip(ends, top)
                            if end <= deadline and x >= cap - _FULL_TOL)
@@ -581,6 +568,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         risk_slots=tuple(s for s, _q, _e in groups if s.start in risk),
     )
     plan.optimizer_cost = total
+    plan.charge_starts = starts
     plan.weekly_holds = tuple(weekly_holds)
     plan.weekly_full_at = full_at
     # The plan decided Smart Pre-Discharge (with export prices, design §2.6 A).
