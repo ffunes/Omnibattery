@@ -1264,6 +1264,78 @@ def test_first_cycle_after_midnight_resets_the_day_and_does_not_re_plan():
     assert ctrl._dp_solar_forecast_reeval_count == 0
 
 
+def _new_day_reset_ctrl(projection_end):
+    midnight = local_now().replace(hour=0, minute=0, second=0, microsecond=0)
+    hold = PriceSlot(midnight, midnight + timedelta(hours=6, minutes=30), 0.40)
+    export = PriceSlot(midnight + timedelta(hours=10), midnight + timedelta(hours=11), 0.05)
+    room = object()
+    ctrl = _publication_ctrl(
+        _dynamic_pricing_evaluated_date=midnight.date() - timedelta(days=1),
+        _dp_eval_retry_count=0,
+        _dp_plan_holds=frozenset({hold}),
+        _dp_plan_weekly_holds=frozenset({hold}),
+        _dp_weekly_full_at=midnight - timedelta(hours=1),
+        _dp_plan_exports=frozenset({export}),
+        _dp_export_decision=None,
+        _dp_plan_sales={export: 1.0},
+        _dp_plan_solar_delay=True,
+        _dp_plan_room=room,
+        _dp_eval_projection=(
+            None
+            if projection_end is None
+            else ((midnight + projection_end, -1.0),)
+        ),
+    )
+    manager = _publication_mgr(ctrl)
+    for name in (
+        "_reset_predictive_demand_runtime",
+        "clear_curtailment_runtime",
+        "_clear_surplus_hold",
+        "_clear_discharge_reserve",
+    ):
+        setattr(manager, name, lambda *_args: None)
+    return ctrl, manager, hold, export, room
+
+
+def test_new_day_reset_keeps_the_orders_of_a_plan_that_reaches_past_midnight():
+    """2026-11-19: the evening plan held the battery until 06:30. The reset at
+    00:00 dropped its holds and the 00:05 evaluation brought them back, so the
+    reserve module decided for five minutes and the battery discharged in the
+    night's cheapest quarter."""
+    ctrl, manager, hold, export, room = _new_day_reset_ctrl(timedelta(hours=24))
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+
+    assert ctrl._dynamic_pricing_evaluated_date is None  # the day was reset
+    assert ctrl._dp_plan_holds == frozenset({hold})
+    assert ctrl._dp_plan_weekly_holds == frozenset({hold})
+    assert ctrl._dp_plan_exports == frozenset({export})
+    assert ctrl._dp_plan_sales == {export: 1.0}
+    assert ctrl._dp_plan_solar_delay is True
+    assert ctrl._dp_plan_room is room
+    # The triggers' references are reset as before.
+    assert ctrl._dp_weekly_full_at is None
+    assert ctrl._dp_eval_projection is None
+
+
+@pytest.mark.parametrize("projection_end", [timedelta(0), None])
+def test_new_day_reset_drops_the_orders_of_a_plan_that_ended_at_midnight(projection_end):
+    """A plan up to the last price of the day (or none) says nothing about
+    the new day: the modules decide until the 00:05 evaluation, as before."""
+    ctrl, manager, *_ = _new_day_reset_ctrl(projection_end)
+
+    asyncio.run(manager.handle_dynamic_pricing_predictive_charging())
+
+    assert ctrl._dynamic_pricing_evaluated_date is None
+    assert ctrl._dp_plan_holds is None
+    assert ctrl._dp_plan_weekly_holds is None
+    assert ctrl._dp_weekly_full_at is None
+    assert ctrl._dp_plan_exports is None
+    assert ctrl._dp_plan_sales is None
+    assert ctrl._dp_plan_solar_delay is False
+    assert ctrl._dp_plan_room is None
+
+
 def test_price_publication_reeval_disarmed_when_the_daily_eval_already_saw_tomorrow():
     async def no_charge_decision():
         return {

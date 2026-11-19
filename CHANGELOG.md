@@ -35,6 +35,7 @@
 ### Fixed
 
 - **Zendure: grid charging works with a load on the off-grid port** (#882): with the port in normal or economy mode, the firmware ignored the charge command and only fed the off-grid load. Charges are now sent in manual mode while the port is on (the device may save them to flash), and the panel explains it next to Off-grid mode. Thanks to @gew55
+- **Dynamic Pricing: the plan's decisions no longer lapse from 00:00 to 00:05**: the reset at midnight dropped what the planner had decided for the night (keeping the battery for a dearer hour, the weekly charge's holds, exports, sales) and the 00:05 evaluation brought it back, so for five minutes the modules decided on their own: a battery kept for the morning peak discharged in the night's cheapest quarter. A plan that reaches past midnight now stays in force until the 00:05 evaluation replaces it; a plan that ended at midnight is dropped as before.
 - **Anker: two combined units can use up to 7000 W** (#646): the driver capped every Anker at 3500 W; you can now raise Max charge/discharge power up to 7000 W. The default stays 3500 W, and a 7000 W reading from a single unit no longer raises it.
 - **Hoymiles efficiency measures the battery's DC side from voltage x current** (#625): it no longer reads about 100 %.
 - **Anker's battery-side counters no longer feed the arbitrage efficiency** (#706): the default 0.85 or your own value is used.
