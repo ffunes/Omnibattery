@@ -1,7 +1,7 @@
-"""Both dynamic-pricing planners active on the same day.
+"""Both dynamic-pricing holds active on the same day.
 
-`surplus_price_hold` blocks charging while `price_reserve` blocks discharging,
-so the battery is held in both directions at once. That is the intended
+`surplus_price_hold` blocks charging while `price_reserve` (the plan's hold,
+#888) blocks discharging, so the battery is held in both directions at once. That is the intended
 outcome of two correct decisions -- the cheap feed-in window is still ahead
 and the evening peak still needs the stored energy -- but it is also the state
 a user is most likely to report as "my battery does nothing", so each blocker
@@ -100,6 +100,7 @@ def _pricing():
         _curtailment_forecast_model=lambda now: (0.0, None, None),
         _get_current_price=lambda: 0.28,
         energy_horizon_end=lambda _now: DAY + timedelta(days=1, hours=7),
+        _now=lambda: NOW,
         # Read by the surplus hold.
         is_in_dynamic_pricing_slot=lambda: False,
         _negative_price_feature_enabled=lambda: False,
@@ -146,6 +147,8 @@ def _controller(coordinator=None):
         discharge_reserve_enabled=True,
         discharge_reserve_min_saving=0.05,
         _price_reserve_soc_pct=0.0,
+        # The plan holds the 09:00 slot (#888).
+        _dp_plan_holds=frozenset({SLOTS[0]}),
     )
     controller._pricing_mgr = _pricing()
 
@@ -172,9 +175,6 @@ def _controller(coordinator=None):
     # The effective floor is the configured one here: no slot override is in
     # play, so the reserve is added straight on top of min_soc.
     controller._effective_discharge_min_soc = lambda coordinator: (10.0, None)
-    controller._price_discharge_reserve_pct = (
-        ChargeDischargeController._price_discharge_reserve_pct.__get__(controller)
-    )
     return controller
 
 
@@ -218,14 +218,11 @@ def _refresh(controller) -> None:
 
 
 def test_both_planners_can_hold_the_battery_on_the_same_day():
-    """Charge held for a cheaper feed-in hour, discharge held for the peak."""
+    """Charge held for a cheaper feed-in hour, discharge held by the plan."""
     controller = _controller()
-    hold, reserve = _both_managers(controller)
+    hold, _reserve = _both_managers(controller)
 
     assert hold.is_hold_active() is True
-    # The evening wants 4 kWh; only 3.5 kWh sits above the 10% floor, so the
-    # reserve claims all of it: 35 SOC points on a 10 kWh battery.
-    assert reserve.reserve_soc_pct() == pytest.approx(35.0)
 
     _refresh(controller)
 
@@ -236,7 +233,7 @@ def test_both_planners_can_hold_the_battery_on_the_same_day():
 def test_a_battery_frozen_both_ways_says_why_in_both_directions():
     """The state a user reports as "it does nothing" must be explainable."""
     controller = _controller()
-    hold, reserve = _both_managers(controller)
+    hold, _reserve = _both_managers(controller)
     _refresh(controller)
 
     charge = controller.get_charge_blockers()[BLOCKER_SOURCE]
@@ -245,49 +242,34 @@ def test_a_battery_frozen_both_ways_says_why_in_both_directions():
 
     discharge = controller.get_discharge_blockers()["price_reserve"]
     assert discharge["reason"] == "price_reserve"
-    assert discharge["details"]["reserve_soc_pct"] == pytest.approx(35.0)
-    assert discharge["details"]["reserved_floor"] == pytest.approx(45.0)
+    assert discharge["details"]["origin"] == "plan"
 
-    # Both managers publish their own reason, so the panel never has to
-    # attribute the standstill to the wrong feature.
+    # Both publish their own reason, so the panel never has to attribute the
+    # standstill to the wrong feature.
     assert hold.get_status()["reason"] == REASON_CHEAPER_WINDOW_AHEAD
-    assert reserve.get_status()["state"] == "reserving"
+    assert controller._plan_hold_status["held_batteries"] == ["battery-1"]
+    assert controller._plan_hold_status["held_slot"] == SLOTS[0].start.isoformat()
 
 
 def test_neither_hold_swallows_the_other_when_one_releases():
     """Releasing one direction leaves the other exactly as it was."""
     controller = _controller()
-    hold, reserve = _both_managers(controller)
+    _both_managers(controller)
     _refresh(controller)
     assert BLOCKER_SOURCE in controller.get_charge_blockers()
     assert "price_reserve" in controller.get_discharge_blockers()
 
-    # The saving the evening peak offers no longer clears the slider.
-    controller.discharge_reserve_min_saving = 0.50
+    # A new plan no longer holds this slot.
+    controller._dp_plan_holds = frozenset()
     _refresh(controller)
     assert BLOCKER_SOURCE in controller.get_charge_blockers()
     assert "price_reserve" not in controller.get_discharge_blockers()
 
-    # And back the other way: the reserve holds while the surplus hold is off.
-    controller.discharge_reserve_min_saving = 0.05
+    # And back the other way: the plan holds while the surplus hold is off.
+    controller._dp_plan_holds = frozenset({SLOTS[0]})
     controller.surplus_price_hold_enabled = False
     _refresh(controller)
     assert BLOCKER_SOURCE not in controller.get_charge_blockers()
-    assert "price_reserve" in controller.get_discharge_blockers()
-
-
-def test_the_reserve_never_holds_a_battery_below_its_own_floor():
-    """A battery already at the reserved floor is blocked, above it is free."""
-    coordinator = _coordinator(soc=80.0)
-    controller = _controller(coordinator)
-    _both_managers(controller)
-
-    # Floor 10 + reserve 40 = 50: 80% is above it and may still discharge.
-    _refresh(controller)
-    assert "price_reserve" not in controller.get_discharge_blockers()
-
-    coordinator.data = {"battery_soc": 45.0, "battery_total_energy": CAPACITY_KWH}
-    _refresh(controller)
     assert "price_reserve" in controller.get_discharge_blockers()
 
 

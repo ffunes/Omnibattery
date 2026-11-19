@@ -1055,16 +1055,11 @@ def test_peak_shaving_hold_keeps_min_soc_floor_for_the_projection():
     assert held["active_slot_energy_target_kwh"] < unheld["active_slot_energy_target_kwh"]
 
 
-@pytest.mark.parametrize(
-    ("margin", "reserve_on", "expected"),
-    [(0.05, True, True), (0.05, False, False), (0.0, True, True)],
-)
-def test_the_plan_knows_whether_the_discharge_reserve_holds_energy(
-    margin, reserve_on, expected
-):
-    # The reserve lets a valued deadline be served across an hour left to the
-    # grid, so it only matters while deadlines are valued (always, in Dynamic
-    # Pricing: a zero margin means round-trip losses only).
+@pytest.mark.parametrize(("margin", "reserve_on"), [(0.05, True), (0.05, False), (0.0, False)])
+def test_dynamic_pricing_lets_the_plan_hold_without_the_reserve_switch(margin, reserve_on):
+    # #888: the optimizer may hold whenever deadlines are valued (always, in
+    # Dynamic Pricing: a zero margin means round-trip losses only), whatever
+    # the old switch says; the previous allocator never holds (D2).
     now = datetime(2026, 9, 11, 1, 0, tzinfo=_FLOOR_TZ)
     slots = [
         PriceSlot(now + timedelta(hours=h), now + timedelta(hours=h + 1), 0.40)
@@ -1095,7 +1090,8 @@ def test_the_plan_knows_whether_the_discharge_reserve_holds_energy(
         price_ceiling=None,
     )
 
-    assert requests[0].reserve_holds is expected
+    assert requests[0].hold_allowed is True
+    assert requests[0].reserve_holds is False
 
 
 @pytest.mark.parametrize(

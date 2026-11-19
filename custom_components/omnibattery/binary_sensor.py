@@ -306,11 +306,12 @@ class SurplusPriceHoldSensor(BinarySensorEntity):
 
 
 class DischargeReserveSensor(BinarySensorEntity):
-    """Diagnostic state for the price-aware discharge reserve.
+    """Diagnostic state of the plan's holds (#888).
 
-    ``on`` means part of the stored energy is being kept back because a dearer
-    hour is still ahead today. The reserve itself is published as
-    ``reserve_soc_pct``: everything above it stays available right now.
+    ``on`` while the Dynamic Pricing plan holds a battery in this slot, so the
+    grid carries the house and the stored energy is kept for a dearer hour.
+    The attributes give the held slot, where the run of held slots ends, and
+    the guard that released a hold, if any.
     """
 
     _unrecorded_attributes = frozenset({"reserved_slots", "claims"})
@@ -329,15 +330,12 @@ class DischargeReserveSensor(BinarySensorEntity):
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def _status(self) -> dict:
-        manager = getattr(self.controller, "_discharge_reserve_mgr", None)
-        return manager.get_status() if manager is not None else {}
+        return dict(getattr(self.controller, "_plan_hold_status", None) or {})
 
     @property
     def is_on(self) -> bool:
-        try:
-            return float(self._status().get("reserve_soc_pct", 0.0) or 0.0) > 0.0
-        except (TypeError, ValueError):
-            return False
+        """The plan holds a battery now (a ``price_reserve`` block, #888)."""
+        return bool(self._status().get("held_batteries"))
 
     @property
     def extra_state_attributes(self) -> dict:

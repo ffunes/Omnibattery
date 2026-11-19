@@ -168,10 +168,16 @@ class DischargeReserveManager:
         knows the current price and nothing else, so it cannot tell whether a
         dearer hour is still ahead — which is the entire question here.
         """
+        return bool(
+            getattr(self._controller, "discharge_reserve_enabled", False)
+            and self.dynamic_pricing_active()
+        )
+
+    def dynamic_pricing_active(self) -> bool:
+        """Dynamic Pricing runs, not overridden: the plan's holds apply (#888)."""
         controller = self._controller
         return bool(
-            getattr(controller, "discharge_reserve_enabled", False)
-            and getattr(controller, "predictive_charging_enabled", False)
+            getattr(controller, "predictive_charging_enabled", False)
             and not getattr(controller, "predictive_charging_overridden", False)
             and getattr(controller, "predictive_charging_mode", None)
             == PREDICTIVE_MODE_DYNAMIC_PRICING

@@ -235,11 +235,9 @@ class ChronologicalEvaluationRequest:
     # charge candidates (Smart Pre-Discharge leaves out its risk window): the
     # optimizer prices every interval with it and charges only in candidates.
     price_curve: tuple[PriceSlot, ...] | None = None
-    # Discharge Reserve on (step 5): a slot may hold the battery (it covers
-    # nothing, solar surplus still stores) when a dearer hour needs the energy;
-    # ``hold_min_saving`` per kWh left to the grid must be saved by holding.
+    # Dynamic Pricing (#888): a slot may hold the battery (it covers nothing,
+    # solar surplus still stores) when the whole plan costs less.
     hold_allowed: bool = False
-    hold_min_saving: float = 0.0
     # Surplus price hold on (step 6): a slot may export its solar surplus
     # instead of storing it; ``export_choice_min_saving`` per kWh exported.
     export_choice_allowed: bool = False
@@ -290,6 +288,8 @@ class ChronologicalEvaluationRequest:
     # A price slot is charging at ``now``: going on with it is no new start
     # (the optimizer's start cost).
     charging_now: bool = False
+    # The plan holds the battery at ``now``: going on is no new hold start.
+    holding_now: bool = False
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

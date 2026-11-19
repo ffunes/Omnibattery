@@ -10,7 +10,8 @@
     "Found by the invariant sweep (I1, 1x5k-2500-soc60-flat1.2-falling-night-tomorrow-none-2240).",
     "One 5.12 kWh battery at 60 %, the same house and prices: the 22:40-24:00 window can store more than the 2.05 kWh of room, and the night to 05:00 repays it, so the battery should be full at midnight. A slot that stores its amount early in its quarter lets the battery cover the rest of it, so the window may book a little more than the room without spilling.",
     "BEFORE: 1.49 kWh (battery at 3.3 of 4.6 kWh at midnight with the controller stopping each slot at its amount). The room was measured with the booked amounts, which still count the load the grid carries while they charge; trimming that load afterwards left the room unused, more so with more load (x1.3: 1.36).",
-    "2.0.0 optimizer: 2.41 kWh, the room plus what the battery covers between its slots and the discharge losses (D2) (cost2 oracle: 3.565 vs 3.572 for the previous 2.15 kWh)."
+    "2.0.0 optimizer: 2.41 kWh, the room plus what the battery covers between its slots and the discharge losses (D2) (cost2 oracle: 3.565 vs 3.572 for the previous 2.15 kWh).",
+    "#888: the plan holds the battery between its slots instead of letting it cover the house there, so the window books the room, 2.05 kWh, and the battery is still full at midnight."
   ],
   "level": "engine",
   "now": "2026-11-10T22:40:00",
@@ -171,8 +172,8 @@
       {
         "start": "2026-11-10T22:30:00",
         "end": "2026-11-11T00:00:00",
-        "min_kwh": 2.3,
-        "max_kwh": 2.5
+        "min_kwh": 2.0,
+        "max_kwh": 2.1
       }
     ]
   }

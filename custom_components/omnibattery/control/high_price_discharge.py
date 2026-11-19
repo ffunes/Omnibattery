@@ -335,7 +335,9 @@ class HighPriceDischargeManager:
             bool(getattr(controller, "high_price_discharge_enabled", False)),
             bool(getattr(controller, "high_price_surplus_export_enabled", False)),
             safety_margin,
-            not bool(getattr(controller, "discharge_reserve_enabled", False)),
+            # Chronological coverage unless the plan may hold the battery for
+            # later (#888): the previous allocator holds nothing (D2).
+            getattr(controller, "_dp_plan_holds", None) is None,
         )
 
     async def _fetch_solar_forecast(self) -> None:

@@ -21,10 +21,9 @@ valued the same.
 * W2 with the forecast sun alone filling the gap, the weekly day buys no more
   from the grid than the same day without the weekly charge.
 * W3 the new arm costs no more than the old one + COST_EPS, in both worlds,
-  each charge start the arbiter executes once the weekly charge is over
-  counted at the optimizer's start cost.
-* W4 the optimizer plans the weekly day, and with the Discharge Reserve on its
-  holds are published.
+  each charge and hold start the arbiter executes once the weekly charge is
+  over counted at the optimizer's start costs.
+* W4 the optimizer plans the weekly day and its holds are published.
 * W5 once complete, no weekly hold: in the arbiter, and in the published plan
   after its own trajectory touches the top.
 * I4, I5, I6 of the main sweep, on the first evaluation.
@@ -47,7 +46,7 @@ import pytest
 from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing import engine as pricing_engine
 from custom_components.omnibattery.pricing.battery_model import BatteryModel, Quarter
-from custom_components.omnibattery.pricing.optimizer import START_COST_EUR
+from custom_components.omnibattery.pricing.optimizer import HOLD_START_EUR, START_COST_EUR
 from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
 from custom_components.omnibattery.solar_forecast import (
     SolarForecastPeriod,
@@ -93,21 +92,18 @@ SOLAR = {"none": 0.0, "dull": 3.0, "sunny": 15.0}
 # Target day: midnight run, morning, after the sun; the night after: 02:00, and
 # 07:00 (often too late for 100 %).
 NOWS = ("00:05", "10:00", "19:00", "+02:00", "+07:00")
-RESERVE = (False, True)
 WORLDS = {"forecast": 1.0, "sun30": 0.3}
 
 CASES = [
-    c for c in itertools.product(FLEETS, SOCS, PRICES, (False, True), SOLAR, NOWS, RESERVE)
+    c for c in itertools.product(FLEETS, SOCS, PRICES, (False, True), SOLAR, NOWS)
     if not (c[5].startswith("+") and c[3])  # the night after: tomorrow = that day
-    # The reserve (W4, the plan's holds) on half the grid: it changes little else.
-    and not (c[6] and c[1] != 30)
 ]
 
 
 def case_id(case) -> str:
-    fleet, soc, prices, tomorrow, solar, now, reserve = case
+    fleet, soc, prices, tomorrow, solar, now = case
     return (f"{fleet}-soc{soc}-{prices}-{'tomorrow' if tomorrow else 'today'}-{solar}"
-            f"-{now.replace(':', '').replace('+', 'n')}-{'reserve' if reserve else 'noreserve'}")
+            f"-{now.replace(':', '').replace('+', 'n')}")
 
 
 def start_of(case) -> datetime:
@@ -182,7 +178,7 @@ def scenario(case, *, at: datetime, socs, pending: bool) -> h.Scenario:
         bins_kwh=BINS, solar_remaining_kwh=remaining, solar_periods=periods, fleet=fleet,
         settings=dict(
             max_price_threshold=1.0, min_arbitrage_margin=None, round_trip_efficiency=RTE,
-            discharge_reserve=case[6], peak_shaving=None, contracted_power_w=CONTRACTED_W,
+            discharge_reserve=False, peak_shaving=None, contracted_power_w=CONTRACTED_W,
             guaranteed_floor_soc=None, safety_margin_kwh=0.0,
         ),
         expected={},
@@ -190,18 +186,20 @@ def scenario(case, *, at: datetime, socs, pending: bool) -> h.Scenario:
     )
 
 
-def run(sc: h.Scenario, *, old: bool = False, daily: bool = False, charging: bool = False):
+def run(sc: h.Scenario, *, old: bool = False, daily: bool = False, charging: bool = False,
+        holding: bool = False):
     """One evaluation: outcome, decision data, plan and the controller. ``old``
-    forces the previous allocator for a pending weekly day; ``charging``: a
-    price slot is charging at the evaluation (the optimizer's start cost)."""
+    forces the previous allocator for a pending weekly day; ``charging`` /
+    ``holding``: a price slot is charging / the plan holds at the evaluation
+    (the optimizer's start costs)."""
     box = {}
     controller = h._controller
     real = pricing_engine.optimizer_fallback_reason
 
     def capture(s):
         box["c"] = controller(s)
-        box["c"].discharge_reserve_min_saving = 0.02
         box["c"]._current_price_slot_active = box["c"].grid_charging_active = charging
+        box["c"]._plan_hold_status = {"held_batteries": ["battery_1"] if holding else []}
         if daily:
             box["c"].config_entry.data["solar_forecast_remaining_sensor"] = "sensor.sweep"
         return box["c"]
@@ -229,7 +227,7 @@ class Policy:
 
     quotas: dict  # slot -> quota kWh, None = to the top
     to_end: frozenset
-    holds: frozenset  # the plan's holds (reserve, and weekly once published)
+    holds: frozenset  # the plan's holds (and weekly once published)
     weekly_holds: frozenset
     optimizer: bool
     run_slots: tuple  # the old weekly hold's charge slots
@@ -261,12 +259,15 @@ def _split(stored: float, socs) -> list[float]:
     """Battery SOCs holding ``stored`` kWh, moved by the same SOC points.
 
     The batteries have one capacity, so the SOCs add up: their clipped sum is
-    piecewise linear in the shift, solved between its breakpoints."""
+    piecewise linear in the shift, solved between its breakpoints. Each stops
+    at MIN_SOC, as the controller stops it (clipped at 0 %, an empty uneven
+    fleet left one battery at 0 % and the other above its floor: energy the
+    next plan counted and the battery did not have, #888)."""
     def at(delta):
-        return [min(100.0, max(0.0, s + delta)) for s in socs]
+        return [min(100.0, max(MIN_SOC, s + delta)) for s in socs]
 
     want = stored / 5.12 * 100.0
-    points = sorted({-s for s in socs} | {100.0 - s for s in socs})
+    points = sorted({MIN_SOC - s for s in socs} | {100.0 - s for s in socs})
     delta = points[-1]
     if want <= sum(at(points[0])):
         delta = points[0]
@@ -404,10 +405,12 @@ def simulate(case, factor, *, old=False, weekly=True):
     ]
     triggers.sort()
 
-    # Grid charge starts once the weekly charge is over, as the optimizer's
-    # start cost counts them (the pending layer pays none); a re-plan while a
-    # charge runs tells the engine.
+    # Grid charge and hold starts once the weekly charge is over, as the
+    # optimizer's start costs count them (the pending layer pays none; a hold
+    # right after a charge, or in a slot that charges, pays none); a re-plan
+    # while a charge or a hold runs tells the engine.
     starts, charging = 0, False
+    hold_starts, holding = 0, False
 
     def evaluate(at, daily):
         now_socs = _split(floor + e, socs)
@@ -417,10 +420,11 @@ def simulate(case, factor, *, old=False, weekly=True):
         # The same inputs plan the same: shared between the worlds (identical
         # up to the first re-plan) and, once the weekly charge is over,
         # between the arms.
-        key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily, charging)
+        key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily, charging,
+               holding)
         if key not in _EVALS:
             sc = scenario(case, at=at, socs=now_socs, pending=pending)
-            _EVALS[key] = run(sc, old=old, daily=daily, charging=charging)
+            _EVALS[key] = run(sc, old=old, daily=daily, charging=charging, holding=holding)
         return _EVALS[key]
 
     first = evaluate(t0, t0.hour == 0 and t0.minute == 5)
@@ -473,6 +477,9 @@ def simulate(case, factor, *, old=False, weekly=True):
         e, c, grid, peak, open_ = _step(case, model, q, (b - a).total_seconds() / 3600, e, target,
                                         pending)
         starts += grid > 1e-9 and not charging and not pending
+        plan_held = held and not pending
+        hold_starts += plan_held and not holding and not charging and not grid > 1e-9
+        holding = plan_held
         charging = grid > 1e-9 and open_
         if a < WINDOW_END:
             bought += grid / model.eff
@@ -493,7 +500,8 @@ def simulate(case, factor, *, old=False, weekly=True):
     prices = [p for p in (PRICES[case[2]](hr) for hr in range(24)) if p > 0]
     total -= min(prices) * math.sqrt(RTE) * e
     return SimpleNamespace(cost=total, complete_at=complete_at, bought=bought,
-                           breaches=breaches, first=first, starts=starts)
+                           breaches=breaches, first=first, starts=starts,
+                           hold_starts=hold_starts)
 
 
 # ----------------------------------------------------------------------
@@ -517,10 +525,12 @@ def evaluate_case(case) -> list[tuple[str, str]]:
     for w, f in WORLDS.items():
         if fits(case, f) and new[w].complete_at is None:
             findings.append((f"W1{w}", "100 % fits before the window ends and is not reached"))
-        n, o = (x[w].cost + START_COST_EUR * x[w].starts for x in (new, old))
+        n, o = (x[w].cost + START_COST_EUR * x[w].starts + HOLD_START_EUR * x[w].hold_starts
+                for x in (new, old))
         if n > o + COST_EPS:
             findings.append((f"W3{w}", f"new {n:.4f} > old {o:.4f} ({new[w].starts} / "
-                                       f"{old[w].starts} starts)"))
+                                       f"{old[w].starts} starts, {new[w].hold_starts} / "
+                                       f"{old[w].hold_starts} hold starts)"))
         if new[w].breaches:
             findings.append((f"W5{w}", "; ".join(new[w].breaches[:3])))
     if sun_fills(case):
@@ -532,8 +542,8 @@ def evaluate_case(case) -> list[tuple[str, str]]:
     findings += _held_after_full(r)
     if r.d.get("planner") != "optimizer":
         findings.append(("W4", f"planner {r.d.get('planner')}"))
-    elif case[6] and getattr(r.c, "_dp_plan_holds", None) is None:
-        findings.append(("W4", "reserve on, no plan holds published"))
+    elif getattr(r.c, "_dp_plan_holds", None) is None:
+        findings.append(("W4", "no plan holds published"))
     published = float(r.d.get("planned_grid_charge_kwh") or 0.0)
     if abs(published - sw.total(r)) > EPS:
         findings.append(("I4", f"published {published:.2f} vs booked+deferred {sw.total(r):.2f}"))
@@ -563,7 +573,10 @@ def _stability(case, a) -> list[tuple[str, str]]:
         return []
     sc = scenario(case, at=t0, socs=socs0(case), pending=True)
     soc = sw.projected_soc(sc, a, later)
-    b = run(scenario(case, at=later, socs=[soc] * len(socs0(case)), pending=True))
+    # The fleet SOC spread as the arbiter spreads it: equal SOCs on an uneven
+    # fleet change each battery's charge curve, not the plan (#888).
+    socs = _split(_fleet(case)[0] * soc / 100, socs0(case))
+    b = run(scenario(case, at=later, socs=socs, pending=True))
     rest = sum(x.planned_battery_kwh for x in a.plan.allocations if x.slot.start >= later)
     again = b.plan.allocated_kwh
     if abs(again - rest) > max(0.3, 0.15 * rest):

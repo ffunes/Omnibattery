@@ -662,7 +662,9 @@ def _check_wiring(scenario: Scenario, request, decision: dict) -> None:
             if scenario.valued
             else 0.0
         ),
-        "reserve_holds": bool(scenario.valued and settings["discharge_reserve"]),
+        # The previous allocator never holds in Dynamic Pricing (#888, D2).
+        "reserve_holds": False,
+        "hold_allowed": True,
     }
     wrong = {
         name: (getattr(request, name), value)

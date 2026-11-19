@@ -360,7 +360,9 @@ def test_the_plan_is_rebuilt_when_the_configuration_changes():
     assert len(rebuilds) == 2
 
 
-def test_reserve_toggle_passes_coverage_flag_and_rebuilds(monkeypatch):
+def test_the_plan_s_holds_pass_the_coverage_flag_and_rebuild(monkeypatch):
+    """#888: chronological coverage unless the plan may hold (its holds are
+    published); the previous allocator holds nothing."""
     import custom_components.omnibattery.control.high_price_discharge as runtime
 
     planner = Mock(wraps=runtime.plan_high_price_discharge)
@@ -371,12 +373,12 @@ def test_reserve_toggle_passes_coverage_flag_and_rebuilds(monkeypatch):
     manager.refresh_override()
     assert planner.call_count == 1
 
-    controller.discharge_reserve_enabled = True
+    controller._dp_plan_holds = frozenset()
     manager.refresh_override()
     assert planner.call_count == 2
     assert planner.call_args.kwargs["chronological_coverage"] is False
 
-    controller.discharge_reserve_enabled = False
+    controller._dp_plan_holds = None
     manager.refresh_override()
     assert planner.call_count == 3
     assert planner.call_args.kwargs["chronological_coverage"] is True

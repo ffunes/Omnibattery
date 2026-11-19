@@ -3588,14 +3588,6 @@ class PricingManager:
         except Exception:  # noqa: BLE001
             return False
 
-    def _discharge_reserve_holds(self) -> bool:
-        """Whether the discharge reserve keeps stored energy for dearer hours."""
-        manager = getattr(self._controller, "_discharge_reserve_mgr", None)
-        try:
-            return bool(manager is not None and manager.feature_enabled())
-        except Exception:  # noqa: BLE001
-            return False
-
     def _fleet_charge_power_kw(
         self,
         coordinators: Sequence[Any],
@@ -3844,13 +3836,12 @@ class PricingManager:
         controller._dp_plan_room = None
 
     def _publish_plan_holds(self, plan, decision_data: Mapping[str, Any]) -> None:
-        """Step 5: with the Discharge Reserve on, the optimizer's holds replace
-        the reserve module's level. Kept apart from the schedule, which does not
-        exist when nothing is charged. None: the reserve module decides."""
+        """The optimizer's holds (#888), kept apart from the schedule, which
+        does not exist when nothing is charged. None: the previous allocator
+        planned, and nothing is held (D2)."""
         self._controller._dp_plan_holds = (
             frozenset(getattr(plan, "holds", None) or ())
             if decision_data.get("planner") == "optimizer"
-            and self._discharge_reserve_holds()
             else None
         )
         # Step 4: a pending weekly charge's holds, executed by the weekly
@@ -4670,12 +4661,10 @@ class PricingManager:
                     import_value_margin=(
                         margin if value_deadlines else 0.0
                     ),
-                    reserve_holds=value_deadlines and self._discharge_reserve_holds(),
-                    # The optimizer holds instead of the reserve module (step 5).
-                    hold_allowed=value_deadlines and self._discharge_reserve_holds(),
-                    hold_min_saving=max(0.0, float(
-                        getattr(self._controller, "discharge_reserve_min_saving", 0.0) or 0.0
-                    )),
+                    # The previous allocator holds nothing (#888, D2).
+                    reserve_holds=False,
+                    # The optimizer holds whenever the plan costs less (#888).
+                    hold_allowed=value_deadlines,
                     # The optimizer chooses which surplus to export (step 6).
                     # Only with export prices: valued at 0 the plan never
                     # exports and the module (import curve) must keep deciding.
@@ -4770,6 +4759,13 @@ class PricingManager:
                     charging_now=bool(
                         getattr(self._controller, "_current_price_slot_active", False)
                         and getattr(self._controller, "grid_charging_active", False)
+                    ),
+                    # Likewise a battery the plan holds now (its hold start
+                    # cost): the last control cycle's block, since every
+                    # evaluation starts by dropping the plan's holds.
+                    holding_now=bool(
+                        (getattr(self._controller, "_plan_hold_status", None) or {})
+                        .get("held_batteries")
                     ),
                 )
             )

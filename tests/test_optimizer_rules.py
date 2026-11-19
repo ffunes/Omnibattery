@@ -17,7 +17,9 @@ from tests import test_predictive_scenarios as h
 SCENARIO = h.SCENARIO_DIR / "834-midnight-reevaluation.json"
 
 
-def _run(monkeypatch, tweak=None, settings=None):
+def _run(monkeypatch, tweak=None, settings=None, holds=True):
+    """``holds=False``: the plan may not hold by itself (#888), so a rule is
+    seen keeping the battery where the plan alone would spend it."""
     scenario = h.load_scenario(SCENARIO)
     if settings:
         scenario = dataclasses.replace(scenario, settings={**scenario.settings, **settings})
@@ -30,6 +32,12 @@ def _run(monkeypatch, tweak=None, settings=None):
         return controller
 
     monkeypatch.setattr(h, "_controller", build)
+    if not holds:
+        from custom_components.omnibattery.pricing import engine
+
+        real_optimize = engine.optimize_charge
+        monkeypatch.setattr(engine, "optimize_charge", lambda request: real_optimize(
+            dataclasses.replace(request, hold_allowed=False)))
     outcome = h._run_engine(scenario, monkeypatch)
     assert outcome.planner == "optimizer"
     return outcome
@@ -56,14 +64,14 @@ def _window(hh_from, hh_to):
 
 def test_a_no_discharge_window_keeps_the_battery(monkeypatch):
     start, end = _window(6, 8)
-    assert _drains(_run(monkeypatch), start, end) > 0.05  # it drains without the rule
+    assert _drains(_run(monkeypatch, holds=False), start, end) > 0.05  # drains without the rule
 
     def block(controller):
         controller.config_entry.data["no_discharge_time_slots"] = [
             {"start_time": "06:00", "end_time": "08:00", "days": [], "enabled": True}
         ]
 
-    assert _drains(_run(monkeypatch, block), start, end) <= 1e-9
+    assert _drains(_run(monkeypatch, block, holds=False), start, end) <= 1e-9
 
 
 def test_price_based_discharge_control_keeps_the_battery(monkeypatch):
@@ -79,8 +87,9 @@ def test_price_based_discharge_control_keeps_the_battery(monkeypatch):
 
 def test_the_peak_shaving_hold_keeps_the_battery_until_the_sun(monkeypatch):
     start, end = _window(4, 8)
-    assert _drains(_run(monkeypatch), start, end) > 0.05
-    held = _run(monkeypatch, settings={"peak_shaving": {"limit_w": 3000, "soc_threshold": 50}})
+    assert _drains(_run(monkeypatch, holds=False), start, end) > 0.05
+    held = _run(monkeypatch, settings={"peak_shaving": {"limit_w": 3000, "soc_threshold": 50}},
+                holds=False)
     assert _drains(held, start, end) <= 1e-9
 
 

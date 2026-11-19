@@ -8,7 +8,7 @@ harness, and each run is held to rules that must hold whatever the inputs:
   plan of the 2.0.0 optimizer (D8): with prices >= 0, more load never makes
   the plan cheaper (it may book less: the load above the discharge power
   goes to the grid, the contracted power leaves less for the charge). Its
-  cost counts each charge start at the start cost, as the plan decides.
+  cost counts each charge and hold start at its start cost, as the plan decides.
 * I4 the published planned charge equals what the schedule books plus what
   the extended horizon defers to tomorrow.
 * I5 stable: re-evaluating at the next quarter after one hour, with the SOC
@@ -16,6 +16,9 @@ harness, and each run is held to rules that must hold whatever the inputs:
 * I6 nothing is booked with no room when its slot charges (the controller
   charges a slot until its amount is stored, the grid carrying the house
   meanwhile, and the battery covers the house again after that).
+* I7 holding never makes the plan dearer (#888): the optimizer's objective
+  (cost, charge and hold starts) with holds allowed is never above the same
+  request's without them, within HOLD_EPS (the lattice's interpolation).
 
 A finding listed in ``tests/sweep_known.json`` (key ``"<rule> <case>"``, value
 the reason) is expected; a listed one that no longer shows fails too, so the
@@ -30,6 +33,7 @@ in ``n`` (the pre-merge hook uses 11).
 """
 from __future__ import annotations
 
+import dataclasses
 import functools
 import itertools
 import json
@@ -43,7 +47,11 @@ import pytest
 
 from custom_components.omnibattery.const import CHARGE_EFFICIENCY
 from custom_components.omnibattery.pricing import PriceSlot
-from custom_components.omnibattery.pricing.optimizer import START_COST_EUR
+from custom_components.omnibattery.pricing.optimizer import (
+    HOLD_START_EUR,
+    START_COST_EUR,
+    optimize_charge,
+)
 from custom_components.omnibattery.solar_forecast import SolarForecastPeriod
 from tests import test_predictive_scenarios as h
 
@@ -56,6 +64,7 @@ SUNRISE, NOON = 8.0, 13.25
 LOAD_SCALE = 1.3
 EPS = 0.05
 COST_EPS = 0.003  # the optimizer's precision against exhaustive search (<= 0.2 c)
+HOLD_EPS = 5e-4  # I7: at most 1.4e-4 (interpolation) on the 1224 NL plans of #888
 
 FLEETS = {
     "1x5k-2500": [dict(capacity_kwh=5.12, max_charge_w=2500, max_discharge_w=2500)],
@@ -246,13 +255,32 @@ def base_run(case, daily):
     return run(scenario(case), daily=daily)
 
 
+def objective(plan) -> float:
+    """What the optimizer minimises, without the margin and floor terms the
+    sweep leaves at 0."""
+    return (plan.optimizer_cost + START_COST_EUR * plan.charge_starts
+            + HOLD_START_EUR * plan.hold_starts)
+
+
+def evaluate_hold(r) -> list[tuple[str, str]]:
+    q = r.o.request
+    if getattr(r.plan, "optimizer_cost", None) is None or not q.hold_allowed:
+        return []
+    without = optimize_charge(dataclasses.replace(q, hold_allowed=False)).plan
+    held, plain = objective(r.plan), objective(without)
+    if held > plain + HOLD_EPS:
+        return [("I7", f"holding costs {held:.4f}, without holds {plain:.4f}")]
+    return []
+
+
 def evaluate_pair(case, *, daily=False) -> list[tuple[str, str]]:
     findings = []
     runs = {1.0: base_run(case, daily), LOAD_SCALE: run(scenario(case, scale=LOAD_SCALE), daily=daily)}
     low, high = runs[1.0], runs[LOAD_SCALE]
     costs = [getattr(r.plan, "optimizer_cost", None) for r in (low, high)]
     if None not in costs:
-        costs = [c + START_COST_EUR * r.plan.charge_starts for c, r in zip(costs, (low, high))]
+        costs = [c + START_COST_EUR * r.plan.charge_starts + HOLD_START_EUR * r.plan.hold_starts
+                 for c, r in zip(costs, (low, high))]
         q = low.o.request
         priced = [s.price for s in q.price_slots if s.end > q.now and s.start < q.horizon_end]
         if min(priced, default=0.0) >= 0 and costs[1] + COST_EPS < costs[0]:
@@ -291,7 +319,8 @@ SAMPLE = int(os.environ.get("OMNI_SWEEP_SAMPLE") or 1)
 
 @pytest.mark.parametrize("case", CASES[::SAMPLE], ids=case_id)
 def test_sweep(case):
-    check(case_id(case), evaluate_pair(case) + evaluate_stability(case))
+    check(case_id(case), evaluate_pair(case) + evaluate_stability(case)
+          + evaluate_hold(base_run(case, False)))
 
 
 # The scheduled 00:05 run (DAILY horizon). A zero forecast at 00:05 defers it
@@ -302,5 +331,6 @@ DAILY_CASES = [c for c in CASES if c[6] == "00:05" and SOLAR[c[5]] > 0]
 
 @pytest.mark.parametrize("case", DAILY_CASES[::SAMPLE], ids=case_id)
 def test_sweep_daily(case):
-    findings = evaluate_pair(case, daily=True) + evaluate_stability(case, daily=True)
+    findings = (evaluate_pair(case, daily=True) + evaluate_stability(case, daily=True)
+                + evaluate_hold(base_run(case, True)))
     check("daily " + case_id(case), findings)
