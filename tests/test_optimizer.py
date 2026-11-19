@@ -131,7 +131,7 @@ def test_cheap_hours_at_one_price_stop_less(monkeypatch, prices, soc, usable):
     starts, starts_off = [], []
     assert _replay(request, plan, starts=starts) == pytest.approx(plan.optimizer_cost, abs=1e-4)
     _replay(request, off, starts=starts_off)
-    assert (plan.optimizer_cost + c * plan.charge_starts
+    assert (plan.optimizer_cost + c * starts[0]
             <= off.optimizer_cost + c * starts_off[0] + 1e-4)
     assert starts[0] <= starts_off[0]
     if len(set(prices)) == 1:
