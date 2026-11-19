@@ -53,7 +53,7 @@ The battery may be idle by design when the grid is already near target. If house
 | Minimum SOC reached | `battery_discharge_blockers` and the battery minimum SOC | Wait for charging or adjust the limit deliberately |
 | Discharging is disabled | **Allow Discharge** | Turn it on |
 | Current time slot blocks discharge | **Discharge Window** and time-slot switches | Review [time slots](configuration/time-slots.md) |
-| Price or reserve control is holding energy | **Integration Status**, **Price-Based Discharge**, **Discharge Reserve**, and related statuses | Review [Dynamic Pricing](configuration/predictive-charging/dynamic-pricing.md) |
+| Price or reserve control is holding energy | **Integration Status**, **Price-Based Discharge**, **Discharge Reserve Status**, and related statuses | Review [Dynamic Pricing](configuration/predictive-charging/dynamic-pricing.md) |
 | Capacity protection or excluded-load logic owns the response | **Capacity Protection**, active excluded devices, and blockers | Review [capacity protection](features/peak-shaving.md) and [load exclusion](features/load-exclusion.md) |
 | Battery is unavailable or excluded | **Non-Responsive Batteries** and Home Assistant **Repairs** | Follow [Entities are unavailable](#entities-are-unavailable) |
 

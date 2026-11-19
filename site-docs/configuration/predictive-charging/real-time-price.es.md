@@ -91,4 +91,4 @@ Activa **Descarga basada en precio** si también quieres conservar la batería m
     | Gestión del déficit no cubierto | Puede mover la cuota a futuros periodos elegibles | Registra energía no entregada; no existe calendario futuro |
     | Botón de reevaluación | Reconstruye el calendario restante | No está presente; cada ciclo decide de nuevo |
     | Umbral de descarga basada en precio | Umbral máximo fijo o media diaria calculada | Sensor medio diario y después umbral máximo fijo |
-    | Políticas solo dinámicas | Programación con precio negativo, anti-limitación de producción, retención de excedente, reserva de descarga, margen de arbitraje, exportación con precio alto | No disponibles |
+    | Políticas solo dinámicas | Programación con precio negativo, anti-limitación de producción, retención de excedente, retener la batería para más tarde, margen de arbitraje, exportación con precio alto | No disponibles |

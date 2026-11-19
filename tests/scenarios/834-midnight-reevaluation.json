@@ -13,7 +13,8 @@
     "ASSUMED, and it decides the outcome: the hourly shape inside the reported 0.51-0.60 band. Here the evening is the 0.60 peak and no hour before 17:00 reaches 0.572 = (0.452 + 0.04) / 0.86. That reproduces the reported result (so do a flat 0.55 day and a steady rise from 0.51 to 0.60). With 0.58 or more at 08:00 or 09:00 the 07:00 slot (0.452) is booked first, the hours it charges through stop counting as drain, and the planner already books 6.4-6.8 kWh in 03:00-07:00 today.",
     "TODAY (release/v1.6.1, also v1.6.1b1): cheaper_to_import, 0 kWh, cheaper_to_import_kwh 17.31. The request the allocator receives drains 2.40 kWh from 05:15 to 08:00 and gives each night slot 2.18-2.38 kWh (the 3.5 kW import ceiling less the house load, x 0.85), not the 2.975 kWh the reporter quotes.",
     "EXPECTED is a range, not the reporter's 7.9 kWh: that figure comes from their real consumption. On these inputs a plan that pays the drain once for the group of night slots needs about 6-7 kWh.",
-    "FIXED: the night slots now pay the drain once, as a group; the planner books 6.48 kWh in 03:00-07:00 (1.77, 1.93, 2.10 and 0.69 kWh by hour)."
+    "FIXED: the night slots now pay the drain once, as a group; the planner books 6.48 kWh in 03:00-07:00 (1.77, 1.93, 2.10 and 0.69 kWh by hour).",
+    "#888: the plan books 4.98 kWh in 03:00-05:00 and holds the battery from 05:00 to 08:00 (the grid at 0.366-0.452), spending it from 08:00 at 0.55 and up."
   ],
   "level": "engine",
   "now": "2026-11-11T03:05:00",
@@ -66,7 +67,6 @@
     "max_price_threshold": 0.453,
     "min_arbitrage_margin": 0.04,
     "round_trip_efficiency": 0.86,
-    "discharge_reserve": false,
     "peak_shaving": {"limit_w": 3500, "soc_threshold": 25},
     "contracted_power_w": 3500,
     "guaranteed_floor_soc": null,
@@ -74,7 +74,7 @@
   },
   "expected": {
     "windows": [
-      {"start": "2026-11-11T03:00:00", "end": "2026-11-11T07:00:00", "min_kwh": 5.0, "max_kwh": 10.0},
+      {"start": "2026-11-11T03:00:00", "end": "2026-11-11T07:00:00", "min_kwh": 4.5, "max_kwh": 10.0},
       {"start": "2026-11-11T08:00:00", "end": "2026-11-11T20:00:00", "max_kwh": 0.0}
     ]
   }

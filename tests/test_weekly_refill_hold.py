@@ -182,18 +182,19 @@ def test_the_projection_holds_the_same_intervals():
     assert hold(NOW.replace(hour=21, minute=0), 3.0, 5.0) is None  # after the run
 
 
-def test_the_timeline_floor_prefers_the_weekly_hold_over_the_reserve():
+def test_the_timeline_floor_prefers_the_weekly_hold_over_the_plan_s_holds():
     manager, _blocks = _manager()
+    held = _slot(18, 15, 0.30)
     controller = SimpleNamespace(
         _pricing_mgr=manager,
-        _discharge_reserve_mgr=SimpleNamespace(
-            projected_reserve_fn=lambda: (lambda _start, _usable, _free: 0.5)
-        ),
+        _dp_plan_holds=frozenset({held}),
+        _discharge_reserve_mgr=SimpleNamespace(dynamic_pricing_active=lambda: True),
     )
     floor = ChargeDischargeController._daily_operation_reserve_floor(controller)
 
     assert floor(NOW.replace(minute=45), 3.0, 5.0) == 3.0
-    assert floor(NOW.replace(hour=18, minute=0), 3.0, 5.0) == 0.5
+    assert floor(NOW.replace(hour=18, minute=0), 2.0, 5.0) == 0.0  # neither holds
+    assert floor(held.start, 2.0, 5.0) == 2.0  # the plan holds it
 
 
 def test_safety_paths_may_still_discharge_through_the_hold():

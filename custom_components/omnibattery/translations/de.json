@@ -1521,9 +1521,6 @@
       "surplus_price_hold": {
         "name": "Preisbremse Solarüberschuss"
       },
-      "discharge_reserve": {
-        "name": "Entladereserve"
-      },
       "primary_feedforward": {
         "name": "Tatsächlichen Bedarf vorsteuern"
       },
@@ -2645,9 +2642,6 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Mindestersparnis Überschussbremse"
-      },
-      "discharge_reserve_min_saving": {
-        "name": "Mindestersparnis Entladereserve"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Ausschluss %"

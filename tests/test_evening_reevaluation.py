@@ -75,7 +75,6 @@ def _evening_evaluation(monkeypatch, now, slots, build_plan, *, claim=None, **ct
 
     manager = PricingManager(SimpleNamespace(), ctrl)
     manager._mark_surplus_hold_stale = lambda _reason: None
-    manager._mark_discharge_reserve_stale = lambda _reason: None
     manager._prices_reach_beyond_today = lambda _now: False
     manager._smart_predischarge_enabled = lambda: False
     manager._maybe_refresh_service_prices = _no_op

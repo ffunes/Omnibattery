@@ -2,7 +2,7 @@
 
 Their enable keys are backfilled on every entry, so presence says nothing about
 the active predictive mode. The control side (control/high_price_discharge.py,
-surplus_price_hold.py, discharge_reserve.py) bails out unless the mode is
+surplus_price_hold.py) bails out unless the mode is
 dynamic pricing, so on a time-slot install these switches and sliders were dead
 rows on the dashboard.
 """
@@ -10,8 +10,6 @@ import asyncio
 from types import SimpleNamespace
 
 from custom_components.omnibattery.const import (
-    CONF_DISCHARGE_RESERVE_ENABLED,
-    CONF_DISCHARGE_RESERVE_MIN_SAVING,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_HIGH_PRICE_DISCHARGE_ENABLED,
     CONF_PREDICTIVE_CHARGING_MODE,
@@ -29,7 +27,6 @@ from custom_components.omnibattery.select import (
     async_setup_entry as async_setup_selects,
 )
 from custom_components.omnibattery.switch import (
-    DischargeReserveSwitch,
     SurplusPriceHoldSwitch,
     async_setup_entry as async_setup_switches,
 )
@@ -37,11 +34,9 @@ from custom_components.omnibattery.switch import (
 PRICE_SWITCHES = (
     HighPriceSaleSelect,
     SurplusPriceHoldSwitch,
-    DischargeReserveSwitch,
 )
 PRICE_SLIDERS = {
     CONF_SURPLUS_HOLD_MIN_SAVING,
-    CONF_DISCHARGE_RESERVE_MIN_SAVING,
 }
 
 
@@ -54,7 +49,6 @@ def _setup(mode):
             # Backfilled on every entry, whatever the mode.
             CONF_HIGH_PRICE_DISCHARGE_ENABLED: False,
             CONF_SURPLUS_PRICE_HOLD_ENABLED: False,
-            CONF_DISCHARGE_RESERVE_ENABLED: False,
         },
     )
     controller = SimpleNamespace(

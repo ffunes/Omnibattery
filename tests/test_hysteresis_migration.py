@@ -50,19 +50,21 @@ class _FakeConfigEntries:
     def __init__(self):
         self.updated = None
 
-    def async_update_entry(self, entry, *, data, version, title=None):
+    def async_update_entry(self, entry, *, data, version, title=None, options=None):
         self.updated = {"data": data, "version": version}
         entry.data = data
         entry.version = version
+        if options is not None:
+            entry.options = options
 
 
 def _migrate(batteries):
     hass = SimpleNamespace(config_entries=_FakeConfigEntries())
-    entry = SimpleNamespace(version=7, entry_id="entry", data={"batteries": batteries})
+    entry = SimpleNamespace(version=7, entry_id="entry", data={"batteries": batteries}, options={})
     with _no_registry():
         result = asyncio.run(async_migrate_entry(hass, entry))
     assert result is True
-    assert hass.config_entries.updated["version"] == 18
+    assert hass.config_entries.updated["version"] == 19
     return hass.config_entries.updated["data"]["batteries"]
 
 
@@ -95,6 +97,7 @@ def test_v11_records_connected_panels_without_changing_existing_venus_behaviour(
     entry = SimpleNamespace(
         version=11,
         entry_id="entry",
+        options={},
         data={
             "batteries": [
                 {"battery_version": "vD"},

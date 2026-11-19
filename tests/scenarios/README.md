@@ -34,7 +34,7 @@ All times are local wall clock without offset (`2026-11-10T19:52:00`).
 | `consumption` | The household's daily shape: `profile_kw` (steps of `from` `HH:MM` and `kw`, starting at `00:00`) or `intervals_kwh` (96 quarter-hour values). Optional `daily_total_kwh` rescales the shape. |
 | `solar` | `remaining_kwh` (what the remaining-today sensor reads) and `periods` (dated `start`, `end`, `kwh`; empty when the provider gives none). |
 | `fleet` | Per battery: `capacity_kwh`, `soc`, `min_soc`, `max_soc`, `max_charge_w`, `max_discharge_w`. |
-| `settings` | All eight keys are required, so nothing rests on a hidden default: `max_price_threshold`, `min_arbitrage_margin` (`null` = unset), `round_trip_efficiency`, `discharge_reserve` (bool), `peak_shaving` (`null` or `limit_w` + `soc_threshold`), `contracted_power_w`, `guaranteed_floor_soc` (`null` = off), `safety_margin_kwh`. |
+| `settings` | All seven keys are required, so nothing rests on a hidden default: `max_price_threshold`, `min_arbitrage_margin` (`null` = unset), `round_trip_efficiency`, `peak_shaving` (`null` or `limit_w` + `soc_threshold`), `contracted_power_w`, `guaranteed_floor_soc` (`null` = off), `safety_margin_kwh`. |
 | `expected` | At least one of the assertions below. |
 
 Unknown keys are rejected.

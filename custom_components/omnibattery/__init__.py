@@ -166,10 +166,6 @@ from .const import (
     DEFAULT_PREDISCHARGE_RESERVE_SOC,
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
     DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
-    CONF_DISCHARGE_RESERVE_ENABLED,
-    CONF_DISCHARGE_RESERVE_MIN_SAVING,
-    DEFAULT_DISCHARGE_RESERVE_ENABLED,
-    DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
     CONF_SURPLUS_PRICE_HOLD_ENABLED,
     DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
     CONF_HIGH_PRICE_DISCHARGE_ENABLED,
@@ -249,10 +245,7 @@ from .drivers.base import (
     mppt_power_keys,
 )
 from .drivers.registry import DEFAULT_BRAND, driver_class
-from .control.discharge_reserve import (
-    RESERVE_SOC_TOLERANCE_PCT,
-    DischargeReserveManager,
-)
+from .control.discharge_reserve import DischargeReserveManager
 from .control.high_price_discharge import HighPriceDischargeManager
 from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
@@ -1144,12 +1137,6 @@ class ChargeDischargeController:
         self.high_price_discharge_max_power_w = default_high_price_discharge_max_power(
             config_entry.data
         )
-        self.discharge_reserve_enabled = config_entry.data.get(
-            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
-        )
-        self.discharge_reserve_min_saving = config_entry.data.get(
-            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
-        )
         # Optional export/feed-in curve. Unset means "use the import curve",
         # which is what net metering makes correct.
         self.export_price_sensor = config_entry.data.get(CONF_EXPORT_PRICE_SENSOR, None)
@@ -1257,7 +1244,6 @@ class ChargeDischargeController:
         self._high_price_discharge_mgr = HighPriceDischargeManager(hass, self)
         self._discharge_reserve_mgr = DischargeReserveManager(hass, self)
         # Per-cycle cache of the reserve, refreshed by the discharge blocker pass.
-        self._price_reserve_soc_pct = 0.0
 
         # Consumption history for dynamic base consumption (7-day rolling average)
         # Owned by ConsumptionTracker; the list lives on the controller so
@@ -2374,9 +2360,6 @@ class ChargeDischargeController:
                 operation_plan_source=operation_plan_source,
                 plan_evaluated_at=evaluated_at,
                 extension_hours=extension_hours,
-                reserve_claims=ChargeDischargeController._daily_operation_reserve_claims(
-                    self, now
-                ),
                 reserve_floor=ChargeDischargeController._daily_operation_reserve_floor(
                     self, plan
                 ),
@@ -2474,14 +2457,6 @@ class ChargeDischargeController:
         ends: list[Any] = [
             (getattr(self, "_last_decision_data", None) or {}).get("energy_horizon_end")
         ]
-        reserve_end = getattr(
-            getattr(self, "_discharge_reserve_mgr", None), "plan_horizon_end", None
-        )
-        if callable(reserve_end):
-            try:
-                ends.append(reserve_end())
-            except Exception:  # noqa: BLE001 - dashboard projection is optional
-                pass
         # Once tomorrow's prices are out the chart shows them in full, even
         # while the plan itself still ends at sunrise.
         price_slots = getattr(
@@ -2520,83 +2495,33 @@ class ChargeDischargeController:
             hours = max(hours, math.ceil((end - midnight).total_seconds() / 3600.0))
         return int(min(EXTENDED_MAX_HORIZON_HOURS, hours))
 
-    def _daily_operation_reserve_claims(
-        self, now: datetime
-    ) -> tuple[tuple[datetime, float], ...]:
-        """What the discharge reserve keeps for each later slot, for the projection.
-
-        The reserve holds stored energy back for dearer slots ahead. Without
-        its claims the projection spends that energy in the cheaper hours first,
-        so the planned discharge and SOC show what the battery will not do. Each
-        claim keeps its energy net of the sun expected to pay for it, and all of
-        them together no more than the reserve currently holds.
-        """
-        manager = getattr(self, "_discharge_reserve_mgr", None)
-        get_status = getattr(manager, "get_status", None)
-        if not callable(get_status):
-            return ()
-        try:
-            status = get_status() or {}
-        except Exception:  # noqa: BLE001 - dashboard projection is optional
-            return ()
-        if status.get("state") != "reserving":
-            return ()
-        claims: list[tuple[datetime, float]] = []
-        for claim in status.get("claims") or ():
-            try:
-                start = datetime.fromisoformat(str(claim["start"]))
-                kwh = float(claim.get("claimed_kwh") or 0.0) - float(
-                    claim.get("pv_credit_kwh") or 0.0
-                )
-            except (KeyError, TypeError, ValueError, AttributeError):
-                continue
-            if not math.isfinite(kwh) or kwh <= 0.0:
-                continue
-            if now.tzinfo is None:
-                start = start.replace(tzinfo=None)
-            elif start.tzinfo is None:
-                start = start.replace(tzinfo=now.tzinfo)
-            else:
-                start = start.astimezone(now.tzinfo)
-            claims.append((start, kwh))
-        total = sum(kwh for _start, kwh in claims)
-        held = self._daily_operation_float(status.get("reserve_kwh"), 0.0)
-        if total <= 0.0 or held <= 0.0:
-            return ()
-        scale = min(1.0, held / total)
-        return tuple((start, kwh * scale) for start, kwh in claims)
-
-
     def _daily_operation_reserve_floor(self, plan=None):
-        """The reserve's decision at a later slot, for the projection, or None.
+        """What the battery keeps at a later slot, for the projection, or None.
 
         The hold between weekly charge blocks keeps everything where it
-        applies; the discharge reserve decides elsewhere.
+        applies; the Dynamic Pricing plan's holds decide elsewhere.
         """
         reserve_fn = None
         weekly_fn = None
         manager = getattr(self, "_discharge_reserve_mgr", None)
-        projected = getattr(manager, "projected_reserve_fn", None)
         holds = getattr(self, "_dp_plan_holds", None)
-        enabled = getattr(manager, "feature_enabled", None)
-        if holds is not None and callable(enabled) and enabled():
-            # The optimizer's holds (step 5): everything stored is kept in a
-            # held slot, nothing elsewhere.
+        active = getattr(manager, "dynamic_pricing_active", None)
+        if callable(active) and active():
+            # The optimizer's holds (#888): everything stored is kept in a
+            # held slot, nothing elsewhere; none from the previous allocator.
+            holds = holds or ()
             # The projection's intervals are local aware; price slots may be
             # naive local (same handling as the reserve module's projection).
             hold_tz = next((s.start.tzinfo for s in holds), None)
 
-            def reserve_fn(start, usable_kwh, _free_kwh):
+            def held(start, usable_kwh, _free_kwh):
                 if hold_tz is None and start.tzinfo is not None:
                     start = start.replace(tzinfo=None)
                 elif hold_tz is not None and start.tzinfo is None:
                     start = start.replace(tzinfo=hold_tz)
                 return usable_kwh if any(s.start <= start < s.end for s in holds) else 0.0
-        elif callable(projected):
-            try:
-                reserve_fn = projected()
-            except Exception:  # noqa: BLE001 - dashboard projection is optional
-                reserve_fn = None
+
+            reserve_fn = held
         weekly_hold = getattr(
             getattr(self, "_pricing_mgr", None), "weekly_refill_hold_fn", None
         )
@@ -3340,7 +3265,6 @@ class ChargeDischargeController:
             _rounded(getattr(self, "predischarge_reserve_soc", None)),
             bool(getattr(self, "weekly_full_charge_enabled", False)),
             getattr(self, "weekly_full_charge_day", None),
-            bool(getattr(self, "discharge_reserve_enabled", False)),
             bool(getattr(self, "capacity_protection_enabled", False)),
             _rounded(getattr(self, "max_contracted_power", None)),
             bool(getattr(self, "enable_system_power_limits", False)),
@@ -3570,13 +3494,6 @@ class ChargeDischargeController:
         self.high_price_discharge_max_power_w = default_high_price_discharge_max_power(
             self.config_entry.data
         )
-        old_discharge_reserve_enabled = self.discharge_reserve_enabled
-        self.discharge_reserve_enabled = self.config_entry.data.get(
-            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
-        )
-        self.discharge_reserve_min_saving = self.config_entry.data.get(
-            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
-        )
         self.export_price_sensor = self.config_entry.data.get(CONF_EXPORT_PRICE_SENSOR, None)
         self.export_price_integration_type = self.config_entry.data.get(
             CONF_EXPORT_PRICE_INTEGRATION_TYPE, None
@@ -3600,16 +3517,6 @@ class ChargeDischargeController:
         ):
             if self._surplus_hold_mgr is not None:
                 self._surplus_hold_mgr.clear("mode_or_configuration_changed")
-        # A reserve computed against the old price curve, or one left behind by a
-        # feature that was just switched off, must never keep a floor raised.
-        if (
-            old_pricing_mode != self.predictive_charging_mode
-            or old_discharge_reserve_enabled != self.discharge_reserve_enabled
-            or not self.discharge_reserve_enabled
-            or self.predictive_charging_mode != PREDICTIVE_MODE_DYNAMIC_PRICING
-        ):
-            if self._discharge_reserve_mgr is not None:
-                self._discharge_reserve_mgr.clear("mode_or_configuration_changed")
         self.grid_import_window_enabled = ChargeDischargeController._grid_import_window_setting(
             self, self.config_entry.data
         )
@@ -4568,117 +4475,59 @@ class ChargeDischargeController:
             else:
                 self.remove_discharge_block("min_soc", coordinator=coordinator)
 
-    def _price_discharge_reserve_pct(self) -> float:
-        """Extra SOC every battery keeps back for a dearer hour still ahead.
-
-        Zero whenever the feature is off, unplanned or guarded, so discharging
-        behaves exactly as it does without the feature.
-        """
-        manager = getattr(self, "_discharge_reserve_mgr", None)
-        if manager is None:
-            return 0.0
-        try:
-            pct = max(0.0, float(manager.reserve_soc_pct()))
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.debug("Discharge reserve: evaluation failed: %s", err)
-            pct = 0.0
-        self._price_reserve_soc_pct = pct
-        return pct
-
     def _refresh_price_reserve_blocks(self) -> None:
-        """Hold back the energy a dearer hour still ahead is going to need.
+        """Hold the battery in the slots the Dynamic Pricing plan holds (#888).
 
         Deliberately a blocker of its own rather than a raised ``min_soc``: the
-        configured floor is read back by the curtailment snapshot builder, which
-        would both feed this calculation into its own input and shrink the
-        pre-discharge budget by the reserve. As an economic blocker it stops PD
-        from discharging without moving any planner's idea of the battery.
+        configured floor is read back by the curtailment snapshot builder. As
+        an economic blocker it stops PD from discharging without moving any
+        planner's idea of the battery; peak shaving and the other protections
+        ignore it.
         """
         holds = getattr(self, "_dp_plan_holds", None)
         manager = getattr(self, "_discharge_reserve_mgr", None)
-        if holds is not None and manager is not None and manager.feature_enabled():
-            # The 2.0.0 optimizer decided the holds (step 5): the battery is
-            # held for the whole of a held slot, through the same blocker.
-            self._price_reserve_soc_pct = 0.0
-            now = _pricing_clock_now(self)
-            # The reserve's own guards: manual control, anti-curtailment and
-            # peak shaving spend the battery on purpose.
-            guard = getattr(manager, "_release_guard", None)
-            held = (not callable(guard) or guard() is None) and any(
-                slot.start <= now < slot.end for slot in holds
-            )
-            slot_owned = getattr(self, "_is_manual_slot_owned", None)
-            for coordinator in self.coordinators:
-                if (
-                    held
-                    and coordinator.data
-                    and getattr(coordinator, "is_available", True)
-                    and not ChargeDischargeController._is_battery_manual_owned(coordinator)
-                    and not (callable(slot_owned) and slot_owned(coordinator))
-                ):
-                    self.set_discharge_block(
-                        "price_reserve",
-                        "price_reserve",
-                        {"battery": coordinator.name, "origin": "plan"},
-                        coordinator=coordinator,
-                    )
-                else:
-                    self.remove_discharge_block("price_reserve", coordinator=coordinator)
-            return
-        reserve_pct = self._price_discharge_reserve_pct()
-        manager = getattr(self, "_discharge_reserve_mgr", None)
-        battery_reserve = getattr(manager, "battery_reserve_soc_pct", None)
+        now = _pricing_clock_now(self)
+        # The reserve's own guards: manual control, anti-curtailment and
+        # peak shaving spend the battery on purpose.
+        guard = getattr(manager, "_release_guard", None)
+        released = guard() if callable(guard) else None
+        # No holds (the previous allocator planned, D2) or another mode: none.
+        slot = (
+            next((s for s in holds if s.start <= now < s.end), None)
+            if holds is not None and manager is not None and manager.dynamic_pricing_active()
+            else None
+        )
+        held = slot is not None and released is None
+        slot_owned = getattr(self, "_is_manual_slot_owned", None)
+        blocked = []
         for coordinator in self.coordinators:
-            if reserve_pct <= 0 or ChargeDischargeController._is_battery_manual_owned(
-                coordinator
+            if (
+                held
+                and coordinator.data
+                and getattr(coordinator, "is_available", True)
+                and not ChargeDischargeController._is_battery_manual_owned(coordinator)
+                and not (callable(slot_owned) and slot_owned(coordinator))
             ):
-                self.remove_discharge_block("price_reserve", coordinator=coordinator)
-                continue
-            data = coordinator.data or {}
-            # Same eligibility the reserve was sized against, so a battery that
-            # does not back the reserve is never held by it either.
-            if not data or not coordinator.is_available:
-                self.remove_discharge_block("price_reserve", coordinator=coordinator)
-                continue
-            try:
-                soc = float(data.get("battery_soc"))
-                # The effective floor, not the configured one: a discharge slot
-                # with an explicit SOC override deliberately reaches below
-                # min_soc, and the reserve must not close that window.
-                floor = float(self._effective_discharge_min_soc(coordinator)[0])
-            except (TypeError, ValueError):
-                self.remove_discharge_block("price_reserve", coordinator=coordinator)
-                continue
-            # This battery's share of the fleet reserve, so every battery is
-            # held at the same moment instead of one after the other (#700).
-            battery_pct = battery_reserve(coordinator) if callable(battery_reserve) else None
-            if battery_pct is None:
-                battery_pct = reserve_pct
-            # No share, nothing held back: a battery on its floor is stopped
-            # there by min_soc, and holding it too reported the fleet as held
-            # while the other battery was still discharging.
-            if battery_pct <= RESERVE_SOC_TOLERANCE_PCT:
-                self.remove_discharge_block("price_reserve", coordinator=coordinator)
-                continue
-            reserved_floor = min(100.0, floor + battery_pct)
-            # A reserve of everything stored puts the floor exactly on the
-            # whole-percent SOC, and floor + pct rounds either side of it.
-            if soc <= reserved_floor + RESERVE_SOC_TOLERANCE_PCT:
                 self.set_discharge_block(
                     "price_reserve",
                     "price_reserve",
-                    {
-                        "battery": coordinator.name,
-                        "soc": soc,
-                        "min_soc": floor,
-                        "reserved_floor": round(reserved_floor, 2),
-                        "reserve_soc_pct": round(battery_pct, 2),
-                        "fleet_reserve_soc_pct": round(reserve_pct, 2),
-                    },
+                    {"battery": coordinator.name, "origin": "plan"},
                     coordinator=coordinator,
                 )
+                blocked.append(coordinator.name)
             else:
                 self.remove_discharge_block("price_reserve", coordinator=coordinator)
+        # The status sensor's view: the held slot and where its run ends.
+        until = slot.end if slot is not None else None
+        starts = {s.start: s for s in holds or ()}
+        while until in starts:
+            until = starts[until].end
+        self._plan_hold_status = {
+            "held_batteries": blocked,
+            "held_slot": slot.start.isoformat() if slot is not None else None,
+            "held_until": until.isoformat() if until is not None else None,
+            "release_reason": released if slot is not None else None,
+        }
 
     def _refresh_ev_blocks(self) -> None:
         """Update EV charger blockers from no-telemetry charger state."""
@@ -10337,8 +10186,10 @@ class ChargeDischargeController:
             # manual session.
             if self._surplus_hold_mgr is not None:
                 self._surplus_hold_mgr.clear("manual_mode")
+            # Likewise the plan's hold (#888): its guard releases it here, so
+            # the block, the status sensor and holding_now do not stay latched.
             if self._discharge_reserve_mgr is not None:
-                self._discharge_reserve_mgr.clear("manual_mode")
+                ChargeDischargeController._refresh_price_reserve_blocks(self)
             _LOGGER.debug("Manual Mode active - skipping automatic control")
             # Register-based drivers (Marstek) obey the user's force_mode /
             # set_*_power register writes directly, so we just freeze the
@@ -11384,8 +11235,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 on); the limit key and its number entity are removed.
     v17 -> v18: the backup offgrid threshold is removed from every battery,
                 with its number entity.
+    v18 -> v19: the Discharge Reserve switch and its minimum saving are gone:
+                Dynamic Pricing holds the battery whenever the plan is cheaper
+                (#888). Their keys and both entities are removed.
     """
-    if entry.version >= 18:
+    if entry.version >= 19:
         return True
 
     new_data = dict(entry.data)
@@ -11821,11 +11675,36 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(backup offgrid threshold removed)",
         )
 
+    new_options = dict(entry.options)
+    if entry.version < 19:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        # Literals: the constants are gone with the switch (#888).
+        for key in ("discharge_reserve_enabled", "discharge_reserve_min_saving"):
+            new_data.pop(key, None)
+            new_options.pop(key, None)
+        # By unique_id: installs carry marstek_venus_* and omnibattery_* ids.
+        ent_reg = er.async_get(hass)
+        for domain, key in (("switch", "discharge_reserve"),
+                            ("number", "discharge_reserve_min_saving")):
+            entity_id = ent_reg.async_get_entity_id(
+                domain, DOMAIN, f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+            )
+            if entity_id:
+                ent_reg.async_remove(entity_id)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 19 "
+            "(Discharge Reserve switch and minimum saving removed)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=18,
+        options=new_options,
+        version=19,
     )
     return True
 
@@ -12227,7 +12106,6 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
             CONF_HIGH_PRICE_DISCHARGE_ENABLED,
             CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED,
             CONF_SURPLUS_PRICE_HOLD_ENABLED,
-            CONF_DISCHARGE_RESERVE_ENABLED,
         )
         if _key not in entry.data
     }

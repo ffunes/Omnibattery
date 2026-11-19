@@ -1521,9 +1521,6 @@
       "surplus_price_hold": {
         "name": "Retención de excedente por precio"
       },
-      "discharge_reserve": {
-        "name": "Reserva de descarga"
-      },
       "primary_feedforward": {
         "name": "Anticipar la demanda real"
       },
@@ -2645,9 +2642,6 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Ahorro mínimo de retención de excedente"
-      },
-      "discharge_reserve_min_saving": {
-        "name": "Ahorro mínimo de la reserva de descarga"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % excluido"

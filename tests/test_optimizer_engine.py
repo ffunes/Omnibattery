@@ -207,9 +207,9 @@ def test_an_optimizer_failure_falls_back_to_the_previous_planner(monkeypatch):
 
 
 def test_a_held_slot_blocks_the_discharge_through_the_reserve_blocker():
-    """Step 5: the optimizer's hold is executed by the reserve's own blocker,
-    for the whole slot; outside it nothing is blocked and the reserve module's
-    level is not used."""
+    """The optimizer's hold is executed by the reserve's own blocker, for the
+    whole slot, without the old switch (#888); outside it nothing is blocked
+    and the reserve module's level is not used."""
     from types import SimpleNamespace
 
     from tests.conftest import FakeCoordinator
@@ -224,8 +224,7 @@ def test_a_held_slot_blocks_the_discharge_through_the_reserve_blocker():
         _pricing_mgr=SimpleNamespace(_now=lambda: clock_now["t"]),
         _is_battery_manual_owned=lambda c: False,
         _discharge_reserve_mgr=SimpleNamespace(
-            feature_enabled=lambda: True,
-            reserve_soc_pct=lambda: (_ for _ in ()).throw(AssertionError("reserve module asked")),
+            dynamic_pricing_active=lambda: True,
         ),
         set_discharge_block=lambda source, reason, details=None, coordinator=None: blocks.__setitem__(
             (source, coordinator.name), details
@@ -239,7 +238,7 @@ def test_a_held_slot_blocks_the_discharge_through_the_reserve_blocker():
     assert blocks == {}
 
 
-def _hold_controller(holds, now, *, guard=None, discharging=()):
+def _hold_controller(holds, now, *, guard=None, discharging=(), dynamic_pricing=True):
     from types import SimpleNamespace
 
     from tests.conftest import FakeCoordinator
@@ -251,7 +250,7 @@ def _hold_controller(holds, now, *, guard=None, discharging=()):
         _dp_plan_holds=frozenset(holds),
         _pricing_mgr=SimpleNamespace(_now=lambda: now),
         _discharge_reserve_mgr=SimpleNamespace(
-            feature_enabled=lambda: True, _release_guard=lambda: guard
+            dynamic_pricing_active=lambda: dynamic_pricing, _release_guard=lambda: guard,
         ),
         _battery_discharge_blockers={},
         _global_discharge_blockers={},
@@ -299,6 +298,80 @@ def test_the_reserve_guards_release_a_hold():
     ctrl, battery, _writes = _hold_controller({a}, a.start, guard="capacity_protection")
     ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
     assert not ChargeDischargeController.is_discharge_blocked(ctrl, battery)
+
+
+def test_without_the_plan_s_holds_nothing_is_held():
+    """#888 D2: the previous allocator planned (holds None), or Dynamic
+    Pricing is not running: no block, the reserve module is not asked."""
+    a, _b = _slots(_at(11, 0), [0.15, 0.30])
+    for holds, dp in ((None, True), ({a}, False)):
+        ctrl, battery, _writes = _hold_controller(holds or (), a.start, dynamic_pricing=dp)
+        ctrl._dp_plan_holds = holds if holds is None else frozenset(holds)
+        ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+        assert not ChargeDischargeController.is_discharge_blocked(ctrl, battery)
+        assert ctrl._plan_hold_status["held_batteries"] == []
+
+
+def test_a_manually_owned_or_slot_owned_battery_is_not_held():
+    """Manual control and a manual slot own the battery: the plan's hold
+    leaves it alone."""
+    a, _b = _slots(_at(11, 0), [0.15, 0.30])
+    ctrl, battery, _writes = _hold_controller({a}, a.start)
+    battery.battery_manual_mode_enabled = True
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert not ChargeDischargeController.is_discharge_blocked(ctrl, battery)
+    battery.battery_manual_mode_enabled = False
+    ctrl._is_manual_slot_owned = lambda coordinator: True
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert not ChargeDischargeController.is_discharge_blocked(ctrl, battery)
+    ctrl._is_manual_slot_owned = lambda coordinator: False
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert ChargeDischargeController.is_discharge_blocked(ctrl, battery)
+
+
+def test_the_status_sensor_is_on_while_the_plan_holds():
+    """#888: the status sensor says why the battery does not discharge: on in
+    a held slot, with the slot and the end of its run."""
+    from custom_components.omnibattery.binary_sensor import DischargeReserveSensor
+    from types import SimpleNamespace
+
+    a, b, c = _slots(_at(11, 0), [0.15, 0.16, 0.30])
+    ctrl, _battery, _writes = _hold_controller({a, b}, a.start)
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    sensor = DischargeReserveSensor(None, None, ctrl)
+    assert sensor.is_on
+    attrs = sensor.extra_state_attributes
+    assert attrs["held_slot"] == a.start.isoformat()
+    assert attrs["held_until"] == b.end.isoformat()
+    ctrl._pricing_mgr = SimpleNamespace(_now=lambda: c.start)
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert not sensor.is_on
+    # A guard releases the hold: off, and it says why.
+    ctrl, _battery, _writes = _hold_controller({a}, a.start, guard="manual_control")
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    sensor = DischargeReserveSensor(None, None, ctrl)
+    assert not sensor.is_on
+    assert sensor.extra_state_attributes["release_reason"] == "manual_control"
+
+
+def test_a_fallback_plan_publishes_no_holds(monkeypatch):
+    """#888 D2: when the previous allocator plans, nothing is held."""
+    from custom_components.omnibattery.pricing import engine as pricing_engine
+    from tests import test_predictive_scenarios as h
+
+    box = {}
+    real_controller = h._controller
+
+    def controller(s):
+        box["c"] = real_controller(s)
+        return box["c"]
+
+    monkeypatch.setattr(h, "_controller", controller)
+    monkeypatch.setattr(pricing_engine, "optimizer_fallback_reason", lambda r: "no_fleet_data")
+    scenario = h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json")
+    outcome = h._run_engine(scenario, monkeypatch)
+    assert outcome.planner != "optimizer"
+    assert box["c"]._dp_plan_holds is None
 
 
 def test_the_dashboard_projection_keeps_what_a_held_slot_holds():
@@ -401,6 +474,28 @@ def test_a_re_plan_while_a_slot_charges_tells_the_optimizer(monkeypatch, slot_ac
     outcome = h._run_engine(scenario, monkeypatch)
     assert outcome.planner == "optimizer"
     assert outcome.request.charging_now is expected
+
+
+@pytest.mark.parametrize(("status", "expected"), [
+    ({"held_batteries": ["b1"]}, True), ({"held_batteries": []}, False), (None, False)])
+def test_a_re_plan_while_the_plan_holds_tells_the_optimizer(monkeypatch, status, expected):
+    """#888: the hold start cost must not cut a running hold. The evaluation
+    drops the plan's holds first, so it reads the last cycle's block."""
+    from tests import test_predictive_scenarios as h
+
+    real_controller = h._controller
+
+    def controller(s):
+        c = real_controller(s)
+        c._plan_hold_status = status
+        c._dp_plan_holds = frozenset(s for s in scenario.slots)  # dropped first
+        return c
+
+    monkeypatch.setattr(h, "_controller", controller)
+    scenario = h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json")
+    outcome = h._run_engine(scenario, monkeypatch)
+    assert outcome.planner == "optimizer"
+    assert outcome.request.holding_now is expected
 
 
 def test_a_plan_without_charge_keeps_its_projection_for_the_soc_drop_trigger(monkeypatch):
@@ -1117,3 +1212,68 @@ def test_a_weekly_charge_pending_at_a_full_reading_books_a_slot_to_the_top(monke
     outcome = h._run_engine(sc, monkeypatch)
     assert outcome.planner == "optimizer" and outcome.booked
     assert outcome.to_end & {slot for slot, _kwh in outcome.booked}
+
+
+
+def test_global_manual_mode_releases_the_plan_s_hold():
+    """#888: the manual-mode cycle returns before the blocker refresh; the
+    plan's hold must not stay latched (block, status sensor, holding_now)."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery.const import PREDICTIVE_MODE_DYNAMIC_PRICING
+    from custom_components.omnibattery.control.discharge_reserve import DischargeReserveManager
+    from custom_components.omnibattery.infra.clock import local_now
+    from custom_components.omnibattery.pricing import PriceSlot
+    from tests.test_grid_import_cap_policy import _cycle, _noop
+
+    start = local_now().replace(tzinfo=None, second=0, microsecond=0) - timedelta(minutes=5)
+    held = PriceSlot(start, start + timedelta(minutes=30), 0.2)
+    controller = _cycle(
+        manual_mode_enabled=True,
+        _pricing_mgr=SimpleNamespace(
+            maybe_check_price_data_health=lambda: None,
+            clear_curtailment_runtime=lambda _reason: None,
+        ),
+        _surplus_hold_mgr=None,
+        _discharge_reserve_mgr=None,
+        _apply_software_manual_setpoints=_noop,
+        _dp_plan_holds=frozenset({held}),
+        predictive_charging_enabled=True,
+        predictive_charging_overridden=False,
+        predictive_charging_mode=PREDICTIVE_MODE_DYNAMIC_PRICING,
+    )
+    controller._discharge_reserve_mgr = DischargeReserveManager(None, controller)
+    blocks = {(c.name, "price_reserve"): {"origin": "plan"} for c in controller.coordinators}
+    controller.set_discharge_block = lambda source, reason, details=None, coordinator=None: (
+        blocks.__setitem__((coordinator.name, source), details))
+    controller.remove_discharge_block = lambda source, coordinator=None: (
+        blocks.pop((coordinator.name, source), None))
+    asyncio.run(controller._run_control_cycle())
+    assert blocks == {}
+    assert controller._plan_hold_status["held_batteries"] == []
+    assert controller._plan_hold_status["release_reason"] == "manual_control"
+
+
+def test_the_plan_s_holds_are_published_without_any_switch(monkeypatch):
+    """#888: Dynamic Pricing publishes the optimizer's holds for everyone;
+    here the battery is kept from 05:00 (0.366) to 08:00 for 0.55 and up."""
+    from datetime import datetime
+
+    from tests import test_predictive_scenarios as h
+
+    box = {}
+    real_controller = h._controller
+
+    def controller(s):
+        box["c"] = real_controller(s)
+        return box["c"]
+
+    monkeypatch.setattr(h, "_controller", controller)
+    scenario = h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json")
+    outcome = h._run_engine(scenario, monkeypatch)
+    assert outcome.planner == "optimizer"
+    holds = box["c"]._dp_plan_holds
+    assert holds is not None
+    # Hourly slots in this file.
+    assert {s.start for s in holds} == {datetime(2026, 11, 11, hour) for hour in (5, 6, 7)}

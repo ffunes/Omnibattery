@@ -995,19 +995,6 @@ DEFAULT_SURPLUS_PRICE_HOLD_ENABLED = False
 CONF_SURPLUS_HOLD_MIN_SAVING = "surplus_hold_min_saving"
 DEFAULT_SURPLUS_HOLD_MIN_SAVING = 0.02
 
-# Price-aware discharge reserve.  The price_discharge blocker asks whether the
-# current hour is cheap; it never asks whether the dearer hours still ahead need
-# the energy that is in the battery.  This reserve raises each battery's
-# discharge floor by the energy those hours claim, and leaves everything above
-# it available for self-consumption now.  Dynamic pricing only, off by default.
-CONF_DISCHARGE_RESERVE_ENABLED = "discharge_reserve_enabled"
-DEFAULT_DISCHARGE_RESERVE_ENABLED = False
-# Advantage (currency/kWh) a later hour must have over the current one before
-# its demand may claim stored energy.  Keeps the floor from chattering on
-# rounding differences, and prices in the wear of the extra cycle.
-CONF_DISCHARGE_RESERVE_MIN_SAVING = "discharge_reserve_min_saving"
-DEFAULT_DISCHARGE_RESERVE_MIN_SAVING = 0.05
-
 # Deliberate export into a price peak (#270).  Sells only energy that a later,
 # dearer hour would otherwise buy from the grid, so the house never ends up
 # importing what it just sold.  Dynamic pricing only, off by default.
@@ -1328,17 +1315,6 @@ CONFIG_NUMBER_DEFINITIONS = [
         "default": DEFAULT_SURPLUS_HOLD_MIN_SAVING,
         "icon": "mdi:transmission-tower-export",
         "condition": CONF_SURPLUS_PRICE_HOLD_ENABLED,
-    },
-    {
-        "key": CONF_DISCHARGE_RESERVE_MIN_SAVING,
-        "name": "Discharge Reserve Minimum Saving",
-        "min": 0.0,
-        "max": 1.0,
-        "step": 0.001,
-        "unit": "/kWh",
-        "default": DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
-        "icon": "mdi:cash-minus",
-        "condition": CONF_DISCHARGE_RESERVE_ENABLED,
     },
     {
         "key": CONF_HOURLY_BALANCE_TARGET_NET_WH,

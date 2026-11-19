@@ -200,10 +200,6 @@ class ChronologicalEvaluationRequest:
     # whose slot prices are synthetic).
     import_value_efficiency: float | None = None
     import_value_margin: float = 0.0
-    # The discharge reserve keeps stored energy for dearer hours until the sun
-    # covers the house, so a valued deadline may be served across an hour left
-    # to the grid up to then.
-    reserve_holds: bool = False
     # While a slot charges, the grid carries the house load, so the battery
     # does not drain then and needs that much less charge. Off for a weekly
     # full charge, whose target is the gap to 100%, not a drain. The runtime
@@ -235,11 +231,9 @@ class ChronologicalEvaluationRequest:
     # charge candidates (Smart Pre-Discharge leaves out its risk window): the
     # optimizer prices every interval with it and charges only in candidates.
     price_curve: tuple[PriceSlot, ...] | None = None
-    # Discharge Reserve on (step 5): a slot may hold the battery (it covers
-    # nothing, solar surplus still stores) when a dearer hour needs the energy;
-    # ``hold_min_saving`` per kWh left to the grid must be saved by holding.
+    # Dynamic Pricing (#888): a slot may hold the battery (it covers nothing,
+    # solar surplus still stores) when the whole plan costs less.
     hold_allowed: bool = False
-    hold_min_saving: float = 0.0
     # Surplus price hold on (step 6): a slot may export its solar surplus
     # instead of storing it; ``export_choice_min_saving`` per kWh exported.
     export_choice_allowed: bool = False
@@ -290,6 +284,8 @@ class ChronologicalEvaluationRequest:
     # A price slot is charging at ``now``: going on with it is no new start
     # (the optimizer's start cost).
     charging_now: bool = False
+    # The plan holds the battery at ``now``: going on is no new hold start.
+    holding_now: bool = False
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:
@@ -699,7 +695,6 @@ def allocate_price_slots(
     required_from_deadlines: bool = False,
     import_value_efficiency: float | None = None,
     import_value_margin: float = 0.0,
-    reserve_holds: bool = False,
     grid_carries_load_while_charging: bool = False,
     grid_ceiling_kw: float | None = None,
 ) -> ChronologicalPlan:
@@ -724,11 +719,7 @@ def allocate_price_slots(
     before the last hour left to the grid ahead of a valued deadline also
     stores what those hours drain, and serves the deadline only when the
     deadlines it then reaches repay that drain; slots charged back to back
-    before them pay that drain once, as a group (#834). No drain is counted
-    with ``reserve_holds`` (the discharge reserve keeps the energy for dearer
-    hours until the sun covers the house) when the deadline comes before that.
-    On a day with forecast solar that never covers the house the reserve holds
-    a charge made after midnight to that day's evening.
+    before them pay that drain once, as a group (#834).
     """
     def ceiling_of(slot: PriceSlot) -> float | None:
         if slot_ceilings is not None:
@@ -1131,52 +1122,13 @@ def allocate_price_slots(
     # The last deadline in each segment that was left to the grid: the battery
     # is empty there, so energy stored before it is gone by then.
     left_until: dict[datetime, datetime] = {}
-    sun_covers = (
-        [
-            interval.start
-            for interval in intervals
-            if interval.end > now
-            and interval.solar_kwh > _EPSILON
-            and interval.solar_kwh >= interval.consumption_kwh
-        ]
-        if reserve_holds
-        else []
-    )
-    held_until = sun_covers[0] if sun_covers else None
-    forecast_days = {
-        interval.start.date()
-        for interval in intervals
-        if interval.solar_kwh > _EPSILON
-    }
-
-    def held_through_the_day(slot: PriceSlot, deadline: datetime) -> bool:
-        # A day the sun never covers the house has no surplus to refill the
-        # battery, and the reserve keeps that day's evening in its plan. So a
-        # charge after midnight is held to a deadline later the same day, as
-        # long as the sun does not take over in between. A charge before
-        # midnight is not: until then the reserve plans only to sunrise.
-        # Without any forecast solar that day the reserve has nothing to go on
-        # and also plans only to sunrise, so nothing is carried either.
-        if (
-            not reserve_holds
-            or slot.start.date() != deadline.date()
-            or deadline.date() not in forecast_days
-        ):
-            return False
-        return not any(slot.start <= cover < deadline for cover in sun_covers)
-
     def lasts(
         slot: PriceSlot, deadline: datetime, until: datetime | None
     ) -> bool:
         # The grid covers the house during a charge slot, so a slot ending at
         # or after the hour left to the grid (``until``) still serves later
         # deadlines.
-        return (
-            until is None
-            or slot.end >= until
-            or (held_until is not None and deadline <= held_until)
-            or held_through_the_day(slot, deadline)
-        )
+        return until is None or slot.end >= until
 
     # Hours left to the grid in each segment: [deadline, kWh, import value,
     # served-deadline record].
@@ -1829,7 +1781,6 @@ def evaluate_chronological_request(
         required_from_deadlines=request.required_from_deadlines,
         import_value_efficiency=request.import_value_efficiency,
         import_value_margin=request.import_value_margin,
-        reserve_holds=request.reserve_holds,
         grid_carries_load_while_charging=request.grid_carries_load_while_charging,
         grid_ceiling_kw=request.grid_ceiling_kw,
     )

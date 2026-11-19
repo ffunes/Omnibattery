@@ -39,7 +39,7 @@ La batería puede estar en reposo intencionadamente cuando la red ya está cerca
 | Se alcanzó el SOC mínimo | `battery_discharge_blockers` y el SOC mínimo de batería | Espera a cargar o ajusta el límite deliberadamente |
 | La descarga está desactivada | **Allow Discharge** | Actívalo |
 | La franja horaria actual bloquea la descarga | **Discharge Window** e interruptores de franja horaria | Revisa las [franjas horarias](configuration/time-slots.md) |
-| El control de precio o reserva retiene energía | **Integration Status**, **Price-Based Discharge**, **Discharge Reserve** y estados relacionados | Revisa [Precio dinámico](configuration/predictive-charging/dynamic-pricing.md) |
+| El control de precio o reserva retiene energía | **Integration Status**, **Price-Based Discharge**, **Estado de reserva de descarga** y estados relacionados | Revisa [Precio dinámico](configuration/predictive-charging/dynamic-pricing.md) |
 | La protección de capacidad o lógica de carga excluida posee la respuesta | **Capacity Protection**, dispositivos excluidos activos y bloqueadores | Revisa [protección de capacidad](features/peak-shaving.md) y [exclusión de carga](features/load-exclusion.md) |
 | La batería no está disponible o está excluida | **Non-Responsive Batteries** y **Repairs** de Home Assistant | Sigue [Las entidades no están disponibles](#las-entidades-no-estan-disponibles) |
 

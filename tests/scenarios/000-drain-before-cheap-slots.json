@@ -11,7 +11,8 @@
     "Inputs: one 5.12 kWh battery at 60 %, a flat 1.2 kW house, no solar, 0.10 until 07:00, 0.20 by day, 0.30 from 18:00 to 22:00, evaluation at 00:05. The battery is empty from about 02:15; every kWh stored at 0.10 is used at 0.20 or more (0.17 after the round-trip losses), and the day needs far more than the battery holds, so the plan should fill it before 07:00 (4.6 kWh usable).",
     "BEFORE: 2.05 kWh, the room at 00:05, because the total was capped at the room at the evaluation. A re-evaluation at 01:15 (SOC 32.7 %) booked 3.45 kWh, the room then.",
     "Sizing from the deadlines (as the extended horizon already did) then booked 10.6 kWh from 02:00 to 07:00 into the 4.6 kWh battery: each slot was bounded by its room when it opens, not by the slots booked after it. The same over-booking reached 2.9 kWh on the extended horizon before.",
-    "NOW: the night fills the battery, 4.6 kWh from 04:45 to 07:00. The plan also books about 3 kWh by day at 0.20 for the 18:00-22:00 peak at 0.30 (0.255 after the losses); this file does not assert that part."
+    "NOW: the night fills the battery, 4.6 kWh from 04:45 to 07:00. The plan also books about 3 kWh by day at 0.20 for the 18:00-22:00 peak at 0.30 (0.255 after the losses); this file does not assert that part.",
+    "#888: the plan fills the battery at 00:00 (2.05 kWh, the room) and holds it until the 18:00-22:00 peak at 0.30: the grid carries the house at 0.10 by night and 0.20 by day directly, instead of through the battery, so nothing is bought by day for the peak."
   ],
   "level": "engine",
   "now": "2026-11-10T00:05:00",
@@ -37,7 +38,6 @@
     "max_price_threshold": 1.0,
     "min_arbitrage_margin": null,
     "round_trip_efficiency": 0.85,
-    "discharge_reserve": false,
     "peak_shaving": null,
     "contracted_power_w": 5750,
     "guaranteed_floor_soc": null,
@@ -45,7 +45,7 @@
   },
   "expected": {
     "windows": [
-      {"start": "2026-11-10T00:00:00", "end": "2026-11-10T07:00:00", "min_kwh": 4.4, "max_kwh": 4.65}
+      {"start": "2026-11-10T00:00:00", "end": "2026-11-10T07:00:00", "min_kwh": 2.0, "max_kwh": 2.1}
     ]
   }
 }

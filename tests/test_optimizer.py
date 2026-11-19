@@ -381,9 +381,9 @@ def _replay_hold(request, plan):
     return _replay(request, plan, held=set(plan.holds))
 
 
-def _with_hold(request, min_saving=0.0):
+def _with_hold(request):
     import dataclasses
-    return dataclasses.replace(request, hold_allowed=True, hold_min_saving=min_saving)
+    return dataclasses.replace(request, hold_allowed=True)
 
 
 def test_holding_keeps_the_battery_for_the_dearer_hour():
@@ -397,20 +397,122 @@ def test_holding_keeps_the_battery_for_the_dearer_hour():
     assert plan.optimizer_cost < off.optimizer_cost - 0.03
 
 
-def test_the_minimum_saving_decides_a_hold():
+def test_a_small_price_step_is_held_without_a_minimum_saving():
+    # #888: no minimum saving; the plan holds whenever it costs less.
     prices = [0.20] * 4 + [0.25] * 4
     keep = optimize_charge(_with_hold(_request(prices, house=0.25, usable=0.95, threshold=0.0))).plan
     assert keep.holds
-    skip = optimize_charge(
-        _with_hold(_request(prices, house=0.25, usable=0.95, threshold=0.0), min_saving=0.10)
-    ).plan
-    assert not skip.holds
+
+
+def test_a_hold_pays_its_start(monkeypatch):
+    """#888 D1: 15-minute prices zigzag; without a hold start cost the plan
+    holds every cheaper quarter on its own, with it one run."""
+    from custom_components.omnibattery.pricing import optimizer
+
+    prices = [0.20, 0.23] * 6 + [0.40] * 4
+    request = _with_hold(_request(prices, house=0.25, usable=1.5, threshold=0.0))
+
+    def runs(plan):
+        held = sorted(s.start for s in plan.holds)
+        return sum(1 for i, t in enumerate(held) if i == 0 or t - held[i - 1] != Q)
+
+    plan = optimize_charge(request).plan
+    assert runs(plan) == 1 and plan.hold_starts == 1
+    monkeypatch.setattr(optimizer, "HOLD_START_EUR", 0.0)
+    assert runs(optimize_charge(request).plan) > 1
+
+
+def test_a_hold_going_on_at_now_pays_no_start():
+    import dataclasses
+    prices = [0.20, 0.23] * 6 + [0.40] * 4
+    request = _with_hold(_request(prices, house=0.25, usable=1.5, threshold=0.0))
+    assert optimize_charge(request).plan.hold_starts == 1
+    assert optimize_charge(dataclasses.replace(request, holding_now=True)).plan.hold_starts == 0
 
 
 def test_no_hold_without_the_permission():
     prices = [0.20] * 4 + [0.40] * 4
     plan = optimize_charge(_request(prices, house=0.25, usable=0.95, threshold=0.0)).plan
     assert not plan.holds
+
+
+def test_the_night_is_held_for_the_dearer_day():
+    """#888, anorakophobia's night (shape, not their 7.60 EUR: their load is
+    unknown): quarter-hour prices, 13.3 kWh with 4.1 kWh usable at 20:30,
+    margin 0.05, round trip 0.82. No charge pays; the night (0.40-0.44) is
+    held and the stored energy is spent in the dearer day (0.49-0.53)."""
+    import dataclasses
+    night = [0.40 + 0.04 * ((i * 7) % 10) / 10 for i in range(40)]  # 20:30-06:30
+    morning = [0.49 + 0.04 * ((i * 3) % 10) / 10 for i in range(14)]  # -10:00
+    midday = [0.45 + 0.02 * ((i * 3) % 10) / 10 for i in range(24)]  # -16:00
+    evening = [0.51 + 0.01 * ((i * 7) % 10) / 10 for i in range(18)]  # -20:30
+    house = [0.35 * 0.25] * 40 + [0.9 * 0.25] * 14 + [0.4 * 0.25] * 24 + [1.0 * 0.25] * 18
+    request = dataclasses.replace(
+        _request(night + morning + midday + evening, house=house, cap=13.3, soc=40.0, usable=4.1,
+                 room=13.3 * 0.9, margin=0.05, discharge=2.5),
+        import_value_efficiency=0.82, hold_allowed=True)
+    plan = optimize_charge(request).plan
+    assert not plan.allocations
+    held = {s.start for s in plan.holds}
+    assert all(s.start in held for s in request.price_slots[:40])
+    at_dawn = dict(plan.trajectory)[T0 + 40 * Q]
+    assert at_dawn == pytest.approx(4.1, abs=1e-6)
+    assert plan.trajectory[-1][1] < 0.1
+    spent = [s.price for s in request.price_slots if s.start not in held]
+    assert min(spent) >= 0.49
+    off = optimize_charge(dataclasses.replace(request, hold_allowed=False)).plan
+    assert plan.optimizer_cost < off.optimizer_cost - 0.2
+
+
+def test_a_2_0td_valley_lets_the_grid_carry_the_house_with_one_charge():
+    """#888's announcement: 10.4 kWh at 70 %, a cloudy day on 2.0TD prices.
+    In the valley the grid carries the house (the battery is held) and the
+    plan charges once."""
+    td = [0.08 if hr < 8 else (0.25 if 10 <= hr < 14 or 18 <= hr < 22 else 0.15)
+          for hr in range(24) for _ in range(4)]
+    house = ([0.3 * 0.25] * 28 + [0.8 * 0.25] * 8 + [0.5 * 0.25] * 36 + [1.4 * 0.25] * 16
+             + [0.4 * 0.25] * 8)
+    solar = [0.0] * 40 + [0.15] * 24 + [0.0] * 32
+    request = _with_hold(_request(td, house=house, solar=solar, cap=10.4, soc=70.0,
+                                  usable=10.4 * 0.6, room=10.4 * 0.9, discharge=2.5))
+    plan = optimize_charge(request).plan
+    valley = [s for s in request.price_slots if s.price == 0.08]
+    charged = {a.slot.start for a in plan.allocations}
+    held = {s.start for s in plan.holds}
+    assert plan.charge_starts == 1 and charged
+    assert all(s.start in held or s.start in charged for s in valley)
+    assert not (held - {s.start for s in valley})
+
+
+def test_a_day_with_sun_to_spare_holds_nothing():
+    """#888: the sun refills the battery anyway; a held night would only
+    leave sun unstored. The plan is the one without holds."""
+    prices = [0.20] * 36 + [0.25] * 36 + [0.30] * 24
+    solar = [0.0] * 36 + [1.2] * 36 + [0.0] * 24
+    request = _request(prices, house=0.1, solar=solar, cap=10.0, soc=50.0, usable=4.0,
+                       room=9.0, discharge=2.5)
+    held = optimize_charge(_with_hold(request)).plan
+    plain = optimize_charge(request).plan
+    assert not held.holds
+    assert held.optimizer_cost == pytest.approx(plain.optimizer_cost, abs=1e-9)
+    assert [(a.slot, a.planned_battery_kwh) for a in held.allocations] == [
+        (a.slot, a.planned_battery_kwh) for a in plain.allocations]
+
+
+def test_a_charge_that_ends_early_holds_the_rest_of_its_slot():
+    """#878: an empty 7.1 kWh battery (2.5 kW / 0.8 kW), quarter-hour night
+    prices. The charge reaches its target inside its quarter; the battery is
+    then held (bought energy is not spent at the price it was bought), and it
+    pays no hold start: the charge start covered the change."""
+    prices = [0.184 + 0.015 * ((i * 7) % 10) / 10 for i in range(8)] + [0.30] * 2
+    request = _with_hold(_request(prices, house=0.125, cap=7.1, soc=2.0, usable=0.0,
+                                  room=7.1 * 0.9, discharge=0.8, power=2.5))
+    plan = optimize_charge(request).plan
+    (charge,) = plan.allocations
+    assert not charge.to_slot_end
+    assert charge.slot in plan.holds
+    assert plan.hold_starts == 0
+    assert _replay_hold(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
 
 
 def test_a_slot_may_charge_and_then_hold():
@@ -1130,9 +1232,9 @@ def test_once_full_the_battery_is_free_again():
     assert plan.trajectory[-1][1] < 3.0 - 0.5
 
 
-def test_a_pending_weekly_charge_holds_without_the_reserve():
+def test_a_pending_weekly_charge_holds_without_the_permission():
     # D-5: a flat day, 2 of 3 kWh stored. Covering the house and buying it
-    # back loses the round trip: the plan holds, Discharge Reserve off.
+    # back loses the round trip: the weekly layer holds, hold_allowed off.
     request = _request([0.20] * 24, usable=2.0, room=3.0)
     assert not request.hold_allowed
     plan = optimize_charge(_weekly(request, 24)).plan

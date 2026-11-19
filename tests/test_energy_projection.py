@@ -99,7 +99,6 @@ def _build(scenario, monkeypatch):
     mgr._read_remaining_solar_input = lambda **_k: solar_input
     mgr._maybe_refresh_service_prices = _no_io
     mgr._send_dynamic_pricing_notification = _no_io
-    ctrl.discharge_reserve_enabled = False
     ctrl.solar_forecast_periods = tuple(scenario.solar_periods)
 
     def fake_read(_hass, controller, *, update_controller=True):
