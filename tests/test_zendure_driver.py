@@ -663,6 +663,20 @@ async def test_apply_setpoint_charge_posts_ac_mode_1():
     assert "outputLimit" not in props
 
 
+async def test_apply_setpoint_charge_uses_smartmode_0_while_offgrid_port_on():
+    # #882: with the off-grid port on, a smartMode=1 charge goes to bypass and
+    # never reaches the pack; smartMode=0 charges. Discharge keeps smartMode=1.
+    for grid_off_mode, charge_sm in ((0, 0), (1, 0), (2, 1)):
+        report = {**_REPORT, "properties": {**_REPORT["properties"], "gridOffMode": grid_off_mode}}
+        sess = _session(get_data=report)
+        drv = _driver(session=sess)
+        await drv.read_telemetry()
+        await drv.apply_setpoint(600, read_back=False)
+        assert sess.post.call_args.kwargs["json"]["properties"]["smartMode"] == charge_sm
+        await drv.apply_setpoint(-450, read_back=False)
+        assert sess.post.call_args.kwargs["json"]["properties"]["smartMode"] == 1
+
+
 async def test_apply_setpoint_discharge_posts_ac_mode_2():
     sess = _session(get_data=_REPORT)
     res = await _driver(session=sess).apply_setpoint(-450, read_back=False)
