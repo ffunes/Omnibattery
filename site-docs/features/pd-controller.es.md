@@ -131,4 +131,4 @@ Después de cambiar un ajuste, deja que la métrica de calidad refleje el nuevo 
 
     Una batería con **Backup Function** activada queda excluida mientras un corte de red la tiene alimentando la salida de respaldo desde las celdas (estado Backup del inversor, o estado off-grid en Huawei), y durante `5 min` después de que vuelva la red. Una carga en la salida de respaldo no la excluye mientras hay red.
 
-    Mientras está excluida, Omnibattery sigue consultando datos de solo lectura, pero no envía a esa batería órdenes de potencia, modo forzado, configuración ni carga completa semanal. Tras volver la potencia aislada por debajo del umbral, la exclusión se mantiene `5 min`; desactivar **Backup Function** elimina el periodo de espera inmediatamente.
+    Mientras está excluida, Omnibattery sigue consultando datos de solo lectura, pero no envía a esa batería órdenes de potencia, modo forzado, configuración ni carga completa semanal. Cuando vuelve la red, la exclusión se mantiene `5 min`; desactivar **Backup Function** elimina el periodo de espera inmediatamente.

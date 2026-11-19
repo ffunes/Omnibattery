@@ -131,4 +131,4 @@ After changing a setting, allow the quality metric to reflect the new behavior b
 
     A battery with **Backup Function** enabled is excluded while a grid outage has it feeding the backup output from the cells (the Backup inverter state, or the off-grid state on Huawei), and for `5 min` after the grid is back. A load on the backup output does not exclude it while the grid is present.
 
-    While excluded, Omnibattery continues polling read-only data but sends no power, forced-mode, configuration, or weekly full-charge commands to that battery. After off-grid power returns below the threshold, exclusion remains for `5 min`; turning **Backup Function** off clears the cooldown immediately.
+    While excluded, Omnibattery continues polling read-only data but sends no power, forced-mode, configuration, or weekly full-charge commands to that battery. After the grid is back, exclusion remains for `5 min`; turning **Backup Function** off clears the cooldown immediately.

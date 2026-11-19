@@ -44,7 +44,6 @@ Unlike a direct Modbus connection, Omnibattery does not communicate with the bat
 | Setup completes but the battery is unavailable | The bridge is online but **Battery State Of Charge** is `unknown` or `unavailable` | Check that the battery and bridge are communicating, then wait for a usable SOC value |
 | Commands have no effect | A required ESPHome control entity is unavailable or the bridge is not reaching the battery | Check **Forcible Charge-Discharge**, **Forcible Charge Power**, **Forcible Discharge Power**, and **RS485 Control Mode** in the ESPHome device |
 | Values stop changing while the board still looks online | The bridge's battery polling has stalled | Check the ESPHome logs and the RS-485 connection; Omnibattery stops using stale battery telemetry rather than control from old values |
-| With **Backup Function** on, the status stays at `backup_mode` and the battery is never controlled | The firmware does not publish **AC Offgrid Power** (register 32302), so Omnibattery cannot tell whether the off-grid port is in use and keeps the battery excluded | Add the sensor below to the LilyGo YAML, or turn **Backup Function** off |
 
 ??? "Advanced details"
     Omnibattery identifies this connection by the selected Home Assistant ESPHome device, not by an IP address or Modbus endpoint. The bridge owns the RS-485 connection, so this route has no parallel direct Modbus path.
@@ -53,8 +52,8 @@ Unlike a direct Modbus connection, Omnibattery does not communicate with the bat
 
     Commands use Home Assistant's `select.select_option` and `number.set_value` services. The bridge polls the battery every approximately 3 seconds; Omnibattery treats all battery-sourced telemetry as stale after 120 seconds without any report, even if ESP-local Wi-Fi entities are still updating.
 
-??? "Off-grid power sensor for Backup Function"
-    The stock firmware YAML does not read register 32302. Add this block to your LilyGo YAML, keeping the name exactly as written, then reload Omnibattery:
+??? "Off-grid power sensor (optional)"
+    The stock firmware YAML does not read register 32302, so the backup output is missing from the power and energy figures. To include it, add this block to your LilyGo YAML, keeping the name exactly as written, then reload Omnibattery:
 
     ```yaml
     sensor:
