@@ -178,8 +178,15 @@
       "battery_connection_hoymiles": {
         "title": "Configure battery {battery_num} — Connection (Hoymiles)",
         "description": "Enable MQTT Service in S-Miles Home and point it to Home Assistant's configured MQTT broker before continuing.",
-        "data": {"name": "Name", "device_id": "MQTT device ID", "hoymiles_model": "Battery model"},
-        "data_description": {"device_id": "Hoymiles MQTT device ID, for example MSA-280024341346.", "hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."}
+        "data": {
+          "name": "Name",
+          "device_id": "MQTT device ID",
+          "hoymiles_model": "Battery model"
+        },
+        "data_description": {
+          "device_id": "Hoymiles MQTT device ID, for example MSA-280024341346.",
+          "hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."
+        }
       },
       "battery_connection_esphome": {
         "title": "Configure battery {battery_num} — Connection (LilyGo/ESPHome)",
@@ -607,8 +614,20 @@
       "reconfigure_battery_sessy": {
         "title": "Reconfigure battery {battery_num} — Connection (Sessy)",
         "description": "Update connection details for the Sessy battery {battery_num}. All other settings are preserved.",
-        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
-        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)",
+          "username": "Local username printed on the Sessy dongle",
+          "password": "Local password printed on the Sessy dongle"
+        }
       },
       "reconfigure_battery_indevolt": {
         "title": "Reconfigure battery {battery_num} — Connection (Indevolt)",
@@ -650,38 +669,44 @@
           "slave_id": "Modbus slave/unit id (default 1)"
         }
       },
-          "reconfigure_battery_huawei_slave": {
-            "title": "Reconfigure battery {battery_num} — Which inverter?",
-            "description": "{count} inverters with a battery answered on this bus. Pick the one this battery belongs to.",
-            "data": {
-              "slave_id": "Inverter"
-            }
-          },
-        "reconfigure_battery_huawei": {
-          "title": "Reconfigure battery {battery_num} — Connection (Huawei)",
-          "description": "Update the Modbus access and the Huawei Solar battery device for battery {battery_num}. All other settings are preserved.",
-          "data": {
-            "name": "Name",
-            "host": "IP Address",
-            "port": "Modbus Port",
-            "slave_id": "Modbus slave id (leave empty to search)",
-            "huawei_battery_device": "Huawei Solar battery device",
-            "huawei_direct_write": "Direct Modbus writes"
-          },
-          "data_description": {
-            "name": "Descriptive name to identify this battery",
-            "host": "Address of the Modbus proxy or inverter Omnibattery reads from",
-            "port": "Modbus TCP port (default 502)",
-            "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.",
-            "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.",
-            "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."
-          }
+      "reconfigure_battery_huawei_slave": {
+        "title": "Reconfigure battery {battery_num} — Which inverter?",
+        "description": "{count} inverters with a battery answered on this bus. Pick the one this battery belongs to.",
+        "data": {
+          "slave_id": "Inverter"
+        }
+      },
+      "reconfigure_battery_huawei": {
+        "title": "Reconfigure battery {battery_num} — Connection (Huawei)",
+        "description": "Update the Modbus access and the Huawei Solar battery device for battery {battery_num}. All other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus slave id (leave empty to search)",
+          "huawei_battery_device": "Huawei Solar battery device",
+          "huawei_direct_write": "Direct Modbus writes"
         },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "Address of the Modbus proxy or inverter Omnibattery reads from",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.",
+          "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.",
+          "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."
+        }
+      },
       "reconfigure_battery_hoymiles": {
         "title": "Reconfigure battery {battery_num} — Hoymiles MQTT",
         "description": "Enter the Hoymiles MQTT device ID; Home Assistant manages the broker and Omnibattery detects the model.",
-        "data": {"name": "Name", "device_id": "MQTT device ID", "hoymiles_model": "Battery model"},
-        "data_description": {"hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."}
+        "data": {
+          "name": "Name",
+          "device_id": "MQTT device ID",
+          "hoymiles_model": "Battery model"
+        },
+        "data_description": {
+          "hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."
+        }
       },
       "reconfigure_battery_esphome": {
         "title": "Reconfigure battery {battery_num} — Connection (LilyGo/ESPHome)",
@@ -705,8 +730,20 @@
       "battery_connection_sessy": {
         "title": "Configure battery {battery_num} — Connection (Sessy)",
         "description": "Enter the connection details and the local credentials printed on the Sessy dongle for battery {battery_num}.",
-        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
-        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)",
+          "username": "Local username printed on the Sessy dongle",
+          "password": "Local password printed on the Sessy dongle"
+        }
       },
       "battery_connection_indevolt": {
         "title": "Configure battery {battery_num} — Connection (Indevolt)",
@@ -739,13 +776,29 @@
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Omnibattery reads this battery over Modbus and sends its set-points through the Huawei Solar integration, so it needs both: a Modbus endpoint and the battery device. Point the Modbus address at a Modbus proxy rather than straight at the inverter — the Huawei Solar integration already holds a connection to it.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
-        "data": {"name": "Name", "host": "IP Address", "port": "Modbus Port", "slave_id": "Modbus slave id (leave empty to search)", "huawei_battery_device": "Huawei Solar battery device", "huawei_direct_write": "Direct Modbus writes"},
-        "data_description": {"name": "Descriptive name to identify this battery", "host": "Address of the Modbus proxy or inverter Omnibattery reads from", "port": "Modbus TCP port (default 502)", "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.", "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.", "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."}
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus slave id (leave empty to search)",
+          "huawei_battery_device": "Huawei Solar battery device",
+          "huawei_direct_write": "Direct Modbus writes"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "Address of the Modbus proxy or inverter Omnibattery reads from",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.",
+          "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.",
+          "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."
+        }
       },
       "battery_connection_huawei_slave": {
         "title": "Configure battery {battery_num} — Choose inverter",
         "description": "{count} inverters with a battery answered on this Modbus endpoint. Huawei inverters can be cascaded — pick the one this battery belongs to. For a second battery, add another entry with the other slave id.",
-        "data": {"slave_id": "Inverter"}
+        "data": {
+          "slave_id": "Inverter"
+        }
       },
       "battery_connection_anker": {
         "title": "Configure battery {battery_num} — Connection (Anker)",
@@ -761,6 +814,36 @@
           "host": "IP address shown in the Anker app under Third-Party Control",
           "port": "Modbus TCP port (default 502)",
           "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      },
+      "battery_connection_apsystems_ezhi": {
+        "title": "APsystems EZHI",
+        "description": "Enter the local IP address and port of your APsystems EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)"
+        }
+      },
+      "reconfigure_battery_apsystems_ezhi": {
+        "title": "APsystems EZHI",
+        "description": "Enter the local IP address and port of your APsystems EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)",
+          "username": "Local username printed on the Sessy dongle",
+          "password": "Local password printed on the Sessy dongle"
         }
       }
     },
@@ -1346,8 +1429,20 @@
       "battery_connection_sessy": {
         "title": "Configure battery {battery_num} — Connection (Sessy)",
         "description": "Modify the connection details and local dongle credentials for the Sessy battery {battery_num}.",
-        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
-        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port",
+          "username": "Username",
+          "password": "Password"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)",
+          "username": "Local username printed on the Sessy dongle",
+          "password": "Local password printed on the Sessy dongle"
+        }
       },
       "battery_connection_indevolt": {
         "title": "Configure battery {battery_num} — Connection (Indevolt)",
@@ -1380,13 +1475,29 @@
       "battery_connection_huawei": {
         "title": "Configure battery {battery_num} — Connection (Huawei)",
         "description": "Modify the Modbus endpoint and the Huawei Solar battery device used for battery {battery_num}.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
-        "data": {"name": "Name", "host": "IP Address", "port": "Modbus Port", "slave_id": "Modbus slave id (leave empty to search)", "huawei_battery_device": "Huawei Solar battery device", "huawei_direct_write": "Direct Modbus writes"},
-        "data_description": {"name": "Descriptive name to identify this battery", "host": "Address of the Modbus proxy or inverter Omnibattery reads from", "port": "Modbus TCP port (default 502)", "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.", "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.", "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."}
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus slave id (leave empty to search)",
+          "huawei_battery_device": "Huawei Solar battery device",
+          "huawei_direct_write": "Direct Modbus writes"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "Address of the Modbus proxy or inverter Omnibattery reads from",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.",
+          "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.",
+          "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."
+        }
       },
       "battery_connection_huawei_slave": {
         "title": "Configure battery {battery_num} — Choose inverter",
         "description": "{count} inverters with a battery answered on this Modbus endpoint. Huawei inverters can be cascaded — pick the one this battery belongs to. For a second battery, add another entry with the other slave id.",
-        "data": {"slave_id": "Inverter"}
+        "data": {
+          "slave_id": "Inverter"
+        }
       },
       "battery_connection_anker": {
         "title": "Configure battery {battery_num} — Connection (Anker)",
@@ -1402,6 +1513,20 @@
           "host": "IP address shown in the Anker app under Third-Party Control",
           "port": "Modbus TCP port (default 502)",
           "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      },
+      "battery_connection_apsystems_ezhi": {
+        "title": "APsystems EZHI",
+        "description": "Enter the local IP address and port of your APsystems EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Sessy device on your local network",
+          "port": "HTTP port (default 80)"
         }
       }
     },

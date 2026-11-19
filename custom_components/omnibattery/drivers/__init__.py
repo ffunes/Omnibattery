@@ -38,6 +38,7 @@ from .marstek import MarstekModbusDriver
 from .zendure import ZendureLocalDriver
 from .anker import AnkerModbusDriver
 from .sessy import SessyLocalDriver
+from .apsystems_ezhi import ApsystemsEzhiDriver
 from .hoymiles import HoymilesMqttDriver
 from .huawei import HuaweiSolarDriver
 from .indevolt import IndevoltDriver
@@ -54,6 +55,7 @@ __all__ = [
     "ZendureLocalDriver",
     "AnkerModbusDriver",
     "SessyLocalDriver",
+    "ApsystemsEzhiDriver",
     "HoymilesMqttDriver",
     "HuaweiSolarDriver",
     "IndevoltDriver",
