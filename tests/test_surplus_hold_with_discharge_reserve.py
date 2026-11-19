@@ -15,8 +15,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
-import pytest
-
 from custom_components.omnibattery import ChargeDischargeController
 from custom_components.omnibattery.const import PREDICTIVE_MODE_DYNAMIC_PRICING
 from custom_components.omnibattery.control.discharge_reserve import (
@@ -30,8 +28,6 @@ from custom_components.omnibattery.pricing import PriceSlot
 from custom_components.omnibattery.pricing.curtailment import BatterySnapshot
 from custom_components.omnibattery.pricing.surplus_absorption import (
     REASON_CHEAPER_WINDOW_AHEAD,
-    STATUS_NO_TARGET,
-    STATUS_PLANNED,
     plan_surplus_absorption,
 )
 from tests.conftest import _FakeMarstekDriver

@@ -487,7 +487,6 @@ def test_a_2_0td_valley_lets_the_grid_carry_the_house_with_one_charge():
 def test_a_day_with_sun_to_spare_holds_nothing():
     """#888: the sun refills the battery anyway; a held night would only
     leave sun unstored. The plan is the one without holds."""
-    import dataclasses
     prices = [0.20] * 36 + [0.25] * 36 + [0.30] * 24
     solar = [0.0] * 36 + [1.2] * 36 + [0.0] * 24
     request = _request(prices, house=0.1, solar=solar, cap=10.0, soc=50.0, usable=4.0,

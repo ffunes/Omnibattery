@@ -2496,10 +2496,10 @@ class ChargeDischargeController:
         return int(min(EXTENDED_MAX_HORIZON_HOURS, hours))
 
     def _daily_operation_reserve_floor(self, plan=None):
-        """The reserve's decision at a later slot, for the projection, or None.
+        """What the battery keeps at a later slot, for the projection, or None.
 
         The hold between weekly charge blocks keeps everything where it
-        applies; the discharge reserve decides elsewhere.
+        applies; the Dynamic Pricing plan's holds decide elsewhere.
         """
         reserve_fn = None
         weekly_fn = None
@@ -2514,12 +2514,14 @@ class ChargeDischargeController:
             # naive local (same handling as the reserve module's projection).
             hold_tz = next((s.start.tzinfo for s in holds), None)
 
-            def reserve_fn(start, usable_kwh, _free_kwh):
+            def held(start, usable_kwh, _free_kwh):
                 if hold_tz is None and start.tzinfo is not None:
                     start = start.replace(tzinfo=None)
                 elif hold_tz is not None and start.tzinfo is None:
                     start = start.replace(tzinfo=hold_tz)
                 return usable_kwh if any(s.start <= start < s.end for s in holds) else 0.0
+
+            reserve_fn = held
         weekly_hold = getattr(
             getattr(self, "_pricing_mgr", None), "weekly_refill_hold_fn", None
         )
@@ -10184,6 +10186,10 @@ class ChargeDischargeController:
             # manual session.
             if self._surplus_hold_mgr is not None:
                 self._surplus_hold_mgr.clear("manual_mode")
+            # Likewise the plan's hold (#888): its guard releases it here, so
+            # the block, the status sensor and holding_now do not stay latched.
+            if self._discharge_reserve_mgr is not None:
+                ChargeDischargeController._refresh_price_reserve_blocks(self)
             _LOGGER.debug("Manual Mode active - skipping automatic control")
             # Register-based drivers (Marstek) obey the user's force_mode /
             # set_*_power register writes directly, so we just freeze the
