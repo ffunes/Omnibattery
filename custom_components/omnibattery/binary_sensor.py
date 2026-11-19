@@ -339,16 +339,7 @@ class DischargeReserveSensor(BinarySensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict:
-        attrs = {
-            "enabled": bool(
-                getattr(self.controller, "discharge_reserve_enabled", False)
-            ),
-            "min_saving": getattr(
-                self.controller, "discharge_reserve_min_saving", None
-            ),
-        }
-        attrs.update(self._status())
-        return attrs
+        return self._status()
 
     @property
     def device_info(self):

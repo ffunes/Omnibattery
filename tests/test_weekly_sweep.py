@@ -178,7 +178,7 @@ def scenario(case, *, at: datetime, socs, pending: bool) -> h.Scenario:
         bins_kwh=BINS, solar_remaining_kwh=remaining, solar_periods=periods, fleet=fleet,
         settings=dict(
             max_price_threshold=1.0, min_arbitrage_margin=None, round_trip_efficiency=RTE,
-            discharge_reserve=False, peak_shaving=None, contracted_power_w=CONTRACTED_W,
+            peak_shaving=None, contracted_power_w=CONTRACTED_W,
             guaranteed_floor_soc=None, safety_margin_kwh=0.0,
         ),
         expected={},

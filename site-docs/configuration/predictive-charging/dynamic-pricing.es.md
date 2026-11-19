@@ -26,7 +26,7 @@ Precio dinámico lee un calendario de precios futuros y compra el déficit energ
 ![Configura una fuente de precios futuros](../../assets/screenshots/configuration/predictive-charging/dynamic-pricing-form.png){ width="650" style="display: block; margin: 0 auto;" }
 
 !!! note "Elección de sensor específica del proveedor"
-    Para **BE Electricity Prices** (Bélgica), elige su sensor **Current price**. Lista cada franja de hoy y mañana al precio todo incluido para cualquier contrato, también los de franjas horarias como ENGIE Empower Flextime, así que Dynamic Pricing y **Discharge Reserve** funcionan sin plantilla. Para la curva de exportación, elige su sensor **Injection price** con el mismo tipo.
+    Para **BE Electricity Prices** (Bélgica), elige su sensor **Current price**. Lista cada franja de hoy y mañana al precio todo incluido para cualquier contrato, también los de franjas horarias como ENGIE Empower Flextime, así que Dynamic Pricing funciona sin plantilla. Para la curva de exportación, elige su sensor **Injection price** con el mismo tipo.
     Para Zonneplan, elige **Current quarter hourly electricity tariff** para un contrato de cuarto de hora o **Current hourly electricity tariff** para un contrato horario. También se admite el antiguo **Current electricity tariff**. Para Nord Pool, elige una entidad de la integración oficial o el sensor de HACS; Omnibattery detecta el formato.
 
 ## Qué verás
@@ -45,7 +45,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 | Conservar energía de batería mientras el precio actual es barato | **Descarga basada en precio** | Bloquea la descarga ordinaria hasta que el precio supera su umbral activo |
 | Evitar perder solar cuando se penaliza la exportación | **Predescarga inteligente / Antilimitación de producción** | Crea espacio de batería antes de periodos de riesgo solar previsto |
 | Exportar solar ahora y absorberla después cuando el valor de inyección es inferior | **Retención de excedente por precio** | Pausa la carga por excedente fuera de los periodos seleccionados de menor precio de exportación |
-| Guardar energía almacenada para periodos de demanda doméstica más caros | **Reserva de descarga** | Eleva un suelo económico de descarga para la futura demanda cara |
+| Guardar energía almacenada para periodos de demanda doméstica más caros | El propio plan (sin ajuste) | Retiene la batería donde la red es más barata que el uso posterior de la batería |
 | Exigir un diferencial de compra/venta que merezca la pena | **Margen mínimo de arbitraje** | Rechaza operaciones de carga o exportación cuyo diferencial no cubra pérdidas y el margen seleccionado |
 | Vender energía que la solar de mañana puede reponer durante un pico de precio que cumpla la condición | **Venta a precio alto** → *Solo excedente* | Exporta energía de batería que la solar prevista de mañana puede reponer tras cubrir la vivienda hasta el amanecer |
 | Vender también energía que la vivienda necesitará después y recomprarla | **Venta a precio alto** → *Excedente + arbitraje* | Exporta energía solo cuando sigue ahorrando dinero al reponer después la demanda de la vivienda que deja de cubrir |
@@ -61,7 +61,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 | Faltan periodos más baratos de mañana | El proveedor aún no los ha publicado o se permite que termine el periodo activo antes de replanificar | Datos del proveedor y **Reevaluar carga predictiva** tras su publicación |
 | Una función de precio está activada pero inactiva | No están disponibles su previsión, perfil, precio de exportación, capacidad de batería o lectura de red requeridos | Sensor binario de estado de la función y atributo de motivo |
 | El excedente solar se exporta inesperadamente | **Retención de excedente por precio** seleccionó un periodo posterior de absorción más barato | **Estado de retención de excedente por precio** y su próxima hora de liberación |
-| La batería no descarga | **Descarga basada en precio**, **Reserva de descarga**, franjas horarias de funcionamiento u otro bloqueo de descarga están activos | **Estado de integración**, sensores de estado de funciones y [franjas horarias de funcionamiento](../time-slots.md) |
+| La batería no descarga | **Descarga basada en precio**, una retención del plan (**Estado de reserva de descarga**), franjas horarias de funcionamiento u otro bloqueo de descarga están activos | **Estado de integración**, sensores de estado de funciones y [franjas horarias de funcionamiento](../time-slots.md) |
 | **Venta a precio alto** en *Solo excedente* no vende | La previsión solar de mañana no puede rellenar la batería, la integración de previsión no proporciona previsiones al panel de Energía o no existe un periodo de exportación rentable | **Estado de venta a precio alto**, su atributo de motivo, la previsión solar de mañana y los precios de exportación |
 
 ??? "Detalles avanzados"
@@ -172,19 +172,13 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     Deja vacío el umbral de descarga separado para usar el umbral máximo de precio en ambas decisiones. La carga por excedente solar sigue disponible en la banda inactiva. Las franjas horarias de funcionamiento y el permiso de precio deben permitir ambos la descarga; consulta [franjas horarias de funcionamiento](../time-slots.md).
 
-    ### Reserva de descarga
+    ### Retener la batería para una hora más cara
 
-    Esta función opcional guarda energía almacenada para periodos de demanda doméstica más caros antes del próximo amanecer. Proyecta el perfil aprendido de demanda de 15 minutos y la solar esperada, permite que los periodos más caros reclamen solo la energía necesaria y reserva reclamaciones que superan el precio actual en **Ahorro mínimo de reserva de descarga**. Ese control tiene por defecto 0,05 moneda/kWh.
+    El plan puede retener la batería en un periodo: la red alimenta la casa allí y la energía almacenada se guarda para un periodo más caro posterior. Lo hace siempre que el plan entero cuesta menos, contando las pérdidas de ida y vuelta, y nunca en empate; no hay interruptor ni ahorro mínimo (#888). Un periodo retenido puede seguir a una carga en el mismo periodo, para que la energía comprada allí no se gaste al precio al que se compró. Cada retención nueva le cuesta 1 céntimo al planificador (nunca se muestra en el coste), así que no alterna entre retener y cubrir por diferencias de precio pequeñas.
 
-    El excedente solar esperado puede liberar parte de la reserva, pero solo cuando cabe físicamente en la batería. El excedente que **Retención de excedente por precio** planea exportar no recibe crédito. El planificador acredita el 75% del excedente esperado que cumple la condición para que la incertidumbre de previsión no libere toda la reserva antes de que llegue producción real.
+    Cuando el plan lo hace el planificador anterior (un respaldo, ver el aviso del planificador), no se retiene nada. El control manual, la antilimitación de producción, una franja manual y la protección de picos sueltan la retención; el límite de importación de red y la protección de emergencia la ignoran.
 
-    Una carga de red más barata antes de un periodo caro también la libera. Un periodo cuenta cuando recomprar la energía allí, su precio dividido entre la eficiencia de ciclo completo más el **Margen mínimo de arbitraje**, no cuesta más que el precio actual más el **Ahorro mínimo de reserva de descarga**. Solo cuentan los periodos posteriores a la próxima evaluación diaria de las 00:05, porque esa evaluación planifica la carga nocturna desde el SOC real de la batería. Cada uno cuenta solo por lo que la batería puede tomar a su potencia de carga sin desplazar la solar esperada, y no por encima de **Precio máximo (carga)**. Por ejemplo, a las 18:15 con 0,676 €/kWh, una noche a 0,436 €/kWh recompra la energía por 0,436 / 0,82 + 0,05 ≈ 0,585 €/kWh, así que se usa ahora en lugar de retenerla para la tarde de mañana.
-
-    La energía resultante se convierte en un suelo adicional de SOC de flota. La energía por encima sigue disponible ahora y el suelo cae cuando el periodo actual se vuelve caro. El `min_soc` configurado de batería no se reescribe. La protección de picos, emergencia y antilimitación de producción pueden ignorar este bloqueo económico.
-
-    La reserva termina en el próximo amanecer. La falta de precios, perfil de consumo, energía utilizable o demanda futura la deja en el SOC mínimo configurado. Control manual, antilimitación de producción, protección de picos, control de franjas horarias y una anulación explícita de SOC por periodo también la liberan.
-
-    **Estado de reserva de descarga** informa de estado activo, motivo, energía/porcentaje reservado, precio de referencia, reclamaciones, crédito solar esperado, crédito de recarga de red (`refill_credit_kwh`, `refills`, `refill_from`), demanda de horizonte y excedente de horizonte. **Estado de integración** informa de `price_reserve_hold` mientras una batería está retenida.
+    **Estado de reserva de descarga** está activo mientras el plan retiene una batería, con el periodo retenido (`held_slot`), dónde acaba el tramo de periodos retenidos (`held_until`), las baterías retenidas y la protección que soltó una retención (`release_reason`). **Estado de integración** informa de `price_reserve_hold` mientras una batería está retenida.
 
     ### Margen mínimo de arbitraje y eficiencia de ciclo completo
 
@@ -214,9 +208,9 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     Este nivel vende además energía almacenada en un periodo caro que cumple la condición solo cuando sigue ahorrando dinero tras comprar de la red la demanda de la vivienda que esa energía habría cubierto. La energía sin demanda doméstica posterior no se vende y la exportación nunca cruza el suelo de SOC de una batería.
 
-    Cuando la previsión indica que la batería se agotará antes del amanecer y **Reserva de descarga** está desactivada, Omnibattery compara el precio de exportación con los últimos periodos de demanda de la vivienda que se comprarían de la red por la venta. Empieza por el último periodo antes del amanecer y se detiene en la primera venta que no compensaría. Por ejemplo, si la batería iba a durar hasta las 05:00, vender a las 18:00 hace que se agote algo antes, hacia las 04:00. Lo que se vuelve a comprar es la demanda de 04:00 a 05:00, así que la venta se compara con ese precio, no con el periodo caro de las 20:00, que la batería sigue cubriendo.
+    Cuando la previsión indica que la batería se agotará antes del amanecer y el plan no retiene la batería (lo hizo el planificador anterior), Omnibattery compara el precio de exportación con los últimos periodos de demanda de la vivienda que se comprarían de la red por la venta. Empieza por el último periodo antes del amanecer y se detiene en la primera venta que no compensaría. Por ejemplo, si la batería iba a durar hasta las 05:00, vender a las 18:00 hace que se agote algo antes, hacia las 04:00. Lo que se vuelve a comprar es la demanda de 04:00 a 05:00, así que la venta se compara con ese precio, no con el periodo caro de las 20:00, que la batería sigue cubriendo.
 
-    Si la previsión indica que la batería durará hasta el amanecer, o **Reserva de descarga** está activada, se mantiene la regla conservadora: el precio de exportación debe superar el precio de importación posterior más alto, más el **Margen mínimo de arbitraje**. El periodo de exportación que cumple la condición y tiene el precio más alto recibe primero energía. La exportación deliberada neta a red usa el límite efectivo de descarga de la flota; no existe un control separado de límite de exportación con precio alto.
+    Si la previsión indica que la batería durará hasta el amanecer, o el plan puede retenerla, se mantiene la regla conservadora: el precio de exportación debe superar el precio de importación posterior más alto, más el **Margen mínimo de arbitraje**. El periodo de exportación que cumple la condición y tiene el precio más alto recibe primero energía. La exportación deliberada neta a red usa el límite efectivo de descarga de la flota; no existe un control separado de límite de exportación con precio alto.
 
     #### Solo excedente
 

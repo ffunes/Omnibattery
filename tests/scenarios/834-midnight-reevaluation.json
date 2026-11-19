@@ -67,7 +67,6 @@
     "max_price_threshold": 0.453,
     "min_arbitrage_margin": 0.04,
     "round_trip_efficiency": 0.86,
-    "discharge_reserve": false,
     "peak_shaving": {"limit_w": 3500, "soc_threshold": 25},
     "contracted_power_w": 3500,
     "guaranteed_floor_soc": null,

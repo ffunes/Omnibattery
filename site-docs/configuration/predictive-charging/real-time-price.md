@@ -91,4 +91,4 @@ Turn on **Price-Based Discharge** if you also want to preserve the battery while
     | Energy shortfall handling | Can move quota to eligible future periods | Records undelivered energy; no future calendar exists |
     | Re-evaluation button | Rebuilds the remaining calendar | Not present; every cycle decides again |
     | Price-Based Discharge threshold | Fixed maximum threshold or calculated daily average | Daily-average sensor, then fixed maximum threshold |
-    | Dynamic-only policies | Negative-price scheduling, anti-curtailment, surplus hold, discharge reserve, arbitrage margin, high-price export | Not available |
+    | Dynamic-only policies | Negative-price scheduling, anti-curtailment, surplus hold, holding the battery for later, arbitrage margin, high-price export | Not available |

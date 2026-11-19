@@ -1516,9 +1516,6 @@
       "surplus_price_hold": {
         "name": "Surplus Price Hold"
       },
-      "discharge_reserve": {
-        "name": "Discharge Reserve"
-      },
       "primary_feedforward": {
         "name": "Feed the real demand forward"
       },
@@ -2640,9 +2637,6 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Surplus Hold Minimum Saving"
-      },
-      "discharge_reserve_min_saving": {
-        "name": "Discharge Reserve Minimum Saving"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Exclusion %"

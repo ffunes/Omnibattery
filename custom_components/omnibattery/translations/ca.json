@@ -1521,9 +1521,6 @@
       "surplus_price_hold": {
         "name": "Retenció d'excedent per preu"
       },
-      "discharge_reserve": {
-        "name": "Reserva de descàrrega"
-      },
       "primary_feedforward": {
         "name": "Anticipar la demanda real"
       },
@@ -2645,9 +2642,6 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Estalvi mínim de retenció d'excedent"
-      },
-      "discharge_reserve_min_saving": {
-        "name": "Estalvi mínim de la reserva de descàrrega"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – % exclòs"

@@ -166,10 +166,6 @@ from .const import (
     DEFAULT_PREDISCHARGE_RESERVE_SOC,
     CONF_NEGATIVE_PRICE_CHARGING_ENABLED,
     DEFAULT_NEGATIVE_PRICE_CHARGING_ENABLED,
-    CONF_DISCHARGE_RESERVE_ENABLED,
-    CONF_DISCHARGE_RESERVE_MIN_SAVING,
-    DEFAULT_DISCHARGE_RESERVE_ENABLED,
-    DEFAULT_DISCHARGE_RESERVE_MIN_SAVING,
     CONF_SURPLUS_PRICE_HOLD_ENABLED,
     DEFAULT_SURPLUS_PRICE_HOLD_ENABLED,
     CONF_HIGH_PRICE_DISCHARGE_ENABLED,
@@ -1140,12 +1136,6 @@ class ChargeDischargeController:
         # power, already narrowed by the system-wide cap. See the const helper.
         self.high_price_discharge_max_power_w = default_high_price_discharge_max_power(
             config_entry.data
-        )
-        self.discharge_reserve_enabled = config_entry.data.get(
-            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
-        )
-        self.discharge_reserve_min_saving = config_entry.data.get(
-            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
         )
         # Optional export/feed-in curve. Unset means "use the import curve",
         # which is what net metering makes correct.
@@ -3338,7 +3328,6 @@ class ChargeDischargeController:
             _rounded(getattr(self, "predischarge_reserve_soc", None)),
             bool(getattr(self, "weekly_full_charge_enabled", False)),
             getattr(self, "weekly_full_charge_day", None),
-            bool(getattr(self, "discharge_reserve_enabled", False)),
             bool(getattr(self, "capacity_protection_enabled", False)),
             _rounded(getattr(self, "max_contracted_power", None)),
             bool(getattr(self, "enable_system_power_limits", False)),
@@ -3568,13 +3557,6 @@ class ChargeDischargeController:
         self.high_price_discharge_max_power_w = default_high_price_discharge_max_power(
             self.config_entry.data
         )
-        old_discharge_reserve_enabled = self.discharge_reserve_enabled
-        self.discharge_reserve_enabled = self.config_entry.data.get(
-            CONF_DISCHARGE_RESERVE_ENABLED, DEFAULT_DISCHARGE_RESERVE_ENABLED
-        )
-        self.discharge_reserve_min_saving = self.config_entry.data.get(
-            CONF_DISCHARGE_RESERVE_MIN_SAVING, DEFAULT_DISCHARGE_RESERVE_MIN_SAVING
-        )
         self.export_price_sensor = self.config_entry.data.get(CONF_EXPORT_PRICE_SENSOR, None)
         self.export_price_integration_type = self.config_entry.data.get(
             CONF_EXPORT_PRICE_INTEGRATION_TYPE, None
@@ -3598,16 +3580,6 @@ class ChargeDischargeController:
         ):
             if self._surplus_hold_mgr is not None:
                 self._surplus_hold_mgr.clear("mode_or_configuration_changed")
-        # A reserve computed against the old price curve, or one left behind by a
-        # feature that was just switched off, must never keep a floor raised.
-        if (
-            old_pricing_mode != self.predictive_charging_mode
-            or old_discharge_reserve_enabled != self.discharge_reserve_enabled
-            or not self.discharge_reserve_enabled
-            or self.predictive_charging_mode != PREDICTIVE_MODE_DYNAMIC_PRICING
-        ):
-            if self._discharge_reserve_mgr is not None:
-                self._discharge_reserve_mgr.clear("mode_or_configuration_changed")
         self.grid_import_window_enabled = ChargeDischargeController._grid_import_window_setting(
             self, self.config_entry.data
         )
@@ -11325,8 +11297,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 on); the limit key and its number entity are removed.
     v17 -> v18: the backup offgrid threshold is removed from every battery,
                 with its number entity.
+    v18 -> v19: the Discharge Reserve switch and its minimum saving are gone:
+                Dynamic Pricing holds the battery whenever the plan is cheaper
+                (#888). Their keys and both entities are removed.
     """
-    if entry.version >= 18:
+    if entry.version >= 19:
         return True
 
     new_data = dict(entry.data)
@@ -11762,11 +11737,36 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(backup offgrid threshold removed)",
         )
 
+    new_options = dict(entry.options)
+    if entry.version < 19:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        # Literals: the constants are gone with the switch (#888).
+        for key in ("discharge_reserve_enabled", "discharge_reserve_min_saving"):
+            new_data.pop(key, None)
+            new_options.pop(key, None)
+        # By unique_id: installs carry marstek_venus_* and omnibattery_* ids.
+        ent_reg = er.async_get(hass)
+        for domain, key in (("switch", "discharge_reserve"),
+                            ("number", "discharge_reserve_min_saving")):
+            entity_id = ent_reg.async_get_entity_id(
+                domain, DOMAIN, f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+            )
+            if entity_id:
+                ent_reg.async_remove(entity_id)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 19 "
+            "(Discharge Reserve switch and minimum saving removed)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
-        version=18,
+        options=new_options,
+        version=19,
     )
     return True
 
@@ -12168,7 +12168,6 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
             CONF_HIGH_PRICE_DISCHARGE_ENABLED,
             CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED,
             CONF_SURPLUS_PRICE_HOLD_ENABLED,
-            CONF_DISCHARGE_RESERVE_ENABLED,
         )
         if _key not in entry.data
     }

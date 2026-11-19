@@ -74,7 +74,6 @@
     "max_price_threshold": 1.0,
     "min_arbitrage_margin": null,
     "round_trip_efficiency": 0.85,
-    "discharge_reserve": false,
     "peak_shaving": null,
     "contracted_power_w": 5750,
     "guaranteed_floor_soc": null,

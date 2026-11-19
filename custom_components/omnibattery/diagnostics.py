@@ -453,8 +453,6 @@ def _discharge_reserve_info(controller) -> dict[str, Any]:
         return {"status": "unavailable", "reason": "controller_unavailable"}
     manager = getattr(controller, "_discharge_reserve_mgr", None)
     info: dict[str, Any] = {
-        "enabled": bool(getattr(controller, "discharge_reserve_enabled", False)),
-        "min_saving": getattr(controller, "discharge_reserve_min_saving", None),
         "applied_soc_pct": getattr(controller, "_price_reserve_soc_pct", None),
     }
     if manager is None:
@@ -507,9 +505,6 @@ def _dynamic_pricing_info(controller) -> dict[str, Any]:
         ),
         "surplus_price_hold_enabled": getattr(
             controller, "surplus_price_hold_enabled", False
-        ),
-        "discharge_reserve_enabled": getattr(
-            controller, "discharge_reserve_enabled", False
         ),
         "export_price_sensor": getattr(controller, "export_price_sensor", None),
         "export_price_integration_type": getattr(

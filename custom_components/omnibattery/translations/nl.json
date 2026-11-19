@@ -1521,9 +1521,6 @@
       "surplus_price_hold": {
         "name": "Prijsrem zonne-overschot"
       },
-      "discharge_reserve": {
-        "name": "Ontlaadreserve"
-      },
       "primary_feedforward": {
         "name": "Werkelijke vraag vooruitsturen"
       },
@@ -2645,9 +2642,6 @@
     "number": {
       "surplus_hold_min_saving": {
         "name": "Minimale besparing overschotrem"
-      },
-      "discharge_reserve_min_saving": {
-        "name": "Minimale besparing ontlaadreserve"
       },
       "excluded_device_exclusion_pct": {
         "name": "{device} – Uitsluiting %"

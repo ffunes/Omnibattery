@@ -42,7 +42,6 @@ from .const import (
     DEFAULT_NEGATIVE_INJECTION_THRESHOLD,
     DEFAULT_PREDISCHARGE_RESERVE_SOC,
     CONF_SURPLUS_PRICE_HOLD_ENABLED,
-    CONF_DISCHARGE_RESERVE_ENABLED,
     MIN_CHARGE_HYSTERESIS_PERCENT,
     MAX_CHARGE_HYSTERESIS_PERCENT,
     DOMAIN,
@@ -151,7 +150,6 @@ async def async_setup_entry(
     # dynamic pricing; their sliders would otherwise render on time-slot installs.
     dynamic_pricing_only = {
         CONF_SURPLUS_PRICE_HOLD_ENABLED,
-        CONF_DISCHARGE_RESERVE_ENABLED,
     }
     is_dynamic_pricing = (
         entry.data.get(CONF_PREDICTIVE_CHARGING_MODE) == PREDICTIVE_MODE_DYNAMIC_PRICING
