@@ -459,13 +459,22 @@ class WeeklyFullChargeManager:
         cached = getattr(self, "_outlook_forecast_kwh", None)
         if cached is not None and abs(solar_kwh - cached) <= 0.25:
             return
+        tracker = ctrl._consumption_tracker
+        if ctrl._solar_t_start is not None:
+            t_end = tracker.estimate_t_end()
+        else:
+            # No solar start yet: before the morning's detection, and all day
+            # with Charge Delay off, which is what detects it. Use the sunrise,
+            # as the detection's own fallback does.
+            sunrise = tracker.calculate_sunrise()
+            if sunrise is None:
+                return  # no location, or polar night/day: try again next cycle
+            t_end = 2 * tracker.calculate_solar_noon() - sunrise
         self._outlook_forecast_kwh = solar_kwh
 
         # Same inputs as the charge delay's solar balance (charge_delay.py).
         delay = ctrl._charge_delay_mgr
         solar_kwh -= delay._excluded_claim_kwh(solar_kwh)
-        tracker = ctrl._consumption_tracker
-        t_end = tracker.estimate_t_end()
         profile = delay._profile_forecast_between(now_h, t_end)
         if profile is not None:
             consumption_kwh = profile.energy_kwh
