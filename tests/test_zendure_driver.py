@@ -660,7 +660,7 @@ async def test_apply_setpoint_charge_posts_ac_mode_1():
     assert props["acMode"] == 1
     assert props["inputLimit"] == 600
     assert props["smartMode"] == 1  # RAM write (off flash); obeys acMode with HEMS off
-    assert "outputLimit" not in props
+    assert props["outputLimit"] == 0
 
 
 async def test_apply_setpoint_charge_uses_smartmode_0_while_offgrid_port_on():
@@ -672,9 +672,13 @@ async def test_apply_setpoint_charge_uses_smartmode_0_while_offgrid_port_on():
         drv = _driver(session=sess)
         await drv.read_telemetry()
         await drv.apply_setpoint(600, read_back=False)
-        assert sess.post.call_args.kwargs["json"]["properties"]["smartMode"] == charge_sm
+        props = sess.post.call_args.kwargs["json"]["properties"]
+        assert props["smartMode"] == charge_sm
+        assert props["outputLimit"] == 0
         await drv.apply_setpoint(-450, read_back=False)
-        assert sess.post.call_args.kwargs["json"]["properties"]["smartMode"] == 1
+        props = sess.post.call_args.kwargs["json"]["properties"]
+        assert props["smartMode"] == 1
+        assert props["inputLimit"] == 0
 
 
 async def test_apply_setpoint_discharge_posts_ac_mode_2():
@@ -687,7 +691,7 @@ async def test_apply_setpoint_discharge_posts_ac_mode_2():
     assert props["acMode"] == 2
     assert props["outputLimit"] == 450
     assert props["smartMode"] == 1  # RAM write (off flash); obeys acMode with HEMS off
-    assert "inputLimit" not in props
+    assert props["inputLimit"] == 0
 
 
 async def test_apply_setpoint_zero_posts_output_limit_0():
@@ -699,6 +703,7 @@ async def test_apply_setpoint_zero_posts_output_limit_0():
     props = sess.post.call_args.kwargs["json"]["properties"]
     assert props["acMode"] == 2
     assert props["outputLimit"] == 0
+    assert props["inputLimit"] == 0
     assert props["smartMode"] == 1  # RAM write (off flash); obeys acMode with HEMS off
 
 
@@ -944,11 +949,47 @@ async def test_standby_posts_output_limit_0_with_smart_mode():
     props = sess.post.call_args.kwargs["json"]["properties"]
     assert props["acMode"] == 2
     assert props["outputLimit"] == 0
+    assert props["inputLimit"] == 0
     assert props["smartMode"] == 1  # transient; must not wear flash
 
 
 async def test_standby_http_failure_returns_false():
     assert await _driver(session=_session(post_status=500)).standby() is False
+
+
+@pytest.mark.parametrize("initial,demand,expected", [
+    ({"inputLimit": 0, "outputLimit": 700}, 600,
+     {"inputLimit": 600, "outputLimit": 0}),
+    ({"inputLimit": 1200, "outputLimit": 0}, -450,
+     {"inputLimit": 0, "outputLimit": 450}),
+    ({"inputLimit": 1200, "outputLimit": 0}, 0,
+     {"inputLimit": 0, "outputLimit": 0}),
+    ({"inputLimit": 1200, "outputLimit": 0}, None,
+     {"inputLimit": 0, "outputLimit": 0}),
+])
+async def test_power_writes_clear_previous_limits_in_device_and_cache(
+    initial, demand, expected,
+):
+    # The HTTP API updates only supplied properties; omitted limits retain
+    # the previous command, including in the coordinator's partial echo.
+    stored = dict(initial)
+    sess = _session()
+
+    def post(_url, *, json, **_kwargs):
+        stored.update(json["properties"])
+        return _cm(_resp())
+
+    sess.post.side_effect = post
+    driver = _driver(session=sess)
+    if demand is None:
+        assert await driver.standby() is True
+    else:
+        result = await driver.apply_setpoint(demand, read_back=False)
+        assert result.ok is True
+        assert {key: result.applied[key] for key in expected} == expected
+
+    assert {key: stored[key] for key in expected} == expected
+    assert stored["smartMode"] == 1
 
 
 # ---------------------------------------------------------------------------

@@ -14,18 +14,19 @@ Transport: aiohttp polling.
   - Write: POST /properties/write   → property dict + optional smartMode
 
 Control mapping (net_power_w sign: +charge / -discharge, same as Marstek convention):
-  net > 0  → acMode=1 (charge from grid), inputLimit=power,  smartMode=1
+  net > 0  → acMode=1, inputLimit=power, outputLimit=0, smartMode=1
              (smartMode=0 while the off-grid port is on, see apply_setpoint)
-  net < 0  → acMode=2 (discharge to home), outputLimit=|power|, smartMode=1
-  net == 0 → acMode=2, outputLimit=0, smartMode=1
+  net < 0  → acMode=2, inputLimit=0, outputLimit=|power|, smartMode=1
+  net == 0 → acMode=2, inputLimit=0, outputLimit=0, smartMode=1
 
 smartMode=1 on a write keeps the setpoint in RAM instead of flash, so the per-cycle
 real-time PD writes don't wear the flash. It obeys the commanded acMode and holds the
 setpoint as long as HEMS is DISABLED (required for this integration). With HEMS enabled
 the device's smart-matching loop ignores acMode and reverts manual control after ~10-14 s
 (the "charge 2 s then back to 0" symptom). smartMode is a sticky device property, so
-the per-cycle power loop holds it at 1; config writes (apply_config, write_control)
-must send smartMode=0 explicitly to commit to flash and survive reboots.
+the per-cycle power loop normally holds it at 1 (except charging with the off-grid
+port on); config writes (apply_config, write_control) must send smartMode=0 explicitly
+to commit to flash and survive reboots.
 
 battery_power is synthesised: outputPackPower − packInputPower
   (+charge: outputPackPower > 0; −discharge: packInputPower > 0)
@@ -891,7 +892,7 @@ class ZendureLocalDriver(BatteryDriver):
     ) -> SetpointResult:
         """Translate a signed net power into Zendure's acMode + limit properties.
 
-        smartMode=1 is included in every setpoint write so the real-time PD
+        smartMode=1 is normally included in setpoint writes so the real-time PD
         writes land in RAM rather than flash — the controller rewrites the
         setpoint frequently, and wearing the flash on every cycle would shorten
         device life. With HEMS DISABLED (a prerequisite for this integration)
@@ -914,17 +915,29 @@ class ZendureLocalDriver(BatteryDriver):
         if net_power_w > 0:
             power = min(net_power_w, self._capabilities.max_charge_power_w)
             payload: dict[str, Any] = {
-                "acMode": _AC_MODE_CHARGE, "inputLimit": power,
+                "acMode": _AC_MODE_CHARGE,
+                "inputLimit": power,
+                "outputLimit": 0,
                 "smartMode": 0 if self._offgrid_port_on else 1,
             }
             applied_net = power
         elif net_power_w < 0:
             power = min(-net_power_w, self._capabilities.max_discharge_power_w)
-            payload = {"acMode": _AC_MODE_DISCHARGE, "outputLimit": power, "smartMode": 1}
+            payload = {
+                "acMode": _AC_MODE_DISCHARGE,
+                "inputLimit": 0,
+                "outputLimit": power,
+                "smartMode": 1,
+            }
             applied_net = -power
         else:
             power = 0
-            payload = {"acMode": _AC_MODE_DISCHARGE, "outputLimit": 0, "smartMode": 1}
+            payload = {
+                "acMode": _AC_MODE_DISCHARGE,
+                "inputLimit": 0,
+                "outputLimit": 0,
+                "smartMode": 1,
+            }
             applied_net = 0
 
         ok = await self._post_write(payload)
@@ -1065,9 +1078,14 @@ class ZendureLocalDriver(BatteryDriver):
         return await self._post_write({"socSet": soc_set * 10, "smartMode": 0})
 
     async def standby(self) -> bool:
-        """Stop discharge for teardown (smartMode=1, does not persist)."""
+        """Clear charge and discharge limits for teardown (RAM-only write)."""
         return await self._post_write(
-            {"acMode": _AC_MODE_DISCHARGE, "outputLimit": 0, "smartMode": 1}
+            {
+                "acMode": _AC_MODE_DISCHARGE,
+                "inputLimit": 0,
+                "outputLimit": 0,
+                "smartMode": 1,
+            }
         )
 
     # --- internal HTTP helpers ----------------------------------------------
