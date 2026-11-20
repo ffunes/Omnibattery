@@ -45,6 +45,15 @@ Use **Re-evaluate Predictive Charging** after a material forecast or setting cha
 
 Turn off **Predictive Charging** to pause all predictive grid charging and its Dynamic Pricing subfeatures.
 
+### The predictive-charging card
+
+The card in the Omnibattery **Control** tab has one group per feature, separated by a line: the switch, its settings and its status row. The order follows the money: the base (switch, notifications, status), the solar safety margin, the guaranteed minimum SOC, the charge price, the discharge price, then the Discharge reserve status (on while the plan holds the battery for later), High-Price Sale, Surplus Price Hold and smart pre-discharge, and the re-evaluate button.
+
+- A feature's settings show only while the feature is on; the discharge price floor and its manual switch follow **Price-Based Discharge**.
+- A price threshold whose manual switch is off reads "Automatic", followed by what applies instead.
+- **Advanced** on the card header shows the fine-tuning settings; with it off, each feature keeps its switch and status.
+- Sliders for a price per kWh cover the usual range in whole cents; type a value to go beyond it.
+
 ## If it does not work
 
 | Symptom | Likely cause | What to check |

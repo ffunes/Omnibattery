@@ -943,6 +943,7 @@ class ExcludedDeviceExclusionPctNumber(NumberEntity):
 
         self._attr_has_entity_name = True
         self._attr_translation_key = "excluded_device_exclusion_pct"
+        self._device_label = friendly
         self._attr_translation_placeholders = {"device": friendly}
         self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}exclusion_pct_{index}"
         self.entity_id = system_entity_id("number", f"exclusion_pct_{index}")
@@ -961,6 +962,20 @@ class ExcludedDeviceExclusionPctNumber(NumberEntity):
 
     async def _handle_entry_update(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.async_write_ha_state()
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Panel grouping, plus whether the percentage applies at all.
+
+        Only an excluded device (the home sensor includes it) is scaled by
+        this; for an additional device it does nothing, so the panel hides it.
+        """
+        from .switch import excluded_device_attributes
+
+        attrs = excluded_device_attributes(self.entry, self._device_index, self._device_label)
+        if attrs:
+            attrs["applies"] = attrs["type"] == "excluded"
+        return attrs
 
     @property
     def native_value(self) -> float:

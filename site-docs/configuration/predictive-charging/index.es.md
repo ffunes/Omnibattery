@@ -45,6 +45,15 @@ Usa **Reevaluar carga predictiva** tras un cambio importante de previsión o aju
 
 Desactiva **Carga predictiva** para pausar toda la carga predictiva desde red y sus subfunciones de Precio dinámico.
 
+### La tarjeta de carga predictiva
+
+La tarjeta de la pestaña **Control** de Omnibattery tiene un grupo por función, separado por una línea: el interruptor, sus ajustes y su fila de estado. El orden sigue al dinero: la base (interruptor, notificaciones, estado), el margen de seguridad solar, el SOC mínimo garantizado, el precio de carga, el precio de descarga y después el estado de reserva de descarga (activo mientras el plan retiene la batería para más tarde), Venta a precio alto, Retención de excedente por precio y la predescarga inteligente, y el botón de reevaluar.
+
+- Los ajustes de una función aparecen solo mientras la función está activada; el suelo de precio de descarga y su interruptor manual siguen a **Descarga basada en precio**.
+- Un umbral de precio con su interruptor manual desactivado muestra "Automático", seguido de lo que se aplica en su lugar.
+- **Avanzado** en la cabecera de la tarjeta muestra los ajustes finos; desactivado, cada función conserva su interruptor y su estado.
+- Los controles deslizantes de un precio por kWh cubren el rango habitual en céntimos enteros; escribe un valor para ir más allá.
+
 ## Si no funciona
 
 | Síntoma | Causa probable | Qué comprobar |

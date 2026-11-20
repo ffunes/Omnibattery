@@ -20,7 +20,7 @@ Una carga completa semanal proporciona a una batería de litio-ferrofosfato (LFP
 1. Abre el panel lateral de Omnibattery y selecciona **Control**.
 2. En **Carga completa semanal**, activa **Carga completa semanal**.
 3. Elige **Día de carga completa semanal**.
-4. Si usas **Retraso de carga**, activa **Retrasar carga completa semanal** para esperar al sol; déjalo desactivado para iniciar el ciclo semanal sin ese retraso.
+4. Si usas **Retraso de carga**, activa **Retrasar carga completa semanal** para esperar al sol; déjalo desactivado para iniciar el ciclo semanal sin ese retraso. El interruptor aparece en la tarjeta solo mientras **Retraso de carga** está activado, porque si no no tiene efecto.
 
 ![Configura el día de carga completa semanal y el retraso solar](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650" style="display: block; margin: 0 auto;"}
 

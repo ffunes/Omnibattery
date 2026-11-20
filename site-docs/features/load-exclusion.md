@@ -44,6 +44,8 @@ Choose the behavior that matches your goal:
 - **Device – Cover Home** lets the battery continue covering genuine household demand while only the device's grid share remains excluded.
 - **Device – Dynamic Power Control** gives a flexible wallbox time to detect and claim changing export before the battery charges from the remainder.
 
+On the **Excluded devices** card each device has its own block, sorted by name and separated by a line: Enabled, Solar Surplus, Dynamic Power Control, Cover Home, Exclusion %. A tag shows the device type, *excluded* (included in the main meter) or *additional*. Options show only where they apply: all of them only while the device is enabled, **Dynamic Power Control** and **Cover Home** only while **Solar Surplus** is on, and **Exclusion %** only for excluded devices.
+
 A state-only EV charger pauses battery charge and discharge when charging first appears. After the pause, the battery may charge from solar surplus but remains blocked from discharging for the EV until charging ends.
 
 If the device has expected remaining demand configured, predictive charging subtracts that claim from the solar available to the battery. A presence entity releases the claim when the EV or device is absent. The [configuration page](../configuration/excluded-devices.md) contains the accepted units and presence rules.
