@@ -3835,6 +3835,19 @@ class PricingManager:
         controller._dp_plan_solar_delay = False
         controller._dp_plan_room = None
 
+    def _plan_reaches_past(self, when: datetime) -> bool:
+        """Whether the published optimizer plan decided for the time after
+        ``when``: its stored trajectory ends later."""
+        projection = getattr(self._controller, "_dp_eval_projection", None)
+        if not projection:
+            return False
+        end = projection[-1][0]
+        if not isinstance(end, datetime):
+            return False
+        if (end.tzinfo is None) != (when.tzinfo is None):
+            end = end.replace(tzinfo=when.tzinfo)
+        return end > when
+
     def _publish_plan_holds(self, plan, decision_data: Mapping[str, Any]) -> None:
         """The optimizer's holds (#888), kept apart from the schedule, which
         does not exist when nothing is charged. None: the previous allocator
@@ -7843,7 +7856,17 @@ class PricingManager:
                 self._controller._dp_arbitrage_ceiling = None
                 self._controller._dp_evening_reevaluated_date = None
                 self._controller._dp_last_eval_soc = None
-                self._clear_plan_orders()
+                if self._plan_reaches_past(midnight):
+                    # The plan in force decided these hours too: its orders
+                    # stay until the day's own evaluation (00:05), which
+                    # starts by clearing them. Dropped here, the modules
+                    # decided for those minutes (2026-11-19: a battery the
+                    # plan held until 06:30 discharged from 00:00 to 00:05, in
+                    # the night's cheapest quarter). Only the overdue
+                    # trigger's reference goes, like the other triggers'.
+                    self._controller._dp_weekly_full_at = None
+                else:
+                    self._clear_plan_orders()
                 self._controller._dp_eval_projection = None
                 self._controller._dp_last_eval_excluded_claim_kwh = None
                 self._controller._dp_excluded_demand_reeval_at = None
