@@ -5235,7 +5235,11 @@ class ChargeDischargeController:
         ) - battery_power
         self._capacity_protection_status["excluded_peak_excess"] = 0
 
-        if avg_soc < self.capacity_protection_soc_threshold:
+        # A 100% reserve means peaks only, including when the battery is full.
+        # An empty controllable pool must still leave protection inactive.
+        if avg_soc < self.capacity_protection_soc_threshold or (
+            self.capacity_protection_soc_threshold >= 100 and coordinators_with_data
+        ):
             # Estimate house consumption: grid reading minus what the battery is currently doing
             # sensor_actual = grid power (positive=import), previous_power > 0 = charging, < 0 = discharging
             # Add back excluded-device adjustment so capacity protection sees the REAL grid load
@@ -5417,7 +5421,10 @@ class ChargeDischargeController:
             sum(c.data.get("battery_soc", 0) for c in coordinators_with_data)
             / len(coordinators_with_data)
         )
-        return avg_soc < self.capacity_protection_soc_threshold
+        return (
+            self.capacity_protection_soc_threshold >= 100
+            or avg_soc < self.capacity_protection_soc_threshold
+        )
 
     def _planning_floor_soc(self, coordinator) -> float:
         """Lowest SOC that may cover normal load in an energy plan (#627).
