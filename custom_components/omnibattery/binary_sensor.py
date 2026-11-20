@@ -19,6 +19,7 @@ from .const import (
     CONF_ENABLE_PREDICTIVE_CHARGING,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
 )
+from .drivers.base import can_take_setpoint
 from .energy import effective_round_trip_efficiency
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
@@ -42,8 +43,11 @@ async def async_setup_entry(
         for definition in coordinator.binary_sensor_definitions:
             entities.append(MarstekVenusBinarySensor(coordinator, definition))
 
-        # Add charge hysteresis sensor for batteries with hysteresis enabled
-        if coordinator.enable_charge_hysteresis:
+        # Add charge hysteresis sensor for batteries with hysteresis enabled.
+        # Hysteresis holds a battery off charging after it reaches max SOC, so it
+        # describes a charge command. A battery that receives none has no
+        # hysteresis to report, whatever the stored flag says.
+        if coordinator.enable_charge_hysteresis and can_take_setpoint(coordinator):
             entities.append(ChargeHysteresisActiveSensor(coordinator))
 
     # Keep predictive diagnostics registered while the master switch is off so

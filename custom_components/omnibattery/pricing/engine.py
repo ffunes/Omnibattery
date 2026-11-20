@@ -87,7 +87,7 @@ from .energyzero import (
 )
 from ..control.max_soc_charge import MaxSocChargeManager
 from ..control.pack_soc import soc_vs_ceiling
-from ..drivers.base import has_solar_production_source
+from ..drivers.base import can_take_setpoint, has_solar_production_source
 from ..tracking.consumption_profile import adjust_remaining_fallback_energy
 from ..energy import effective_round_trip_efficiency
 from . import (
@@ -154,6 +154,19 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _counts_towards_fleet_energy(controller, coordinator) -> bool:
+    """Whether a battery's kilowatt-hours belong in the chronological plan.
+
+    Delegates to the controller so there is one definition of "the fleet this
+    integration plans for". Falls back to the shared capability helper for the
+    test doubles that stand in for the controller here.
+    """
+    helper = getattr(controller, "_counts_towards_fleet_energy", None)
+    if helper is not None:
+        return bool(helper(coordinator))
+    return can_take_setpoint(coordinator)
 
 
 @dataclass(frozen=True)
@@ -4319,7 +4332,9 @@ class PricingManager:
 
             eligible = [
                 c for c in self._controller.coordinators
-                if c.data and not self._controller._is_battery_manual_owned(c)
+                if c.data
+                and not self._controller._is_battery_manual_owned(c)
+                and _counts_towards_fleet_energy(self._controller, c)
             ]
             # The batteries hand out at most their discharge power; the grid
             # carries the rest of the house load. Without this cap an 800 W

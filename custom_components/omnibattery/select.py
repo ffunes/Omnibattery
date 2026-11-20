@@ -32,7 +32,7 @@ from .const import (
     normalize_battery_phase,
     pd_profile_from_params,
 )
-from .drivers.base import KEY_FORCE_MODE
+from .drivers.base import KEY_FORCE_MODE, is_observed
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
 from .infra.manual_control import assert_manual_control
@@ -51,12 +51,19 @@ async def async_setup_entry(
 
     # Add Modbus register selects (per battery)
     for coordinator in coordinators:
+        for definition in coordinator.select_definitions:
+            entities.append(MarstekVenusSelect(coordinator, definition))
+
+        # A battery that takes no power command is never allocated to, so the
+        # phase limiter has nothing to limit on it and there is no set-point for
+        # a software force mode to shape.
+        if is_observed(coordinator):
+            continue
+
         # Physical phase is metadata for the safety limiter, not a battery
         # register. It remains available as a live selector whenever the global
         # protection switch is on.
         entities.append(BatteryPhaseSelect(hass, entry, coordinator))
-        for definition in coordinator.select_definitions:
-            entities.append(MarstekVenusSelect(coordinator, definition))
         # Drivers without a force_mode register (Zendure) get a software force
         # mode; the controller applies it via apply_setpoint while global manual
         # mode or this battery's individual manual ownership is active.

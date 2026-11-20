@@ -195,6 +195,32 @@
           "esphome_device": "Das mit der Marstek-ESPHome-Firmware geflashte LilyGo-T-CAN485-Gerät"
         }
       },
+      "battery_connection_generic_ha": {
+        "title": "Batterie {battery_num} einrichten — Home-Assistant-Entitäten",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen. Schreibbar ist allenfalls ein Ziel-Ladezustand.",
+        "data": {
+          "name": "Name",
+          "ha_soc_entity": "Ladezustandssensor",
+          "ha_power_entity": "Batterieleistungssensor",
+          "ha_power_positive_is": "Vorzeichenkonvention der Leistung",
+          "ha_charge_energy_entities": "Zähler geladener Energie",
+          "ha_discharge_energy_entity": "Zähler entladener Energie",
+          "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_dc_coupled": "Die Batterie teilt sich einen Wechselrichter mit PV-Modulen",
+          "ha_stale_after_s": "Telemetrie gilt als verloren nach"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Omnibattery rührt ihn nur an, wenn du den automatischen Ziel-SOC einschaltest",
+          "ha_dc_coupled": "Einschalten bei einem Hybrid-Wechselrichter, bei dem PV und Batterie einen DC-Bus teilen. Prüfe, dass dein PV-Produktionssensor die DC-Seite misst, sonst wird die Ladung dieser Batterie als Hausverbrauch gezählt",
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+        }
+      },
       "battery_limits": {
         "title": "Batterie {battery_num} konfigurieren — Grenzwerte",
         "description": "Geben Sie Leistungs- und SOC-Grenzwerte für Batterie {battery_num} ein.",
@@ -699,6 +725,32 @@
           "esphome_device": "Das mit der Marstek-ESPHome-Firmware geflashte LilyGo-T-CAN485-Gerät"
         }
       },
+      "reconfigure_battery_generic_ha": {
+        "title": "Batterie {battery_num} neu konfigurieren — Home-Assistant-Entitäten",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen. Schreibbar ist allenfalls ein Ziel-Ladezustand.",
+        "data": {
+          "name": "Name",
+          "ha_soc_entity": "Ladezustandssensor",
+          "ha_power_entity": "Batterieleistungssensor",
+          "ha_power_positive_is": "Vorzeichenkonvention der Leistung",
+          "ha_charge_energy_entities": "Zähler geladener Energie",
+          "ha_discharge_energy_entity": "Zähler entladener Energie",
+          "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_dc_coupled": "Die Batterie teilt sich einen Wechselrichter mit PV-Modulen",
+          "ha_stale_after_s": "Telemetrie gilt als verloren nach"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Omnibattery rührt ihn nur an, wenn du den automatischen Ziel-SOC einschaltest",
+          "ha_dc_coupled": "Einschalten bei einem Hybrid-Wechselrichter, bei dem PV und Batterie einen DC-Bus teilen. Prüfe, dass dein PV-Produktionssensor die DC-Seite misst, sonst wird die Ladung dieser Batterie als Hausverbrauch gezählt",
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+        }
+      },
       "restore_backup": {
         "title": "Vorherige Konfiguration wiederherstellen",
         "description": "Eine gespeicherte Sicherung von {count} vorherigen Konfiguration(en) (Verbindung, Optionen und Abstimmung) wurde gefunden. Wiederherstellen, um alles ohne erneute Einrichtung zurückzubekommen? Deine Entitäten und der Verlauf werden automatisch wieder verbunden.",
@@ -778,6 +830,7 @@
       "huawei_solar_missing": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration — die ist hier aber nicht eingerichtet. Installiere sie über HACS und richte sie ein, oder aktiviere die direkten Schreibzugriffe.",
       "huawei_device_mismatch": "Das gewählte Batteriegerät gehört zu einem anderen Wechselrichter als die angegebene Modbus-Adresse. Bei kaskadierten Wechselrichtern kämen die Messwerte dann von dem einen und die Befehle beim anderen an. Prüfe Gerät und Slave-ID.",
       "esphome_entities_missing": "Dem ausgewählten ESPHome-Gerät fehlen erforderliche Entitäten: {missing}. Stelle sicher, dass es die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführt.",
+      "generic_ha_entities_missing": "Omnibattery konnte diese Entitäten nicht lesen: {missing}. Wähle Entitäten, die existieren und gerade eine Zahl melden.",
       "sensor_not_found": "Solarprognose-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
       "invalid_unit": "Solarprognose-Sensor muss 'kWh' oder 'Wh' als Einheit haben.",
       "solar_production_sensor_not_found": "Solarproduktions-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
@@ -968,6 +1021,32 @@
         "data_description": {
           "name": "Beschreibender Name zur Identifikation dieser Batterie",
           "esphome_device": "Das mit der Marstek-ESPHome-Firmware geflashte LilyGo-T-CAN485-Gerät"
+        }
+      },
+      "battery_connection_generic_ha": {
+        "title": "Batterie {battery_num} einrichten — Home-Assistant-Entitäten",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen. Schreibbar ist allenfalls ein Ziel-Ladezustand.",
+        "data": {
+          "name": "Name",
+          "ha_soc_entity": "Ladezustandssensor",
+          "ha_power_entity": "Batterieleistungssensor",
+          "ha_power_positive_is": "Vorzeichenkonvention der Leistung",
+          "ha_charge_energy_entities": "Zähler geladener Energie",
+          "ha_discharge_energy_entity": "Zähler entladener Energie",
+          "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_dc_coupled": "Die Batterie teilt sich einen Wechselrichter mit PV-Modulen",
+          "ha_stale_after_s": "Telemetrie gilt als verloren nach"
+        },
+        "data_description": {
+          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
+          "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Omnibattery rührt ihn nur an, wenn du den automatischen Ziel-SOC einschaltest",
+          "ha_dc_coupled": "Einschalten bei einem Hybrid-Wechselrichter, bei dem PV und Batterie einen DC-Bus teilen. Prüfe, dass dein PV-Produktionssensor die DC-Seite misst, sonst wird die Ladung dieser Batterie als Hausverbrauch gezählt",
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
         }
       },
       "battery_limits": {
@@ -1419,6 +1498,7 @@
       "huawei_solar_missing": "Ohne direkte Modbus-Schreibzugriffe steuert Omnibattery die Batterie über die Dienste der Huawei-Solar-Integration — die ist hier aber nicht eingerichtet. Installiere sie über HACS und richte sie ein, oder aktiviere die direkten Schreibzugriffe.",
       "huawei_device_mismatch": "Das gewählte Batteriegerät gehört zu einem anderen Wechselrichter als die angegebene Modbus-Adresse. Bei kaskadierten Wechselrichtern kämen die Messwerte dann von dem einen und die Befehle beim anderen an. Prüfe Gerät und Slave-ID.",
       "esphome_entities_missing": "Dem ausgewählten ESPHome-Gerät fehlen erforderliche Entitäten: {missing}. Stelle sicher, dass es die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführt.",
+      "generic_ha_entities_missing": "Omnibattery konnte diese Entitäten nicht lesen: {missing}. Wähle Entitäten, die existieren und gerade eine Zahl melden.",
       "sensor_not_found": "Solarprognose-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
       "invalid_unit": "Solarprognose-Sensor muss 'kWh' oder 'Wh' als Einheit haben.",
       "solar_production_sensor_not_found": "Solarproduktions-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",

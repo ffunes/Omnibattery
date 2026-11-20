@@ -55,7 +55,7 @@ from .const import (
     CONF_THREE_PHASE_ENABLED,
     NOTIFICATION_ID_PREFIX,
 )
-from .drivers.base import KEY_RS485_CONTROL_MODE
+from .drivers.base import KEY_RS485_CONTROL_MODE, can_take_setpoint
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import (
     english_entity_id,
@@ -82,7 +82,10 @@ async def async_setup_entry(
     for coordinator in coordinators:
         for definition in coordinator.switch_definitions:
             entities.append(MarstekVenusSwitch(coordinator, definition))
-        if controller:
+        # Allow charge / allow discharge / manual ownership all decide what the
+        # controller may command on this battery. There is nothing to permit or
+        # withhold on one that takes no command.
+        if controller and can_take_setpoint(coordinator):
             entities.append(BatteryAllowChargeSwitch(hass, entry, controller, coordinator))
             entities.append(BatteryAllowDischargeSwitch(hass, entry, controller, coordinator))
             entities.append(BatteryManualModeSwitch(hass, entry, controller, coordinator))
