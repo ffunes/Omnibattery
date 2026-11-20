@@ -45,6 +45,67 @@ def _non_responsive(*excluded):
     return SimpleNamespace(is_excluded=lambda coordinator: coordinator in excluded)
 
 
+@pytest.mark.parametrize("soc", [65, 99, 100])
+@pytest.mark.parametrize("grid_power,target,action", [
+    (450, 450, "conserving"),
+    (4600, 4000, "shaving"),
+    (-300, 0, "charging"),
+])
+def test_full_reserve_keeps_peak_only_operation_at_full_soc(
+    soc, grid_power, target, action,
+):
+    ctrl = _controller(previous_power=0)
+    ctrl.capacity_protection_soc_threshold = 100
+    ctrl.capacity_protection_limit = 4000
+    ctrl.coordinators = [SimpleNamespace(data={"battery_soc": soc})]
+
+    actual_target, sensor = ctrl._apply_capacity_protection(grid_power, active_target=0)
+
+    assert actual_target == target
+    assert sensor == grid_power
+    assert ctrl._capacity_protection_status["action"] == action
+    assert ctrl._is_capacity_protection_soc_limited() is True
+
+
+@pytest.mark.parametrize("unavailable_reason", [
+    "empty", "unavailable", "manual", "nonresponsive", "calibrating",
+])
+def test_full_reserve_does_not_activate_without_a_controllable_battery(
+    unavailable_reason,
+):
+    ctrl = _controller(previous_power=0)
+    ctrl.capacity_protection_soc_threshold = 100
+    battery = SimpleNamespace(data={"battery_soc": 100})
+    ctrl.coordinators = [battery]
+    if unavailable_reason == "empty":
+        ctrl.coordinators = []
+    elif unavailable_reason == "unavailable":
+        battery.is_available = False
+    elif unavailable_reason == "manual":
+        battery.battery_manual_mode_enabled = True
+    elif unavailable_reason == "nonresponsive":
+        ctrl._non_responsive = _non_responsive(battery)
+    else:
+        battery.data["soc_status"] = 1
+
+    target, _ = ctrl._apply_capacity_protection(450, active_target=0)
+
+    assert target == 0
+    assert ctrl._capacity_protection_status["active"] is False
+    assert ctrl._is_capacity_protection_soc_limited() is False
+
+
+def test_ordinary_reserve_threshold_still_releases_at_equality():
+    ctrl = _controller(previous_power=0)
+    ctrl.capacity_protection_soc_threshold = 25
+    ctrl.coordinators = [SimpleNamespace(data={"battery_soc": 25})]
+
+    target, _ = ctrl._apply_capacity_protection(450, active_target=0)
+
+    assert target == 0
+    assert ctrl._is_capacity_protection_soc_limited() is False
+
+
 @pytest.mark.parametrize("previous_power", [10.1, -500.0])
 def test_conserving_stops_any_existing_battery_command(previous_power):
     ctrl = _controller(previous_power=previous_power)
