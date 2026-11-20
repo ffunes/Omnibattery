@@ -9386,7 +9386,8 @@ class ChargeDischargeController:
         """RELAY ANTI-CHATTER (shut-off dwell).
 
         When the controller decides to send the battery back to idle, keep it
-        engaged at minimum power for at least ``_relay_cooldown_s`` seconds first, so
+        engaged at minimum power (never above the power already flowing) for at
+        least ``_relay_cooldown_s`` seconds first, so
         the relay doesn't click off the moment demand falls and back on when it
         returns. The dwell is timed from the instant idle was FIRST requested
         (``_relay_shutoff_since``), not from when the battery engaged, so it always
@@ -9442,15 +9443,30 @@ class ChargeDischargeController:
             self._relay_shutoff_since = None
             return new_power
 
-        if self.previous_power > 0:
-            held_power = self.min_charge_power or RELAY_COOLDOWN_HOLD_POWER
-        else:
-            held_power = -(self.min_discharge_power or RELAY_COOLDOWN_HOLD_POWER)
+        # Select the minimum power required to hold the current direction.
+        requested_hold_w = (
+            self.min_charge_power
+            if self.previous_power > 0
+            else self.min_discharge_power
+        ) or RELAY_COOLDOWN_HOLD_POWER
+
+        # Never hold above the power already flowing.
+        capped_hold_w = min(requested_hold_w, abs(self.previous_power))
+
+        # Preserve the direction of the previous power flow.
+        held_power = capped_hold_w if self.previous_power > 0 else -capped_hold_w
+
         _LOGGER.debug(
-            "Relay cooldown: holding %s engaged at %.0fW (%.0fs/%.0fs elapsed)",
+            "Relay cooldown: holding %s engaged at %.0fW "
+            "(previous=%.0fW, requested=%.0fW, elapsed=%.0f/%.0fs)",
             "charge" if held_power > 0 else "discharge",
-            abs(held_power), held_s, self._relay_cooldown_s,
+            abs(held_power),
+            self.previous_power,
+            requested_hold_w,
+            held_s,
+            self._relay_cooldown_s,
         )
+
         return held_power
 
     def _apply_zero_cross_hold(self, new_power, error, stale_recalc=False):

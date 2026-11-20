@@ -35,6 +35,7 @@
 
 ### Fixed
 
+- **Relay cooldown no longer loops on a small leftover load** (#909): at the end of a charge the hold raised a 15 W flow to the 100 W minimum, which restarted the cooldown and kept charging from the grid for hours; it now holds at most the power already flowing. Thanks to @jvanschie
 - **Dashboard: the Daily Operation chart is redrawn only when it changes**: the Summary tab rebuilt the whole chart on every state change in Home Assistant (about once a second), which could freeze the browser tab, mostly on phones. It now redraws when the timeline itself updates (once a minute).
 - **Zendure: grid charging works with a load on the off-grid port** (#882): with the port in normal or economy mode, the firmware ignored the charge command and only fed the off-grid load. Charges are now sent in manual mode while the port is on (the device may save them to flash), and the panel explains it next to Off-grid mode. Thanks to @gew55
 - **Anker: two combined units can use up to 7000 W** (#646): the driver capped every Anker at 3500 W; you can now raise Max charge/discharge power up to 7000 W. The default stays 3500 W, and a 7000 W reading from a single unit no longer raises it.
