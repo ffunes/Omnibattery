@@ -23,6 +23,7 @@ def _setup(predictive=False, consumption_kwh=1.0):
         predictive_charging_enabled=predictive,
         weekly_full_charge_day="sun",
         _weekly_charge_status={"state": "Charging to 100%"},
+        _solar_t_start=8.0,
         _charge_delay_mgr=SimpleNamespace(
             _excluded_claim_kwh=lambda _kwh: 0.0,
             _profile_forecast_between=lambda _a, _b: SimpleNamespace(energy_kwh=consumption_kwh),
@@ -155,3 +156,64 @@ def test_sensor_publishes_the_verdict():
     assert attrs["solar_sufficient"] is False
     assert attrs["energy_needed_kwh"] == 2.0
     assert attrs["net_solar_kwh"] == 1.5
+
+
+def _real_tracker(ctrl, latitude=50.0):
+    """The real tracker's solar timing, on a fixed day and place."""
+    from custom_components.omnibattery.tracking.consumption_tracker import (
+        ConsumptionTracker,
+    )
+
+    tracker = ConsumptionTracker.__new__(ConsumptionTracker)
+    tracker._controller = ctrl
+    tracker._hass = SimpleNamespace(
+        config=SimpleNamespace(latitude=latitude, longitude=10.0, time_zone="Europe/Berlin")
+    )
+    tracker._solar_noon_cache = {}
+    ctrl.coordinators = []
+    ctrl._consumption_tracker = tracker
+    return tracker
+
+
+def _run_with_real_tracker(manager, solar_kwh, now):
+    with patch(
+        "custom_components.omnibattery.tracking.consumption_tracker.local_now",
+        return_value=now,
+    ):
+        return _run(manager, solar_kwh, now=now)
+
+
+def test_no_solar_start_yet_uses_the_sunrise():
+    """Before the solar start is detected (all day with Charge Delay off) it must not raise."""
+    manager, ctrl = _setup()
+    ctrl._solar_t_start = None
+    tracker = _real_tracker(ctrl)
+    windows = []
+    ctrl._charge_delay_mgr._profile_forecast_between = lambda start_h, end_h: (
+        windows.append((start_h, end_h)) or SimpleNamespace(energy_kwh=1.0)
+    )
+    now = datetime(2026, 11, 15, 0, 10)
+    sunset_h = 2 * tracker.calculate_solar_noon(now.date()) - tracker.calculate_sunrise(now.date())
+
+    _run_with_real_tracker(manager, 2.5, now)
+
+    assert ctrl._weekly_charge_status["solar_sufficient"] is False
+    assert ctrl._weekly_charge_status["net_solar_kwh"] == 1.5
+    assert windows == [(pytest.approx(10 / 60), pytest.approx(sunset_h))]
+    assert 16.0 < sunset_h < 17.0  # mid-November at 50° N
+
+
+def test_no_solar_start_and_no_sunrise_waits_without_caching():
+    """Polar night / no location: no verdict, and the same forecast is read again later."""
+    manager, ctrl = _setup()
+    ctrl._solar_t_start = None
+    _real_tracker(ctrl, latitude=None)
+
+    notify = _run_with_real_tracker(manager, 2.5, _NOON)
+
+    assert "solar_sufficient" not in ctrl._weekly_charge_status
+    notify.async_create.assert_not_called()
+
+    ctrl._solar_t_start = 8.0  # detected in the meantime
+    _run_with_real_tracker(manager, 2.5, _NOON)
+    assert ctrl._weekly_charge_status["solar_sufficient"] is False
