@@ -281,6 +281,8 @@ class DynamicPricingEvaluationHorizon(Enum):
 # Points of fleet SOC below the plan's projected line that re-plan (step 10,
 # measured: 3 recovers 87 % of what a consumption-deviation rule did, 5 less).
 SOC_DROP_BELOW_PROJECTION = 3.0
+# The same points above the line re-plan too, once the plan is this old.
+SOC_RISE_MIN_PLAN_AGE = timedelta(hours=1)
 # After the plan's own completion time, how long a pending weekly full charge
 # waits for the manager to see 100 % before the plan is rebuilt: its cutoff
 # check takes seconds, and every minute after the slot the battery covers the
@@ -6516,12 +6518,13 @@ class PricingManager:
         return True
 
     def _is_dp_soc_drop_reeval(self) -> bool:
-        """Return True when live SOC has fallen below what the plan projected.
+        """Return True when live SOC has left the line the plan projected.
 
         The chronological plan already projects the evening/night discharge, so
-        only a deviation below that line re-plans (a battery that reaches the
-        floor earlier than projected, or a projected charge that did not happen,
-        is one). Without a projection it falls back to the #411 rule: a drop of
+        only a deviation from that line re-plans: below it (a battery that
+        reaches the floor earlier than projected, or a projected charge that did
+        not happen) or above it (a lighter house than the profile). Without a
+        projection it falls back to the #411 rule, downward only: a drop of
         ``SOC_REEVALUATION_THRESHOLD`` (5 points with a chronological plan)
         below ``_dp_last_eval_soc``. ``None`` reference never triggers.
         """
@@ -6554,13 +6557,32 @@ class PricingManager:
             nxt = next((when for when, _v in projection if when >= now), None)
             end = quarter_end if nxt is None else min(nxt, quarter_end)
             at_point = next((value for when, value in projection if when == end), None)
-            projected = min(
-                projected,
+            capacity = self._controller._dp_eval_projection_capacity_kwh
+            at_end = (
                 self.projected_soc_now(end) if at_point is None
-                else self._controller._dp_last_eval_soc
-                + at_point / self._controller._dp_eval_projection_capacity_kwh * 100.0,
+                else ref + at_point / capacity * 100.0
             )
-            return projected - current >= SOC_DROP_BELOW_PROJECTION
+            if min(projected, at_end) - current >= SOC_DROP_BELOW_PROJECTION:
+                return True
+            # Above the line: the plan spends energy it does not know about
+            # (2026-11-20: it drew the battery empty at 15 % at 22:45 and left
+            # the rest to the grid). Only an optimizer plan, whose rows carry
+            # the sun its safety margin took off: a sunny day beats the
+            # margined line by design. Never mid-slot (a re-plan can cut a
+            # running charge), and one per plan hour so a battery that cannot
+            # follow the plan (held, excluded) re-plans at most hourly.
+            rows = getattr(self._controller, "_dp_eval_rows", None)
+            if (
+                not rows
+                or getattr(self._controller, "_current_price_slot_active", False)
+                or now - projection[0][0] < SOC_RISE_MIN_PLAN_AGE
+            ):
+                return False
+            # ponytail: plain mean SOC against a fleet-energy line, as the
+            # downward check; a mixed-size fleet can drift off it on its own.
+            margin_sun = sum(row[5] for row in rows if row[1] <= end)
+            high = max(projected, at_end) + margin_sun / capacity * 100.0
+            return current - high >= SOC_DROP_BELOW_PROJECTION
         schedule = getattr(self._controller, "_dynamic_pricing_schedule", None)
         threshold = (
             5.0
@@ -7902,13 +7924,13 @@ class PricingManager:
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
             )
 
-        # Phase 2.61: Re-plan when live SOC has fallen far below the level the
-        # last balance assumed (#411). A full remaining-horizon rebuild, not the
+        # Phase 2.61: Re-plan when live SOC has left the level the last balance
+        # assumed, below it (#411) or above it. A full remaining-horizon rebuild, not the
         # evening top-up: the rebuild can withdraw obsolete slots as well as add
         # deadline-aware energy, which avoids the stale-plan failure from #472.
         # The rebuild refreshes _dp_last_eval_soc itself.
         elif self._is_dp_soc_drop_reeval():
-            _LOGGER.info("Dynamic pricing: SOC fell below the evaluated level — re-evaluating")
+            _LOGGER.info("Dynamic pricing: SOC left the plan's projected line — re-evaluating")
             await self._evaluate_dynamic_pricing(
                 horizon=DynamicPricingEvaluationHorizon.REMAINING,
             )

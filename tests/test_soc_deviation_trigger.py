@@ -1,7 +1,7 @@
 """The Dynamic Pricing SOC-drop trigger compares against the plan's projection.
 
 The chronological plan already projects the overnight discharge; only a SOC
-below that projected line (a deviation) re-plans.
+away from that projected line (a deviation, below or above) re-plans.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def _coord(soc, kwh=10.0):
     return SimpleNamespace(data={"battery_soc": soc, "battery_total_energy": kwh})
 
 
-def _trigger(*, ref, soc, now, projection=None, chronological=True):
+def _trigger(*, ref, soc, now, projection=None, chronological=True, **extra):
     ctrl = _controller(
         _dp_last_eval_soc=ref,
         _dp_eval_projection=projection,
@@ -33,6 +33,7 @@ def _trigger(*, ref, soc, now, projection=None, chronological=True):
             chronological_planning_active=chronological
         ),
         coordinators=[_coord(soc)],
+        **extra,
     )
     manager = _mgr(ctrl)
     manager._now = lambda: now
@@ -108,3 +109,44 @@ def test_reaching_the_quarter_s_planned_level_early_does_not_replan():
     # already at 10 % mid-quarter: on the plan, just early.
     projection = ((_at(20), 0.0), (_at(20, 15), -0.6), (_at(20, 30), -0.6))
     assert not _trigger(ref=16.0, soc=10.0, now=_at(20, 7), projection=projection)
+
+
+# Above the line: an optimizer plan (its rows) that has spent less than planned.
+_ROWS = ((_at(20), _at(23), 0.0, 0.0, -9.0, 0.0),)
+
+
+def test_four_points_above_the_projected_line_replans_two_do_not():
+    assert _trigger(ref=100.0, soc=74.0, now=_at(21), projection=_DISCHARGE, _dp_eval_rows=_ROWS)
+    assert not _trigger(ref=100.0, soc=72.0, now=_at(21), projection=_DISCHARGE, _dp_eval_rows=_ROWS)
+
+
+def test_above_the_line_without_optimizer_rows_does_not_replan():
+    assert not _trigger(ref=100.0, soc=90.0, now=_at(21), projection=_DISCHARGE)
+
+
+def test_the_sun_the_safety_margin_took_off_does_not_replan():
+    # The margin took 0.5 kWh (5 points) of sun before 21:00: 74 % is on the
+    # plan once that sun is back.
+    rows = ((_at(20), _at(20, 30), 0.0, 0.0, -1.5, 0.5),) + _ROWS
+    assert not _trigger(ref=100.0, soc=74.0, now=_at(21), projection=_DISCHARGE, _dp_eval_rows=rows)
+
+
+def test_above_the_line_during_a_charge_slot_does_not_replan():
+    assert not _trigger(
+        ref=100.0, soc=80.0, now=_at(21), projection=_DISCHARGE,
+        _dp_eval_rows=_ROWS, _current_price_slot_active=True,
+    )
+
+
+def test_above_the_line_within_the_plan_s_first_hour_does_not_replan():
+    # 20:30: line at 85 %; the plan is half an hour old.
+    assert not _trigger(ref=100.0, soc=95.0, now=_at(20, 30), projection=_DISCHARGE, _dp_eval_rows=_ROWS)
+
+
+def test_a_planned_charge_reached_early_in_its_quarter_does_not_replan():
+    # The quarter charges 50 % -> 56 %; at 12:07 the battery is at 58 %:
+    # 2 points over the quarter's end, 5 over the line now.
+    projection = ((_at(10), 0.0), (_at(12), 0.0), (_at(12, 15), 0.6))
+    rows = ((_at(12), _at(12, 15), 0.0, 0.0, 0.6, 0.0),)
+    assert not _trigger(ref=50.0, soc=58.0, now=_at(12, 7), projection=projection, _dp_eval_rows=rows)
+    assert _trigger(ref=50.0, soc=60.0, now=_at(12, 7), projection=projection, _dp_eval_rows=rows)
