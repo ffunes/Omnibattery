@@ -124,7 +124,7 @@ const I18N = {
     secPhaseProtection: "Three-phase protection", threePhaseProtection: "Three-phase current protection",
     secManual: "Manual mode", secOffgridMeter: "Off-grid meter mode", secVacation: "Vacation mode", itemEnable: "Enable",
     secTempLimit: "Temperature charge limit", itemTempLimitC: "Temperature limit", itemTempLimitBand: "Ramp band", itemTempLimitFloor: "Minimum charge power", itemTempApplyDischarge: "Also throttle discharge",
-    itemMaxContracted: "Maximum grid import", itemGridImportWindow: "Grid Import 15-min Window", grpSolar: "Solar forecast", grpChargePrice: "Charge price", itemSolarSafety: "Solar safety margin", itemMinSocFloorEnable: "Guaranteed minimum SOC", itemMinSocFloor: "Minimum SOC",
+    itemMaxContracted: "Maximum grid import", itemGridImportWindow: "Grid Import 15-min Window", grpPlanning: "Planning", grpPriceTrade: "Price-based charge & discharge", grpGridSale: "Grid sale", itemSolarSafety: "Solar safety margin", itemMinSocFloorEnable: "Guaranteed minimum SOC", itemMinSocFloor: "Minimum SOC",
     itemSocThreshold: "SOC threshold", itemExcludedPeakShaving: "Peak shaving for excluded devices",
     itemArbitrageMargin: "Min. arbitrage margin", itemRoundTripEfficiency: "Round-trip efficiency", itemMaxPrice: "Charge price ceiling", itemDischargePrice: "Discharge price floor", itemMaxPriceManual: "Manual charge price ceiling", valAutoCharge: "Automatic · cheapest hours", valAutoDischarge: "Automatic · charge ceiling or today's average", itemDischargePriceManual: "Manual discharge price floor", itemPriceDischarge: "Discharge only above price", itemReevaluatePrices: "Re-evaluate now", itemNegativePriceCharging: "Charge at negative prices", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Smart pre-discharge", itemNegativeThreshold: "Negative feed-in price threshold", itemPredischargeReserve: "Pre-discharge: lowest SOC", itemSurplusHoldSaving: "Surplus hold min. saving",
     itemDelaySafety: "Safety margin", itemDelaySoc: "Delay target SOC", itemDelaySocEnable: "Delay target SOC enabled", itemDelayDeadband: "Balance deadband",
@@ -215,7 +215,7 @@ const I18N = {
     secPhaseProtection: "Protección trifásica", threePhaseProtection: "Protección de corriente trifásica",
     secManual: "Modo manual", secOffgridMeter: "Modo de medidor off-grid", secVacation: "Modo vacaciones", itemEnable: "Activar",
     secTempLimit: "Límite de carga por temperatura", itemTempLimitC: "Límite de temperatura", itemTempLimitBand: "Banda de reducción", itemTempLimitFloor: "Potencia de carga mínima", itemTempApplyDischarge: "Reducir también la descarga",
-    itemMaxContracted: "Máximo de importación de red", itemGridImportWindow: "Ventana de 15 min de Importación de Red", grpSolar: "Previsión solar", grpChargePrice: "Precio de carga", itemSolarSafety: "Margen de seguridad solar", itemMinSocFloorEnable: "SOC mínimo garantizado", itemMinSocFloor: "SOC mínimo",
+    itemMaxContracted: "Máximo de importación de red", itemGridImportWindow: "Ventana de 15 min de Importación de Red", grpPlanning: "Planificación", grpPriceTrade: "Carga y descarga según el precio", grpGridSale: "Venta a la red", itemSolarSafety: "Margen de seguridad solar", itemMinSocFloorEnable: "SOC mínimo garantizado", itemMinSocFloor: "SOC mínimo",
     itemSocThreshold: "Umbral de SOC", itemExcludedPeakShaving: "Reducción de picos para dispositivos excluidos",
     itemArbitrageMargin: "Margen mínimo de arbitraje", itemRoundTripEfficiency: "Eficiencia de ciclo completo", itemMaxPrice: "Techo de precio de carga", itemDischargePrice: "Suelo de precio de descarga", itemMaxPriceManual: "Techo de precio de carga manual", valAutoCharge: "Automático · horas más baratas", valAutoDischarge: "Automático · techo de carga o media de hoy", itemDischargePriceManual: "Suelo de precio de descarga manual", itemPriceDischarge: "Descargar solo si precio alto", itemReevaluatePrices: "Reevaluar ahora", itemNegativePriceCharging: "Cargar con precios negativos", itemPredictiveNotifications: "Notificaciones", itemSmartPredischarge: "Predescarga inteligente", itemNegativeThreshold: "Umbral de precio de inyección negativo", itemPredischargeReserve: "Predescarga: SOC más bajo", itemSurplusHoldSaving: "Ahorro mínimo para retener excedente",
     itemDelaySafety: "Margen de seguridad", itemDelaySoc: "SOC objetivo de retardo", itemDelaySocEnable: "SOC objetivo de retardo activo", itemDelayDeadband: "Banda muerta de balance",
@@ -302,7 +302,7 @@ const I18N = {
     bcVoltageTaper: "Reducció càrrega 100%", bcActiveBalance: "Balanç actiu",
     secManual: "Mode manual", secOffgridMeter: "Mode de mesurador off-grid", secVacation: "Mode vacances", itemEnable: "Activar",
     secTempLimit: "Límit de càrrega per temperatura", itemTempLimitC: "Límit de temperatura", itemTempLimitBand: "Banda de reducció", itemTempLimitFloor: "Potència de càrrega mínima", itemTempApplyDischarge: "Redueix també la descàrrega",
-    itemMaxContracted: "Màxim d'importació de xarxa", itemGridImportWindow: "Finestra de 15 min d'Importació de Xarxa", grpSolar: "Previsió solar", grpChargePrice: "Preu de càrrega", itemSolarSafety: "Marge de seguretat solar", itemMinSocFloorEnable: "SOC mínim garantit", itemMinSocFloor: "SOC mínim",
+    itemMaxContracted: "Màxim d'importació de xarxa", itemGridImportWindow: "Finestra de 15 min d'Importació de Xarxa", grpPlanning: "Planificació", grpPriceTrade: "Càrrega i descàrrega segons el preu", grpGridSale: "Venda a la xarxa", itemSolarSafety: "Marge de seguretat solar", itemMinSocFloorEnable: "SOC mínim garantit", itemMinSocFloor: "SOC mínim",
     itemSocThreshold: "Llindar de SOC", itemExcludedPeakShaving: "Reducció de pics per a dispositius exclosos",
     itemArbitrageMargin: "Marge mínim d'arbitratge", itemRoundTripEfficiency: "Eficiència de cicle complet", itemMaxPrice: "Sostre de preu de càrrega", itemDischargePrice: "Terra de preu de descàrrega", itemMaxPriceManual: "Sostre de preu de càrrega manual", valAutoCharge: "Automàtic · hores més barates", valAutoDischarge: "Automàtic · sostre de càrrega o mitjana d'avui", itemDischargePriceManual: "Terra de preu de descàrrega manual", itemPriceDischarge: "Descarregar només si preu alt", itemReevaluatePrices: "Reavaluar ara", itemNegativePriceCharging: "Carregar amb preus negatius", itemPredictiveNotifications: "Notificacions", itemSmartPredischarge: "Predescàrrega intel·ligent", itemNegativeThreshold: "Llindar de preu d'injecció negatiu", itemPredischargeReserve: "Predescàrrega: SOC més baix", itemSurplusHoldSaving: "Estalvi mínim per retenir excedent",
     itemDelaySafety: "Marge de seguretat", itemDelaySoc: "SOC objectiu de retard", itemDelaySocEnable: "SOC objectiu de retard actiu", itemDelayDeadband: "Banda morta de balanç",
@@ -389,7 +389,7 @@ const I18N = {
     bcVoltageTaper: "100%-Ladungsreduktion", bcActiveBalance: "Aktiver Zellabgleich",
     secManual: "Manueller Modus", secOffgridMeter: "Off-Grid-Zählermodus", secVacation: "Urlaubsmodus", itemEnable: "Aktivieren",
     secTempLimit: "Temperaturbasierte Ladebegrenzung", itemTempLimitC: "Temperaturgrenze", itemTempLimitBand: "Drosselbereich", itemTempLimitFloor: "Minimale Ladeleistung", itemTempApplyDischarge: "Auch Entladung drosseln",
-    itemMaxContracted: "Maximaler Netzbezug", itemGridImportWindow: "15-Minuten-Fenster Netzbezug", grpSolar: "Solarprognose", grpChargePrice: "Ladepreis", itemSolarSafety: "Sicherheitspuffer Solar", itemMinSocFloorEnable: "Garantierter Mindest-SOC", itemMinSocFloor: "Mindest-SOC",
+    itemMaxContracted: "Maximaler Netzbezug", itemGridImportWindow: "15-Minuten-Fenster Netzbezug", grpPlanning: "Planung", grpPriceTrade: "Preisbasiertes Laden und Entladen", grpGridSale: "Verkauf ins Netz", itemSolarSafety: "Sicherheitspuffer Solar", itemMinSocFloorEnable: "Garantierter Mindest-SOC", itemMinSocFloor: "Mindest-SOC",
     itemSocThreshold: "SOC-Schwelle", itemExcludedPeakShaving: "Spitzenlastkappung für ausgeschlossene Geräte",
     itemArbitrageMargin: "Min. Arbitragemarge", itemRoundTripEfficiency: "Round-Trip-Wirkungsgrad", itemMaxPrice: "Lade-Preisobergrenze", itemDischargePrice: "Entlade-Preisuntergrenze", itemMaxPriceManual: "Manuelle Lade-Preisobergrenze", valAutoCharge: "Automatisch · günstigste Stunden", valAutoDischarge: "Automatisch · Lade-Obergrenze oder Tagesmittel", itemDischargePriceManual: "Manuelle Entlade-Preisuntergrenze", itemPriceDischarge: "Nur über Preis entladen", itemReevaluatePrices: "Jetzt neu bewerten", itemNegativePriceCharging: "Bei negativen Preisen laden", itemPredictiveNotifications: "Benachrichtigungen", itemSmartPredischarge: "Intelligente Vorentladung", itemNegativeThreshold: "Schwelle negativer Einspeisepreis", itemPredischargeReserve: "Vorentladung: niedrigster SOC", itemSurplusHoldSaving: "Min. Ersparnis für Überschussbremse",
     itemDelaySafety: "Sicherheitspuffer", itemDelaySoc: "Verzögerungs-Ziel-SOC", itemDelaySocEnable: "Verzögerungs-Ziel-SOC aktiv", itemDelayDeadband: "Bilanz-Totband",
@@ -476,7 +476,7 @@ const I18N = {
     bcVoltageTaper: "Réduction charge 100%", bcActiveBalance: "Équilibrage actif",
     secManual: "Mode manuel", secOffgridMeter: "Mode compteur hors réseau", secVacation: "Mode vacances", itemEnable: "Activer",
     secTempLimit: "Limite de charge par température", itemTempLimitC: "Limite de température", itemTempLimitBand: "Plage de réduction", itemTempLimitFloor: "Puissance de charge minimale", itemTempApplyDischarge: "Réduire aussi la décharge",
-    itemMaxContracted: "Import réseau maximal", itemGridImportWindow: "Fenêtre de 15 min d'Import Réseau", grpSolar: "Prévision solaire", grpChargePrice: "Prix de charge", itemSolarSafety: "Marge de sécurité solaire", itemMinSocFloorEnable: "SOC minimum garanti", itemMinSocFloor: "SOC minimum",
+    itemMaxContracted: "Import réseau maximal", itemGridImportWindow: "Fenêtre de 15 min d'Import Réseau", grpPlanning: "Planification", grpPriceTrade: "Charge et décharge selon le prix", grpGridSale: "Vente au réseau", itemSolarSafety: "Marge de sécurité solaire", itemMinSocFloorEnable: "SOC minimum garanti", itemMinSocFloor: "SOC minimum",
     itemSocThreshold: "Seuil SOC", itemExcludedPeakShaving: "Écrêtement des pointes pour appareils exclus",
     itemArbitrageMargin: "Marge d'arbitrage min.", itemRoundTripEfficiency: "Rendement aller-retour", itemMaxPrice: "Plafond de prix de charge", itemDischargePrice: "Plancher de prix de décharge", itemMaxPriceManual: "Plafond de prix de charge manuel", valAutoCharge: "Automatique · heures les moins chères", valAutoDischarge: "Automatique · plafond de charge ou moyenne du jour", itemDischargePriceManual: "Plancher de prix de décharge manuel", itemPriceDischarge: "Décharger si prix élevé", itemReevaluatePrices: "Réévaluer maintenant", itemNegativePriceCharging: "Charger aux prix négatifs", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Pré-décharge intelligente", itemNegativeThreshold: "Seuil de prix d'injection négatif", itemPredischargeReserve: "Pré-décharge : SOC le plus bas", itemSurplusHoldSaving: "Économie min. pour retenir le surplus",
     itemDelaySafety: "Marge de sécurité", itemDelaySoc: "SOC cible du délai", itemDelaySocEnable: "SOC cible du délai actif", itemDelayDeadband: "Bande morte de bilan",
@@ -563,7 +563,7 @@ const I18N = {
     bcVoltageTaper: "100%-laadbegrenzing", bcActiveBalance: "Actieve celbalans",
     secManual: "Handmatige modus", secOffgridMeter: "Off-grid metermodus", secVacation: "Vakantiemodus", itemEnable: "Inschakelen",
     secTempLimit: "Temperatuurbegrenzing laden", itemTempLimitC: "Temperatuurlimiet", itemTempLimitBand: "Afbouwband", itemTempLimitFloor: "Minimaal laadvermogen", itemTempApplyDischarge: "Ook ontladen terugregelen",
-    itemMaxContracted: "Maximale netafname", itemGridImportWindow: "15-minutenvenster Netafname", grpSolar: "Zonneprognose", grpChargePrice: "Laadprijs", itemSolarSafety: "Veiligheidsmarge zon", itemMinSocFloorEnable: "Gegarandeerde min. SOC", itemMinSocFloor: "Min. SOC",
+    itemMaxContracted: "Maximale netafname", itemGridImportWindow: "15-minutenvenster Netafname", grpPlanning: "Planning", grpPriceTrade: "Laden en ontladen op prijs", grpGridSale: "Verkoop aan het net", itemSolarSafety: "Veiligheidsmarge zon", itemMinSocFloorEnable: "Gegarandeerde min. SOC", itemMinSocFloor: "Min. SOC",
     itemSocThreshold: "SOC-drempel", itemExcludedPeakShaving: "Piekbegrenzing voor uitgesloten apparaten",
     itemArbitrageMargin: "Min. arbitragemarge", itemRoundTripEfficiency: "Retourrendement", itemMaxPrice: "Laadprijsplafond", itemDischargePrice: "Ontlaadprijsondergrens", itemMaxPriceManual: "Handmatig laadprijsplafond", valAutoCharge: "Automatisch · goedkoopste uren", valAutoDischarge: "Automatisch · laadplafond of daggemiddelde", itemDischargePriceManual: "Handmatige ontlaadprijsondergrens", itemPriceDischarge: "Alleen ontladen bij hoge prijs", itemReevaluatePrices: "Nu herberekenen", itemNegativePriceCharging: "Laden bij negatieve prijzen", itemPredictiveNotifications: "Meldingen", itemSmartPredischarge: "Slim voorontladen", itemNegativeThreshold: "Drempel negatieve terugleverprijs", itemPredischargeReserve: "Voorontladen: laagste SOC", itemSurplusHoldSaving: "Min. besparing voor prijsrem",
     itemDelaySafety: "Veiligheidsmarge", itemDelaySoc: "Doel-SOC vertraging", itemDelaySocEnable: "Doel-SOC vertraging actief", itemDelayDeadband: "Balans dode band",
@@ -1171,9 +1171,15 @@ const SYS_SECTIONS = [
   {
     tk: "diagPredictive",
     icon: "mdi:brain",
-    // A group without a switch that turns it on or off gets a heading; the
-    // others start with that switch, marked `lead` (bold label).
-    grpTitles: { solar: "grpSolar", chargePrice: "grpChargePrice" },
+    // Three headings by intent. Every group names its heading, which is drawn
+    // once, above the first of its groups that has a row; so it still shows on
+    // an install without that group's entities (High-price sale is optional).
+    // A group's own switch is marked `lead` (bold label).
+    grpTitles: {
+      solar: "grpPlanning", floor: "grpPlanning",
+      chargePrice: "grpPriceTrade", dischargePrice: "grpPriceTrade", reserve: "grpPriceTrade",
+      highPrice: "grpGridSale", surplus: "grpGridSale", predischarge: "grpGridSale",
+    },
     items: [
       // One `grp` per feature (its switch, its settings, its status row); a
       // divider is drawn whenever it changes between two live rows. A feature's
@@ -6915,6 +6921,7 @@ class MarstekVenusPanel extends HTMLElement {
       // It's gated like a normal row, and marked `adv` when every live row of the
       // group it opens is advanced, so it can't linger alone with Advanced off.
       let lastGrp = null;
+      let lastTitle = null;
       // `dep: "<switch key>"` hides a row while that switch in the same card is
       // OFF (e.g. a threshold behind its manual switch), and while any switch the
       // parent row itself depends on is OFF, so a chain (discharge floor ->
@@ -6935,14 +6942,17 @@ class MarstekVenusPanel extends HTMLElement {
           gatedNodes.push(sep);
         }
         const title = g && g !== lastGrp && sec.grpTitles && sec.grpTitles[g];
-        if (title) {
+        if (title && title !== lastTitle) {
           const h = document.createElement("div");
           h.className = "sys-grp-title";
           h.textContent = this._t(title);
-          if (allAdv()) h.classList.add("adv-row");
+          // hidden with Advanced off only when every row under it is advanced
+          const under = rows.filter((x) => sec.grpTitles[x.grp ?? x.item.grp] === title);
+          if (under.every((x) => x.item.adv)) h.classList.add("adv-row");
           grid.appendChild(h);
           gatedNodes.push(h);
         }
+        if (title) lastTitle = title;
         if (g) lastGrp = g;
         const frag = this._buildSysControl(r.item, r.id, store, r.multi);
         const nodes = [...frag.childNodes];

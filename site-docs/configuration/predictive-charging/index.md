@@ -47,7 +47,13 @@ Turn off **Predictive Charging** to pause all predictive grid charging and its D
 
 ### The predictive-charging card
 
-The card in the Omnibattery **Control** tab has one group per feature, separated by a line: the switch, its settings and its status row. The order follows the money: the base (switch, notifications, status), the solar safety margin, the guaranteed minimum SOC, the charge price, the discharge price, then the Discharge reserve status (on while the plan holds the battery for later), High-Price Sale, Surplus Price Hold and smart pre-discharge, and the re-evaluate button.
+The card in the Omnibattery **Control** tab starts with the base rows (switch, notifications, status) and then has three headings:
+
+- **Planning**: the solar safety margin and the guaranteed minimum SOC.
+- **Price-based charge & discharge**: the charge price ceiling, the arbitrage margin, the round-trip efficiency, charging at negative prices, **Price-Based Discharge** with its floor, and the Discharge reserve status (on while the plan holds the battery for later).
+- **Grid sale**: High-Price Sale, Surplus Price Hold and smart pre-discharge.
+
+Under a heading each feature is one group, separated by a line: its switch, its settings and its status row. The re-evaluate button closes the card.
 
 - A feature's settings show only while the feature is on; the discharge price floor and its manual switch follow **Price-Based Discharge**.
 - A price threshold whose manual switch is off reads "Automatic", followed by what applies instead.

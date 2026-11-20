@@ -47,7 +47,13 @@ Desactiva **Carga predictiva** para pausar toda la carga predictiva desde red y 
 
 ### La tarjeta de carga predictiva
 
-La tarjeta de la pestaña **Control** de Omnibattery tiene un grupo por función, separado por una línea: el interruptor, sus ajustes y su fila de estado. El orden sigue al dinero: la base (interruptor, notificaciones, estado), el margen de seguridad solar, el SOC mínimo garantizado, el precio de carga, el precio de descarga y después el estado de reserva de descarga (activo mientras el plan retiene la batería para más tarde), Venta a precio alto, Retención de excedente por precio y la predescarga inteligente, y el botón de reevaluar.
+La tarjeta de la pestaña **Control** de Omnibattery empieza con las filas base (interruptor, notificaciones, estado) y después tiene tres encabezados:
+
+- **Planificación**: el margen de seguridad solar y el SOC mínimo garantizado.
+- **Carga y descarga según el precio**: el techo de precio de carga, el margen de arbitraje, la eficiencia de ciclo completo, la carga con precios negativos, **Descarga basada en precio** con su suelo, y el estado de reserva de descarga (activo mientras el plan retiene la batería para más tarde).
+- **Venta a la red**: Venta a precio alto, Retención de excedente por precio y la predescarga inteligente.
+
+Bajo cada encabezado, cada función es un grupo, separado por una línea: su interruptor, sus ajustes y su fila de estado. El botón de reevaluar cierra la tarjeta.
 
 - Los ajustes de una función aparecen solo mientras la función está activada; el suelo de precio de descarga y su interruptor manual siguen a **Descarga basada en precio**.
 - Un umbral de precio con su interruptor manual desactivado muestra "Automático", seguido de lo que se aplica en su lugar.

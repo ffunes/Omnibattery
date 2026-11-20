@@ -208,7 +208,7 @@ def test_predictive_and_weekly_cards_show_their_status():
 
 
 # Groups whose first row turns the whole group on or off (bold label), and the
-# groups without such a switch, which get a heading instead.
+# three headings by intent, each over the groups that name it.
 LEADS = {
     "base": "predictive_charging",
     "floor": "min_soc_floor_enabled",
@@ -217,7 +217,11 @@ LEADS = {
     "surplus": "surplus_price_hold",
     "predischarge": "smart_predischarge",
 }
-TITLES = {"solar": "grpSolar", "chargePrice": "grpChargePrice"}
+TITLES = {
+    "solar": "grpPlanning", "floor": "grpPlanning",
+    "chargePrice": "grpPriceTrade", "dischargePrice": "grpPriceTrade", "reserve": "grpPriceTrade",
+    "highPrice": "grpGridSale", "surplus": "grpGridSale", "predischarge": "grpGridSale",
+}
 
 
 def test_every_feature_group_starts_with_a_bold_line():
@@ -232,23 +236,30 @@ def test_every_feature_group_starts_with_a_bold_line():
         first.setdefault(grp, key)
     for grp, key in LEADS.items():
         assert first[grp] == key
-    # every other group has a heading, but the action button and the plan's
-    # hold status (#888 removed its switch; the row names itself)
-    assert 'grpTitles: { solar: "grpSolar", chargePrice: "grpChargePrice" },' in card
-    assert set(first) - set(LEADS) - set(TITLES) == {"action", "reserve"}
-    for lk in TITLES.values():
+    # every group but the base and the action button sits under a heading,
+    # and the headings come in order: no group of another heading in between
+    block = card[card.index("grpTitles: {") : card.index("},", card.index("grpTitles: {"))]
+    assert dict(re.findall(r'(\w+): "(grp\w+)"', block)) == TITLES
+    assert set(first) - set(TITLES) == {"base", "action"}
+    order = [TITLES[grp] for grp in first if grp in TITLES]
+    assert [lk for i, lk in enumerate(order) if i == 0 or order[i - 1] != lk] == ["grpPlanning", "grpPriceTrade", "grpGridSale"]
+    for lk in set(TITLES.values()):
         assert panel.count(f" {lk}: ") == 6
+    assert "grpSolar" not in panel and "grpChargePrice" not in panel
 
 
 def test_renderer_draws_the_heading_and_the_bold_lead():
     panel = PANEL.read_text(encoding="utf-8")
     start = panel.index("_renderSysSections(defs, store, empty) {")
     body = panel[start : panel.index("_hourlyWarnEl()", start)]
-    # once per group, gated like a row, hidden with Advanced off when the
-    # whole group is advanced
+    # once per heading, above the first of its groups that has a row; gated
+    # like a row, hidden with Advanced off when every row under it is advanced
     assert "const title = g && g !== lastGrp && sec.grpTitles && sec.grpTitles[g];" in body
+    assert "if (title && title !== lastTitle) {" in body
+    assert "if (title) lastTitle = title;" in body
     assert 'h.className = "sys-grp-title";' in body
-    assert 'if (allAdv()) h.classList.add("adv-row");' in body
+    assert "const under = rows.filter((x) => sec.grpTitles[x.grp ?? x.item.grp] === title);" in body
+    assert 'if (under.every((x) => x.item.adv)) h.classList.add("adv-row");' in body
     assert "gatedNodes.push(h);" in body
     assert 'if (item.lead) k.classList.add("ctl-k-lead");' in panel
     assert ".sys-grp-title { grid-column: 1 / -1;" in panel
