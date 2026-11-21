@@ -6126,9 +6126,10 @@ class PricingManager:
         of them charge. A battery with a large gap keeps charging alone at its
         own limit after the others are full, and its last few percent charge
         slower (the 100 % voltage taper at 200 W, or the BMS derating near
-        full). A margin on top covers temperature derating and discharge
-        between slot blocks. Booking too much costs nothing: a slot is
-        cancelled before it starts once the battery is full.
+        full). A margin on top covers a battery that warms up into the
+        temperature limit and discharge between slot blocks. Booking too much
+        costs nothing: a slot is cancelled before it starts once the battery
+        is full.
         """
         contracted = self._contracted_charge_ceiling()
         hours = calculations.calculate_exact_charging_hours_needed(
@@ -6151,7 +6152,9 @@ class PricingManager:
     def _weekly_tails(self):
         """Per automatic battery still short of 100 %: (gap kWh, top-band kWh,
         charge W, top-band W). The last WEEKLY_CHARGE_TAIL_PCT charge at the
-        100 % voltage taper's power (200 W) or at half power (BMS derating)."""
+        100 % voltage taper's power (200 W) or at half power (BMS derating).
+        A battery under the temperature charge limit charges at what the limit
+        lets through now, as the controller commands it."""
         contracted = self._contracted_charge_ceiling()
         for coordinator in getattr(self._controller, "coordinators", ()) or ():
             if getattr(coordinator, "battery_manual_mode_enabled", False):
@@ -6165,7 +6168,7 @@ class PricingManager:
                     / 100.0
                     * capacity_kwh,
                 )
-                power_w = min(
+                rated_w = min(
                     contracted or math.inf,
                     float(
                         getattr(coordinator, "max_charge_power", None)
@@ -6173,6 +6176,7 @@ class PricingManager:
                         or 0.0
                     ),
                 )
+                power_w = self._temperature_limited_w(coordinator, rated_w)
             except (TypeError, ValueError):
                 continue
             if gap_kwh <= 0.0 or power_w <= 0.0:
@@ -6181,9 +6185,22 @@ class PricingManager:
             tail_power_w = (
                 min(power_w, NORMAL_BALANCE_CHARGE_POWER_W)
                 if getattr(coordinator, CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED, False)
-                else power_w * WEEKLY_CHARGE_TAIL_POWER_RATIO
+                else min(power_w, rated_w * WEEKLY_CHARGE_TAIL_POWER_RATIO)
             )
             yield gap_kwh, tail_kwh, power_w, tail_power_w
+
+    def _temperature_limited_w(self, coordinator, power_w: float) -> float:
+        """``power_w`` under the temperature charge limit at the battery's
+        temperature now; unchanged without the limit or a reading."""
+        apply = getattr(
+            getattr(self._controller, "_temp_limit_mgr", None), "apply_temperature_limit", None
+        )
+        if not callable(apply) or power_w <= 0.0 or not math.isfinite(power_w):
+            return power_w
+        try:
+            return min(power_w, float(apply(coordinator, int(round(power_w)))))
+        except (TypeError, ValueError, AttributeError):
+            return power_w
 
     def _weekly_full_by(self, now: datetime) -> datetime | None:
         """The weekly full charge's deadline (D-2): the window's end, or with
