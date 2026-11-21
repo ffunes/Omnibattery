@@ -1570,7 +1570,7 @@
         "name": "Temperatur-Entladegrenze"
       },
       "weekly_full_charge_delay": {
-        "name": "Wöchentliche Vollladung verzögern"
+        "name": "Wöchentliche Vollladung: auf Ladeverzögerung warten"
       },
       "capacity_protection": {
         "name": "Spitzenlastkappung"
@@ -2755,13 +2755,13 @@
         "name": "Sicherheitspuffer Solarprognose"
       },
       "negative_injection_threshold": {
-        "name": "Schwellenwert für negative Einspeisung"
+        "name": "Schwelle negativer Einspeisepreis"
       },
       "predischarge_reserve_soc": {
-        "name": "SOC-Reserve für Vorentladung"
+        "name": "Niedrigster SOC der Vorentladung"
       },
       "predictive_min_soc_floor": {
-        "name": "Garantierter Mindest-SOC"
+        "name": "Garantierter Mindest-SOC (Wert)"
       },
       "battery_capacity": {
         "name": "Batteriekapazität"
@@ -2788,7 +2788,7 @@
         "name": "Max. Wechselrichterleistung"
       },
       "max_price_threshold": {
-        "name": "Maximaler Preis (Laden)"
+        "name": "Lade-Preisobergrenze"
       },
       "discharge_price_threshold": {
         "name": "Entlade-Preisuntergrenze"
