@@ -2736,7 +2736,7 @@
       "battery_capacity": {
         "name": "Capacidad de la Batería"
       },
-      "predictive_safety_margin_kwh": {
+      "predictive_safety_margin_pct": {
         "name": "Margen de Seguridad Previsión Solar"
       },
       "negative_injection_threshold": {

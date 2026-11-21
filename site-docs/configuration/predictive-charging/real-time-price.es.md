@@ -65,7 +65,7 @@ Activa **Descarga basada en precio** si también quieres conservar la batería m
 
     El objetivo energético sigue siendo predictivo: Omnibattery calcula el déficit del horizonte actual y un objetivo por batería. Lo que permanece reactivo es la selección de periodo. Un sensor de precio actual no puede demostrar que existirá un periodo futuro ni que cumplirá un plazo energético, así que este modo no crea reservas futuras.
 
-    **Margen de seguridad de previsión solar** se resta de la solar esperada. Las instalaciones nuevas empiezan con aproximadamente el 5% de la capacidad total de batería configurada; si la capacidad se desconoce durante la configuración, el método alternativo es no aplicar margen. Es una entidad de control en vivo, no un campo del formulario de configuración.
+    **Margen de seguridad de previsión solar** se resta de la solar esperada. Es una parte del sol previsto (10 % por defecto), así que un día parcial o un horizonte de dos días cede su propia parte; sin previsión solar no hay margen. Es una entidad de control en vivo, no un campo del formulario de configuración.
 
     ### Descarga basada en precio
 

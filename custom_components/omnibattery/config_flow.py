@@ -1223,7 +1223,7 @@ async def _dispatch_brand_entry(flow, brand: str):
 class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Omnibattery."""
 
-    VERSION = 19
+    VERSION = 20
 
     def __init__(self):
         """Initialize the config flow."""

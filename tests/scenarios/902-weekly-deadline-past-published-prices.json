@@ -72,7 +72,7 @@
     "peak_shaving": null,
     "contracted_power_w": 5750,
     "guaranteed_floor_soc": null,
-    "safety_margin_kwh": 0.0
+    "safety_margin_pct": 0.0
   },
   "weekly": {
     "target_day": "tue",

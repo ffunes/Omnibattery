@@ -117,7 +117,7 @@ def _solar(bounds, solar_input, **overrides):
         solar_start=None,
         solar_end=None,
         mode="active",
-        safety_margin_kwh=0.0,
+        safety_margin_pct=0.0,
         extended_timezone=None,
         excluded_claim_kwh=0.0,
         today_end=MIDNIGHT,

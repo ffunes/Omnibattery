@@ -1200,3 +1200,19 @@ def select_cheapest_slots_by_duration(
         if accumulated_h >= hours_needed:
             break
     return sorted(selected, key=lambda item: item.start)
+
+
+def solar_safety_margin_kwh(pct, solar_kwh) -> float:
+    """The safety margin in kWh: ``pct`` % of ``solar_kwh``.
+
+    ``solar_kwh`` is the forecast sun the caller plans against. No usable sun
+    (None, not finite, <= 0) or no usable % means no margin.
+    """
+    try:
+        pct = float(pct or 0.0)
+        sun = float(solar_kwh)
+    except (TypeError, ValueError):
+        return 0.0
+    if not (math.isfinite(pct) and math.isfinite(sun)) or pct <= 0.0 or sun <= 0.0:
+        return 0.0
+    return pct / 100.0 * sun

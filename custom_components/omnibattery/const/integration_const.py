@@ -214,15 +214,14 @@ DEFAULT_BASE_CONSUMPTION_KWH = 5.0  # Fallback when no consumption history avail
 # day without real data, used only until real days are learned.
 MISSING_DAY_FLEET_SHARE = 0.8
 
-# Predictive charging / anti-curtailment safety margin.
-# How much the solar forecast is distrusted: this many kWh are subtracted from
-# it before predictive charging decides whether to charge, and the same margin
-# reserves anti-curtailment headroom in Dynamic Pricing. 0.0 is the sentinel
-# for "no margin" and also the fallback when the fleet's capacity is unknown
-# (see default_predictive_safety_margin_kwh() below: the margin used while
-# none is stored, sized to the fleet's configured or reported capacity).
+# Predictive charging / anti-curtailment safety margin: how much of the solar
+# forecast is distrusted, as a share of the forecast sun each place plans
+# against (0-50 %): kWh = pct / 100 x that sun, so a partial day or a two-day
+# horizon gives up its own share. No sun forecast means no margin.
+# The kWh key survives only for the v19 -> v20 migration that drops it.
 CONF_PREDICTIVE_SAFETY_MARGIN_KWH = "predictive_safety_margin_kwh"
-DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH = 0.0
+CONF_PREDICTIVE_SAFETY_MARGIN_PCT = "predictive_safety_margin_pct"
+DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT = 10.0
 
 # Legacy key, kept only for the v13->v14 migration that drops it. It inflated
 # the already-computed deficit, so it scaled inversely to the solar risk it
@@ -838,37 +837,6 @@ def effective_system_power(data) -> tuple[int, int]:
     )
 
 
-def total_battery_capacity_kwh(data, reported_kwh=None) -> float:
-    """Return the fleet's capacity in kWh: each battery's configured value, or what it reports.
-
-    A battery without a configured capacity -- one whose driver reads it (Marstek
-    over Modbus) or one left at 0 for auto-detection (Zendure, Hoymiles) -- counts
-    with ``reported_kwh[name]``, the capacity its coordinator reports, when known.
-    """
-    reported_kwh = reported_kwh or {}
-    total = 0.0
-    for battery in data.get("batteries") or []:
-        configured = float(battery.get("battery_capacity_kwh", 0.0) or 0.0)
-        if configured <= 0:
-            configured = float(reported_kwh.get(battery.get("name")) or 0.0)
-        total += max(0.0, configured)
-    return total
-
-
-def default_predictive_safety_margin_kwh(data, reported_kwh=None) -> float:
-    """Return ~5% of the fleet's total capacity, or the no-margin sentinel.
-
-    Mirrors ``default_high_price_discharge_max_power()``: the only forecast
-    buffer that means anything is sized to the fleet actually configured.
-    Falls back to ``DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH`` (0.0, no margin)
-    when no battery capacity can be determined yet.
-    """
-    capacity_kwh = total_battery_capacity_kwh(data, reported_kwh)
-    if capacity_kwh <= 0:
-        return DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
-    return round(capacity_kwh * 0.05, 2)
-
-
 # PD Tuning Profiles
 # One-click presets for the PD response-shape parameters (Kp, Kd, max power
 # change). Selecting a profile writes those at once; the "custom" profile leaves
@@ -1281,16 +1249,13 @@ CONFIG_NUMBER_DEFINITIONS = [
         "condition": CONF_CAPACITY_PROTECTION_ENABLED,
     },
     {
-        "key": CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
+        "key": CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
         "name": "Solar Forecast Safety Margin",
-        "min": 0.0,
-        "max": 20.0,
-        "step": 0.1,
-        "unit": "kWh",
-        # Callable default: the slider must show the same 5%-of-capacity value
-        # the controller falls back to, or a new entry reads 0.0 on the panel
-        # while the engine hedges with something else.
-        "default": default_predictive_safety_margin_kwh,
+        "min": 0,
+        "max": 50,
+        "step": 1,
+        "unit": "%",
+        "default": DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
         "icon": "mdi:solar-power-variant",
         "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
     },

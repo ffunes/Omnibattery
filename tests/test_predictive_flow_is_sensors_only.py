@@ -77,7 +77,7 @@ async def test_realtime_price_asks_only_for_price_sources():
 async def test_time_slot_asks_only_for_windows_and_forecast():
     result = await _flow({}).async_step_predictive_charging_config()
 
-    assert "predictive_safety_margin_kwh" not in _schema_keys(result)
+    assert "predictive_safety_margin_pct" not in _schema_keys(result)
     assert "solar_forecast_sensor" in _schema_keys(result)
 
 

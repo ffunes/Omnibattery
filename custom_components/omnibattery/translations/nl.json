@@ -2733,7 +2733,7 @@
       "charge_hysteresis_percent": {
         "name": "Laadhysterese Percentage"
       },
-      "predictive_safety_margin_kwh": {
+      "predictive_safety_margin_pct": {
         "name": "Veiligheidsmarge Zonneprognose"
       },
       "negative_injection_threshold": {

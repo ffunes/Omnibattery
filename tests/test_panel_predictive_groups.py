@@ -21,7 +21,7 @@ EXPECTED = [
     ("predictive_charging_notifications", "base"),
     ("predictive_charging_active", "base"),
     ("discharge_reserve_status", "base"),
-    ("predictive_safety_margin_kwh", "solar"),
+    ("predictive_safety_margin_pct", "solar"),
     ("min_soc_floor_enabled", "floor"),
     ("predictive_min_soc_floor", "floor"),
     ("max_price_threshold_enabled", "chargePrice"),

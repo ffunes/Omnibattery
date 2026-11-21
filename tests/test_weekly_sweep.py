@@ -179,7 +179,7 @@ def scenario(case, *, at: datetime, socs, pending: bool) -> h.Scenario:
         settings=dict(
             max_price_threshold=1.0, min_arbitrage_margin=None, round_trip_efficiency=RTE,
             peak_shaving=None, contracted_power_w=CONTRACTED_W,
-            guaranteed_floor_soc=None, safety_margin_kwh=0.0,
+            guaranteed_floor_soc=None, safety_margin_pct=0.0,
         ),
         expected={},
         weekly={"target_day": TARGET, "pending": pending},

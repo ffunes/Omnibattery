@@ -74,7 +74,7 @@ _OPTIONAL_TOP_KEYS = {"xfail", "weekly"}
 _SETTINGS_KEYS = {
     "max_price_threshold", "min_arbitrage_margin", "round_trip_efficiency",
     "peak_shaving", "contracted_power_w",
-    "guaranteed_floor_soc", "safety_margin_kwh",
+    "guaranteed_floor_soc", "safety_margin_pct",
 }
 _EXPECTED_KEYS = {
     "reason", "total_kwh", "windows", "no_slot_before", "no_slot_after",
@@ -293,7 +293,7 @@ def _run_allocator(scenario: Scenario) -> Outcome:
     if (
         settings["peak_shaving"] is not None
         or settings["guaranteed_floor_soc"] is not None
-        or settings["safety_margin_kwh"]
+        or settings["safety_margin_pct"]
         or (scenario.solar_remaining_kwh > 0 and not scenario.solar_periods)
     ):
         raise ScenarioError(
@@ -483,7 +483,7 @@ def _controller(scenario: Scenario) -> SimpleNamespace:
         capacity_protection_soc_threshold=peak["soc_threshold"] if peak else 0,
         _predictive_min_soc_floor_enabled=floor is not None,
         _predictive_min_soc_floor=floor or 0.0,
-        _predictive_safety_margin_kwh=settings["safety_margin_kwh"],
+        _predictive_safety_margin_pct=settings["safety_margin_pct"],
         _discharge_reserve_mgr=SimpleNamespace(mark_stale=lambda _reason: None),
         # Features the bank does not model: off.
         dp_price_discharge_control=False,

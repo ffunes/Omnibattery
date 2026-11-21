@@ -95,7 +95,7 @@ Under a heading each feature is one group, separated by a line: its switch, its 
 
     In a multi-battery fleet, the grid target is distributed in proportion to each battery's gap to its configured maximum SOC. Dynamic Pricing and Time Slot can also assign a quota to each period and transfer missed energy only to later periods that still meet its deadline.
 
-    **Solar Forecast Safety Margin** is subtracted from expected solar once. New installations default to approximately 5% of total configured battery capacity; if capacity is unavailable during setup, the fallback is no margin.
+    **Solar Forecast Safety Margin** is subtracted from expected solar once. It is a share of the forecast sun (default 10 %), so a partial day or a two-day horizon gives up its own share; with no solar forecast there is no margin.
 
     ### Household demand during a charging slot
 

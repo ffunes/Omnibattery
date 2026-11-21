@@ -257,7 +257,7 @@ def test_headroom_sufficient_protects_without_selecting_discharge():
     assert plan.selected_discharge_slots == []
 
 
-def test_existing_headroom_and_kwh_margin_are_accounted_for():
+def test_existing_headroom_and_margin_are_accounted_for():
     risk = _slot(12, -0.05)
     slots = [_slot(11, 0.25), risk]
     base = dict(
@@ -272,11 +272,67 @@ def test_existing_headroom_and_kwh_margin_are_accounted_for():
         now=DAY,
     )
 
-    plan = plan_curtailment(**base, headroom_margin_kwh=0.85)
+    # 50 % of the risk slot's 2 kWh of sun, at the charge efficiency (0.85).
+    plan = plan_curtailment(**base, headroom_margin_pct=50.0)
 
+    assert plan.headroom_margin_kwh == pytest.approx(0.85)
     assert plan.required_headroom_kwh == pytest.approx(2.55)
     assert plan.current_headroom_kwh == pytest.approx(1.0)
     assert plan.status == "planned"
+
+
+def _margin_case(*, minutes, sun, pct, consumption=0.5):
+    """Case A of the plan: 5 kWh fleet at 50 %, 2.5 kW of charge."""
+    slots = [_slot(11, 0.25), _slot(13, -0.05, minutes=minutes)]
+    risk = slots[-1]
+    return plan_curtailment(
+        price_slots=slots,
+        solar_forecast_kwh=30.0,
+        daily_consumption_kwh=10.0,
+        batteries=[_battery(soc=50.0, capacity=5.0, power=2500.0)],
+        charge_power_w=2500.0,
+        solar_by_slot={slots[0]: 3.0, risk: sun},
+        consumption_by_slot={slot: consumption for slot in slots},
+        max_export_power_w=2000.0,
+        headroom_margin_pct=pct,
+        now=DAY,
+    )
+
+
+def test_margin_is_a_share_of_the_risk_slots_sun_not_of_the_day():
+    """15 min of 1 kWh sun: 10 % adds 0.1 kWh, not 10 % of the day's 30."""
+    without = _margin_case(minutes=15, sun=1.0, pct=0.0)
+    plan = _margin_case(minutes=15, sun=1.0, pct=10.0)
+
+    assert plan.headroom_margin_kwh == pytest.approx(0.1 * 0.85)
+    assert plan.required_headroom_kwh == pytest.approx(
+        without.required_headroom_kwh + 0.1 * 0.85
+    )
+
+
+def test_margin_stops_at_what_the_battery_can_charge_in_the_slot():
+    """1 h with 3.5 kWh of surplus already fills the 2.5 kWh the battery can
+    take in that hour: more sun needs no more room."""
+    without = _margin_case(minutes=60, sun=4.0, pct=0.0)
+    plan = _margin_case(minutes=60, sun=4.0, pct=10.0)
+
+    assert plan.headroom_margin_kwh == pytest.approx(0.0)
+    assert plan.required_headroom_kwh == pytest.approx(without.required_headroom_kwh)
+
+
+def test_no_sun_in_the_risk_slots_means_no_margin():
+    """A negative price with no forecast surplus is not a risk slot at all."""
+    plan = _margin_case(minutes=60, sun=0.0, pct=50.0)
+
+    assert plan.headroom_margin_kwh == 0.0
+    assert plan.required_headroom_kwh == 0.0
+
+
+@pytest.mark.parametrize("pct", [float("nan"), float("inf")])
+def test_invalid_margin_fails_safe(pct):
+    plan = _margin_case(minutes=60, sun=4.0, pct=pct)
+
+    assert (plan.status, plan.reason) == ("fail_safe", "invalid_headroom_margin")
 
 
 def test_multiple_risk_windows_choose_the_most_expensive_previous_slots():

@@ -70,7 +70,7 @@ def _sunny_scenario(safety: float = 0.0):
         solar_periods=periods + base.solar_periods,
         solar_remaining_kwh=3.9,  # 11:00-16:00 of the bell
         fleet=({**base.fleet[0], "soc": 60},),
-        settings={**base.settings, "safety_margin_kwh": safety},
+        settings={**base.settings, "safety_margin_pct": safety},
     )
 
 
@@ -190,12 +190,12 @@ def test_high_price_sale_solar_follows_the_planners_safety_margin(monkeypatch):
     plain = _sunny_scenario()
     ctrl, mgr = _build(plain, monkeypatch)
     base, _slots, horizon_end = _hps_solar_total(plain, mgr, ctrl)
-    ctrl._predictive_safety_margin_kwh = 0.5
+    ctrl._predictive_safety_margin_pct = 10.0
     margin, _slots, _end = _hps_solar_total(plain, mgr, ctrl)
     assert base - margin > 0.1
     # The planner's own projection loses the same energy over the same horizon.
     projection_margin = sum(mgr.energy_projection(plain.now, horizon_end).solar_kwh)
-    ctrl._predictive_safety_margin_kwh = 0.0
+    ctrl._predictive_safety_margin_pct = 0.0
     projection_base = sum(mgr.energy_projection(plain.now, horizon_end).solar_kwh)
     assert base - margin == pytest.approx(projection_base - projection_margin, abs=1e-6)
 

@@ -10,12 +10,10 @@ from custom_components.omnibattery.pricing.curtailment import BatterySnapshot
 from custom_components.omnibattery.pricing.high_price_discharge import (
     HorizonSlot,
     REASON_DISABLED,
-    REASON_INVALID_CONFIGURATION,
     REASON_NO_ELIGIBLE_CANDIDATES,
     REASON_NO_REFILL_PRICE,
     REASON_NO_SURPLUS,
     REASON_PLANNED,
-    STATUS_FAIL_SAFE,
     STATUS_NO_OPPORTUNITY,
     STATUS_PLANNED,
     plan_high_price_discharge,
@@ -56,25 +54,13 @@ def test_disabled_trigger_1_preserves_trigger_2_allocations():
     assert explicit.trigger_1_budget_kwh == 0
 
 
-@pytest.mark.parametrize("margin", [0.0, 1.0])
-def test_no_surplus_when_demand_and_margin_exhaust_usable_energy(margin):
-    slots = [_slot(0, price=0.5), _slot(1, consumption=6 - margin)]
-    plan = _plan(slots, trigger_1_enabled=True, safety_margin_kwh=margin)
+def test_no_surplus_when_demand_exhausts_usable_energy():
+    slots = [_slot(0, price=0.5), _slot(1, consumption=6)]
+    plan = _plan(slots, trigger_1_enabled=True)
     assert plan.status == STATUS_NO_OPPORTUNITY
     assert plan.trigger_1_budget_kwh == 0
     assert plan.trigger_1_reason == REASON_NO_SURPLUS
     assert plan.allocations == ()
-
-
-def test_margin_applies_once_and_trigger_2_never_eats_it_after_surplus_sale():
-    slots = [_slot(0, price=0.5), _slot(1, buy=0.1, consumption=2)]
-    plan = _plan(slots, enabled=True, trigger_1_enabled=True, safety_margin_kwh=1)
-    surplus = sum(a.surplus_kwh for a in plan.allocations)
-    linked = sum(link.energy_kwh for a in plan.allocations for link in a.demand_links)
-    assert plan.trigger_1_budget_kwh == pytest.approx(3)
-    assert surplus == pytest.approx(3)
-    assert linked <= plan.protected_demand_kwh
-    assert plan.total_allocated_kwh <= plan.usable_energy_kwh - 1 + 1e-6
 
 
 @pytest.mark.parametrize("price, accepted", [(0.30, False), (0.3001, True)])
@@ -137,7 +123,7 @@ def test_negative_solar_export_prices_floor_refill_cost_at_zero():
 def test_shared_capacity_merges_trigger_1_and_trigger_2_in_one_slot():
     slots = [_slot(0, price=0.5), _slot(1, buy=0.1, consumption=2)]
     plan = _plan(slots, enabled=True, trigger_1_enabled=True,
-                 safety_margin_kwh=1, max_export_power_w=4000)
+                 batteries=[_battery(soc=70.0)], max_export_power_w=4000)
     assert len(plan.allocations) == 1
     allocation = plan.allocations[0]
     assert allocation.surplus_kwh == pytest.approx(3)
@@ -152,9 +138,8 @@ def test_shared_capacity_merges_trigger_1_and_trigger_2_in_one_slot():
 
 def test_price_ranking_breaks_ties_by_time_and_output_is_chronological():
     slots = [_slot(0, price=0.3), _slot(1, price=0.5), _slot(2, price=0.5)]
-    battery = _battery(soc=50, floor=20, power=1000)
+    battery = _battery(soc=40, floor=20, power=1000)
     kwargs = dict(trigger_1_enabled=True, horizon=3, batteries=[battery],
-                  safety_margin_kwh=1,
                   fill=[_slot(3, price=0.1, solar=10)])
     plan = _plan(slots, **kwargs)
     assert plan == _plan(slots, **kwargs)
@@ -193,13 +178,6 @@ def test_trigger_1_only_does_not_make_trigger_2_demand_links():
     assert plan.status == STATUS_PLANNED
     assert plan.total_allocated_kwh == pytest.approx(4)
     assert all(not a.demand_links and a.energy_kwh == a.surplus_kwh for a in plan.allocations)
-
-
-@pytest.mark.parametrize("margin", [-1, float("nan"), float("inf")])
-def test_invalid_margin_fails_safe(margin):
-    plan = _plan([_slot(0)], trigger_1_enabled=True, safety_margin_kwh=margin)
-    assert plan.status == STATUS_FAIL_SAFE
-    assert plan.reason == REASON_INVALID_CONFIGURATION
 
 
 def test_fall_back_fill_window_uses_real_instants():

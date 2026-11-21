@@ -975,7 +975,7 @@ def test_refresh_solar_forecast_reference_disarms_the_trigger():
 def _balance_ctrl(**overrides):
     """Controller stub carrying only the balance knobs the fingerprint reads."""
     base = dict(
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         _predictive_min_soc_floor=20.0,
         _predictive_min_soc_floor_enabled=True,
         coordinators=[SimpleNamespace(device_key="b1", min_soc=12, max_soc=95)],
@@ -999,7 +999,7 @@ def test_balance_fingerprint_moves_with_a_per_battery_soc_limit():
 
 def test_balance_fingerprint_moves_with_the_predictive_knobs():
     for field, value in (
-        ("_predictive_safety_margin_kwh", 1.5),
+        ("_predictive_safety_margin_pct", 15.0),
         ("_predictive_min_soc_floor", 35.0),
         ("_predictive_min_soc_floor_enabled", False),
     ):
@@ -2084,7 +2084,7 @@ def test_energy_balance_accepts_remaining_horizon_overrides():
         predictive_charging_enabled=True,
         predictive_charging_overridden=False,
         coordinators=[coordinator],
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         _predictive_min_soc_floor=0.0,
         _predictive_min_soc_floor_enabled=False,
         _daily_consumption_history=[],
@@ -2271,7 +2271,7 @@ def test_extended_chronological_plan_uses_consumption_shape_by_date():
     ctrl = _controller(
         _consumption_tracker=tracker,
         solar_profile_mode="off",
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         coordinators=[],
         _is_battery_manual_owned=lambda _coordinator: False,
         max_contracted_power=0.0,
@@ -2322,7 +2322,7 @@ def test_extended_projection_adapter_is_read_only_for_dashboard_callers():
     ctrl = _controller(
         _consumption_tracker=tracker,
         solar_profile_mode="off",
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         coordinators=[],
         _is_battery_manual_owned=lambda _coordinator: False,
         max_contracted_power=0.0,
@@ -2369,7 +2369,7 @@ def test_time_slot_window_plan_keeps_the_house_load_for_the_panel():
     ctrl = _controller(
         _consumption_tracker=tracker,
         solar_profile_mode="off",
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         coordinators=[],
         _is_battery_manual_owned=lambda _coordinator: False,
         max_contracted_power=0.0,
@@ -2426,8 +2426,8 @@ def test_plan_rows_for_the_panel_carry_the_house_not_the_battery_drain():
 
 def test_panel_sun_is_drawn_without_the_safety_margin():
     """15 Nov 2026: 3.2 kWh forecast for tomorrow morning and a 6 kWh safety
-    margin drew no sun at all. The margin stays in the plan's own intervals;
-    the panel's series carry the forecast."""
+    margin drew no sun at all. The margin (now a share of the sun) stays in
+    the plan's own intervals; the panel's series carry the forecast."""
     madrid = ZoneInfo("Europe/Madrid")
     now = datetime(2026, 11, 15, 22, 45, tzinfo=madrid)
     midnight = now.replace(hour=0, minute=0) + timedelta(days=1)
@@ -2449,7 +2449,7 @@ def test_panel_sun_is_drawn_without_the_safety_margin():
     ctrl = _controller(
         _consumption_tracker=tracker,
         solar_profile_mode="active",
-        _predictive_safety_margin_kwh=6.0,
+        _predictive_safety_margin_pct=25.0,
         coordinators=[],
         _is_battery_manual_owned=lambda _coordinator: False,
         max_contracted_power=0.0,
@@ -2472,12 +2472,10 @@ def test_panel_sun_is_drawn_without_the_safety_margin():
     )
     plan = result.plan
 
-    # 16 Nov 2026: the panel warned "no solar forecast left" over a drawn
-    # forecast, because the margin ate the plan's budget. The notice follows
-    # the drawn curve.
-    assert result.diagnostics["solar_timeline_fallback_reason"] == "zero_budget"
+    # A share of the sun never eats the whole budget (a flat 6 kWh did).
+    assert result.diagnostics["solar_timeline_fallback_reason"] is None
     assert result.diagnostics["solar_shown_fallback_reason"] is None
-    assert sum(i.solar_kwh for i in plan.intervals) == 0.0
+    assert sum(i.solar_kwh for i in plan.intervals) == pytest.approx(2.4)
     assert sum(i.solar_kwh for i in plan.shown_intervals) == pytest.approx(3.2)
     assert sum(solar for solar, _house in plan.house_forecast.values()) == (
         pytest.approx(3.2)
@@ -2501,7 +2499,7 @@ def test_extended_projection_survives_the_autumn_dst_change():
     ctrl = _controller(
         _consumption_tracker=tracker,
         solar_profile_mode="off",
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         coordinators=[],
         _is_battery_manual_owned=lambda _coordinator: False,
         max_contracted_power=0.0,
@@ -3427,7 +3425,7 @@ def test_daily_profile_consumes_energy_horizon_end():
         predictive_charging_enabled=True,
         predictive_charging_overridden=False,
         coordinators=[coordinator],
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         _predictive_min_soc_floor=0.0,
         _predictive_min_soc_floor_enabled=False,
         _daily_consumption_history=[],
@@ -3474,7 +3472,7 @@ def test_daily_profile_scope_publishes_energy_horizon_end():
         predictive_charging_enabled=True,
         predictive_charging_overridden=False,
         coordinators=[coordinator],
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         _predictive_min_soc_floor=0.0,
         _predictive_min_soc_floor_enabled=False,
         _daily_consumption_history=[],
@@ -3525,7 +3523,7 @@ def test_remaining_scope_does_not_publish_daily_profile_horizon():
             max_soc=95.0,
         )
     ]
-    ctrl._predictive_safety_margin_kwh = 0.0
+    ctrl._predictive_safety_margin_pct = 0.0
     ctrl._predictive_min_soc_floor = 0.0
     ctrl._predictive_min_soc_floor_enabled = False
     ctrl.hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: None))
@@ -3854,7 +3852,7 @@ def test_control_horizon_persists_but_dashboard_projection_does_not():
     ctrl = _controller(
         _consumption_tracker=tracker,
         solar_profile_mode="off",
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         coordinators=[],
         _is_battery_manual_owned=lambda _coordinator: False,
         max_contracted_power=0.0,
@@ -4306,7 +4304,7 @@ def _planner_fallback_rig(monkeypatch):
             forecast_consumption_between=forecast_between,
         ),
         solar_profile_mode="off",
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         coordinators=[],
         _is_battery_manual_owned=lambda _coordinator: False,
         max_contracted_power=0.0,

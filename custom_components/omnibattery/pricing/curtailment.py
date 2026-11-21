@@ -444,7 +444,7 @@ def plan_curtailment(
     *,
     negative_injection_threshold: float = 0.0,
     predischarge_reserve_soc: float = 0.0,
-    headroom_margin_kwh: float = 0.0,
+    headroom_margin_pct: float = 0.0,
     charge_power_w: float | None = None,
     max_export_power_w: float | None = 0.0,
     export_mode: str | None = None,
@@ -523,6 +523,12 @@ def plan_curtailment(
     risk_slots: list[PriceSlot] = []
     required_kwh = 0.0
     surplus_kwh = 0.0
+    margin_kwh = 0.0
+    margin_share = (
+        max(0.0, float(headroom_margin_pct)) / 100.0
+        if _finite(headroom_margin_pct)
+        else 0.0
+    )
     reserve_by_slot: dict[PriceSlot, float] = {}
     for slot in ordered_slots:
         slot_solar = max(0.0, float(solar.get(slot, 0.0) or 0.0))
@@ -538,12 +544,16 @@ def plan_curtailment(
             # window; it does not permit export during that protected window.
             # Convert AC-side PV surplus to the battery-side headroom that it
             # can consume, accounting for the integration's charge efficiency.
-            slot_reserve = min(
-                surplus,
-                float(charge_power_w) * _duration_hours(slot) / 1000.0,
-            ) * CHARGE_EFFICIENCY
+            slot_cap = float(charge_power_w) * _duration_hours(slot) / 1000.0
+            slot_reserve = min(surplus, slot_cap) * CHARGE_EFFICIENCY
             reserve_by_slot[slot] = slot_reserve
             required_kwh += slot_reserve
+            # The safety margin: room for this slot's sun coming in that share
+            # above the forecast, as far as the battery can take it in the slot.
+            margin_kwh += (
+                min(surplus + margin_share * slot_solar, slot_cap)
+                - min(surplus, slot_cap)
+            ) * CHARGE_EFFICIENCY
 
     plan.risk_slots = risk_slots
     plan.solar_surplus_kwh = surplus_kwh
@@ -575,14 +585,13 @@ def plan_curtailment(
         plan.status, plan.reason = "no_risk", "no_negative_injection_window"
         return plan
 
-    # Reuse the controller's common solar-forecast safety margin. It is an
-    # energy buffer, so anti-curtailment applies it additively rather than as
-    # a percentage of the forecast surplus.
-    if not _finite(headroom_margin_kwh):
+    # The controller's common solar-forecast safety margin, as a share of
+    # the sun in the risk slots (summed above, per slot).
+    if not _finite(headroom_margin_pct):
         plan.status, plan.reason = "fail_safe", "invalid_headroom_margin"
         return plan
     margin_kwh = min(
-        max(0.0, float(headroom_margin_kwh or 0.0)),
+        margin_kwh,
         sum(snapshot.capacity_kwh for snapshot in valid_batteries),
     )
     required_kwh += margin_kwh

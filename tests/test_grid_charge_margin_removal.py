@@ -4,8 +4,8 @@ The percentage inflated the *already computed* deficit, so it scaled inversely
 to the solar risk it claimed to hedge: a big top-up on a cloudy day with little
 solar, a small one on a sunny day where the forecast could actually be wrong by
 a lot. The kWh safety margin sits where the risk is -- it haircuts the solar
-forecast itself -- so the percentage is removed and the kWh one gets a default
-that is no longer 0.
+forecast itself -- so the percentage is removed. Since v20 that margin is
+itself a % of the forecast sun (see the v19 -> v20 tests at the end).
 
 The migration half needs the real ``hass`` / entity-registry, so it runs only
 without the suite's ``-p no:homeassistant`` flag (conftest skips it otherwise)::
@@ -27,8 +27,8 @@ from custom_components.omnibattery.const import (
     CONFIG_NUMBER_DEFINITIONS,
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
-    DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
-    default_predictive_safety_margin_kwh,
+    CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
+    DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
 )
 from custom_components.omnibattery.number import ConfigNumberEntity
 
@@ -38,37 +38,11 @@ REMOVED_UID = f"{PREFIX}{CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT}"
 
 
 # ----------------------------------------------------------------------
-# The replacement default (no hass needed)
-# ----------------------------------------------------------------------
-
-def test_default_margin_is_five_percent_of_the_configured_fleet():
-    data = {"batteries": [{"battery_capacity_kwh": 5.12}, {"battery_capacity_kwh": 5.12}]}
-    assert default_predictive_safety_margin_kwh(data) == 0.51
-
-
-def test_default_margin_scales_with_the_fleet():
-    small = default_predictive_safety_margin_kwh({"batteries": [{"battery_capacity_kwh": 5.0}]})
-    big = default_predictive_safety_margin_kwh(
-        {"batteries": [{"battery_capacity_kwh": 5.0}] * 6}
-    )
-    assert big > small > 0
-
-
-@pytest.mark.parametrize(
-    "data",
-    [{}, {"batteries": []}, {"batteries": [{}]}, {"batteries": [{"battery_capacity_kwh": 0}]}],
-    ids=["no_key", "no_batteries", "no_capacity", "zero_capacity"],
-)
-def test_default_margin_falls_back_to_no_margin_without_capacity(data):
-    assert default_predictive_safety_margin_kwh(data) == DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
-
-
-# ----------------------------------------------------------------------
-# The slider must show that same default, not 0.0 (no hidden values)
+# The % slider shows its fixed default, or the stored value
 # ----------------------------------------------------------------------
 
 MARGIN_DEF = next(
-    d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_PREDICTIVE_SAFETY_MARGIN_KWH
+    d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_PREDICTIVE_SAFETY_MARGIN_PCT
 )
 FLEET = {"batteries": [{"battery_capacity_kwh": 5.12}] * 2}
 
@@ -79,79 +53,14 @@ def _slider_value(data):
     return ConfigNumberEntity(None, entry, MARGIN_DEF).native_value
 
 
-def test_slider_shows_the_same_default_the_controller_uses():
-    assert _slider_value(FLEET) == default_predictive_safety_margin_kwh(FLEET) > 0
+def test_slider_is_a_percent_with_a_fixed_default():
+    assert (MARGIN_DEF["min"], MARGIN_DEF["max"], MARGIN_DEF["unit"]) == (0, 50, "%")
+    assert _slider_value(FLEET) == DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT > 0
 
 
-@pytest.mark.parametrize("stored", [0.0, 3.0], ids=["explicit_zero", "explicit_value"])
+@pytest.mark.parametrize("stored", [0.0, 30.0], ids=["explicit_zero", "explicit_value"])
 def test_a_stored_margin_wins_over_the_default(stored):
-    """An upgrade must not rewrite the margin the user already fixed."""
-    assert _slider_value({**FLEET, CONF_PREDICTIVE_SAFETY_MARGIN_KWH: stored}) == stored
-
-
-# ----------------------------------------------------------------------
-# Batteries that report their own capacity count too
-# ----------------------------------------------------------------------
-
-# A Marstek reads its capacity over Modbus (nothing configured); a Zendure left
-# at 0 detects it from its packs. Only the reported figures size the fleet.
-REPORTING = {"batteries": [{"name": "Venus"}, {"name": "SolarFlow", "battery_capacity_kwh": 0}]}
-REPORTED = {"Venus": 5.12, "SolarFlow": 8.16}
-
-
-def test_default_margin_counts_the_reported_capacity():
-    assert default_predictive_safety_margin_kwh(REPORTING) == DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
-    assert default_predictive_safety_margin_kwh(REPORTING, REPORTED) == 0.66
-
-
-def test_a_configured_capacity_wins_over_the_reported_one():
-    data = {"batteries": [{"name": "SolarFlow", "battery_capacity_kwh": 10.0}]}
-    assert default_predictive_safety_margin_kwh(data, {"SolarFlow": 8.16}) == 0.5
-
-
-def _controller(data, stored=None):
-    from custom_components.omnibattery import ChargeDischargeController
-
-    controller = object.__new__(ChargeDischargeController)
-    controller.config_entry = SimpleNamespace(data=data, entry_id="entry")
-    controller.coordinators = [
-        SimpleNamespace(name=name, data={"battery_total_energy": kwh})
-        for name, kwh in REPORTED.items()
-    ]
-    controller._predictive_safety_margin_stored = stored
-    return controller
-
-
-def test_the_controller_sizes_the_default_to_the_reported_fleet():
-    assert _controller(REPORTING)._predictive_safety_margin_kwh == 0.66
-
-
-def test_the_default_follows_the_first_poll():
-    """Read when used, not frozen at setup before the batteries have reported."""
-    controller = _controller(REPORTING)
-    for coordinator in controller.coordinators:
-        coordinator.data = None
-    assert controller._predictive_safety_margin_kwh == DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
-
-    controller.coordinators[0].data = {"battery_total_energy": 5.12}
-    controller.coordinators[1].data = {"battery_total_energy": 8.16}
-    assert controller._predictive_safety_margin_kwh == 0.66
-
-
-def test_a_margin_the_user_set_wins_in_the_controller():
-    controller = _controller(REPORTING, stored=0.0)
-    assert controller._predictive_safety_margin_kwh == 0.0
-
-    controller._predictive_safety_margin_kwh = 1.5
-    assert controller._predictive_safety_margin_kwh == 1.5
-
-
-def test_the_slider_shows_the_controller_s_default():
-    controller = _controller(REPORTING)
-    hass = SimpleNamespace(data={DOMAIN: {"entry": {"controller": controller}}})
-    entry = SimpleNamespace(data=REPORTING, entry_id="entry")
-
-    assert ConfigNumberEntity(hass, entry, MARGIN_DEF).native_value == 0.66
+    assert _slider_value({**FLEET, CONF_PREDICTIVE_SAFETY_MARGIN_PCT: stored}) == stored
 
 
 # ----------------------------------------------------------------------
@@ -176,7 +85,7 @@ async def test_v14_drops_the_key_and_deletes_its_entity(hass: HomeAssistant) -> 
     )
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 19
+    assert entry.version == 20
     assert CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT not in entry.data
     # Deleted, not left behind unavailable: orphans have rendered as dead
     # duplicate controls on the panel before.
@@ -196,7 +105,9 @@ async def test_v14_leaves_a_hand_set_safety_margin_alone(hass: HomeAssistant) ->
     )
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.data[CONF_PREDICTIVE_SAFETY_MARGIN_KWH] == 0.0
+    # v20 turns the kWh margin into a %: a hand-set 0 stays 0.
+    assert CONF_PREDICTIVE_SAFETY_MARGIN_KWH not in entry.data
+    assert entry.data[CONF_PREDICTIVE_SAFETY_MARGIN_PCT] == 0.0
 
 
 async def test_v14_without_the_entity_still_migrates(hass: HomeAssistant) -> None:
@@ -204,3 +115,45 @@ async def test_v14_without_the_entity_still_migrates(hass: HomeAssistant) -> Non
 
     assert await async_migrate_entry(hass, entry) is True
     assert CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT not in entry.data
+
+
+# ----------------------------------------------------------------------
+# The v19 -> v20 migration: the kWh safety margin becomes a %
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "stored, expected",
+    [(0.0, 0.0), (0, 0.0), (2.5, None), (None, None)],
+    ids=["zero", "int_zero", "hand_set_value", "never_set"],
+)
+def test_v20_converts_only_a_zero_margin(stored, expected):
+    """No fixed sun turns kWh into %: only 0 carries over, anything else
+    takes the default (the key stays unset)."""
+    from custom_components.omnibattery import _migrate_safety_margin_to_pct
+
+    data = {"batteries": []}
+    if stored is not None:
+        data[CONF_PREDICTIVE_SAFETY_MARGIN_KWH] = stored
+
+    _migrate_safety_margin_to_pct(data)
+
+    assert CONF_PREDICTIVE_SAFETY_MARGIN_KWH not in data
+    assert data.get(CONF_PREDICTIVE_SAFETY_MARGIN_PCT) == expected
+
+
+async def test_v20_deletes_the_kwh_margin_entity(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, version=19,
+        data={"batteries": [], CONF_PREDICTIVE_SAFETY_MARGIN_KWH: 2.5},
+    )
+    entry.add_to_hass(hass)
+    old_uid = f"{PREFIX}{CONF_PREDICTIVE_SAFETY_MARGIN_KWH}"
+    number = er.async_get(hass).async_get_or_create(
+        "number", DOMAIN, old_uid, suggested_object_id=old_uid, config_entry=entry,
+    )
+
+    assert await async_migrate_entry(hass, entry) is True
+    assert entry.version == 20
+    assert CONF_PREDICTIVE_SAFETY_MARGIN_KWH not in entry.data
+    assert CONF_PREDICTIVE_SAFETY_MARGIN_PCT not in entry.data
+    assert er.async_get(hass).async_get(number.entity_id) is None

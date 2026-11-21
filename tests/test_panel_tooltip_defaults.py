@@ -40,6 +40,7 @@ from custom_components.omnibattery.const import (
     DEFAULT_TEMP_CHARGE_LIMIT_FLOOR_PCT,
     DEFAULT_NEGATIVE_INJECTION_THRESHOLD,
     DEFAULT_PREDICTIVE_MIN_SOC_FLOOR,
+    DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     DEFAULT_PREDISCHARGE_RESERVE_SOC,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
     DEFAULT_SURPLUS_HOLD_MIN_SAVING,
@@ -76,7 +77,7 @@ DEFAULTS = {
     # predictive charging card
     "predictive_charging": "off",
     "predictive_charging_notifications": "on",
-    "predictive_safety_margin_kwh": "5 % of the total battery capacity",
+    "predictive_safety_margin_pct": _pct(DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT),
     "min_soc_floor_enabled": "off",
     "predictive_min_soc_floor": _pct(DEFAULT_PREDICTIVE_MIN_SOC_FLOOR),
     "max_price_threshold_enabled": "off (automatic)",

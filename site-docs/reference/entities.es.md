@@ -69,7 +69,7 @@ Estas entidades pertenecen a **Omnibattery System**, no a una batería.
     - Protección de capacidad: `capacity_protection_soc_threshold`
     - Retraso de carga: `delay_safety_margin_min`, `charge_delay_balance_deadband_kwh`, `delay_soc_setpoint`
     - Temperatura: `temp_charge_limit_c`, `temp_charge_limit_band_c`, `temp_charge_limit_floor_pct`
-    - Carga predictiva: `predictive_safety_margin_kwh`, `predictive_min_soc_floor`
+    - Carga predictiva: `predictive_safety_margin_pct`, `predictive_min_soc_floor`
     - Precio dinámico: `max_price_threshold`, `discharge_price_threshold`, `min_arbitrage_margin`, `round_trip_efficiency`, `negative_injection_threshold`, `predischarge_reserve_soc`, `surplus_hold_min_saving`
     - Balance neto horario: `hourly_balance_target_net_wh`, `hourly_balance_max_offset_w`, `hourly_balance_deadband_wh`, `hourly_balance_hysteresis_w`
     - Carga excluida: `excluded_device_exclusion_pct`, uno por cada dispositivo compatible configurado
@@ -177,7 +177,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
 
     | Atributo | Significado |
     |---|---|
-    | `trigger_1_budget_kwh` | Energía de batería que **Venta a precio alto** (*Solo excedente* o superior) puede vender tras reservar la necesidad prevista hasta el amanecer y el margen de seguridad |
+    | `trigger_1_budget_kwh` | Energía de batería que **Venta a precio alto** (*Solo excedente* o superior) puede vender tras reservar la necesidad prevista hasta el amanecer (con la solar menos el margen de seguridad) |
     | `refill_price` | Precio de exportación de referencia para que la solar rellene la batería mañana |
     | `trigger_1_reason` | Por qué la exportación de excedente está activa o inactiva |
     | `surplus_export_enabled` | Si **Venta a precio alto** está en *Solo excedente* o superior |

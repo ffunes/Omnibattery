@@ -218,7 +218,7 @@ async def test_v17_folds_the_peak_limit_into_the_cap(hass, data, expected) -> No
     old = reg.async_get_or_create("number", DOMAIN, LIMIT_UID, config_entry=entry)
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 19
+    assert entry.version == 20
     assert entry.data["max_contracted_power"] == expected
     assert "capacity_protection_limit" not in entry.data
     assert reg.async_get(old.entity_id) is None
