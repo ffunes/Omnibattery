@@ -263,6 +263,8 @@ def test_renderer_draws_the_heading_and_the_bold_lead():
     assert "const under = rows.filter((x) => sec.grpTitles[x.grp ?? x.item.grp] === title);" in body
     assert 'if (under.every((x) => x.item.adv)) h.classList.add("adv-row");' in body
     assert "gatedNodes.push(h);" in body
-    assert 'if (item.lead) k.classList.add("ctl-k-lead");' in panel
+    assert 'if (item.lead || item.gate) k.classList.add("ctl-k-lead");' in panel
+    # a sub-switch's value hides with it, as on the predictive card
+    assert '{ key: "delay_soc_setpoint", lk: "itemDelaySoc", icon: "mdi:battery-charging-50", dep: "delay_soc_setpoint_enabled" }' in panel
     assert ".sys-grp-title { grid-column: 1 / -1;" in panel
     assert ".sys-grid .ctl-k-lead {" in panel

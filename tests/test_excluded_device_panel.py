@@ -72,7 +72,7 @@ def test_the_panel_groups_rows_per_device_in_item_order():
     card = panel[panel.index('tk: "secExcluded"') :]
     card = card[: card.index("],")]
 
-    assert '{ key: "excluded_device_enabled", domain: "switch", lk: "itemExcludedDevice", icon: "mdi:power-plug-off", useName: true, typeTag: true }' in card
+    assert '{ key: "excluded_device_enabled", domain: "switch", lk: "itemExcludedDevice", icon: "mdi:power-plug-off", useName: true, typeTag: true, lead: true }' in card
     for key, dep in (
         ("excluded_device_solar_surplus", "excluded_device_enabled"),
         ("excluded_device_dynamic_power_control", "excluded_device_solar_surplus"),

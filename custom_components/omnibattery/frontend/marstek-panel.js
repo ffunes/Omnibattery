@@ -1111,7 +1111,7 @@ const SYS_SECTIONS = [
     items: [
       // Rows are grouped per device (excluded_device_index), in this order,
       // with a divider between devices; `dep` resolves within the same device.
-      { key: "excluded_device_enabled", domain: "switch", lk: "itemExcludedDevice", icon: "mdi:power-plug-off", useName: true, typeTag: true },
+      { key: "excluded_device_enabled", domain: "switch", lk: "itemExcludedDevice", icon: "mdi:power-plug-off", useName: true, typeTag: true, lead: true },
       { key: "excluded_device_solar_surplus", domain: "switch", lk: "itemSolarSurplus", icon: "mdi:solar-power", useName: true, dep: "excluded_device_enabled" },
       { key: "excluded_device_dynamic_power_control", domain: "switch", lk: "itemDynamicPowerControl", icon: "mdi:ev-station", useName: true, dep: "excluded_device_solar_surplus" },
       { key: "excluded_device_cover_home", domain: "switch", lk: "itemCoverHome", icon: "mdi:home-lightning-bolt", useName: true, dep: "excluded_device_solar_surplus" },
@@ -1229,7 +1229,7 @@ const SYS_SECTIONS = [
       { key: "delay_safety_margin_min", lk: "itemDelaySafety", icon: "mdi:timer-sand-complete" },
       { key: "charge_delay_balance_deadband_kwh", lk: "itemDelayDeadband", icon: "mdi:arrow-collapse-horizontal" },
       { key: "delay_soc_setpoint_enabled", domain: "switch", lk: "itemDelaySocEnable", icon: "mdi:battery-charging-50" },
-      { key: "delay_soc_setpoint", lk: "itemDelaySoc", icon: "mdi:battery-charging-50" },
+      { key: "delay_soc_setpoint", lk: "itemDelaySoc", icon: "mdi:battery-charging-50", dep: "delay_soc_setpoint_enabled" },
     ],
   },
   {
@@ -7485,7 +7485,8 @@ class MarstekVenusPanel extends HTMLElement {
     const k = document.createElement("span");
     k.className = "ctl-k";
     k.innerHTML = `<ha-icon icon="${item.icon || "mdi:cog-outline"}"></ha-icon><span>${label}</span>`;
-    if (item.lead) k.classList.add("ctl-k-lead");
+    // bold: a card's on/off switch (`gate`) and a group's own switch (`lead`)
+    if (item.lead || item.gate) k.classList.add("ctl-k-lead");
     if (item.titleFn) {
       k.classList.add("ctl-k-info");
       // tap/click shows the detail popover — mobile has no hover. The native
