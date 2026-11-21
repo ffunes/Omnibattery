@@ -42,6 +42,7 @@
 
 ### Fixed
 
+- **German: the Weekly Full Charge and Charge Delay status read "Inaktiv" while idle**: they read "Bereit" (ready), which sounds as if the feature were active or about to start. "Inaktiv" is what the Net Balance and the excluded device status already say for `idle`, so the feature statuses now agree; "Bereit" stays for a battery's own state. Other languages are unchanged.
 - **Weekly Full Charge plans for a battery under the Temperature Charge Limit**: the run was sized at rated charge power, so a battery the limit slowed down could miss its window. The plan now uses the power the limit allows and aims to be full a quarter of the run's time before the window closes (at least half an hour). Thanks to @anorakophobia
 - **Dynamic Pricing re-plans when the battery is above its plan too**: with more stored energy than planned, the plan and the Daily Operation chart kept the old, earlier depletion until the next evaluation. 3 points above the line now re-plan (at most hourly, never during a charge slot).
 - **Relay cooldown no longer loops on a small leftover load** (#909): at the end of a charge the hold raised a 15 W flow to the 100 W minimum, which restarted the cooldown and kept charging from the grid for hours; it now holds at most the power already flowing. Thanks to @jvanschie

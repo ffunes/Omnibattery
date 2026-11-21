@@ -1755,7 +1755,7 @@
       "weekly_full_charge": {
         "name": "Wöchentliche Vollladung",
         "state": {
-          "idle": "Bereit",
+          "idle": "Inaktiv",
           "disabled": "Deaktiviert",
           "charging": "Lädt auf 100%",
           "complete": "Abgeschlossen"
@@ -1764,7 +1764,7 @@
       "charge_delay_status": {
         "name": "Ladeverzögerung",
         "state": {
-          "idle": "Bereit",
+          "idle": "Inaktiv",
           "disabled": "Deaktiviert",
           "waiting_for_solar": "Warte auf Solar",
           "delayed": "Verzögert",
