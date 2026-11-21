@@ -1,0 +1,27 @@
+{
+  "battery_capacity_kwh": 6.0,
+  "brand": "generic_ha",
+  "charge_hysteresis_percent": 5,
+  "dc_pv_connected": false,
+  "enable_charge_hysteresis": true,
+  "full_charge_voltage_taper_enabled": false,
+  "ha_charge_energy_entities": [
+    "sensor.byd_charged"
+  ],
+  "ha_discharge_energy_entity": "sensor.byd_discharged",
+  "ha_power_entity": "sensor.byd_power_2",
+  "ha_power_positive_is": "discharge",
+  "ha_soc_entity": "sensor.byd_soc_2",
+  "ha_stale_after_s": 900,
+  "ha_target_soc_entity": "number.byd_min_soc",
+  "host": "<generated>",
+  "kept_runtime_key": "kept",
+  "mac": "",
+  "max_charge_power": 1500,
+  "max_discharge_power": 1500,
+  "max_soc": 95,
+  "min_soc": 15,
+  "name": "Observed 1 edited",
+  "port": 0,
+  "track_mac": false
+}

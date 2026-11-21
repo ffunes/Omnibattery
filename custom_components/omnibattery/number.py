@@ -57,6 +57,7 @@ from .drivers.base import (
     KEY_SET_CHARGE_POWER,
     KEY_SET_DISCHARGE_POWER,
     canonical_key,
+    is_observed,
 )
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.manual_control import assert_manual_control
@@ -105,6 +106,15 @@ async def async_setup_entry(
     for coordinator in coordinators:
         for definition in coordinator.number_definitions:
             entities.append(MarstekVenusNumber(coordinator, definition))
+
+        # A battery that takes no power command gets none of the controls below.
+        # Every one of them exists to shape a set-point this integration will
+        # never send: software SOC limits the PD loop would enforce, manual power
+        # targets, soft power ceilings. Creating them would offer the user knobs
+        # that quietly do nothing. Its own driver-declared numbers (the optional
+        # target SOC) are added by the loop above and are unaffected.
+        if is_observed(coordinator):
+            continue
 
         # For batteries without hardware SOC cutoff registers (v3/vA/vD), expose
         # software-enforced max/min SOC as live-editable entities. The PD controller

@@ -33,6 +33,7 @@ from ..drivers.base import (
     DriverReconciliation,
     ReconcileState,
     SetpointResult,
+    can_take_setpoint,
     canonical_key,
     stored_battery_value,
 )
@@ -1612,6 +1613,23 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         When ``read_back`` is False the set-points are applied optimistically and
         the regular poll refreshes ``battery_power``.
         """
+        # A battery that accepts no power command is refused here, at the common
+        # command boundary, and not only in the control loop's
+        # ``_set_battery_power``. Manual time slots, the force-mode select and
+        # global manual mode all reach the driver through this method without
+        # passing that guard, so this is the only place a refusal actually holds
+        # for every caller -- including the 0 W writes those paths use to idle a
+        # battery. Reported as a clean no-op rather than a failure: nothing went
+        # wrong, there is simply nothing to command.
+        if not can_take_setpoint(self):
+            _LOGGER.debug(
+                "[%s] Ignoring %d W setpoint - this battery accepts no power command",
+                self.name, net_power_w,
+            )
+            return SetpointResult(
+                ok=True, net_power_w=0, confirmed=True, exact=False, applied={},
+            )
+
         # ``apply_power`` is also used by manual time slots and software-manual
         # drivers, which do not go through a setpoint number entity. Enforce the
         # same effective per-direction ceiling at this common command boundary.

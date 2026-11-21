@@ -5,6 +5,7 @@ import math
 from dataclasses import dataclass
 
 from .const import DEFAULT_ROUND_TRIP_EFFICIENCY
+from .drivers.base import can_take_setpoint
 
 
 BACKUP_DISCHARGING_ENERGY_KEY = "backup_discharging_energy"
@@ -153,6 +154,13 @@ def effective_round_trip_efficiency(controller) -> tuple[float, str]:
         return configured, "configured"
     weighted = total = 0.0
     for coordinator in getattr(controller, "coordinators", None) or []:
+        # An observed battery is left out. This number decides which price
+        # spread is worth buying, and the energy bought is round-tripped
+        # through the batteries the controller can actually command -- a
+        # battery it never charges or discharges must not move the gate those
+        # batteries are judged by, however honest its own counters are.
+        if not can_take_setpoint(coordinator):
+            continue
         value = measured_battery_efficiency(coordinator)
         if value is None:
             continue

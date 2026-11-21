@@ -49,6 +49,7 @@ from ..const import (
 from ..drivers.base import (
     AC_PORT_FIRST,
     AC_PORT_FIRST_NO_CELL,
+    can_take_setpoint,
     has_connected_mppt_pv,
 )
 from ..energy import effective_total_discharging_energy
@@ -156,10 +157,17 @@ def _is_manual_owned(controller, coordinator) -> bool:
 
 
 def automatic_batteries(controller) -> list:
-    """The batteries the distribution will actually command."""
+    """The batteries the distribution will actually command.
+
+    Note what this does *not* touch: :func:`uncovered_load_w` still counts every
+    configured battery, observed ones included. Their power is exactly the term
+    that reconstruction needs -- leaving it out is the defect this capability was
+    added to fix. Only the ladder of batteries to command is narrowed here.
+    """
     return [
         coordinator for coordinator in getattr(controller, "coordinators", [])
         if not _is_manual_owned(controller, coordinator)
+        and can_take_setpoint(coordinator)
     ]
 
 

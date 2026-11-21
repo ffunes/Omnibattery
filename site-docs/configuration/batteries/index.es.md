@@ -14,6 +14,7 @@ Elige la vía que coincida con tu batería y con cómo está conectada a Home As
 | Indevolt SolidFlex o PowerFlex | La API local activada y el modo Tiempo real elegido en la app de Indevolt | **Indevolt SolidFlex / PowerFlex** | [Indevolt](indevolt.md) |
 | Hoymiles MS-A2 o HiBattery compatible | MQTT configurado en Home Assistant y el ID completo del dispositivo | **Hoymiles MQTT** | [Hoymiles MQTT](hoymiles.md) |
 | Huawei SUN2000 con LUNA2000 | Un extremo Modbus TCP y Huawei Solar o escrituras Modbus directas | **Huawei SUN2000 + LUNA2000** | [Huawei](huawei.md) |
+| Cualquier otra batería que ya lea otra integración de Home Assistant | Sus sensores de estado de carga y potencia, y su capacidad en kWh | **Other battery, read-only via Home Assistant entities** | [Otras baterías, solo lectura](generic-ha.md) |
 
 ![Selector de marca de batería](../../assets/screenshots/configuration/battery-brand-form.png){ width="650" style="display: block; margin: 0 auto;" }
 
