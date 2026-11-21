@@ -559,17 +559,7 @@ class ConfigNumberEntity(NumberEntity):
     @property
     def native_value(self):
         """Return the current value from config_entry.data, in display units."""
-        default = self._definition["default"]
-        if callable(default):
-            # The same fleet the controller sizes it to, reported capacities included.
-            controller = (
-                (getattr(self.hass, "data", None) or {}).get(DOMAIN, {})
-                .get(getattr(self.entry, "entry_id", None), {})
-                .get("controller")
-            )
-            reported = getattr(controller, "_reported_battery_capacity_kwh", None)
-            default = default(self.entry.data, reported() if callable(reported) else None)
-        raw = self.entry.data.get(self._key, default)
+        raw = self.entry.data.get(self._key, self._definition["default"])
         return raw / self._scale
 
     async def async_set_native_value(self, value: float) -> None:

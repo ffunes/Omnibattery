@@ -4,8 +4,8 @@ The percentage inflated the *already computed* deficit, so it scaled inversely
 to the solar risk it claimed to hedge: a big top-up on a cloudy day with little
 solar, a small one on a sunny day where the forecast could actually be wrong by
 a lot. The kWh safety margin sits where the risk is -- it haircuts the solar
-forecast itself -- so the percentage is removed and the kWh one gets a default
-that is no longer 0.
+forecast itself -- so the percentage is removed. Since v20 that margin is
+itself a % of the forecast sun (see the v19 -> v20 tests at the end).
 
 The migration half needs the real ``hass`` / entity-registry, so it runs only
 without the suite's ``-p no:homeassistant`` flag (conftest skips it otherwise)::
@@ -28,41 +28,13 @@ from custom_components.omnibattery.const import (
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
-    DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
-    default_predictive_safety_margin_kwh,
 )
 from custom_components.omnibattery.number import ConfigNumberEntity
 
 DOMAIN = "omnibattery"
 PREFIX = "marstek_venus_system_"
 REMOVED_UID = f"{PREFIX}{CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT}"
-
-
-# ----------------------------------------------------------------------
-# The replacement default (no hass needed)
-# ----------------------------------------------------------------------
-
-def test_default_margin_is_five_percent_of_the_configured_fleet():
-    data = {"batteries": [{"battery_capacity_kwh": 5.12}, {"battery_capacity_kwh": 5.12}]}
-    assert default_predictive_safety_margin_kwh(data) == 0.51
-
-
-def test_default_margin_scales_with_the_fleet():
-    small = default_predictive_safety_margin_kwh({"batteries": [{"battery_capacity_kwh": 5.0}]})
-    big = default_predictive_safety_margin_kwh(
-        {"batteries": [{"battery_capacity_kwh": 5.0}] * 6}
-    )
-    assert big > small > 0
-
-
-@pytest.mark.parametrize(
-    "data",
-    [{}, {"batteries": []}, {"batteries": [{}]}, {"batteries": [{"battery_capacity_kwh": 0}]}],
-    ids=["no_key", "no_batteries", "no_capacity", "zero_capacity"],
-)
-def test_default_margin_falls_back_to_no_margin_without_capacity(data):
-    assert default_predictive_safety_margin_kwh(data) == DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
 
 
 # ----------------------------------------------------------------------
@@ -89,26 +61,6 @@ def test_slider_is_a_percent_with_a_fixed_default():
 @pytest.mark.parametrize("stored", [0.0, 30.0], ids=["explicit_zero", "explicit_value"])
 def test_a_stored_margin_wins_over_the_default(stored):
     assert _slider_value({**FLEET, CONF_PREDICTIVE_SAFETY_MARGIN_PCT: stored}) == stored
-
-
-# ----------------------------------------------------------------------
-# Batteries that report their own capacity count too
-# ----------------------------------------------------------------------
-
-# A Marstek reads its capacity over Modbus (nothing configured); a Zendure left
-# at 0 detects it from its packs. Only the reported figures size the fleet.
-REPORTING = {"batteries": [{"name": "Venus"}, {"name": "SolarFlow", "battery_capacity_kwh": 0}]}
-REPORTED = {"Venus": 5.12, "SolarFlow": 8.16}
-
-
-def test_default_margin_counts_the_reported_capacity():
-    assert default_predictive_safety_margin_kwh(REPORTING) == DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH
-    assert default_predictive_safety_margin_kwh(REPORTING, REPORTED) == 0.66
-
-
-def test_a_configured_capacity_wins_over_the_reported_one():
-    data = {"batteries": [{"name": "SolarFlow", "battery_capacity_kwh": 10.0}]}
-    assert default_predictive_safety_margin_kwh(data, {"SolarFlow": 8.16}) == 0.5
 
 
 # ----------------------------------------------------------------------

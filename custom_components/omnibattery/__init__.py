@@ -4119,14 +4119,6 @@ class ChargeDischargeController:
         target = WEEKDAY_MAP.get(getattr(self, "weekly_full_charge_day", None))
         return target is not None and (now.weekday() + 1) % 7 == target
 
-    def _reported_battery_capacity_kwh(self) -> dict:
-        """Each battery's capacity as its coordinator reports it, by name."""
-        return {
-            coordinator.name: (coordinator.data or {}).get("battery_total_energy")
-            for coordinator in getattr(self, "coordinators", None) or []
-            if getattr(coordinator, "data", None)
-        }
-
     def _weekly_full_charge_pending(self) -> bool:
         """Return True while a weekly full charge still has to reach 100% today."""
         manager = getattr(self, "_weekly_charge_mgr", None)
