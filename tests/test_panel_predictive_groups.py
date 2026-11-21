@@ -20,6 +20,7 @@ EXPECTED = [
     ("predictive_charging", "base"),
     ("predictive_charging_notifications", "base"),
     ("predictive_charging_active", "base"),
+    ("discharge_reserve_status", "base"),
     ("predictive_safety_margin_kwh", "solar"),
     ("min_soc_floor_enabled", "floor"),
     ("predictive_min_soc_floor", "floor"),
@@ -27,11 +28,10 @@ EXPECTED = [
     ("max_price_threshold", "chargePrice"),
     ("min_arbitrage_margin", "chargePrice"),
     ("round_trip_efficiency", "chargePrice"),
-    ("negative_price_charging", "chargePrice"),
+    ("negative_price_charging", "negativePrice"),
     ("price_discharge_control", "dischargePrice"),
     ("discharge_price_threshold_enabled", "dischargePrice"),
     ("discharge_price_threshold", "dischargePrice"),
-    ("discharge_reserve_status", "reserve"),
     ("high_price_sale", "highPrice"),
     ("high_price_discharge_status", "highPrice"),
     ("surplus_price_hold", "surplus"),
@@ -213,6 +213,7 @@ def test_predictive_and_weekly_cards_show_their_status():
 LEADS = {
     "base": "predictive_charging",
     "floor": "min_soc_floor_enabled",
+    "negativePrice": "negative_price_charging",
     "dischargePrice": "price_discharge_control",
     "highPrice": "high_price_sale",
     "surplus": "surplus_price_hold",
@@ -220,7 +221,7 @@ LEADS = {
 }
 TITLES = {
     "solar": "grpPlanning", "floor": "grpPlanning",
-    "chargePrice": "grpPriceTrade", "dischargePrice": "grpPriceTrade", "reserve": "grpPriceTrade",
+    "chargePrice": "grpPriceTrade", "negativePrice": "grpPriceTrade", "dischargePrice": "grpPriceTrade",
     "highPrice": "grpGridSale", "surplus": "grpGridSale", "predischarge": "grpGridSale",
 }
 
