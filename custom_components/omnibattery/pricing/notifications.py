@@ -652,6 +652,12 @@ def format_dynamic_pricing_notification(
                 f"No charging will activate."
             )
         else:
+            if decision_data.get("floor_active"):
+                # The floor booked all or part of it; the price only picked when.
+                title = (
+                    "Predictive Charging: Price Optimization + Min SOC floor"
+                    f" - {hours_label} selected"
+                )
             opportunity_line = ""
             if schedule_type == "combined":
                 opportunity_line = (

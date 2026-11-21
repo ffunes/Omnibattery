@@ -391,6 +391,22 @@ def test_dynamic_charging_shows_cost():
     assert "Estimated cost: ~0.75 €" in message
 
 
+def test_dynamic_floor_charge_names_the_floor_in_title():
+    schedule = _schedule([0.089], hours_needed=1.0, charging_needed=True)
+    title, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, floor_active=True, planned_grid_charge_kwh=1.15),
+        schedule,
+        **_DP_CFG,
+    )
+    assert title == "Predictive Charging: Price Optimization + Min SOC floor - 1.0h selected"
+    title, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, planned_grid_charge_kwh=1.15),
+        schedule,
+        **_DP_CFG,
+    )
+    assert "Min SOC floor" not in title
+
+
 def test_dynamic_extended_plan_names_energy_in_tomorrows_slots():
     """The planned total spans tomorrow; the slots listed are tonight's only."""
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
