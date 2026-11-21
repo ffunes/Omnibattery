@@ -2336,6 +2336,9 @@
       "discharging_cutoff_capacity": {
         "name": "Discharging Cutoff"
       },
+      "hardware_reserve_soc": {
+        "name": "Backup Power SOC"
+      },
       "user_work_mode": {
         "name": "Work Mode"
       },

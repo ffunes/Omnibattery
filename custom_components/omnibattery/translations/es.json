@@ -2339,6 +2339,9 @@
       "discharging_cutoff_capacity": {
         "name": "Límite de Fin de Descarga"
       },
+      "hardware_reserve_soc": {
+        "name": "SOC de Respaldo"
+      },
       "user_work_mode": {
         "name": "Modo de Funcionamiento"
       },

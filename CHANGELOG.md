@@ -95,6 +95,7 @@
 - **Dynamic Pricing: the plan sees tomorrow morning without a dated solar forecast** (#834): with tomorrow's prices published but no dated solar periods (a template forecast sensor, for example), the plan stopped at sunrise and never saw the morning peak. With a mature learned solar profile, tomorrow's sun is taken from it (its shape, scaled to the median of recent days) and the plan covers tomorrow like a dated forecast; without one, the plan runs to tomorrow's solar noon counting no sun for tomorrow. A dated forecast of 0 kWh for tomorrow now counts as a forecast.
 - **Dynamic Pricing: a night charge no longer books more than the battery holds**: with tomorrow's prices published, each night slot was checked against the room it had when it opened, not against the slots booked after it, so a run of back-to-back slots could book several kWh with nowhere to go (7.5 kWh for a 4.6 kWh battery). The extra slots charged nothing while the plan, its cost and its notification counted them.
 - **Removing an excluded device no longer leaves orphaned entities behind** (PR#927). Thanks to @anorakophobia.
+- **Huawei: the backup power SOC (47102) is a discharge floor**: the floor, plan and Charge Delay use the higher of it and the minimum SOC; new diagnostic **Backup Power SOC** sensor (PR#852). Thanks to @sphings79.
 
 ### Internal
 

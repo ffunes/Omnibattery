@@ -86,7 +86,7 @@ from .energyzero import (
     resolve_energyzero_source,
 )
 from ..control.max_soc_charge import MaxSocChargeManager
-from ..control.pack_soc import soc_vs_ceiling
+from ..control.pack_soc import effective_min_soc, soc_vs_ceiling
 from ..drivers.base import has_solar_production_source
 from ..tracking.consumption_profile import adjust_remaining_fallback_energy
 from ..energy import effective_round_trip_efficiency
@@ -4374,7 +4374,7 @@ class PricingManager:
 
             def floor_of(c) -> float:
                 if held_until is not None or not callable(planning_floor):
-                    return float(c.min_soc)
+                    return effective_min_soc(c)
                 return float(planning_floor(c))
 
             # 100% while a weekly full charge is pending, so the plan may size
