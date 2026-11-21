@@ -39,9 +39,9 @@ All three modes calculate whether energy is missing. The difference is who choos
 
 When grid charging is needed, Omnibattery targets only the calculated deficit instead of filling every battery to its maximum state of charge (SOC). In a multi-battery system, it shares that target according to each battery's available capacity. Reaching the grid-charge target does not block later solar surplus: the battery can continue in a solar-only state.
 
-Use **Guaranteed Minimum SOC** if the whole-day balance looks sufficient but the battery often reaches its minimum before solar production begins. The switch and number entity set a reserve that must be available before the expected solar start.
+Use **Guaranteed Minimum SOC** if the whole-day balance looks sufficient but the battery often reaches its minimum before solar production begins. The switch turns it on; its value (**Minimum SOC** on the card, default 20%) sets the reserve that must be available before the expected solar start.
 
-Use **Re-evaluate Predictive Charging** after a material forecast or setting change. In Dynamic Pricing it rebuilds the remaining schedule immediately. In Time Slot mode it forces a fresh decision on the next control cycle inside an active charging window; pressing it outside a window does not open one. Real-Time Price has no button because it decides again on every control cycle.
+A setting changed on the predictive-charging card re-plans on the next control cycle by itself. Use **Re-evaluate Predictive Charging** after a change outside Omnibattery, such as a corrected solar forecast or a new price source. In Dynamic Pricing it rebuilds the remaining schedule immediately. In Time Slot mode it forces a fresh decision on the next control cycle inside an active charging window; pressing it outside a window does not open one. Real-Time Price has no button because it decides again on every control cycle.
 
 Turn off **Predictive Charging** to pause all predictive grid charging and its Dynamic Pricing subfeatures.
 
@@ -56,6 +56,7 @@ The card in the Omnibattery **Control** tab starts with the base rows (switch, n
 Under a heading each feature is one group, separated by a line: its switch, its settings and its status row. The re-evaluate button closes the card.
 
 - A feature's settings show only while the feature is on; the discharge price floor and its manual switch follow **Price-Based Discharge**.
+- Every setting's tooltip ends with its default, for example "Default: off." or "Default: 0.02 €/kWh.".
 - A price threshold whose manual switch is off reads "Automatic", followed by what applies instead.
 - **Advanced** on the card header shows the fine-tuning settings; with it off, each feature keeps its switch and status.
 - Sliders for a price per kWh cover the usual range in whole cents; type a value to go beyond it.
@@ -66,10 +67,10 @@ Under a heading each feature is one group, separated by a line: its switch, its 
 |---|---|---|
 | No grid charge is planned | Stored energy and expected solar already cover demand | **Predictive Charging Active** and its decision attributes |
 | Cheap periods appear but charging does not start | The calendar is informational, the quota is already met, or a safety/control rule is active | `charging_needed`, the active mode page, battery SOC limits, and **Integration Status** |
-| The plan reports an energy shortfall | Eligible periods cannot deliver enough energy before it is needed | Charging power, battery capacity, price ceiling, configured windows, and physical blockers |
+| The plan reports an energy shortfall | Eligible periods cannot deliver enough energy before it is needed | Charging power, battery capacity, charge price ceiling, configured windows, and physical blockers |
 | The battery charges too much or too little | The solar or household-demand estimate does not match the remaining day | Forecast sensor type, consumption profile coverage, and **Solar Forecast Safety Margin** |
 | Charging pauses while household load rises | Maximum grid import or phase protection is preserving the import limit | [Capacity protection](../../features/peak-shaving.md) and [Main grid sensor](../main-sensor.md) |
-| A setting change has no immediate effect | The active plan has not yet been rebuilt | Press **Re-evaluate Predictive Charging** where available |
+| A change outside Omnibattery has no effect yet | A corrected forecast or another price source has not been planned in | Press **Re-evaluate Predictive Charging** where available; settings on the card apply by themselves |
 
 ??? "Advanced details"
     ### Energy decision and charge target
