@@ -33,7 +33,11 @@ import math
 
 import numpy as np
 
-from ..const import DEFAULT_ROUND_TRIP_EFFICIENCY, WEEKLY_CHARGE_MARGIN_MIN_H
+from ..const import (
+    DEFAULT_ROUND_TRIP_EFFICIENCY,
+    WEEKLY_CHARGE_MARGIN_MIN_H,
+    WEEKLY_CHARGE_MARGIN_RATIO,
+)
 from .battery_model import BIG, BatteryModel, Quarter
 from .chronological import (
     ChronologicalDiagnostics,
@@ -111,6 +115,20 @@ def _bands(request, cap) -> tuple:
     ))
 
 
+def _run_margin(request, model, e0, cap) -> timedelta:
+    """The weekly run's margin before the window's end (D-7): a share of the
+    time it takes from ``e0`` to the top at its curve's power, half an hour at
+    least. A run slower than its curve (a battery warming up into the
+    temperature limit, the house under the grid ceiling) has that to finish."""
+    power = request.full_by_power_kw
+    if power is None:
+        power = request.effective_power_kw
+    hours = model.charge_hours(e0, cap, max(0.0, float(power or 0.0)))
+    if not math.isfinite(hours):
+        hours = 0.0
+    return timedelta(hours=max(WEEKLY_CHARGE_MARGIN_MIN_H, hours * WEEKLY_CHARGE_MARGIN_RATIO))
+
+
 def _reached(peaks, ends, deadline, cap):
     """Whether the run touched the top in a quarter ending by the deadline:
     a weekly charge is done the moment the fleet is full (D-1)."""
@@ -163,8 +181,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     # Weekly Full Charge pending (D-1): a second value function for "not yet
     # full", through the group holding the window's end. The shortfall pays
     # at the planned deadline (D-7: the window's end less the run's margin,
-    # not before the first quarter) and again at the window's end, so a run
-    # that misses the first keeps charging for the second. Penalised only when
+    # a quarter of its time and half an hour at least, not before the first
+    # quarter) and again at the window's end, so a run that misses the first
+    # keeps charging for the second. Penalised only when
     # the window's end is inside the published prices (D-3); before that the
     # day is planned with the top and the hold, freely.
     e0 = min(usable, cap)
@@ -180,7 +199,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     if pending0:
         first_end = groups[0][2][0]
         deadline = max(request.full_by, first_end)
-        early = max(request.full_by - timedelta(hours=WEEKLY_CHARGE_MARGIN_MIN_H), first_end)
+        early = max(request.full_by - _run_margin(request, model, e0, cap), first_end)
         binding = request.full_by <= groups[-1][2][-1]
 
         def group_of(t):
