@@ -2831,6 +2831,10 @@
           "description": "Last local day to exclude. Defaults to the start date, excluding a single day."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Use measured round-trip efficiency",
+      "description": "Drops a fixed Round-Trip Efficiency, so the planner uses the efficiency measured on your batteries again (0.85 until a battery has enough history). The dashboard's value editor calls it from “Use measured”."
     }
   }
 }

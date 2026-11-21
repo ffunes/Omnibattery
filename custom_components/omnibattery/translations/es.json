@@ -2834,6 +2834,10 @@
           "description": "Último día local que se excluye. Si se omite, se excluye solo el día de inicio."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Usar la eficiencia de ciclo completo medida",
+      "description": "Elimina el valor fijo de la eficiencia de ciclo completo: el planificador vuelve a usar la eficiencia medida en tus baterías (0,85 hasta que una batería tenga suficiente historial). El editor de valor del panel la llama desde «Usar la medida»."
     }
   }
 }

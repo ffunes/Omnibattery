@@ -2834,6 +2834,10 @@
           "description": "Laatste lokale dag die wordt uitgesloten. Zonder opgave wordt alleen de startdag uitgesloten."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Gemeten retourrendement gebruiken",
+      "description": "Verwijdert een vaste waarde van het retourrendement: de planner gebruikt weer het rendement dat op je batterijen is gemeten (0,85 totdat een batterij genoeg historie heeft). De waarde-editor van het dashboard roept dit aan via “Gemeten waarde gebruiken”."
     }
   }
 }

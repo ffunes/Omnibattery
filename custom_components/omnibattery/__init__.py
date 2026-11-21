@@ -1102,9 +1102,8 @@ class ChargeDischargeController:
             config_entry.data, CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
         )
         self.min_arbitrage_margin = config_entry.data.get(CONF_MIN_ARBITRAGE_MARGIN, None)
-        self.round_trip_efficiency = config_entry.data.get(
-            CONF_ROUND_TRIP_EFFICIENCY, DEFAULT_ROUND_TRIP_EFFICIENCY
-        )
+        # None = measured (no fixed value set); see effective_round_trip_efficiency.
+        self.round_trip_efficiency = config_entry.data.get(CONF_ROUND_TRIP_EFFICIENCY)
         self.smart_predischarge_enabled = config_entry.data.get(
             CONF_SMART_PREDISCHARGE_ENABLED, DEFAULT_SMART_PREDISCHARGE_ENABLED
         )
@@ -3459,9 +3458,7 @@ class ChargeDischargeController:
             self.config_entry.data, CONF_DISCHARGE_PRICE_THRESHOLD, CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED
         )
         self.min_arbitrage_margin = self.config_entry.data.get(CONF_MIN_ARBITRAGE_MARGIN, None)
-        self.round_trip_efficiency = self.config_entry.data.get(
-            CONF_ROUND_TRIP_EFFICIENCY, DEFAULT_ROUND_TRIP_EFFICIENCY
-        )
+        self.round_trip_efficiency = self.config_entry.data.get(CONF_ROUND_TRIP_EFFICIENCY)
         self.smart_predischarge_enabled = self.config_entry.data.get(
             CONF_SMART_PREDISCHARGE_ENABLED, DEFAULT_SMART_PREDISCHARGE_ENABLED
         )
@@ -11233,8 +11230,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v19 -> v20: the solar safety margin turns from kWh into a % of the
                 forecast sun. A stored 0 becomes 0 %; any other value takes
                 the default. The kWh number entity is removed.
+    v20 -> v21: a stored round-trip efficiency of exactly the default (0.85)
+                meant "use the measured value"; that is now the absent key, so
+                the key is dropped and a stored 0.85 from then on is a fixed
+                value.
     """
-    if entry.version >= 20:
+    if entry.version >= 21:
         return True
 
     new_data = dict(entry.data)
@@ -11711,12 +11712,20 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(solar safety margin is now a %% of the forecast sun)",
         )
 
+    if entry.version < 21:
+        if new_data.get(CONF_ROUND_TRIP_EFFICIENCY) == DEFAULT_ROUND_TRIP_EFFICIENCY:
+            new_data.pop(CONF_ROUND_TRIP_EFFICIENCY)
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 21 "
+            "(round-trip efficiency 0.85 now means the measured value only when unset)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
         options=new_options,
-        version=20,
+        version=21,
     )
     return True
 
@@ -11992,6 +12001,7 @@ async def _async_migrate_legacy_active_balance(
 
 
 SERVICE_EXCLUDE_CONSUMPTION_DAYS = "exclude_consumption_days"
+SERVICE_USE_MEASURED_ROUND_TRIP_EFFICIENCY = "use_measured_round_trip_efficiency"
 ATTR_START_DATE = "start_date"
 ATTR_END_DATE = "end_date"
 
@@ -12041,6 +12051,27 @@ def _async_register_services(hass: HomeAssistant) -> None:
         SERVICE_EXCLUDE_CONSUMPTION_DAYS,
         _async_exclude_consumption_days,
         schema=EXCLUDE_CONSUMPTION_DAYS_SCHEMA,
+    )
+
+    async def _async_use_measured_round_trip_efficiency(call: ServiceCall) -> None:
+        """Drop a fixed round-trip efficiency: the measured one applies again.
+
+        A number entity cannot be cleared, so this is the way back from a
+        fixed value (the panel's value editor calls it). The entry update
+        re-reads the settings and re-plans like any other change.
+        """
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if CONF_ROUND_TRIP_EFFICIENCY not in entry.data:
+                continue
+            data = dict(entry.data)
+            data.pop(CONF_ROUND_TRIP_EFFICIENCY)
+            hass.config_entries.async_update_entry(entry, data=data)
+            _LOGGER.info("Round-trip efficiency follows the measured value again")
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_USE_MEASURED_ROUND_TRIP_EFFICIENCY,
+        _async_use_measured_round_trip_efficiency,
     )
 
 
@@ -12895,6 +12926,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok and not remaining:
         _async_unregister_frontend_panel(hass)
         hass.services.async_remove(DOMAIN, SERVICE_EXCLUDE_CONSUMPTION_DAYS)
+        hass.services.async_remove(DOMAIN, SERVICE_USE_MEASURED_ROUND_TRIP_EFFICIENCY)
 
     return unload_ok
 
