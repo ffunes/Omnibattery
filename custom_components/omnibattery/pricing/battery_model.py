@@ -22,6 +22,7 @@ All functions take floats or numpy arrays for ``e``/``e1``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 import numpy as np
 
@@ -91,6 +92,21 @@ class BatteryModel:
         grid ceiling leaves after the house, through the charge efficiency."""
         net = q.house_kwh - q.solar_kwh
         return min(q.charge_kwh, max(0.0, q.ceiling_kwh - max(0.0, net))) * self.eff
+
+    def charge_hours(self, e: float, upto: float, power_kw: float) -> float:
+        """Hours a charge takes from ``e`` to ``upto`` at ``power_kw`` AC, at
+        most each band's power from its edge up (the house and the sun aside)."""
+        segments = [(-math.inf, power_kw)] + [(edge, min(power_kw, kw)) for edge, kw in self.bands]
+        hours = 0.0
+        for k, (low, kw) in enumerate(segments):
+            high = segments[k + 1][0] if k + 1 < len(segments) else math.inf
+            need = min(upto, high) - max(e, low)
+            if need <= TOL:
+                continue
+            if kw <= 0:
+                return math.inf
+            hours += need / (kw * self.eff)
+        return hours
 
     def fill(self, e, upto, rate, q: Quarter, frac=1.0):
         """(stored kWh, fraction of the quarter used) charging from ``e`` toward

@@ -597,6 +597,72 @@ def test_weekly_hours_without_any_power_figure_keep_the_fallback():
     assert manager._weekly_charge_hours_needed(2.0) == 1.0
 
 
+def _with_temperature_limit(manager, temperatures, *, enabled=True):
+    """The real temperature charge limit (40 °C, band 15, floor 40 %) on the
+    stub controller, and each battery's internal temperature."""
+    from custom_components.omnibattery.control.temperature_limit import (
+        TemperatureChargeLimitManager,
+    )
+
+    ctrl = manager._controller
+    ctrl.temp_charge_limit_enabled = enabled
+    ctrl._temp_charge_limit_c = 40
+    ctrl._temp_charge_limit_band_c = 15
+    ctrl._temp_charge_limit_floor_pct = 40
+    ctrl._temp_limit_mgr = TemperatureChargeLimitManager(hass=None, controller=ctrl)
+    for coordinator in ctrl.coordinators:
+        if coordinator.name in temperatures:
+            coordinator.data["internal_temperature"] = temperatures[coordinator.name]
+    return manager
+
+
+def test_the_weekly_run_is_sized_at_the_temperature_limited_power():
+    """20 Nov: Zendure 4 % of 8.16 kWh at 47 °C: the limit lets 0.72 of its
+    2.4 kW through, 1728 W (measured 1725 W for four hours), and the run sized
+    at 2.4 kW was booked 55 minutes short. Its last 5 % stay at half the rated
+    power, the lower of the two limits. The Marstek at 30 °C is not limited.
+    The Zendure alone: 7.43 kWh at 1.728 kW and 0.41 at 1.2: 5.06 + 0.40 h,
+    plus a quarter: 6.82 h, so 7 h (5.5 h at the rated power)."""
+    manager = _with_temperature_limit(
+        _hours_manager(
+            ("Marstek", 9.0, 5.12, 2400.0, True),
+            ("Zendure", 4.0, 8.16, 2400.0, False),
+        ),
+        {"Marstek": 30.0, "Zendure": 47.0},
+    )
+
+    marstek, zendure = list(manager._weekly_tails())
+    assert marstek[2:] == (2400.0, 200.0)
+    assert zendure[2:] == (1728.0, 1200.0)
+    assert manager._weekly_charge_hours_needed(12.49) == 7.0
+
+
+def test_a_battery_at_the_limits_floor_tapers_no_faster_than_it_charges():
+    # 55 °C and above: the floor, 40 % of 2.4 kW, below the half power of the
+    # last 5 %. With the 100 % voltage taper the 200 W stay.
+    manager = _with_temperature_limit(
+        _hours_manager(
+            ("Marstek", 50.0, 5.12, 2400.0, True),
+            ("Zendure", 50.0, 8.16, 2400.0, False),
+        ),
+        {"Marstek": 60.0, "Zendure": 60.0},
+    )
+
+    marstek, zendure = list(manager._weekly_tails())
+    assert marstek[2:] == (960.0, 200.0)
+    assert zendure[2:] == (960.0, 960.0)
+
+
+def test_a_temperature_limit_switched_off_leaves_the_weekly_power():
+    manager = _with_temperature_limit(
+        _hours_manager(("Zendure", 4.0, 8.16, 2400.0, False)),
+        {"Zendure": 47.0},
+        enabled=False,
+    )
+
+    assert [tail[2:] for tail in manager._weekly_tails()] == [(2400.0, 1200.0)]
+
+
 # ----------------------------------------------------------------------
 # The night after the target day
 # ----------------------------------------------------------------------

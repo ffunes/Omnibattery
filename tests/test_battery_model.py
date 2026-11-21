@@ -235,6 +235,20 @@ def test_the_top_band_slows_the_charge_and_splits_the_quarter():
     assert float(plain.normal_step(grid, 4.5, target=5.12)[0]) == pytest.approx(5.0625)
 
 
+def test_charge_hours_follow_the_bands():
+    """5.12 kWh, eff 0.9, the top 0.256 kWh at half of 2.5 kW. From 4.5 kWh:
+    0.364 kWh at 2.25 stored kW, then the band at 1.125. A power below the
+    band's is not raised by it."""
+    model = BatteryModel(capacity_kwh=5.12, round_trip_efficiency=0.81, bands=((4.864, 1.25),))
+    assert model.charge_hours(4.5, 5.12, 2.5) == pytest.approx(0.364 / 2.25 + 0.256 / 1.125)
+    assert model.charge_hours(4.9, 5.12, 2.5) == pytest.approx(0.22 / 1.125)
+    assert model.charge_hours(4.5, 5.12, 1.0) == pytest.approx(0.62 / 0.9)
+    plain = BatteryModel(capacity_kwh=5.12, round_trip_efficiency=0.81)
+    assert plain.charge_hours(4.5, 5.12, 2.5) == pytest.approx(0.62 / 2.25)
+    assert plain.charge_hours(5.12, 5.12, 2.5) == 0.0
+    assert plain.charge_hours(4.5, 5.12, 0.0) == math.inf
+
+
 def test_two_bands_split_the_quarter_twice():
     """The curve of two 5.12 kWh batteries at 50 % and 90 % (2.5 kW each,
     taper 1.25 kW, eff 0.9): 5 kW until 2.56 kWh below the top, 3.75 kW to

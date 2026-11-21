@@ -1263,6 +1263,25 @@ def test_a_missed_planned_deadline_keeps_charging_to_the_window_end():
     assert _reach(plan, 3.0) <= T0 + 6 * Q
 
 
+def test_a_long_weekly_run_plans_a_quarter_of_its_time_as_margin():
+    # 8.5 kWh at 0.576 a quarter: 3.7 h, a quarter of it 0.92 h. The cheapest
+    # quarters are the window's last, and the run still ends an hour before
+    # it: half an hour left a run slowed by a third (a hot battery under the
+    # temperature limit) no time to finish.
+    prices = [0.40 - 0.005 * k for k in range(32)]
+    request = _request(prices, usable=0.5, room=9.0, house=0.0)
+    plan = optimize_charge(_weekly(request, 32)).plan
+    assert T0 + 27 * Q < _reach(plan, 9.0) <= T0 + 28 * Q
+
+
+def test_a_short_weekly_run_keeps_half_an_hour_of_margin():
+    # 2.5 kWh: 1.1 h, a quarter of it 16 minutes: the half hour stays.
+    prices = [0.40 - 0.005 * k for k in range(32)]
+    request = _request(prices, usable=0.5, room=3.0, house=0.0)
+    plan = optimize_charge(_weekly(request, 32)).plan
+    assert T0 + 29 * Q < _reach(plan, 3.0) <= T0 + 30 * Q
+
+
 def test_a_pending_weekly_charge_keeps_its_quotas(monkeypatch):
     # The start cost is off while a weekly charge is pending: the controller
     # charges such a plan's "to the end" slots to 100 %, so marking one more
