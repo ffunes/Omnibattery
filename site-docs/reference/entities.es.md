@@ -57,6 +57,7 @@ Estas entidades pertenecen a **Omnibattery System**, no a una batería.
     | `capacity_protection_active` | Protección de capacidad configurada |
     | `weekly_full_charge` | Carga completa semanal activada |
     | `charge_delay_status` | Retraso de carga configurado |
+    | `excluded_device_status_<n>` | Uno por dispositivo excluido configurado |
     | `system_alarm_status` | Al menos una batería expone registros de alarma |
 
 ??? "Números del sistema"

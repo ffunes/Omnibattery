@@ -43,8 +43,21 @@ Choose the behavior that matches your goal:
 - **Device – Solar Surplus** gives the active device priority over battery charging when solar is available. The battery still does not discharge for the excluded share.
 - **Device – Cover Home** lets the battery continue covering genuine household demand while only the device's grid share remains excluded.
 - **Device – Dynamic Power Control** gives a flexible wallbox time to detect and claim changing export before the battery charges from the remainder.
+- **Device – Status** shows what Omnibattery does with the device right now:
 
-On the **Excluded devices** card each device has its own block, sorted by name and separated by a line: Enabled, Solar Surplus, Dynamic Power Control, Cover Home, Exclusion %. A tag shows the device type, *excluded* (included in the main meter) or *additional*. Options show only where they apply: all of them only while the device is enabled, **Dynamic Power Control** and **Cover Home** only while **Solar Surplus** is on, and **Exclusion %** only for excluded devices.
+| State | Meaning |
+|---|---|
+| Paused | **Device – Enabled** is off; the device counts as ordinary home load |
+| No power reading | The power sensor is unavailable or its value is not a number (a state-only EV charger: its activity sensor is unavailable) |
+| Idle | The device draws no power (a state-only EV charger: it is not charging) |
+| Priority (yielding) | Dynamic Power Control is holding battery charging back so the wallbox can claim the export |
+| On solar surplus | The device runs on solar the battery would otherwise have charged from |
+| Excluded from the battery | The battery does not power the excluded share (a state-only EV charger: while it charges, the battery does not discharge) |
+| Covered by the battery | An additional device (not in the main meter) is added to demand, and the battery covers it |
+
+Its attributes carry the device power, the adjustment applied (positive: kept from the battery; negative: added for the battery to cover), the Dynamic Power Control phase and any charge or discharge block.
+
+On the **Excluded devices** card each device has its own block, sorted by name and separated by a line: Enabled, Solar Surplus, Dynamic Power Control, Cover Home, Exclusion %, Status. A tag shows the device type, *excluded* (included in the main meter) or *additional*. Options show only where they apply: all of them only while the device is enabled, **Dynamic Power Control** and **Cover Home** only while **Solar Surplus** is on, and **Exclusion %** only for excluded devices. Each tooltip ends with its default (Enabled on, Solar Surplus, Dynamic Power Control and Cover Home off, Exclusion % 100%).
 
 A state-only EV charger pauses battery charge and discharge when charging first appears. After the pause, the battery may charge from solar surplus but remains blocked from discharging for the EV until charging ends.
 
@@ -54,7 +67,7 @@ If the device has expected remaining demand configured, predictive charging subt
 
 | Symptom | Likely cause | What to check |
 |---|---|---|
-| The battery still covers the whole device | The exclusion is disabled or its percentage is zero | Check **Device – Enabled** and **Device – Exclusion %** |
+| The battery still covers the whole device | The exclusion is disabled or its percentage is zero | Check **Device – Enabled**, **Device – Exclusion %** and **Device – Status** |
 | The battery ignores too much household demand | **Cover Home** is off while Solar Surplus is giving the device priority | Turn on **Cover Home** if you want the battery to cover the rest of the home |
 | Battery and wallbox compete for changing solar | Dynamic Power Control is off or its activity signal is wrong | Turn on **Dynamic Power Control** and verify the configured activity entity changes before or with demand |
 | The battery never charges while the flexible load is active | The wallbox keeps requesting priority, or no genuine export remains | Check device power, activity state, external solar production, and grid export |

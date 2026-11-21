@@ -1642,6 +1642,18 @@
       }
     },
     "sensor": {
+      "excluded_device_status": {
+        "name": "{device} – Estat",
+        "state": {
+          "paused": "En pausa",
+          "unmeasured": "Sense lectura de potència",
+          "idle": "Inactiu",
+          "priority": "Prioritat (cedint)",
+          "solar_surplus": "Amb excedent solar",
+          "excluded": "Exclòs de la bateria",
+          "covered": "Cobert per la bateria"
+        }
+      },
       "discharge_window": {
         "name": "Finestra de Descàrrega",
         "state": {

@@ -1642,6 +1642,18 @@
       }
     },
     "sensor": {
+      "excluded_device_status": {
+        "name": "{device} – Status",
+        "state": {
+          "paused": "Pausiert",
+          "unmeasured": "Keine Leistungsmessung",
+          "idle": "Inaktiv",
+          "priority": "Vorrang (Batterie weicht)",
+          "solar_surplus": "Mit Solarüberschuss",
+          "excluded": "Von der Batterie ausgeschlossen",
+          "covered": "Von der Batterie gedeckt"
+        }
+      },
       "discharge_window": {
         "name": "Entladefenster",
         "state": {

@@ -12655,6 +12655,14 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
         )
     )
 
+    # Per-device entities are keyed by index: a removed excluded device leaves
+    # the last index's entities behind. Drop them before the platforms add
+    # the current ones.
+    from .infra.excluded_device_entities import async_remove_orphaned_entities
+
+    for _entity_id in async_remove_orphaned_entities(hass, entry):
+        _LOGGER.info("Removed %s: its excluded device no longer exists", _entity_id)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Refresh once the platforms have populated the entity registry. On a fresh

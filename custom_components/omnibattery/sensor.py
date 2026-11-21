@@ -217,6 +217,9 @@ async def async_setup_entry(
 
     if controller:
         entities.append(ActiveBatteriesSensor(hass, entry, controller, coordinators))
+        # one status per excluded device, like its switches
+        for index in range(len(entry.data.get("excluded_devices", []))):
+            entities.append(ExcludedDeviceStatusSensor(hass, entry, controller, index))
 
     # Add the three-phase protection status and per-phase diagnostic sensor.
     if controller:
@@ -2245,6 +2248,71 @@ def _daily_operation_timeline_attributes(controller: object) -> dict[str, object
             )
         ),
     }
+
+
+EXCLUDED_DEVICE_STATES = [
+    "paused", "unmeasured", "idle", "priority", "solar_surplus", "excluded", "covered",
+]
+
+
+class ExcludedDeviceStatusSensor(SensorEntity):
+    """What Omnibattery does with one excluded device right now.
+
+    The handling is computed every control cycle (``ExternalLoads``) but was
+    only visible in diagnostics. States: paused, unmeasured, idle, priority
+    (dynamic power control yielding), solar_surplus, excluded, covered.
+    Attributes carry the device's power, the adjustment applied (positive:
+    kept from the battery; negative: added for the battery to cover), the
+    dynamic-power-control phase and blocks, and the panel grouping.
+    """
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = EXCLUDED_DEVICE_STATES
+    _attr_should_poll = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller, index: int) -> None:
+        from .infra.entity_naming import excluded_device_name
+
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self._device_index = index
+        device = entry.data.get("excluded_devices", [])[index]
+        self._device_label = excluded_device_name(hass, device)
+        self._attr_translation_key = "excluded_device_status"
+        self._attr_translation_placeholders = {"device": self._device_label}
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}excluded_device_status_{index}"
+        self.entity_id = system_entity_id("sensor", f"excluded_device_status_{index}")
+        self._attr_icon = "mdi:information-outline"
+
+    def _state(self):
+        loads = getattr(self.controller, "_external_loads", None)
+        if loads is None:
+            return "idle", {}
+        return loads.device_state(self._device_index)
+
+    @property
+    def native_value(self) -> str:
+        return self._state()[0]
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        from .switch import excluded_device_attributes
+
+        attrs = excluded_device_attributes(self.entry, self._device_index, self._device_label)
+        attrs.update(self._state()[1])
+        return attrs
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
 
 
 class DailyOperationTimelineSensor(SensorEntity):

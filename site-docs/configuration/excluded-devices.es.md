@@ -44,7 +44,8 @@ Cada dispositivo guardado expone controles en vivo en el dispositivo del sistema
 | **Dispositivo – Excedente solar** | Cada dispositivo configurado; setup determina su estado inicial |
 | **Dispositivo – Control dinámico de potencia** | Dispositivos medidos; setup determina su estado inicial |
 | **Dispositivo – Portada de portada** | Cada dispositivo configurado; setup determina su estado inicial |
-| **Dispositivo – % de exclusión** | Dispositivos medidos |
+| **Dispositivo – % de exclusión** | Dispositivos medidos; la tarjeta lo muestra solo para dispositivos excluidos, porque no tiene efecto en un dispositivo adicional |
+| **Dispositivo – Estado** | Cada dispositivo configurado; qué hace Omnibattery con él ahora mismo |
 
 Estas entidades le permiten pausar o cambiar el comportamiento guardado sin volver a abrir la configuración. Consulte [Cargar exclusión](../features/load-exclusion.md#que-veras) para conocer el efecto de cada control.
 
