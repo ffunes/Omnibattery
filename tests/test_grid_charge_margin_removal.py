@@ -27,7 +27,9 @@ from custom_components.omnibattery.const import (
     CONFIG_NUMBER_DEFINITIONS,
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
+    CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH,
+    DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     default_predictive_safety_margin_kwh,
 )
 from custom_components.omnibattery.number import ConfigNumberEntity
@@ -64,11 +66,11 @@ def test_default_margin_falls_back_to_no_margin_without_capacity(data):
 
 
 # ----------------------------------------------------------------------
-# The slider must show that same default, not 0.0 (no hidden values)
+# The % slider shows its fixed default, or the stored value
 # ----------------------------------------------------------------------
 
 MARGIN_DEF = next(
-    d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_PREDICTIVE_SAFETY_MARGIN_KWH
+    d for d in CONFIG_NUMBER_DEFINITIONS if d["key"] == CONF_PREDICTIVE_SAFETY_MARGIN_PCT
 )
 FLEET = {"batteries": [{"battery_capacity_kwh": 5.12}] * 2}
 
@@ -79,14 +81,14 @@ def _slider_value(data):
     return ConfigNumberEntity(None, entry, MARGIN_DEF).native_value
 
 
-def test_slider_shows_the_same_default_the_controller_uses():
-    assert _slider_value(FLEET) == default_predictive_safety_margin_kwh(FLEET) > 0
+def test_slider_is_a_percent_with_a_fixed_default():
+    assert (MARGIN_DEF["min"], MARGIN_DEF["max"], MARGIN_DEF["unit"]) == (0, 50, "%")
+    assert _slider_value(FLEET) == DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT > 0
 
 
-@pytest.mark.parametrize("stored", [0.0, 3.0], ids=["explicit_zero", "explicit_value"])
+@pytest.mark.parametrize("stored", [0.0, 30.0], ids=["explicit_zero", "explicit_value"])
 def test_a_stored_margin_wins_over_the_default(stored):
-    """An upgrade must not rewrite the margin the user already fixed."""
-    assert _slider_value({**FLEET, CONF_PREDICTIVE_SAFETY_MARGIN_KWH: stored}) == stored
+    assert _slider_value({**FLEET, CONF_PREDICTIVE_SAFETY_MARGIN_PCT: stored}) == stored
 
 
 # ----------------------------------------------------------------------
@@ -144,14 +146,6 @@ def test_a_margin_the_user_set_wins_in_the_controller():
 
     controller._predictive_safety_margin_kwh = 1.5
     assert controller._predictive_safety_margin_kwh == 1.5
-
-
-def test_the_slider_shows_the_controller_s_default():
-    controller = _controller(REPORTING)
-    hass = SimpleNamespace(data={DOMAIN: {"entry": {"controller": controller}}})
-    entry = SimpleNamespace(data=REPORTING, entry_id="entry")
-
-    assert ConfigNumberEntity(hass, entry, MARGIN_DEF).native_value == 0.66
 
 
 # ----------------------------------------------------------------------

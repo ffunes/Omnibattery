@@ -195,6 +195,8 @@ from .const import (
     CONF_METER_INVERTED,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     default_predictive_safety_margin_kwh,
+    CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
+    DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_MIN_SOC_FLOOR,
     DEFAULT_PREDICTIVE_MIN_SOC_FLOOR,
@@ -1316,6 +1318,11 @@ class ChargeDischargeController:
         # None until the user sets one: the default then follows the fleet.
         self._predictive_safety_margin_stored: float | None = config_entry.data.get(
             CONF_PREDICTIVE_SAFETY_MARGIN_KWH
+        )
+        # Share of the forecast sun each planner gives up (see
+        # pricing.calculations.solar_safety_margin_kwh).
+        self._predictive_safety_margin_pct: float = config_entry.data.get(
+            CONF_PREDICTIVE_SAFETY_MARGIN_PCT, DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT
         )
         self._predictive_min_soc_floor: float = config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
         # Backward-compat default: if the key is absent but floor > 0 was stored, keep it active.
@@ -3255,7 +3262,7 @@ class ChargeDischargeController:
             no_discharge_slots = [no_discharge_slots]
 
         return (
-            round(float(self._predictive_safety_margin_kwh or 0.0), 3),
+            round(float(self._predictive_safety_margin_pct or 0.0), 3),
             round(float(self._predictive_min_soc_floor or 0.0), 3),
             bool(self._predictive_min_soc_floor_enabled),
             _rounded(getattr(self, "max_price_threshold", None)),
@@ -3346,7 +3353,7 @@ class ChargeDischargeController:
         old_curtailment_config = (
             self.negative_injection_threshold,
             self.predischarge_reserve_soc,
-            self._predictive_safety_margin_kwh,
+            self._predictive_safety_margin_pct,
         )
         old_negative_price_enabled = self.negative_price_charging_enabled
         # Update weekly full charge settings; reset completion state if day changed
@@ -3424,6 +3431,9 @@ class ChargeDischargeController:
         self._predictive_safety_margin_stored = self.config_entry.data.get(
             CONF_PREDICTIVE_SAFETY_MARGIN_KWH
         )
+        self._predictive_safety_margin_pct = self.config_entry.data.get(
+            CONF_PREDICTIVE_SAFETY_MARGIN_PCT, DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT
+        )
         self._predictive_min_soc_floor = self.config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
         self._predictive_min_soc_floor_enabled = self.config_entry.data.get(CONF_ENABLE_MIN_SOC_FLOOR, self._predictive_min_soc_floor_enabled)
         self._charge_delay_status["soc_setpoint"] = self._delay_soc_setpoint if self._delay_soc_setpoint_enabled else None
@@ -3470,7 +3480,7 @@ class ChargeDischargeController:
         new_curtailment_config = (
             self.negative_injection_threshold,
             self.predischarge_reserve_soc,
-            self._predictive_safety_margin_kwh,
+            self._predictive_safety_margin_pct,
         )
         new_negative_price_enabled = self.negative_price_charging_enabled
         old_surplus_hold_config = (

@@ -223,6 +223,12 @@ MISSING_DAY_FLEET_SHARE = 0.8
 # none is stored, sized to the fleet's configured or reported capacity).
 CONF_PREDICTIVE_SAFETY_MARGIN_KWH = "predictive_safety_margin_kwh"
 DEFAULT_PREDICTIVE_SAFETY_MARGIN_KWH = 0.0
+# The margin as a share of the forecast sun each place plans against (0-50 %):
+# kWh = pct / 100 x that sun, so a partial day or a two-day horizon gives up
+# its own share. No sun forecast means no margin. Replaces the kWh key above,
+# which survives only for the migration.
+CONF_PREDICTIVE_SAFETY_MARGIN_PCT = "predictive_safety_margin_pct"
+DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT = 10.0
 
 # Legacy key, kept only for the v13->v14 migration that drops it. It inflated
 # the already-computed deficit, so it scaled inversely to the solar risk it
@@ -1281,16 +1287,13 @@ CONFIG_NUMBER_DEFINITIONS = [
         "condition": CONF_CAPACITY_PROTECTION_ENABLED,
     },
     {
-        "key": CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
+        "key": CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
         "name": "Solar Forecast Safety Margin",
-        "min": 0.0,
-        "max": 20.0,
-        "step": 0.1,
-        "unit": "kWh",
-        # Callable default: the slider must show the same 5%-of-capacity value
-        # the controller falls back to, or a new entry reads 0.0 on the panel
-        # while the engine hedges with something else.
-        "default": default_predictive_safety_margin_kwh,
+        "min": 0,
+        "max": 50,
+        "step": 1,
+        "unit": "%",
+        "default": DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
         "icon": "mdi:solar-power-variant",
         "condition": CONF_ENABLE_PREDICTIVE_CHARGING,
     },

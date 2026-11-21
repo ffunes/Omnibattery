@@ -975,7 +975,7 @@ def test_refresh_solar_forecast_reference_disarms_the_trigger():
 def _balance_ctrl(**overrides):
     """Controller stub carrying only the balance knobs the fingerprint reads."""
     base = dict(
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         _predictive_min_soc_floor=20.0,
         _predictive_min_soc_floor_enabled=True,
         coordinators=[SimpleNamespace(device_key="b1", min_soc=12, max_soc=95)],
@@ -999,7 +999,7 @@ def test_balance_fingerprint_moves_with_a_per_battery_soc_limit():
 
 def test_balance_fingerprint_moves_with_the_predictive_knobs():
     for field, value in (
-        ("_predictive_safety_margin_kwh", 1.5),
+        ("_predictive_safety_margin_pct", 15.0),
         ("_predictive_min_soc_floor", 35.0),
         ("_predictive_min_soc_floor_enabled", False),
     ):

@@ -26,11 +26,10 @@ from custom_components.omnibattery import ChargeDischargeController
 
 INIT = Path("custom_components/omnibattery/__init__.py")
 
-# The fingerprint reads the effective margin, which follows the stored one.
-_FINGERPRINT_VIA = {"_predictive_safety_margin_stored": "_predictive_safety_margin_kwh"}
+_FINGERPRINT_VIA: dict[str, str] = {}
 
 FINGERPRINT = {
-    "_predictive_safety_margin_stored",
+    "_predictive_safety_margin_pct",
     "_predictive_min_soc_floor",
     "_predictive_min_soc_floor_enabled",
     "max_price_threshold",
@@ -53,6 +52,7 @@ FINGERPRINT = {
 }
 
 LIVE = {
+    "_predictive_safety_margin_stored",  # transitional, removed in this branch
     "_charge_delay_balance_deadband_kwh",
     "_delay_safety_margin_h",
     "_delay_soc_setpoint",
@@ -137,7 +137,7 @@ def _config_backed_attributes() -> set[str]:
 
 def _ctrl(**overrides):
     base = dict(
-        _predictive_safety_margin_kwh=0,
+        _predictive_safety_margin_pct=0,
         _predictive_min_soc_floor=0,
         _predictive_min_soc_floor_enabled=0,
         coordinators=[SimpleNamespace(device_key="b1", min_soc=12, max_soc=95)],
