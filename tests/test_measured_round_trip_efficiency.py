@@ -52,7 +52,7 @@ def test_battery_side_counters_do_not_feed_the_arbitrage():
     assert measured_battery_efficiency(battery) == pytest.approx(0.93)
 
 
-def ctrl(coordinators, configured=0.85):
+def ctrl(coordinators, configured=None):
     return SimpleNamespace(round_trip_efficiency=configured, coordinators=coordinators)
 
 
