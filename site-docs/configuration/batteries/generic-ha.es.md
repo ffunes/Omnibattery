@@ -61,6 +61,21 @@ El efecto visible está en **Consumo doméstico**: debería coincidir ahora con 
 | El estado de carga del sistema incluye esta batería | Funciona según lo previsto | El estado de carga del sistema, la capacidad total y la energía almacenada describen la instalación, y esta batería forma parte física de ella. Solo la *planificación* la deja fuera — véase la fila siguiente |
 | La carga predictiva compra energía de red aunque esta batería esté llena | Funciona según lo previsto, por ahora | Sus kilovatios hora se mantienen deliberadamente fuera del balance energético. Consulta la nota siguiente |
 
+!!! warning "Limitación conocida de esta primera etapa"
+    Una batería que Omnibattery no puede pausar puede descargarse *dentro* de
+    una carga de red que él mismo está pagando. Si la batería observada aplica
+    su propia lógica de autoconsumo, cubre la casa desde sus celdas mientras
+    Omnibattery compra energía barata de la red para las baterías que sí
+    gobierna: parte de lo comprado acaba sustituyendo energía que la otra
+    batería habría aportado gratis unas horas más tarde. No se estropea nada ni
+    se pierde nada dos veces, pero la carga nocturna puede resultar mayor de lo
+    necesario.
+
+    Todavía no hay un ajuste para esto. Si te cuesta dinero de verdad, lo
+    práctico es subir el estado de carga mínimo de la otra batería durante las
+    horas en que Omnibattery carga de la red, para que deje de descargarse
+    mientras eso ocurre.
+
 ??? "Detalles avanzados"
     Omnibattery publica la potencia de esta batería solo bajo `battery_power`, nunca bajo `ac_power`. Los agregados usan entonces su respaldo documentado, `-battery_power`, que es lo que aporta al balance doméstico una batería sin puerto de alterna propio.
 

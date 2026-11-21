@@ -19,7 +19,6 @@ import voluptuous as vol
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
-    BooleanSelector,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -85,7 +84,6 @@ def _schema(defaults: dict) -> dict:
     schema[_optional("ha_target_soc_entity")] = EntitySelector(
         EntitySelectorConfig(domain=["number", "input_number"])
     )
-    schema[vol.Required("ha_dc_coupled", default=defaults.get("ha_dc_coupled", True))] = BooleanSelector()
     schema[vol.Required(
         "ha_stale_after_s", default=defaults.get("ha_stale_after_s", DEFAULT_STALE_AFTER_S),
     )] = NumberSelector(NumberSelectorConfig(
@@ -116,7 +114,6 @@ def _store(user_input: dict, previous: dict | None = None) -> dict:
         "ha_charge_energy_entities": list(charge_entities),
         "ha_discharge_energy_entity": user_input.get("ha_discharge_energy_entity"),
         "ha_target_soc_entity": user_input.get("ha_target_soc_entity"),
-        "ha_dc_coupled": bool(user_input.get("ha_dc_coupled", True)),
         "ha_stale_after_s": int(user_input.get("ha_stale_after_s", DEFAULT_STALE_AFTER_S)),
     }
 

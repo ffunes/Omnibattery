@@ -27,8 +27,8 @@ What it publishes, and what it deliberately does not
 ----------------------------------------------------
 ``ac_power`` is omitted on purpose. On a DC-coupled hybrid the inverter's AC
 figure already has PV netted into it, so publishing it under that key counts the
-array twice — the lesson recorded in ``docs/research/huawei/driver-assessment-huawei.md``
-section 13.6. With the key absent, the aggregates take their documented fallback
+array twice (the same trap the Huawei driver documents for its AC register).
+With the key absent, the aggregates take their documented fallback
 of ``-battery_power``, which is what a battery with no AC port of its own
 actually contributes. ``has_mppt_pv`` must stay False for the same reason:
 ``residual_load._battery_ac_power_w`` returns None for an MPPT battery, and a
@@ -147,7 +147,6 @@ class GenericHaEntityDriver(BatteryDriver):
             charge_energy_entities=battery_config.get("ha_charge_energy_entities") or (),
             discharge_energy_entity=battery_config.get("ha_discharge_energy_entity"),
             target_soc_entity=battery_config.get("ha_target_soc_entity"),
-            dc_coupled=bool(battery_config.get("ha_dc_coupled", True)),
             stale_after_s=float(
                 battery_config.get("ha_stale_after_s") or DEFAULT_STALE_AFTER_S
             ),
@@ -164,7 +163,6 @@ class GenericHaEntityDriver(BatteryDriver):
         charge_energy_entities: Sequence[str] = (),
         discharge_energy_entity: Optional[str] = None,
         target_soc_entity: Optional[str] = None,
-        dc_coupled: bool = True,
         stale_after_s: float = DEFAULT_STALE_AFTER_S,
         label: str = "generic_ha",
     ) -> None:
@@ -176,7 +174,6 @@ class GenericHaEntityDriver(BatteryDriver):
         self._charge_energy_entities = tuple(e for e in charge_energy_entities if e)
         self._discharge_energy_entity = discharge_energy_entity or None
         self._target_soc_entity = target_soc_entity or None
-        self._dc_coupled = bool(dc_coupled)
         self._stale_after_s = float(stale_after_s)
 
         self._connected = False
@@ -211,7 +208,6 @@ class GenericHaEntityDriver(BatteryDriver):
             has_nominal_capacity=False,
             cycles_from_discharge_only=True,
             supports_power_setpoint=False,
-            supports_target_soc=self._target_soc_entity is not None,
         )
 
         self._target_soc_definition = dict(TARGET_SOC_DEFINITION)
@@ -275,10 +271,6 @@ class GenericHaEntityDriver(BatteryDriver):
     @property
     def capabilities(self) -> DriverCapabilities:
         return self._capabilities
-
-    @property
-    def dc_coupled(self) -> bool:
-        return self._dc_coupled
 
     @property
     def model_label(self) -> Optional[str]:

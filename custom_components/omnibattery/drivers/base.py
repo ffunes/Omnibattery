@@ -517,13 +517,6 @@ class DriverCapabilities:
     # configuring it. Read it through ``can_take_setpoint`` below, never raw.
     supports_power_setpoint: bool = True
 
-    # True when the device exposes a writable target/minimum SOC that shared code
-    # may drive. Separate from ``hardware_soc_cutoff``: that one says the hardware
-    # *enforces* the configured cutoffs so software need not; this one says there
-    # is a knob to turn. A battery can have the knob without the enforcement
-    # semantics the cutoff path assumes.
-    supports_target_soc: bool = False
-
 
 def can_take_setpoint(coordinator) -> bool:
     """Whether shared code may command this battery's power at all.
@@ -544,12 +537,6 @@ def is_observed(coordinator) -> bool:
     negative of the positive form does not.
     """
     return not can_take_setpoint(coordinator)
-
-
-def supports_target_soc(coordinator) -> bool:
-    """Whether this battery exposes a writable target/minimum SOC."""
-    capabilities = getattr(coordinator, "capabilities", None)
-    return bool(getattr(capabilities, "supports_target_soc", False))
 
 
 def mppt_power_keys(coordinator) -> tuple[str, ...]:

@@ -28,7 +28,6 @@ from custom_components.omnibattery.drivers.base import (
     BatteryDriver,
     can_take_setpoint,
     is_observed,
-    supports_target_soc,
 )
 
 
@@ -301,7 +300,6 @@ def _coordinator(monkeypatch):
             "ha_charge_energy_entities": [],
             "ha_discharge_energy_entity": None,
             "ha_target_soc_entity": "number.scb_battery_min_soc",
-            "ha_dc_coupled": True,
             "ha_stale_after_s": 600,
         },
         "sensor.scb_grid_power",
@@ -315,7 +313,10 @@ def test_the_brand_selects_the_observing_driver(monkeypatch):
     coordinator, _ = _coordinator(monkeypatch)
     assert isinstance(coordinator.driver, GenericHaEntityDriver)
     assert can_take_setpoint(coordinator) is False
-    assert supports_target_soc(coordinator) is True
+    # The one writable control exists because an entity was configured for it,
+    # not because of a capability flag: the driver publishes it in its own
+    # number_definitions, which is what the entity platform reads.
+    assert [d["key"] for d in coordinator.driver.number_definitions] == ["target_soc"]
 
 
 def test_only_the_target_soc_control_is_offered(monkeypatch):
@@ -514,3 +515,171 @@ def test_a_commandable_battery_is_not_pulled_into_that_term():
     assert ChargeDischargeController._manual_battery_power_for_grid_feedback(
         controller
     ) == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# the planner's own fleet lists
+# ---------------------------------------------------------------------------
+
+def _pricing_manager(batteries):
+    """A PricingManager whose controller is just these batteries."""
+    from custom_components.omnibattery.pricing.engine import PricingManager
+
+    controller = SimpleNamespace(
+        coordinators=batteries,
+        _is_battery_manual_owned=lambda c: False,
+        _counts_towards_fleet_energy=staticmethod(
+            ChargeDischargeController._counts_towards_fleet_energy
+        ).__func__,
+        _dp_last_eval_soc=None,
+        _dp_eval_projection=None,
+        _dp_eval_rows=None,
+        _dp_eval_projection_capacity_kwh=None,
+        # Dynamic Pricing runs with a chronological plan, which puts the
+        # re-plan threshold at 5 points rather than the 30 of the old rule.
+        _dynamic_pricing_schedule=SimpleNamespace(chronological_planning_active=True),
+        _current_price_slot_active=False,
+    )
+    manager = PricingManager.__new__(PricingManager)
+    manager._controller = controller
+    return manager, controller
+
+
+def test_the_replan_trigger_ignores_the_observed_batterys_soc():
+    """The reference SOC comes from the batteries the plan is made for.
+
+    Marstek at 60 % and on its plan, Kostal observed at 40 %. Averaging both
+    gives 50, which is 10 points under the reference, and the below-plan branch
+    has no age guard -- so Dynamic Pricing would re-plan on every 2.5 s control
+    tick for a deviation that never happened.
+    """
+    marstek = _battery("Marstek", soc=60, capacity=10.0)
+    observed = _battery("BYD", soc=40, capacity=10.0, commandable=False)
+    manager, controller = _pricing_manager([marstek, observed])
+    controller._dp_last_eval_soc = 60.0
+
+    assert manager._is_dp_soc_drop_reeval() is False
+
+    # Control: a real drop on the battery the plan is for still re-plans.
+    marstek.data["battery_soc"] = 50
+    assert manager._is_dp_soc_drop_reeval() is True
+
+
+def test_the_fleet_capacity_counts_only_what_the_plan_can_fill():
+    """20 kWh of hardware, 10 kWh the planner can actually place."""
+    marstek = _battery("Marstek", soc=60, capacity=10.0)
+    observed = _battery("BYD", soc=40, capacity=10.0, commandable=False)
+    manager, _ = _pricing_manager([marstek, observed])
+
+    assert manager._fleet_capacity_kwh() == pytest.approx(10.0)
+
+
+@pytest.mark.parametrize("module_name", ["pricing.engine", "control.weekly_full_charge"])
+def test_every_fleet_list_uses_the_same_definition(module_name):
+    """No fleet list may filter on manual mode alone.
+
+    The cases above are the ones review caught; this pins the rule for the rest
+    of each file so the next fleet list cannot quietly reintroduce the defect.
+    One such site (the weekly run's completion report) was found by this rule
+    rather than by review.
+    """
+    import importlib
+    import inspect
+
+    module = importlib.import_module(f"custom_components.omnibattery.{module_name}")
+    source = inspect.getsource(module).split("\n")
+    offenders = []
+    for i, line in enumerate(source):
+        if "battery_manual_mode_enabled" not in line:
+            continue
+        # Wide enough to see past an explanatory comment between the two
+        # guards, narrow enough that an unrelated check cannot mask a miss.
+        window = "\n".join(source[i:i + 8])
+        if "_counts_towards_fleet_energy" in window or "can_take_setpoint" in window:
+            continue
+        offenders.append((i + 1, line.strip()))
+    assert not offenders, f"{module_name}: fleet lists filtering on manual mode only: {offenders}"
+
+
+# ---------------------------------------------------------------------------
+# weekly full charge
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_the_weekly_run_does_not_wait_for_the_observed_battery():
+    """Completion is about the batteries Omnibattery charges.
+
+    A battery it cannot charge never reports full, so counting it would leave
+    the weekly run pending until the next sunrise cancelled it -- every week,
+    silently. Drives the real ``handle_registers``.
+    """
+    from unittest.mock import patch
+
+    from custom_components.omnibattery.control.weekly_full_charge import (
+        WeeklyFullChargeManager,
+    )
+
+    def _coord(name, soc, commandable):
+        return _Coord(
+            name=name,
+            data={"battery_soc": soc, "battery_total_energy": 10.0},
+            max_soc=100,
+            battery_manual_mode_enabled=False,
+            is_available=True,
+            capabilities=SimpleNamespace(
+                hardware_soc_cutoff=False,
+                has_mppt_pv=False,
+                supports_power_setpoint=commandable,
+            ),
+            driver=_Driver(),
+            set_charge_cutoff=AsyncMock(return_value=True),
+            enable_charge_hysteresis=True,
+            charge_hysteresis_percent=2,
+            rs485_user_disabled=False,
+        )
+
+    marstek = _coord("Marstek", 100, True)     # at the top, as the run wants
+    observed = _coord("BYD", 40, False)        # will never be charged, so never full
+
+    controller = SimpleNamespace(
+        weekly_full_charge_enabled=True,
+        weekly_full_charge_day="mon",
+        weekly_full_charge_complete=False,
+        weekly_full_charge_registers_written=True,
+        last_checked_weekday=0,
+        _force_full_charge=False,
+        _weekly_charge_needs_restore=False,
+        _weekly_charge_saved_max_soc={},
+        _weekly_charge_status={},
+        _charge_delay_unlocked=False,
+        _solar_t_start=None,
+        coordinators=[marstek, observed],
+        _is_backup_function_active=lambda _c: False,
+        charge_delay_enabled=False,
+        _balance_monitor_overrides_delay=False,
+        _normal_balance_reset_if_new_day=lambda: None,
+        hass=SimpleNamespace(states=SimpleNamespace(get=lambda _e: None), config=None),
+    )
+    manager = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
+    manager._controller = controller
+    manager._already_complete_logged = False
+    manager._cutoff_applied_names = set()
+    manager._bms_cutoff_counts = {}
+    manager.tick_bms_cutoff = MagicMock()
+    manager.is_active = MagicMock(return_value=True)
+    manager.save_state = AsyncMock()
+    manager.is_battery_full = lambda c: (c.data or {}).get("battery_soc", 0) >= 100
+    # The solar outlook is a separate feature with its own tests; it only needs
+    # to not reach for a forecast sensor that does not exist here.
+    manager._refresh_solar_outlook = MagicMock()
+    manager._clear_solar_outlook = MagicMock()
+
+    with patch(
+        "custom_components.omnibattery.control.weekly_full_charge.asyncio.create_task"
+    ):
+        await manager.handle_registers()
+
+    # The run completed on the battery it actually charges.
+    assert controller.weekly_full_charge_complete is True
+    # And the observed battery is not even reported as a participant.
+    assert list(controller._weekly_charge_status.get("batteries", {})) == ["Marstek"]

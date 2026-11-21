@@ -5,7 +5,6 @@
   "enable_charge_hysteresis": true,
   "full_charge_voltage_taper_enabled": false,
   "ha_charge_energy_entities": [],
-  "ha_dc_coupled": true,
   "ha_discharge_energy_entity": null,
   "ha_power_entity": "sensor.byd_power",
   "ha_power_positive_is": "charge",

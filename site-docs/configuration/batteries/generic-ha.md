@@ -61,6 +61,19 @@ The visible effect is on **Home Consumption**: it should now agree with your inv
 | The system state of charge includes this battery | Working as intended | The system state of charge, total capacity and stored energy describe the installation, and this battery is physically part of it. Only the *plan* leaves it out — see the row below |
 | Predictive charging buys grid energy although this battery is full | Working as intended, for now | Its kilowatt-hours are deliberately kept out of the energy balance. See the note below |
 
+!!! warning "Known limitation of this first stage"
+    A battery Omnibattery cannot pause can discharge *into* a grid charge it is
+    paying for. If the observed battery runs its own self-consumption logic, it
+    covers the house from its own cells while Omnibattery is buying cheap grid
+    energy for the batteries it does control — so part of what you bought ends
+    up replacing energy the other battery would have supplied for free a few
+    hours later. Nothing is damaged and nothing is lost twice, but the night
+    charge can come out larger than it needed to be.
+
+    There is no setting for this yet. If it costs you real money, the practical
+    workaround is to raise the other battery's own minimum SOC during the hours
+    Omnibattery grid-charges, so it stops discharging while that happens.
+
 ??? "Advanced details"
     Omnibattery publishes this battery's power under `battery_power` only, never `ac_power`. The aggregates then use their documented fallback of `-battery_power`, which is what a battery with no AC port of its own contributes to the household balance.
 

@@ -260,7 +260,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct. Only an optional target state of charge can be written.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -269,7 +269,6 @@
           "ha_charge_energy_entities": "Charged energy counters",
           "ha_discharge_energy_entity": "Discharged energy counter",
           "ha_target_soc_entity": "Target state of charge",
-          "ha_dc_coupled": "The battery shares an inverter with solar panels",
           "ha_stale_after_s": "Treat telemetry as lost after"
         },
         "data_description": {
@@ -279,8 +278,7 @@
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
           "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
           "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
-          "ha_target_soc_entity": "Optional writable target or minimum state of charge. Omnibattery leaves it alone unless you turn on automatic target SOC",
-          "ha_dc_coupled": "Turn on for a hybrid inverter whose solar and battery share one DC bus. Check that your solar production sensor measures the DC side, or this battery's charging is counted as household consumption",
+          "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
           "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
         }
       },
@@ -784,7 +782,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Reconfigure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct. Only an optional target state of charge can be written.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -793,7 +791,6 @@
           "ha_charge_energy_entities": "Charged energy counters",
           "ha_discharge_energy_entity": "Discharged energy counter",
           "ha_target_soc_entity": "Target state of charge",
-          "ha_dc_coupled": "The battery shares an inverter with solar panels",
           "ha_stale_after_s": "Treat telemetry as lost after"
         },
         "data_description": {
@@ -803,8 +800,7 @@
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
           "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
           "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
-          "ha_target_soc_entity": "Optional writable target or minimum state of charge. Omnibattery leaves it alone unless you turn on automatic target SOC",
-          "ha_dc_coupled": "Turn on for a hybrid inverter whose solar and battery share one DC bus. Check that your solar production sensor measures the DC side, or this battery's charging is counted as household consumption",
+          "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
           "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
         }
       },
@@ -1022,7 +1018,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct. Only an optional target state of charge can be written.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -1031,7 +1027,6 @@
           "ha_charge_energy_entities": "Charged energy counters",
           "ha_discharge_energy_entity": "Discharged energy counter",
           "ha_target_soc_entity": "Target state of charge",
-          "ha_dc_coupled": "The battery shares an inverter with solar panels",
           "ha_stale_after_s": "Treat telemetry as lost after"
         },
         "data_description": {
@@ -1041,8 +1036,7 @@
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
           "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
           "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
-          "ha_target_soc_entity": "Optional writable target or minimum state of charge. Omnibattery leaves it alone unless you turn on automatic target SOC",
-          "ha_dc_coupled": "Turn on for a hybrid inverter whose solar and battery share one DC bus. Check that your solar production sensor measures the DC side, or this battery's charging is counted as household consumption",
+          "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
           "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
         }
       },

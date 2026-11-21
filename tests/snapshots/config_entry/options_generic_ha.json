@@ -8,7 +8,6 @@
   "ha_charge_energy_entities": [
     "sensor.byd_charged"
   ],
-  "ha_dc_coupled": false,
   "ha_discharge_energy_entity": "sensor.byd_discharged",
   "ha_power_entity": "sensor.byd_power_2",
   "ha_power_positive_is": "discharge",

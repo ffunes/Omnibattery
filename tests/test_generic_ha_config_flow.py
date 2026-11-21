@@ -43,7 +43,6 @@ def _saved() -> dict:
             "ha_charge_energy_entities": [CHARGED],
             "ha_discharge_energy_entity": DISCHARGED,
             "ha_target_soc_entity": TARGET,
-            "ha_dc_coupled": True,
             "ha_stale_after_s": 600,
         }
     )
@@ -115,7 +114,6 @@ def test_clicking_through_the_options_flow_does_not_erase_optional_settings():
         "ha_charge_energy_entities": saved["ha_charge_energy_entities"],
         "ha_discharge_energy_entity": saved["ha_discharge_energy_entity"],
         "ha_target_soc_entity": saved["ha_target_soc_entity"],
-        "ha_dc_coupled": saved["ha_dc_coupled"],
         "ha_stale_after_s": saved["ha_stale_after_s"],
     }
     again = _store(resubmitted, saved)
@@ -133,7 +131,6 @@ def test_an_explicitly_cleared_field_is_still_cleared():
             "ha_soc_entity": SOC,
             "ha_power_entity": POWER,
             "ha_power_positive_is": "charge",
-            "ha_dc_coupled": True,
             "ha_stale_after_s": 600,
         },
         saved,
@@ -156,7 +153,6 @@ def test_the_identity_survives_the_source_entities_changing():
             "ha_soc_entity": "sensor.renamed_soc",
             "ha_power_entity": "sensor.renamed_power",
             "ha_power_positive_is": "charge",
-            "ha_dc_coupled": True,
             "ha_stale_after_s": 600,
         },
         saved,
@@ -178,7 +174,6 @@ def test_a_single_energy_entity_is_accepted_as_a_list():
             "ha_soc_entity": SOC,
             "ha_power_entity": POWER,
             "ha_charge_energy_entities": CHARGED,
-            "ha_dc_coupled": True,
             "ha_stale_after_s": 600,
         }
     )

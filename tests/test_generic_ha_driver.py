@@ -78,7 +78,6 @@ def _driver(hass, **kwargs):
 def test_capabilities_declare_an_uncommandable_battery():
     caps = _driver(_hass(_table())).capabilities
     assert caps.supports_power_setpoint is False
-    assert caps.supports_target_soc is True
     # A zero envelope is the second line of defence: even a caller that forgets
     # the capability gate has no power to hand out.
     assert caps.max_charge_power_w == 0
@@ -103,12 +102,6 @@ def test_energy_counters_are_only_claimed_when_configured():
     without = _driver(hass, charge_energy_entities=(), discharge_energy_entity=None)
     assert with_counters.capabilities.has_energy_counters is True
     assert without.capabilities.has_energy_counters is False
-
-
-def test_target_soc_capability_follows_the_configured_entity():
-    hass = _hass(_table())
-    assert _driver(hass).capabilities.supports_target_soc is True
-    assert _driver(hass, target_soc_entity=None).capabilities.supports_target_soc is False
 
 
 def test_number_definition_exists_only_with_a_target_entity():

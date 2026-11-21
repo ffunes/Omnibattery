@@ -286,7 +286,6 @@ CASES: dict[str, BrandCase] = {
             "ha_soc_entity": "sensor.byd_soc",
             "ha_power_entity": "sensor.byd_power",
             "ha_power_positive_is": "charge",
-            "ha_dc_coupled": True,
             "ha_stale_after_s": 600,
         },
         options_input={
@@ -297,7 +296,6 @@ CASES: dict[str, BrandCase] = {
             "ha_charge_energy_entities": ["sensor.byd_charged"],
             "ha_discharge_energy_entity": "sensor.byd_discharged",
             "ha_target_soc_entity": "number.byd_min_soc",
-            "ha_dc_coupled": False,
             "ha_stale_after_s": 900,
         },
         reconfigure_input={
@@ -305,7 +303,6 @@ CASES: dict[str, BrandCase] = {
             "ha_soc_entity": "sensor.byd_soc_3",
             "ha_power_entity": "sensor.byd_power_3",
             "ha_power_positive_is": "charge",
-            "ha_dc_coupled": True,
             "ha_stale_after_s": 600,
         },
         # The battery reports no capacity of its own, so the limits step asks
@@ -318,7 +315,7 @@ CASES: dict[str, BrandCase] = {
             ha_soc_entity="sensor.byd_soc", ha_power_entity="sensor.byd_power",
             ha_power_positive_is="charge", ha_charge_energy_entities=[],
             ha_discharge_energy_entity=None, ha_target_soc_entity=None,
-            ha_dc_coupled=True, ha_stale_after_s=600,
+            ha_stale_after_s=600,
             battery_capacity_kwh=6.0,
         ),
     ),
