@@ -4,9 +4,10 @@
 
 ### Added
 
-- **Temperature Charge Limit Status**: new entity and card row, on while a battery's charge power is throttled by temperature (PR#924). Thanks to @anorakophobia.
 - **15-minute window for the grid import cap** (#506): with the new **Grid Import 15-min Window** switch on (default in Belgium), Maximum grid import limits the mean import of each local quarter, as capacity tariffs bill it, measured from the grid sensor you already have (it must be the billing meter). A short spike passes when the quarter has budget left; a spike the battery could not cover is paid back over the rest of the quarter; near a boundary, after a restart or a meter gap the instantaneous cap applies. Grid charging never goes above the configured value. **Peak Shaving Active** shows `window_valid`, `window_import_kwh` and `window_cap_w`, and one warning is logged per quarter whose budget is spent.
 - **Weekly Full Charge says whether today's sun can reach 100 %** (#876): during the run, its sensor carries `solar_sufficient` with the kWh still needed and the net solar left, re-evaluated when the forecast changes; with Predictive Charging off, a notification warns once when the sun falls short, so an automation can charge from the grid. The new **Weekly Full Charge Grid Boost** blueprint does that by raising PD Target Grid Power until the run ends.
+- **Temperature Charge Limit Status**: new entity and card row, on while a battery's charge power is throttled by temperature (PR#924). Thanks to @anorakophobia.
+- **Status per excluded device**: new entity and card row saying what Omnibattery does with each excluded device (PR#927). Thanks to @anorakophobia.
 
 ### Changed
 
@@ -93,6 +94,7 @@
 - **Dynamic Pricing: a night re-evaluation no longer drops the charge for the morning peak** (#834): the hours left to the grid before the peak drain the stored energy, and that drain was checked against each night slot alone, which none could hold, so the plan booked 0 kWh. Night slots charged back to back now pay it once, as a group. Thanks to @Varashi for the analysis and approach.
 - **Dynamic Pricing: the plan sees tomorrow morning without a dated solar forecast** (#834): with tomorrow's prices published but no dated solar periods (a template forecast sensor, for example), the plan stopped at sunrise and never saw the morning peak. With a mature learned solar profile, tomorrow's sun is taken from it (its shape, scaled to the median of recent days) and the plan covers tomorrow like a dated forecast; without one, the plan runs to tomorrow's solar noon counting no sun for tomorrow. A dated forecast of 0 kWh for tomorrow now counts as a forecast.
 - **Dynamic Pricing: a night charge no longer books more than the battery holds**: with tomorrow's prices published, each night slot was checked against the room it had when it opened, not against the slots booked after it, so a run of back-to-back slots could book several kWh with nowhere to go (7.5 kWh for a 4.6 kWh battery). The extra slots charged nothing while the plan, its cost and its notification counted them.
+- **Removing an excluded device no longer leaves orphaned entities behind** (PR#927). Thanks to @anorakophobia.
 
 ### Internal
 

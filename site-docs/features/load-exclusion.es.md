@@ -43,8 +43,21 @@ Elige el comportamiento que coincide con tu objetivo:
 - **Device – Solar Surplus** da al dispositivo activo prioridad sobre la carga de batería cuando hay sol disponible. La batería sigue sin descargar para la parte excluida.
 - **Device – Cover Home** permite que la batería continúe cubriendo la demanda doméstica real mientras solo queda excluida la parte de red del dispositivo.
 - **Device – Dynamic Power Control** da a una wallbox flexible tiempo para detectar y reclamar la exportación cambiante antes de que la batería cargue con el resto.
+- **Device – Status** («Dispositivo – Estado» con Home Assistant en español) muestra qué hace Omnibattery con el dispositivo ahora mismo:
 
-En la tarjeta **Dispositivos excluidos** cada dispositivo tiene su propio bloque, ordenado por nombre y separado por una línea: Enabled, Solar Surplus, Dynamic Power Control, Cover Home, Exclusion %. Una etiqueta muestra el tipo de dispositivo, *excluido* (incluido en el contador principal) o *adicional*. Las opciones aparecen solo donde aplican: todas solo mientras el dispositivo está activado, **Dynamic Power Control** y **Cover Home** solo mientras **Solar Surplus** está activado, y **Exclusion %** solo para dispositivos excluidos.
+| Estado | Significado |
+|---|---|
+| En pausa | **Device – Enabled** está desactivado; el dispositivo cuenta como carga normal de la casa |
+| Sin lectura de potencia | El sensor de potencia no está disponible o su valor no es un número (un cargador de VE solo con estado: su sensor de actividad no está disponible) |
+| Inactivo | El dispositivo no consume potencia (un cargador de VE solo con estado: no está cargando) |
+| Prioridad (cediendo) | Dynamic Power Control retiene la carga de la batería para que la wallbox pueda reclamar la exportación |
+| Con excedente solar | El dispositivo funciona con el sol con el que la batería habría cargado |
+| Excluido de la batería | La batería no alimenta la parte excluida (un cargador de VE solo con estado: mientras carga, la batería no descarga) |
+| Cubierto por la batería | Un dispositivo adicional (fuera del contador principal) se suma a la demanda y la batería lo cubre |
+
+Sus atributos incluyen la potencia del dispositivo, el ajuste aplicado (positivo: retenido de la batería; negativo: añadido para que la batería lo cubra), la fase de Dynamic Power Control y cualquier bloqueo de carga o descarga. Mientras la batería carga de la red o está en modo manual la regla no se recalcula: el estado pasa a *Inactivo* o *Sin lectura de potencia* en cuanto el dispositivo se para, pero uno que arranca conserva su último estado hasta que vuelve el control normal.
+
+En la tarjeta **Dispositivos excluidos** cada dispositivo tiene su propio bloque, ordenado por nombre y separado por una línea: Enabled, Solar Surplus, Dynamic Power Control, Cover Home, Exclusion %, Status. Una etiqueta muestra el tipo de dispositivo, *excluido* (incluido en el contador principal) o *adicional*. Las opciones aparecen solo donde aplican: todas solo mientras el dispositivo está activado, **Dynamic Power Control** y **Cover Home** solo mientras **Solar Surplus** está activado, y **Exclusion %** solo para dispositivos excluidos. La ayuda de cada una termina con su valor por defecto (Enabled activado; Solar Surplus, Dynamic Power Control y Cover Home desactivados; Exclusion % 100%).
 
 Un cargador de VE solo con estado pausa la carga y descarga de batería cuando aparece la carga. Tras la pausa, la batería puede cargar con excedente solar, pero permanece bloqueada para descargar hacia el VE hasta que termine la carga.
 
@@ -54,7 +67,7 @@ Si el dispositivo tiene configurada demanda restante prevista, la carga predicti
 
 | Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| La batería sigue cubriendo todo el dispositivo | La exclusión está desactivada o su porcentaje es cero | Comprueba **Device – Enabled** y **Device – Exclusion %** |
+| La batería sigue cubriendo todo el dispositivo | La exclusión está desactivada o su porcentaje es cero | Comprueba **Device – Enabled**, **Device – Exclusion %** y **Device – Status** |
 | La batería ignora demasiada demanda de casa | **Cover Home** está desactivado mientras Solar Surplus da prioridad al dispositivo | Activa **Cover Home** si quieres que la batería cubra el resto de la casa |
 | Batería y wallbox compiten por un sol cambiante | Dynamic Power Control está desactivado o su señal de actividad es incorrecta | Activa **Dynamic Power Control** y verifica que la entidad de actividad configurada cambie antes o junto con la demanda |
 | La batería nunca carga mientras está activa la carga flexible | La wallbox sigue pidiendo prioridad o no queda exportación real | Comprueba potencia de dispositivo, estado de actividad, producción solar externa y exportación de red |

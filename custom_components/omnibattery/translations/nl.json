@@ -1642,6 +1642,18 @@
       }
     },
     "sensor": {
+      "excluded_device_status": {
+        "name": "{device} – Status",
+        "state": {
+          "paused": "Gepauzeerd",
+          "unmeasured": "Geen vermogensmeting",
+          "idle": "Inactief",
+          "priority": "Voorrang (batterij wijkt)",
+          "solar_surplus": "Op zonne-overschot",
+          "excluded": "Uitgesloten van de batterij",
+          "covered": "Gedekt door de batterij"
+        }
+      },
       "discharge_window": {
         "name": "Ontlaadvenster",
         "state": {

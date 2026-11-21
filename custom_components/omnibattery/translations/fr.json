@@ -1642,6 +1642,18 @@
       }
     },
     "sensor": {
+      "excluded_device_status": {
+        "name": "{device} – État",
+        "state": {
+          "paused": "En pause",
+          "unmeasured": "Pas de mesure de puissance",
+          "idle": "Inactif",
+          "priority": "Priorité (la batterie cède)",
+          "solar_surplus": "Sur surplus solaire",
+          "excluded": "Exclu de la batterie",
+          "covered": "Couvert par la batterie"
+        }
+      },
       "discharge_window": {
         "name": "Fenêtre de Décharge",
         "state": {

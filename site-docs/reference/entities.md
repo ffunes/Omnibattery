@@ -58,6 +58,7 @@ These entities belong to **Omnibattery System** rather than one battery.
     | `temperature_charge_limit_status` (binary sensor) | Temperature charge limit configured |
     | `weekly_full_charge` | Weekly full charge enabled |
     | `charge_delay_status` | Charge delay configured |
+    | `excluded_device_status_<n>` | One per configured excluded device |
     | `system_alarm_status` | At least one battery exposes alarm registers |
 
 ??? "System numbers"

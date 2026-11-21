@@ -1637,6 +1637,18 @@
       }
     },
     "sensor": {
+      "excluded_device_status": {
+        "name": "{device} – Status",
+        "state": {
+          "paused": "Paused",
+          "unmeasured": "No power reading",
+          "idle": "Idle",
+          "priority": "Priority (yielding)",
+          "solar_surplus": "On solar surplus",
+          "excluded": "Excluded from the battery",
+          "covered": "Covered by the battery"
+        }
+      },
       "discharge_window": {
         "name": "Discharge Window",
         "state": {

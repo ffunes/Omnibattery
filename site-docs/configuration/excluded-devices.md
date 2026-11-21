@@ -44,7 +44,8 @@ Each saved device exposes live controls on the Omnibattery system device:
 | **Device – Solar Surplus** | Every configured device; setup determines its initial state |
 | **Device – Dynamic Power Control** | Metered devices; setup determines its initial state |
 | **Device – Cover Home** | Every configured device; setup determines its initial state |
-| **Device – Exclusion %** | Metered devices |
+| **Device – Exclusion %** | Metered devices; the card shows it only for excluded devices, because it has no effect on an additional device |
+| **Device – Status** | Every configured device; what Omnibattery does with it right now |
 
 These entities let you pause or change the saved behavior without reopening setup. See [Load exclusion](../features/load-exclusion.md#what-you-will-see) for the effect of each control.
 

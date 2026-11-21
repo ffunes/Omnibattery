@@ -109,6 +109,9 @@ class ExternalLoads:
             "discharge_blocked_devices": [],
             "phases": {},
         }
+        # What calculate_adjustment did with each device on its last run, by
+        # index: rule, power, adjustment. device_state() turns it into a state.
+        self.device_status: dict[int, dict[str, Any]] = {}
 
     def _clear_dynamic_power_control_state(self, key: str) -> None:
         """Forget the runtime latch/probe state for one excluded device."""
@@ -461,6 +464,8 @@ class ExternalLoads:
         Negative = increase battery discharge
         """
         excluded_devices = self._config_entry.data.get("excluded_devices", [])
+        statuses: dict[int, dict[str, Any]] = {}
+        self.device_status = statuses
         if not excluded_devices:
             self._controller._excluded_included_adjustment = 0.0
             return 0.0
@@ -490,21 +495,25 @@ class ExternalLoads:
 
         total_adjustment = 0.0
         included_adjustment = 0.0  # Track included_in_consumption portion separately
-        for device in excluded_devices:
+        for index, device in enumerate(excluded_devices):
             if not device.get("enabled", True):
+                statuses[index] = {"rule": "paused"}
                 continue
             # EV chargers in no-telemetry mode expose a state sensor, not a numeric
             # power sensor – their behaviour is handled by _check_ev_charger_state().
             if device.get("ev_charger_no_telemetry", False):
+                statuses[index] = self._ev_charger_status(device)
                 continue
 
             power_sensor = device.get("power_sensor")
             if not power_sensor:
+                statuses[index] = {"rule": "unmeasured"}
                 continue
 
             state = self._hass.states.get(power_sensor)
             if state is None or state.state in ("unknown", "unavailable"):
                 _LOGGER.debug("Excluded device sensor %s not available", power_sensor)
+                statuses[index] = {"rule": "unmeasured", "power_sensor": power_sensor}
                 continue
 
             try:
@@ -528,6 +537,7 @@ class ExternalLoads:
                                 # Home Consumption unavailable → exclude fully (battery
                                 # never powers the device; conservative fallback).
                                 grid_portion = device_power * factor
+                                offset = 0.0
                             else:
                                 # cover_home devices draw from raw PV (pre-#415): only
                                 # their real grid draw max(0, device − solar) is excluded,
@@ -541,6 +551,13 @@ class ExternalLoads:
                                 grid_portion = (device_power - offset) * factor
                             total_adjustment += grid_portion
                             included_adjustment += grid_portion
+                            statuses[index] = {
+                                "rule": "solar_surplus" if offset > 0 else "excluded",
+                                "solar_offset_w": offset,
+                                "power_w": device_power,
+                                "adjustment_w": grid_portion,
+                                "power_sensor": power_sensor,
+                            }
                             _LOGGER.debug(
                                 "Excluded device %s consuming %.1fW → excluding %.1fW "
                                 "(PV-surplus priority, cover_home=%s, surplus_left=%s)",
@@ -550,6 +567,13 @@ class ExternalLoads:
                             # No solar sensor: block discharge instead (battery idle while device active)
                             if device_power > 10:
                                 solar_surplus_blocks_discharge = True
+                            statuses[index] = {
+                                "rule": "excluded",
+                                "power_w": device_power,
+                                "adjustment_w": 0.0,
+                                "discharge_blocked": device_power > 10,
+                                "power_sensor": power_sensor,
+                            }
                             _LOGGER.debug(
                                 "Excluded device %s consuming %.1fW (solar surplus, no solar sensor → discharge_blocked=%s)",
                                 power_sensor, device_power, device_power > 10,
@@ -557,20 +581,105 @@ class ExternalLoads:
                     else:
                         total_adjustment += device_power * factor
                         included_adjustment += device_power * factor
+                        statuses[index] = {
+                            "rule": "excluded",
+                            "power_w": device_power,
+                            "adjustment_w": device_power * factor,
+                            "power_sensor": power_sensor,
+                        }
                         _LOGGER.debug("Excluded device %s consuming %.1fW (included in consumption, SUBTRACTING %.0f%%)",
                                     power_sensor, device_power, factor * 100)
                 else:
                     # Device is NOT in home sensor → ADD (power from battery)
                     total_adjustment -= device_power
+                    statuses[index] = {
+                        "rule": "covered",
+                        "power_w": device_power,
+                        "adjustment_w": -device_power,
+                        "power_sensor": power_sensor,
+                    }
                     _LOGGER.debug("Additional device %s consuming %.1fW (NOT in consumption, ADDING)",
                                     power_sensor, device_power)
             except (ValueError, TypeError):
                 _LOGGER.warning("Could not parse device sensor %s: %s", power_sensor, state.state)
+                statuses[index] = {"rule": "unmeasured", "power_sensor": power_sensor}
 
         # Store the included-in-consumption portion for capacity protection
         self._controller._excluded_included_adjustment = included_adjustment
         self._controller._solar_surplus_discharge_blocked = solar_surplus_blocks_discharge
         return total_adjustment
+
+    def _ev_charger_status(self, device: dict) -> dict[str, Any]:
+        """Status of an EV charger without telemetry, from its activity sensor.
+
+        It has no power figure, only "charging or not": while it charges the
+        battery never discharges for it (and neither charges nor discharges
+        during the pause after the charge is detected), so it is excluded; it
+        is unmeasured only when that sensor has no usable state.
+        """
+        sensor_id = device.get("activity_sensor") or device.get("power_sensor")
+        state = self._hass.states.get(sensor_id) if sensor_id else None
+        if state is None or state.state in ("unknown", "unavailable"):
+            return {"rule": "unmeasured"}
+        if not self._state_is_active(state):
+            return {"rule": "idle"}
+        pause_until = (getattr(self._controller, "_ev_pause_until", None) or {}).get(sensor_id)
+        return {
+            "rule": "excluded",
+            "discharge_blocked": True,
+            "charge_blocked": pause_until is not None and dt_util.utcnow() < pause_until,
+        }
+
+    def device_state(self, index: int) -> tuple[str, dict[str, Any]]:
+        """(state, attributes) of one excluded device for its status sensor.
+
+        States: paused (Enabled off), unmeasured (no usable reading), idle (no
+        demand), priority (dynamic power control yielding to it), solar_surplus
+        (it runs on PV surplus, partly at least), excluded (the battery does not
+        power it), covered (an additional device the battery powers). Read from
+        the last control cycle; before the first one it is idle.
+        """
+        status = self.device_status.get(index) or {}
+        rule = status.get("rule")
+        power = status.get("power_w")
+        sensor = status.get("power_sensor")
+        # The control cycle skips calculate_adjustment() while it returns early
+        # (grid charge, manual mode, no grid reading...), maybe for hours, so
+        # the device's reading is taken live. ponytail: this only downgrades a
+        # stale rule (off / no reading); a device that switches on meanwhile
+        # keeps its last rule until the next full cycle.
+        devices = self._config_entry.data.get("excluded_devices", [])
+        device = devices[index] if index < len(devices) else {}
+        if rule not in (None, "paused") and device.get("ev_charger_no_telemetry", False):
+            status = self._ev_charger_status(device)
+            rule = status.get("rule")
+        elif rule not in (None, "paused", "unmeasured", "idle") and sensor:
+            power = self._read_sensor_w_opt(sensor)
+            if power is None:
+                rule = "unmeasured"
+        dpc = self.dynamic_power_control_status or {}
+        attrs = {
+            "power_w": None if power is None else round(power, 1),
+            "adjustment_w": None if status.get("adjustment_w") is None else round(status["adjustment_w"], 1),
+            "phase": (dpc.get("phases") or {}).get(sensor),
+            "charge_blocked": bool(
+                status.get("charge_blocked")
+                or (sensor and sensor in (dpc.get("blocked_devices") or []))
+            ),
+            "discharge_blocked": bool(
+                status.get("discharge_blocked")
+                or (sensor and sensor in (dpc.get("discharge_blocked_devices") or []))
+            ),
+        }
+        if rule in (None, "paused", "unmeasured", "idle"):
+            if rule == "unmeasured":
+                attrs["power_w"] = attrs["adjustment_w"] = None
+            return rule or "idle", attrs
+        if sensor and sensor in (dpc.get("devices") or []):
+            return "priority", attrs
+        if power is not None and power <= 10:
+            return "idle", attrs
+        return rule, attrs
 
     def _read_sensor_w(self, entity_id: str) -> float:
         """Read a power sensor and return its value in watts. Returns 0.0 if unavailable."""

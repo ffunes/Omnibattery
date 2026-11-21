@@ -159,6 +159,7 @@ NO_DEFAULT = (
     "surplus_price_hold_status",
     "high_price_discharge_status",
     "discharge_reserve_status",
+    "excluded_device_status",
     "predictive_charging_active",
     "weekly_full_charge",
     "reevaluate_dynamic_pricing",
