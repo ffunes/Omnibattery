@@ -133,7 +133,7 @@ async def test_v14_drops_the_key_and_deletes_its_entity(hass: HomeAssistant) -> 
     )
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 19
+    assert entry.version == 20
     assert CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT not in entry.data
     # Deleted, not left behind unavailable: orphans have rendered as dead
     # duplicate controls on the panel before.
@@ -153,7 +153,9 @@ async def test_v14_leaves_a_hand_set_safety_margin_alone(hass: HomeAssistant) ->
     )
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.data[CONF_PREDICTIVE_SAFETY_MARGIN_KWH] == 0.0
+    # v20 turns the kWh margin into a %: a hand-set 0 stays 0.
+    assert CONF_PREDICTIVE_SAFETY_MARGIN_KWH not in entry.data
+    assert entry.data[CONF_PREDICTIVE_SAFETY_MARGIN_PCT] == 0.0
 
 
 async def test_v14_without_the_entity_still_migrates(hass: HomeAssistant) -> None:
@@ -161,3 +163,45 @@ async def test_v14_without_the_entity_still_migrates(hass: HomeAssistant) -> Non
 
     assert await async_migrate_entry(hass, entry) is True
     assert CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT not in entry.data
+
+
+# ----------------------------------------------------------------------
+# The v19 -> v20 migration: the kWh safety margin becomes a %
+# ----------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "stored, expected",
+    [(0.0, 0.0), (0, 0.0), (2.5, None), (None, None)],
+    ids=["zero", "int_zero", "hand_set_value", "never_set"],
+)
+def test_v20_converts_only_a_zero_margin(stored, expected):
+    """No fixed sun turns kWh into %: only 0 carries over, anything else
+    takes the default (the key stays unset)."""
+    from custom_components.omnibattery import _migrate_safety_margin_to_pct
+
+    data = {"batteries": []}
+    if stored is not None:
+        data[CONF_PREDICTIVE_SAFETY_MARGIN_KWH] = stored
+
+    _migrate_safety_margin_to_pct(data)
+
+    assert CONF_PREDICTIVE_SAFETY_MARGIN_KWH not in data
+    assert data.get(CONF_PREDICTIVE_SAFETY_MARGIN_PCT) == expected
+
+
+async def test_v20_deletes_the_kwh_margin_entity(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, version=19,
+        data={"batteries": [], CONF_PREDICTIVE_SAFETY_MARGIN_KWH: 2.5},
+    )
+    entry.add_to_hass(hass)
+    old_uid = f"{PREFIX}{CONF_PREDICTIVE_SAFETY_MARGIN_KWH}"
+    number = er.async_get(hass).async_get_or_create(
+        "number", DOMAIN, old_uid, suggested_object_id=old_uid, config_entry=entry,
+    )
+
+    assert await async_migrate_entry(hass, entry) is True
+    assert entry.version == 20
+    assert CONF_PREDICTIVE_SAFETY_MARGIN_KWH not in entry.data
+    assert CONF_PREDICTIVE_SAFETY_MARGIN_PCT not in entry.data
+    assert er.async_get(hass).async_get(number.entity_id) is None

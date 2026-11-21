@@ -193,6 +193,7 @@ from .const import (
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
     CONF_METER_INVERTED,
+    CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
@@ -11224,8 +11225,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v18 -> v19: the Discharge Reserve switch and its minimum saving are gone:
                 Dynamic Pricing holds the battery whenever the plan is cheaper
                 (#888). Their keys and both entities are removed.
+    v19 -> v20: the solar safety margin turns from kWh into a % of the
+                forecast sun. A stored 0 becomes 0 %; any other value takes
+                the default. The kWh number entity is removed.
     """
-    if entry.version >= 19:
+    if entry.version >= 20:
         return True
 
     new_data = dict(entry.data)
@@ -11685,14 +11689,45 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(Discharge Reserve switch and minimum saving removed)",
         )
 
+    if entry.version < 20:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        _migrate_safety_margin_to_pct(new_data)
+        ent_reg = er.async_get(hass)
+        entity_id = ent_reg.async_get_entity_id(
+            "number", DOMAIN, f"{SYSTEM_UNIQUE_ID_PREFIX}{CONF_PREDICTIVE_SAFETY_MARGIN_KWH}"
+        )
+        if entity_id:
+            ent_reg.async_remove(entity_id)
+
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 20 "
+            "(solar safety margin is now a %% of the forecast sun)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
         options=new_options,
-        version=19,
+        version=20,
     )
     return True
+
+
+def _migrate_safety_margin_to_pct(data: dict) -> None:
+    """v20: drop the kWh safety margin; a stored 0 stays 0 %.
+
+    Any other kWh value has no fixed sun to turn it into a %, so it gives
+    way to the default (the key is left unset).
+    """
+    kwh = data.pop(CONF_PREDICTIVE_SAFETY_MARGIN_KWH, None)
+    try:
+        if kwh is not None and float(kwh) == 0.0:
+            data[CONF_PREDICTIVE_SAFETY_MARGIN_PCT] = 0.0
+    except (TypeError, ValueError):
+        pass
 
 
 def _device_owns_initial_config(brand: str) -> bool:
