@@ -16,6 +16,7 @@ from .infra.clock import local_now
 from .const import (
     DOMAIN,
     CONF_CAPACITY_PROTECTION_ENABLED,
+    CONF_ENABLE_TEMP_CHARGE_LIMIT,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
 )
@@ -58,6 +59,10 @@ async def async_setup_entry(
     # Add capacity protection status sensor (system-level, when configured, regardless of enabled state)
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
         entities.append(CapacityProtectionStatusSensor(hass, entry, controller))
+
+    # Temperature charge limit status, under the same condition as its switch
+    if controller and CONF_ENABLE_TEMP_CHARGE_LIMIT in entry.data:
+        entities.append(TemperatureChargeLimitStatusSensor(hass, entry, controller))
 
     async_add_entities(entities)
 
@@ -338,6 +343,83 @@ class DischargeReserveSensor(BinarySensorEntity):
     @property
     def extra_state_attributes(self) -> dict:
         return self._status()
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, "marstek_venus_system")},
+            "name": "Omnibattery System",
+            "manufacturer": "Omnibattery",
+            "model": "Multi-Battery System",
+        }
+
+
+class TemperatureChargeLimitStatusSensor(BinarySensorEntity):
+    """On while a battery's charge power is derated by its temperature.
+
+    The derate itself (``TemperatureChargeLimitManager``) only showed as an
+    attribute of the integration status, and only while the feature was on.
+    Per battery: the power it may take as a percentage of normal
+    (``derate_pct``), its temperature and the limit and band; plus the
+    hottest battery. An unknown temperature never derates (fail-safe), so it
+    reads as not derated here too.
+    """
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+        self.hass = hass
+        self.entry = entry
+        self.controller = controller
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "temperature_charge_limit_status"
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}temperature_charge_limit_status"
+        self.entity_id = system_entity_id("binary_sensor", "temperature_charge_limit_status")
+        self._attr_device_class = "running"
+        self._attr_icon = "mdi:thermometer-alert"
+        self._attr_should_poll = True
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def _status(self) -> dict:
+        manager = getattr(self.controller, "_temp_limit_mgr", None)
+        return manager.get_status() if manager is not None else {}
+
+    @property
+    def is_on(self) -> bool:
+        return any(battery.get("derating") for battery in self._status().values())
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        status = self._status()
+        enabled = bool(getattr(self.controller, "temp_charge_limit_enabled", False))
+        batteries = {}
+        hottest, hottest_temp = None, None
+        for name, battery in status.items():
+            try:
+                temp = float(battery.get("internal_temperature"))
+            except (TypeError, ValueError):
+                temp = None
+            batteries[name] = {
+                # 100 unless the limit is really applied (feature off → no derate).
+                "derate_pct": (
+                    round(float(battery.get("derate_factor", 1.0)) * 100.0, 1)
+                    if battery.get("derating")
+                    else 100.0
+                ),
+                "internal_temperature": temp,
+                "derating": bool(battery.get("derating")),
+            }
+            if temp is not None and (hottest_temp is None or temp > hottest_temp):
+                hottest, hottest_temp = name, temp
+        first = next(iter(status.values()), {})
+        return {
+            "enabled": enabled,
+            "limit_c": first.get("limit_c"),
+            "band_c": first.get("band_c"),
+            "floor_pct": first.get("floor_pct"),
+            "discharge_derated_too": bool(first.get("apply_discharge")),
+            "hottest_battery": hottest,
+            "hottest_temperature": hottest_temp,
+            "batteries": batteries,
+        }
 
     @property
     def device_info(self):

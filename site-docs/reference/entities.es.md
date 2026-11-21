@@ -55,6 +55,7 @@ Estas entidades pertenecen a **Omnibattery System**, no a una batería.
     | `predictive_charging_active` | Se ha configurado carga predictiva |
     | `curtailment_status`, `surplus_price_hold_status`, `discharge_reserve_status`, `high_price_discharge_status` | Función de Precio dinámico pertinente disponible |
     | `capacity_protection_active` | Protección de capacidad configurada |
+    | `temperature_charge_limit_status` (sensor binario) | Límite de carga por temperatura configurado |
     | `weekly_full_charge` | Carga completa semanal activada |
     | `charge_delay_status` | Retraso de carga configurado |
     | `system_alarm_status` | Al menos una batería expone registros de alarma |

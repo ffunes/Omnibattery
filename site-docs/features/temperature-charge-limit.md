@@ -38,13 +38,13 @@ Below the configured limit, this feature does not change the battery's power cei
 
 With the defaults, reduction starts above 40 °C and reaches the 40% floor at 50 °C. Other active battery limits can still produce a lower ceiling.
 
-**Integration Status** includes `temperature_charge_limit` details for each battery: its reported temperature, configured limit, ramp band, floor, reduction factor, and whether derating is active.
+**Temperature Charge Limit Status** is on while any battery is hot enough for its power to be reduced; the card shows it as the group's status row. Its attributes list, per battery, the power it may take as a percentage of normal (`derate_pct`) and its temperature, plus the hottest battery, the configured limit, band and floor, and whether discharge is limited too. **Integration Status** still includes the same `temperature_charge_limit` details.
 
 ## If it does not work
 
 | Symptom | Likely cause | What to check |
 |---|---|---|
-| Power does not reduce when a battery is hot | The feature is off, or the temperature has not crossed the configured limit | **Temperature Charge Limit**, **Internal Temperature**, and the configured threshold |
+| Power does not reduce when a battery is hot | The feature is off, or the temperature has not crossed the configured limit | **Temperature Charge Limit**, **Temperature Charge Limit Status**, **Internal Temperature**, and the configured threshold |
 | One battery reduces power and another does not | Limits are calculated from each battery's own temperature | Both batteries' **Internal Temperature** values |
 | A battery with no temperature reading keeps charging | Missing or invalid temperature data leaves its existing limit unchanged | Battery availability and the internal-temperature entity |
 | Power does not fall as low as the percentage suggests | The driver declares a minimum reliable operating power | The battery's supported power range and **Integration Status** |

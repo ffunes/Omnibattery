@@ -55,6 +55,7 @@ These entities belong to **Omnibattery System** rather than one battery.
     | `predictive_charging_active` | Predictive charging has been configured |
     | `curtailment_status`, `surplus_price_hold_status`, `discharge_reserve_status`, `high_price_discharge_status` | Relevant Dynamic Pricing feature available |
     | `capacity_protection_active` | Capacity protection configured |
+    | `temperature_charge_limit_status` (binary sensor) | Temperature charge limit configured |
     | `weekly_full_charge` | Weekly full charge enabled |
     | `charge_delay_status` | Charge delay configured |
     | `system_alarm_status` | At least one battery exposes alarm registers |

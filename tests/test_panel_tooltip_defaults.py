@@ -163,6 +163,7 @@ NO_DEFAULT = (
     "weekly_full_charge",
     "reevaluate_dynamic_pricing",
     "system_pd_control_quality",
+    "temperature_charge_limit_status",
 )
 # One switch on two cards with opposite sense ("Use PD controller" shows it
 # inverted); each card's own tooltip explains it.
