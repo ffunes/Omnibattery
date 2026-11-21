@@ -20,7 +20,7 @@ A weekly full charge gives a lithium iron phosphate (LFP) battery regular time a
 1. Open the Omnibattery sidebar dashboard and select **Control**.
 2. In **Weekly Full Charge**, turn on **Weekly Full Charge**.
 3. Choose **Weekly Full Charge Day**.
-4. If you use **Charge Delay**, turn on **Delay Weekly Full Charge** to wait for solar; leave it off to start the weekly cycle without that delay.
+4. If you use **Charge Delay**, turn on **Delay Weekly Full Charge** to wait for solar; leave it off to start the weekly cycle without that delay. The switch shows on the card only while **Charge Delay** is on, because it has no effect otherwise.
 
 ![Configure the weekly full charge day and solar delay](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650" style="display: block; margin: 0 auto;"}
 

@@ -55,7 +55,7 @@ const DAILY_OPERATION_SUNSET_ZERO_INTERVALS = 4;
 // names in translations/*.json so the panel reads consistently with HA.
 const I18N = {
   en: {
-    subtitle: "Control Panel",
+    subtitle: "Control Panel", statusSurplusHold: "Surplus price hold status", statusDischargeReserve: "Discharge reserve status", statusPredischarge: "Smart pre-discharge status", statusPredictive: "Predictive charging status", statusWeekly: "Weekly full charge status", typeExcluded: "excluded", typeAdditional: "additional",
     live: "Live",
     evCharger: "EV charger",
     flowToggle: "Switch diagram",
@@ -124,9 +124,9 @@ const I18N = {
     secPhaseProtection: "Three-phase protection", threePhaseProtection: "Three-phase current protection",
     secManual: "Manual mode", secOffgridMeter: "Off-grid meter mode", secVacation: "Vacation mode", itemEnable: "Enable",
     secTempLimit: "Temperature charge limit", itemTempLimitC: "Temperature limit", itemTempLimitBand: "Ramp band", itemTempLimitFloor: "Minimum charge power", itemTempApplyDischarge: "Also throttle discharge",
-    itemMaxContracted: "Maximum grid import", itemGridImportWindow: "Grid Import 15-min Window", itemSolarSafety: "Solar safety margin", itemMinSocFloorEnable: "SOC floor", itemMinSocFloor: "Guaranteed minimum SOC",
+    itemMaxContracted: "Maximum grid import", itemGridImportWindow: "Grid Import 15-min Window", grpPlanning: "Planning", grpPriceTrade: "Price-based charge & discharge", grpGridSale: "Grid sale", itemSolarSafety: "Solar safety margin", itemMinSocFloorEnable: "Guaranteed minimum SOC", itemMinSocFloor: "Minimum SOC",
     itemSocThreshold: "SOC threshold", itemExcludedPeakShaving: "Peak shaving for excluded devices",
-    itemArbitrageMargin: "Min. arbitrage margin", itemRoundTripEfficiency: "Round-trip efficiency", itemMaxPrice: "Max price (charge)", itemDischargePrice: "Discharge price floor", itemMaxPriceManual: "Manual charge price", itemDischargePriceManual: "Manual discharge price", itemPriceDischarge: "Discharge only above price", itemReevaluatePrices: "Re-evaluate now", itemNegativePriceCharging: "Charge at negative prices", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Smart pre-discharge", itemNegativeThreshold: "Negative injection threshold", itemPredischargeReserve: "Pre-discharge reserve SOC", itemSurplusHoldSaving: "Surplus hold min. saving",
+    itemArbitrageMargin: "Min. arbitrage margin", itemRoundTripEfficiency: "Round-trip efficiency", itemMaxPrice: "Charge price ceiling", itemDischargePrice: "Discharge price floor", itemMaxPriceManual: "Manual charge price ceiling", valAutoCharge: "Automatic · cheapest hours", valAutoDischarge: "Automatic · charge ceiling or today's average", itemDischargePriceManual: "Manual discharge price floor", itemPriceDischarge: "Discharge only above price", itemReevaluatePrices: "Re-evaluate now", itemNegativePriceCharging: "Charge at negative prices", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Smart pre-discharge", itemNegativeThreshold: "Negative feed-in price threshold", itemPredischargeReserve: "Pre-discharge: lowest SOC", itemSurplusHoldSaving: "Surplus hold min. saving",
     itemDelaySafety: "Safety margin", itemDelaySoc: "Delay target SOC", itemDelaySocEnable: "Delay target SOC enabled", itemDelayDeadband: "Balance deadband",
     secHourly: "Hourly balance", hourlyEsOnly: "Only useful in Spain (RD 244/2019) · detected country: {c}", secWeeklyFull: "Weekly full charge", itemWeeklyDay: "Full charge day", itemWeeklyDelay: "Wait for solar charge delay", itemHourlyTarget: "Target net balance", itemHourlyMaxOffset: "Max power offset", itemHourlyDeadband: "Deadband", itemHourlyHysteresis: "Hysteresis",
     secSlots: "Configured slots", itemSlot: "Slot",
@@ -146,7 +146,7 @@ const I18N = {
     slotStateLabel: "State", slotActiveWord: "active", slotInactiveWord: "inactive",
   },
   es: {
-    subtitle: "Panel de Control",
+    subtitle: "Panel de Control", statusSurplusHold: "Estado de retención de excedente por precio", statusDischargeReserve: "Estado de reserva de descarga", statusPredischarge: "Estado de predescarga inteligente", statusPredictive: "Estado de la carga predictiva", statusWeekly: "Estado de la carga semanal completa", typeExcluded: "excluido", typeAdditional: "adicional",
     live: "En vivo",
     evCharger: "Cargador VE",
     flowToggle: "Cambiar diagrama",
@@ -215,9 +215,9 @@ const I18N = {
     secPhaseProtection: "Protección trifásica", threePhaseProtection: "Protección de corriente trifásica",
     secManual: "Modo manual", secOffgridMeter: "Modo de medidor off-grid", secVacation: "Modo vacaciones", itemEnable: "Activar",
     secTempLimit: "Límite de carga por temperatura", itemTempLimitC: "Límite de temperatura", itemTempLimitBand: "Banda de reducción", itemTempLimitFloor: "Potencia de carga mínima", itemTempApplyDischarge: "Reducir también la descarga",
-    itemMaxContracted: "Máximo de importación de red", itemGridImportWindow: "Ventana de 15 min de Importación de Red", itemSolarSafety: "Margen de seguridad solar", itemMinSocFloorEnable: "Suelo de SOC", itemMinSocFloor: "SOC mínimo garantizado",
+    itemMaxContracted: "Máximo de importación de red", itemGridImportWindow: "Ventana de 15 min de Importación de Red", grpPlanning: "Planificación", grpPriceTrade: "Carga y descarga según el precio", grpGridSale: "Venta a la red", itemSolarSafety: "Margen de seguridad solar", itemMinSocFloorEnable: "SOC mínimo garantizado", itemMinSocFloor: "SOC mínimo",
     itemSocThreshold: "Umbral de SOC", itemExcludedPeakShaving: "Reducción de picos para dispositivos excluidos",
-    itemArbitrageMargin: "Margen mínimo de arbitraje", itemRoundTripEfficiency: "Eficiencia de ciclo completo", itemMaxPrice: "Precio máximo (carga)", itemDischargePrice: "Precio mínimo de descarga", itemMaxPriceManual: "Precio de carga manual", itemDischargePriceManual: "Precio de descarga manual", itemPriceDischarge: "Descargar solo si precio alto", itemReevaluatePrices: "Reevaluar ahora", itemNegativePriceCharging: "Cargar con precios negativos", itemPredictiveNotifications: "Notificaciones", itemSmartPredischarge: "Predescarga inteligente", itemNegativeThreshold: "Umbral de inyección negativa", itemPredischargeReserve: "SOC de reserva de predescarga", itemSurplusHoldSaving: "Ahorro mínimo para retener excedente",
+    itemArbitrageMargin: "Margen mínimo de arbitraje", itemRoundTripEfficiency: "Eficiencia de ciclo completo", itemMaxPrice: "Techo de precio de carga", itemDischargePrice: "Suelo de precio de descarga", itemMaxPriceManual: "Techo de precio de carga manual", valAutoCharge: "Automático · horas más baratas", valAutoDischarge: "Automático · techo de carga o media de hoy", itemDischargePriceManual: "Suelo de precio de descarga manual", itemPriceDischarge: "Descargar solo si precio alto", itemReevaluatePrices: "Reevaluar ahora", itemNegativePriceCharging: "Cargar con precios negativos", itemPredictiveNotifications: "Notificaciones", itemSmartPredischarge: "Predescarga inteligente", itemNegativeThreshold: "Umbral de precio de inyección negativo", itemPredischargeReserve: "Predescarga: SOC más bajo", itemSurplusHoldSaving: "Ahorro mínimo para retener excedente",
     itemDelaySafety: "Margen de seguridad", itemDelaySoc: "SOC objetivo de retardo", itemDelaySocEnable: "SOC objetivo de retardo activo", itemDelayDeadband: "Banda muerta de balance",
     secHourly: "Balance horario", hourlyEsOnly: "Solo útil en España (RD 244/2019) · país detectado: {c}", secWeeklyFull: "Carga semanal completa", itemWeeklyDay: "Día de carga completa", itemWeeklyDelay: "Esperar al retraso por solar", itemHourlyTarget: "Objetivo de balance neto", itemHourlyMaxOffset: "Offset máx. de potencia", itemHourlyDeadband: "Banda muerta", itemHourlyHysteresis: "Histéresis",
     secSlots: "Franjas configuradas", itemSlot: "Franja",
@@ -237,7 +237,7 @@ const I18N = {
     slotStateLabel: "Estado", slotActiveWord: "activa", slotInactiveWord: "inactiva",
   },
   ca: {
-    subtitle: "Tauler de control",
+    subtitle: "Tauler de control", statusSurplusHold: "Estat de retenció d'excedent per preu", statusDischargeReserve: "Estat de reserva de descàrrega", statusPredischarge: "Estat de predescàrrega intel·ligent", statusPredictive: "Estat de la càrrega predictiva", statusWeekly: "Estat de la càrrega setmanal completa", typeExcluded: "exclòs", typeAdditional: "addicional",
     ctlLock: "Bloqueja els controls", ctlUnlock: "Desbloqueja els controls",
     live: "En directe",
     evCharger: "Carregador VE",
@@ -302,9 +302,9 @@ const I18N = {
     bcVoltageTaper: "Reducció càrrega 100%", bcActiveBalance: "Balanç actiu",
     secManual: "Mode manual", secOffgridMeter: "Mode de mesurador off-grid", secVacation: "Mode vacances", itemEnable: "Activar",
     secTempLimit: "Límit de càrrega per temperatura", itemTempLimitC: "Límit de temperatura", itemTempLimitBand: "Banda de reducció", itemTempLimitFloor: "Potència de càrrega mínima", itemTempApplyDischarge: "Redueix també la descàrrega",
-    itemMaxContracted: "Màxim d'importació de xarxa", itemGridImportWindow: "Finestra de 15 min d'Importació de Xarxa", itemSolarSafety: "Marge de seguretat solar", itemMinSocFloorEnable: "SOC Mínim", itemMinSocFloor: "SOC mínim garantit",
+    itemMaxContracted: "Màxim d'importació de xarxa", itemGridImportWindow: "Finestra de 15 min d'Importació de Xarxa", grpPlanning: "Planificació", grpPriceTrade: "Càrrega i descàrrega segons el preu", grpGridSale: "Venda a la xarxa", itemSolarSafety: "Marge de seguretat solar", itemMinSocFloorEnable: "SOC mínim garantit", itemMinSocFloor: "SOC mínim",
     itemSocThreshold: "Llindar de SOC", itemExcludedPeakShaving: "Reducció de pics per a dispositius exclosos",
-    itemArbitrageMargin: "Marge mínim d'arbitratge", itemRoundTripEfficiency: "Eficiència de cicle complet", itemMaxPrice: "Preu màxim (càrrega)", itemDischargePrice: "Preu mínim de descàrrega", itemMaxPriceManual: "Preu de càrrega manual", itemDischargePriceManual: "Preu de descàrrega manual", itemPriceDischarge: "Descarregar només si preu alt", itemReevaluatePrices: "Reavaluar ara", itemNegativePriceCharging: "Carregar amb preus negatius", itemPredictiveNotifications: "Notificacions", itemSmartPredischarge: "Predescàrrega intel·ligent", itemNegativeThreshold: "Llindar d'injecció negativa", itemPredischargeReserve: "SOC de reserva de predescàrrega", itemSurplusHoldSaving: "Estalvi mínim per retenir excedent",
+    itemArbitrageMargin: "Marge mínim d'arbitratge", itemRoundTripEfficiency: "Eficiència de cicle complet", itemMaxPrice: "Sostre de preu de càrrega", itemDischargePrice: "Terra de preu de descàrrega", itemMaxPriceManual: "Sostre de preu de càrrega manual", valAutoCharge: "Automàtic · hores més barates", valAutoDischarge: "Automàtic · sostre de càrrega o mitjana d'avui", itemDischargePriceManual: "Terra de preu de descàrrega manual", itemPriceDischarge: "Descarregar només si preu alt", itemReevaluatePrices: "Reavaluar ara", itemNegativePriceCharging: "Carregar amb preus negatius", itemPredictiveNotifications: "Notificacions", itemSmartPredischarge: "Predescàrrega intel·ligent", itemNegativeThreshold: "Llindar de preu d'injecció negatiu", itemPredischargeReserve: "Predescàrrega: SOC més baix", itemSurplusHoldSaving: "Estalvi mínim per retenir excedent",
     itemDelaySafety: "Marge de seguretat", itemDelaySoc: "SOC objectiu de retard", itemDelaySocEnable: "SOC objectiu de retard actiu", itemDelayDeadband: "Banda morta de balanç",
     secHourly: "Balanç horari", hourlyEsOnly: "Només útil a Espanya (RD 244/2019) · país detectat: {c}", secWeeklyFull: "Càrrega setmanal completa", itemWeeklyDay: "Dia de càrrega completa", itemWeeklyDelay: "Espera el retard per solar", itemHourlyTarget: "Objectiu de balanç net", itemHourlyMaxOffset: "Offset màx. de potència", itemHourlyDeadband: "Banda morta", itemHourlyHysteresis: "Histèresi",
     secSlots: "Franges configurades", itemSlot: "Franja",
@@ -324,7 +324,7 @@ const I18N = {
     slotStateLabel: "Estat", slotActiveWord: "activa", slotInactiveWord: "inactiva",
   },
   de: {
-    subtitle: "Bedienfeld",
+    subtitle: "Bedienfeld", statusSurplusHold: "Status Preisbremse Solarüberschuss", statusDischargeReserve: "Status Entladereserve", statusPredischarge: "Status intelligente Vorentladung", statusPredictive: "Status prädiktives Laden", statusWeekly: "Status wöchentliche Vollladung", typeExcluded: "ausgeschlossen", typeAdditional: "zusätzlich",
     ctlLock: "Steuerelemente sperren", ctlUnlock: "Steuerelemente entsperren",
     live: "Live",
     evCharger: "E-Auto-Lader",
@@ -389,9 +389,9 @@ const I18N = {
     bcVoltageTaper: "100%-Ladungsreduktion", bcActiveBalance: "Aktiver Zellabgleich",
     secManual: "Manueller Modus", secOffgridMeter: "Off-Grid-Zählermodus", secVacation: "Urlaubsmodus", itemEnable: "Aktivieren",
     secTempLimit: "Temperaturbasierte Ladebegrenzung", itemTempLimitC: "Temperaturgrenze", itemTempLimitBand: "Drosselbereich", itemTempLimitFloor: "Minimale Ladeleistung", itemTempApplyDischarge: "Auch Entladung drosseln",
-    itemMaxContracted: "Maximaler Netzbezug", itemGridImportWindow: "15-Minuten-Fenster Netzbezug", itemSolarSafety: "Sicherheitspuffer Solar", itemMinSocFloorEnable: "SOC-Untergrenze", itemMinSocFloor: "Garantierter Mindest-SOC",
+    itemMaxContracted: "Maximaler Netzbezug", itemGridImportWindow: "15-Minuten-Fenster Netzbezug", grpPlanning: "Planung", grpPriceTrade: "Preisbasiertes Laden und Entladen", grpGridSale: "Verkauf ins Netz", itemSolarSafety: "Sicherheitspuffer Solar", itemMinSocFloorEnable: "Garantierter Mindest-SOC", itemMinSocFloor: "Mindest-SOC",
     itemSocThreshold: "SOC-Schwelle", itemExcludedPeakShaving: "Spitzenlastkappung für ausgeschlossene Geräte",
-    itemArbitrageMargin: "Min. Arbitragemarge", itemRoundTripEfficiency: "Round-Trip-Wirkungsgrad", itemMaxPrice: "Max. Preis (Laden)", itemDischargePrice: "Entlade-Preisuntergrenze", itemMaxPriceManual: "Manueller Ladepreis", itemDischargePriceManual: "Manueller Entladepreis", itemPriceDischarge: "Nur über Preis entladen", itemReevaluatePrices: "Jetzt neu bewerten", itemNegativePriceCharging: "Bei negativen Preisen laden", itemPredictiveNotifications: "Benachrichtigungen", itemSmartPredischarge: "Intelligente Vorentladung", itemNegativeThreshold: "Schwelle für negative Einspeisung", itemPredischargeReserve: "Vorentlade-Reserve-SOC", itemSurplusHoldSaving: "Min. Ersparnis für Überschussbremse",
+    itemArbitrageMargin: "Min. Arbitragemarge", itemRoundTripEfficiency: "Round-Trip-Wirkungsgrad", itemMaxPrice: "Lade-Preisobergrenze", itemDischargePrice: "Entlade-Preisuntergrenze", itemMaxPriceManual: "Manuelle Lade-Preisobergrenze", valAutoCharge: "Automatisch · günstigste Stunden", valAutoDischarge: "Automatisch · Lade-Obergrenze oder Tagesmittel", itemDischargePriceManual: "Manuelle Entlade-Preisuntergrenze", itemPriceDischarge: "Nur über Preis entladen", itemReevaluatePrices: "Jetzt neu bewerten", itemNegativePriceCharging: "Bei negativen Preisen laden", itemPredictiveNotifications: "Benachrichtigungen", itemSmartPredischarge: "Intelligente Vorentladung", itemNegativeThreshold: "Schwelle negativer Einspeisepreis", itemPredischargeReserve: "Vorentladung: niedrigster SOC", itemSurplusHoldSaving: "Min. Ersparnis für Überschussbremse",
     itemDelaySafety: "Sicherheitspuffer", itemDelaySoc: "Verzögerungs-Ziel-SOC", itemDelaySocEnable: "Verzögerungs-Ziel-SOC aktiv", itemDelayDeadband: "Bilanz-Totband",
     secHourly: "Stündliche Balance", hourlyEsOnly: "Nur in Spanien sinnvoll (RD 244/2019) · erkanntes Land: {c}", secWeeklyFull: "Wöchentliche Vollladung", itemWeeklyDay: "Tag der Vollladung", itemWeeklyDelay: "Auf Solar-Ladeverzögerung warten", itemHourlyTarget: "Ziel-Nettobalance", itemHourlyMaxOffset: "Max. Leistungs-Offset", itemHourlyDeadband: "Totband", itemHourlyHysteresis: "Hysterese",
     secSlots: "Konfigurierte Zeitfenster", itemSlot: "Zeitfenster",
@@ -411,7 +411,7 @@ const I18N = {
     slotStateLabel: "Status", slotActiveWord: "aktiv", slotInactiveWord: "inaktiv",
   },
   fr: {
-    subtitle: "Panneau de contrôle",
+    subtitle: "Panneau de contrôle", statusSurplusHold: "État de la retenue de surplus", statusDischargeReserve: "État de la réserve de décharge", statusPredischarge: "État de la pré-décharge intelligente", statusPredictive: "État de la charge prédictive", statusWeekly: "État de la charge complète hebdomadaire", typeExcluded: "exclu", typeAdditional: "supplémentaire",
     ctlLock: "Verrouiller les commandes", ctlUnlock: "Déverrouiller les commandes",
     live: "En direct",
     evCharger: "Chargeur VE",
@@ -476,9 +476,9 @@ const I18N = {
     bcVoltageTaper: "Réduction charge 100%", bcActiveBalance: "Équilibrage actif",
     secManual: "Mode manuel", secOffgridMeter: "Mode compteur hors réseau", secVacation: "Mode vacances", itemEnable: "Activer",
     secTempLimit: "Limite de charge par température", itemTempLimitC: "Limite de température", itemTempLimitBand: "Plage de réduction", itemTempLimitFloor: "Puissance de charge minimale", itemTempApplyDischarge: "Réduire aussi la décharge",
-    itemMaxContracted: "Import réseau maximal", itemGridImportWindow: "Fenêtre de 15 min d'Import Réseau", itemSolarSafety: "Marge de sécurité solaire", itemMinSocFloorEnable: "Plancher SOC", itemMinSocFloor: "SOC minimum garanti",
+    itemMaxContracted: "Import réseau maximal", itemGridImportWindow: "Fenêtre de 15 min d'Import Réseau", grpPlanning: "Planification", grpPriceTrade: "Charge et décharge selon le prix", grpGridSale: "Vente au réseau", itemSolarSafety: "Marge de sécurité solaire", itemMinSocFloorEnable: "SOC minimum garanti", itemMinSocFloor: "SOC minimum",
     itemSocThreshold: "Seuil SOC", itemExcludedPeakShaving: "Écrêtement des pointes pour appareils exclus",
-    itemArbitrageMargin: "Marge d'arbitrage min.", itemRoundTripEfficiency: "Rendement aller-retour", itemMaxPrice: "Prix max. (charge)", itemDischargePrice: "Prix plancher de décharge", itemMaxPriceManual: "Prix de charge manuel", itemDischargePriceManual: "Prix de décharge manuel", itemPriceDischarge: "Décharger si prix élevé", itemReevaluatePrices: "Réévaluer maintenant", itemNegativePriceCharging: "Charger aux prix négatifs", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Pré-décharge intelligente", itemNegativeThreshold: "Seuil d'injection négative", itemPredischargeReserve: "SOC de réserve de pré-décharge", itemSurplusHoldSaving: "Économie min. pour retenir le surplus",
+    itemArbitrageMargin: "Marge d'arbitrage min.", itemRoundTripEfficiency: "Rendement aller-retour", itemMaxPrice: "Plafond de prix de charge", itemDischargePrice: "Plancher de prix de décharge", itemMaxPriceManual: "Plafond de prix de charge manuel", valAutoCharge: "Automatique · heures les moins chères", valAutoDischarge: "Automatique · plafond de charge ou moyenne du jour", itemDischargePriceManual: "Plancher de prix de décharge manuel", itemPriceDischarge: "Décharger si prix élevé", itemReevaluatePrices: "Réévaluer maintenant", itemNegativePriceCharging: "Charger aux prix négatifs", itemPredictiveNotifications: "Notifications", itemSmartPredischarge: "Pré-décharge intelligente", itemNegativeThreshold: "Seuil de prix d'injection négatif", itemPredischargeReserve: "Pré-décharge : SOC le plus bas", itemSurplusHoldSaving: "Économie min. pour retenir le surplus",
     itemDelaySafety: "Marge de sécurité", itemDelaySoc: "SOC cible du délai", itemDelaySocEnable: "SOC cible du délai actif", itemDelayDeadband: "Bande morte de bilan",
     secHourly: "Bilan horaire", hourlyEsOnly: "Utile uniquement en Espagne (RD 244/2019) · pays détecté : {c}", secWeeklyFull: "Charge complète hebdomadaire", itemWeeklyDay: "Jour de charge complète", itemWeeklyDelay: "Attendre le délai de charge solaire", itemHourlyTarget: "Cible bilan net", itemHourlyMaxOffset: "Décalage max. puissance", itemHourlyDeadband: "Bande morte", itemHourlyHysteresis: "Hystérésis",
     secSlots: "Créneaux configurés", itemSlot: "Créneau",
@@ -498,7 +498,7 @@ const I18N = {
     slotStateLabel: "État", slotActiveWord: "actif", slotInactiveWord: "inactif",
   },
   nl: {
-    subtitle: "Bedieningspaneel",
+    subtitle: "Bedieningspaneel", statusSurplusHold: "Status prijsrem zonne-overschot", statusDischargeReserve: "Status ontlaadreserve", statusPredischarge: "Status slim voorontladen", statusPredictive: "Status voorspellend laden", statusWeekly: "Status wekelijkse volledige lading", typeExcluded: "uitgesloten", typeAdditional: "extra",
     ctlLock: "Bediening vergrendelen", ctlUnlock: "Bediening ontgrendelen",
     live: "Live",
     evCharger: "EV-lader",
@@ -563,9 +563,9 @@ const I18N = {
     bcVoltageTaper: "100%-laadbegrenzing", bcActiveBalance: "Actieve celbalans",
     secManual: "Handmatige modus", secOffgridMeter: "Off-grid metermodus", secVacation: "Vakantiemodus", itemEnable: "Inschakelen",
     secTempLimit: "Temperatuurbegrenzing laden", itemTempLimitC: "Temperatuurlimiet", itemTempLimitBand: "Afbouwband", itemTempLimitFloor: "Minimaal laadvermogen", itemTempApplyDischarge: "Ook ontladen terugregelen",
-    itemMaxContracted: "Maximale netafname", itemGridImportWindow: "15-minutenvenster Netafname", itemSolarSafety: "Veiligheidsmarge zon", itemMinSocFloorEnable: "SOC-vloer", itemMinSocFloor: "Gegarandeerde min. SOC",
+    itemMaxContracted: "Maximale netafname", itemGridImportWindow: "15-minutenvenster Netafname", grpPlanning: "Planning", grpPriceTrade: "Laden en ontladen op prijs", grpGridSale: "Verkoop aan het net", itemSolarSafety: "Veiligheidsmarge zon", itemMinSocFloorEnable: "Gegarandeerde min. SOC", itemMinSocFloor: "Min. SOC",
     itemSocThreshold: "SOC-drempel", itemExcludedPeakShaving: "Piekbegrenzing voor uitgesloten apparaten",
-    itemArbitrageMargin: "Min. arbitragemarge", itemRoundTripEfficiency: "Retourrendement", itemMaxPrice: "Max. prijs (laden)", itemDischargePrice: "Ontlaad-prijsondergrens", itemMaxPriceManual: "Handmatige laadprijs", itemDischargePriceManual: "Handmatige ontlaadprijs", itemPriceDischarge: "Alleen ontladen bij hoge prijs", itemReevaluatePrices: "Nu herberekenen", itemNegativePriceCharging: "Laden bij negatieve prijzen", itemPredictiveNotifications: "Meldingen", itemSmartPredischarge: "Slim voorontladen", itemNegativeThreshold: "Drempel negatieve injectie", itemPredischargeReserve: "Reserve-SOC voorontladen", itemSurplusHoldSaving: "Min. besparing voor prijsrem",
+    itemArbitrageMargin: "Min. arbitragemarge", itemRoundTripEfficiency: "Retourrendement", itemMaxPrice: "Laadprijsplafond", itemDischargePrice: "Ontlaadprijsondergrens", itemMaxPriceManual: "Handmatig laadprijsplafond", valAutoCharge: "Automatisch · goedkoopste uren", valAutoDischarge: "Automatisch · laadplafond of daggemiddelde", itemDischargePriceManual: "Handmatige ontlaadprijsondergrens", itemPriceDischarge: "Alleen ontladen bij hoge prijs", itemReevaluatePrices: "Nu herberekenen", itemNegativePriceCharging: "Laden bij negatieve prijzen", itemPredictiveNotifications: "Meldingen", itemSmartPredischarge: "Slim voorontladen", itemNegativeThreshold: "Drempel negatieve terugleverprijs", itemPredischargeReserve: "Voorontladen: laagste SOC", itemSurplusHoldSaving: "Min. besparing voor prijsrem",
     itemDelaySafety: "Veiligheidsmarge", itemDelaySoc: "Doel-SOC vertraging", itemDelaySocEnable: "Doel-SOC vertraging actief", itemDelayDeadband: "Balans dode band",
     secHourly: "Uurbalans", hourlyEsOnly: "Alleen nuttig in Spanje (RD 244/2019) · gedetecteerd land: {c}", secWeeklyFull: "Wekelijkse volledige lading", itemWeeklyDay: "Dag volledige lading", itemWeeklyDelay: "Wachten op zonne-laadvertraging", itemHourlyTarget: "Doel nettosaldo", itemHourlyMaxOffset: "Max. vermogensoffset", itemHourlyDeadband: "Dodeband", itemHourlyHysteresis: "Hysterese",
     secSlots: "Geconfigureerde tijdvakken", itemSlot: "Tijdvak",
@@ -1018,6 +1018,10 @@ const BAT_CONTROLS = [
 // configured, so a section collapses to just what's present (and hides if empty).
 // `tk`/`lk` are i18n keys resolved at render time (see _t). labelFn/titleFn
 // receive the live state and a translator `t` so dynamic text is localized too.
+// Per-store list of the dependency refreshers its cards registered; a Symbol,
+// so Object.entries over the store (the widget patch loop) never sees it.
+const DEP_REFRESH = Symbol("depRefresh");
+
 const SYS_SECTIONS = [
   {
     tk: "secPhaseProtection",
@@ -1046,7 +1050,9 @@ const SYS_SECTIONS = [
     items: [
       { key: "weekly_full_charge_enabled", domain: "switch", lk: "itemEnable", icon: "mdi:calendar-check", gate: true },
       { key: "weekly_full_charge_day", domain: "select", lk: "itemWeeklyDay", icon: "mdi:calendar-week" },
-      { key: "weekly_full_charge_delay", domain: "switch", lk: "itemWeeklyDelay", icon: "mdi:timer-sand" },
+      // acts only inside Charge Delay, so it shows only while that is on (another card)
+      { key: "weekly_full_charge_delay", domain: "switch", lk: "itemWeeklyDelay", icon: "mdi:timer-sand", dep: "charge_delay" },
+      { key: "weekly_full_charge", domain: "sensor", lk: "statusWeekly", icon: "mdi:battery-clock" },
     ],
   },
   {
@@ -1103,11 +1109,13 @@ const SYS_SECTIONS = [
     // device ("{device} – Enabled" / "– Solar Surplus"), so always use it —
     // otherwise a single excluded device would show a generic, unidentifiable row.
     items: [
-      { key: "excluded_device_enabled", domain: "switch", lk: "itemExcludedDevice", icon: "mdi:power-plug-off", useName: true },
-      { key: "excluded_device_solar_surplus", domain: "switch", lk: "itemSolarSurplus", icon: "mdi:solar-power", useName: true },
-      { key: "excluded_device_dynamic_power_control", domain: "switch", lk: "itemDynamicPowerControl", icon: "mdi:ev-station", useName: true },
-      { key: "excluded_device_cover_home", domain: "switch", lk: "itemCoverHome", icon: "mdi:home-lightning-bolt", useName: true },
-      { key: "excluded_device_exclusion_pct", domain: "number", lk: "itemExclusionPct", icon: "mdi:battery-charging-50", useName: true },
+      // Rows are grouped per device (excluded_device_index), in this order,
+      // with a divider between devices; `dep` resolves within the same device.
+      { key: "excluded_device_enabled", domain: "switch", lk: "itemExcludedDevice", icon: "mdi:power-plug-off", useName: true, typeTag: true },
+      { key: "excluded_device_solar_surplus", domain: "switch", lk: "itemSolarSurplus", icon: "mdi:solar-power", useName: true, dep: "excluded_device_enabled" },
+      { key: "excluded_device_dynamic_power_control", domain: "switch", lk: "itemDynamicPowerControl", icon: "mdi:ev-station", useName: true, dep: "excluded_device_solar_surplus" },
+      { key: "excluded_device_cover_home", domain: "switch", lk: "itemCoverHome", icon: "mdi:home-lightning-bolt", useName: true, dep: "excluded_device_solar_surplus" },
+      { key: "excluded_device_exclusion_pct", domain: "number", lk: "itemExclusionPct", icon: "mdi:battery-charging-50", useName: true, dep: "excluded_device_enabled" },
     ],
   },
   {
@@ -1163,36 +1171,50 @@ const SYS_SECTIONS = [
   {
     tk: "diagPredictive",
     icon: "mdi:brain",
+    // Three headings by intent. Every group names its heading, which is drawn
+    // once, above the first of its groups that has a row; so it still shows on
+    // an install without that group's entities (High-price sale is optional).
+    // A group's own switch is marked `lead` (bold label).
+    grpTitles: {
+      solar: "grpPlanning", floor: "grpPlanning",
+      chargePrice: "grpPriceTrade", dischargePrice: "grpPriceTrade", reserve: "grpPriceTrade",
+      highPrice: "grpGridSale", surplus: "grpGridSale", predischarge: "grpGridSale",
+    },
     items: [
-      // `grp` draws a divider whenever it changes between two live rows: base,
-      // charge pricing, then one group per discharge feature (switch + its
-      // sliders + its status readout), then the action button.
-      { key: "predictive_charging", domain: "switch", lk: "itemEnable", icon: "mdi:brain", gate: true, grp: "base" },
+      // One `grp` per feature (its switch, its settings, its status row); a
+      // divider is drawn whenever it changes between two live rows. A feature's
+      // settings carry `dep` on its switch and show only while it is on. Buying
+      // first (solar margin, SOC floor, charge price), then using, selling and
+      // the solar-surplus features, then the action button.
+      { key: "predictive_charging", domain: "switch", lk: "itemEnable", icon: "mdi:brain", gate: true, grp: "base", lead: true },
       { key: "predictive_charging_notifications", domain: "switch", lk: "itemPredictiveNotifications", icon: "mdi:bell-ring-outline", grp: "base" },
-      { key: "predictive_safety_margin_kwh", lk: "itemSolarSafety", icon: "mdi:solar-power-variant", adv: true, grp: "base" },
-      { key: "min_soc_floor_enabled", domain: "switch", lk: "itemMinSocFloorEnable", icon: "mdi:battery-arrow-up", adv: true, grp: "base" },
-      { key: "predictive_min_soc_floor", lk: "itemMinSocFloor", icon: "mdi:battery-arrow-up", adv: true, grp: "base" },
+      { key: "predictive_charging_active", domain: "binary_sensor", lk: "statusPredictive", icon: "mdi:brain", grp: "base" },
+      { key: "predictive_safety_margin_kwh", lk: "itemSolarSafety", icon: "mdi:solar-power-variant", adv: true, grp: "solar" },
+      { key: "min_soc_floor_enabled", domain: "switch", lk: "itemMinSocFloorEnable", icon: "mdi:battery-arrow-up", adv: true, grp: "floor", lead: true },
+      { key: "predictive_min_soc_floor", lk: "itemMinSocFloor", icon: "mdi:battery-arrow-up", adv: true, grp: "floor", dep: "min_soc_floor_enabled" },
       // Pricing controls: their entities only exist when the predictive mode is
       // price-based (price_discharge_control switch; thresholds are dynamic-pricing
       // only), so on time-slot installs these rows simply don't render.
-      { key: "price_discharge_control", domain: "switch", lk: "itemPriceDischarge", icon: "mdi:cash-clock", grp: "price" },
-      { key: "max_price_threshold_enabled", domain: "switch", lk: "itemMaxPriceManual", icon: "mdi:cash-plus", adv: true, grp: "price" },
-      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true, grp: "price", dep: "max_price_threshold_enabled" },
-      { key: "discharge_price_threshold_enabled", domain: "switch", lk: "itemDischargePriceManual", icon: "mdi:cash-minus", adv: true, grp: "price" },
-      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true, grp: "price", dep: "discharge_price_threshold_enabled" },
-      { key: "min_arbitrage_margin", lk: "itemArbitrageMargin", icon: "mdi:scale-balance", adv: true, grp: "price" },
-      { key: "round_trip_efficiency", lk: "itemRoundTripEfficiency", icon: "mdi:battery-sync", adv: true, grp: "price" },
-      { key: "negative_price_charging", domain: "switch", lk: "itemNegativePriceCharging", icon: "mdi:battery-charging-100", grp: "price" },
-      { key: "smart_predischarge", domain: "switch", lk: "itemSmartPredischarge", icon: "mdi:battery-arrow-down-outline", grp: "predischarge" },
-      { key: "negative_injection_threshold", lk: "itemNegativeThreshold", icon: "mdi:cash-minus", adv: true, grp: "predischarge" },
-      { key: "predischarge_reserve_soc", lk: "itemPredischargeReserve", icon: "mdi:battery-lock", adv: true, grp: "predischarge" },
-      { key: "curtailment_status", domain: "binary_sensor", lk: "diagCurtailment", icon: "mdi:solar-power-variant", grp: "predischarge" },
-      { key: "surplus_price_hold", domain: "switch", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "surplus" },
-      { key: "surplus_hold_min_saving", lk: "itemSurplusHoldSaving", icon: "mdi:cash-minus", adv: true, grp: "surplus" },
-      { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "surplus" },
-      { key: "high_price_sale", domain: "select", lk: "highPriceSale", icon: "mdi:transmission-tower-export", grp: "highPrice" },
+      { key: "max_price_threshold_enabled", domain: "switch", lk: "itemMaxPriceManual", icon: "mdi:cash-plus", adv: true, grp: "chargePrice" },
+      { key: "max_price_threshold", lk: "itemMaxPrice", icon: "mdi:cash-plus", adv: true, grp: "chargePrice", dep: "max_price_threshold_enabled", auto: "valAutoCharge", range: [-0.5, 1.0, 0.01] },
+      { key: "min_arbitrage_margin", lk: "itemArbitrageMargin", icon: "mdi:scale-balance", adv: true, grp: "chargePrice", range: [0, 0.3, 0.01] },
+      { key: "round_trip_efficiency", lk: "itemRoundTripEfficiency", icon: "mdi:battery-sync", adv: true, grp: "chargePrice" },
+      { key: "negative_price_charging", domain: "switch", lk: "itemNegativePriceCharging", icon: "mdi:battery-charging-100", grp: "chargePrice" },
+      // The discharge floor is read only by "Discharge only above price"; it and
+      // its manual switch show only while that feature is on (a `dep` chain).
+      { key: "price_discharge_control", domain: "switch", lk: "itemPriceDischarge", icon: "mdi:cash-clock", grp: "dischargePrice", lead: true },
+      { key: "discharge_price_threshold_enabled", domain: "switch", lk: "itemDischargePriceManual", icon: "mdi:cash-minus", adv: true, grp: "dischargePrice", dep: "price_discharge_control" },
+      { key: "discharge_price_threshold", lk: "itemDischargePrice", icon: "mdi:cash-minus", adv: true, grp: "dischargePrice", dep: "discharge_price_threshold_enabled", auto: "valAutoDischarge", range: [-0.5, 1.0, 0.01] },
+      { key: "discharge_reserve_status", domain: "binary_sensor", lk: "statusDischargeReserve", icon: "mdi:battery-lock", grp: "reserve" },
+      { key: "high_price_sale", domain: "select", lk: "highPriceSale", icon: "mdi:transmission-tower-export", grp: "highPrice", lead: true },
       { key: "high_price_discharge_status", domain: "sensor", lk: "diagHighPriceDischarge", icon: "mdi:transmission-tower-export", grp: "highPrice" },
-      { key: "discharge_reserve_status", domain: "binary_sensor", lk: "diagDischargeReserve", icon: "mdi:battery-lock", grp: "reserve" },
+      { key: "surplus_price_hold", domain: "switch", lk: "diagSurplusHold", icon: "mdi:transmission-tower-export", grp: "surplus", lead: true },
+      { key: "surplus_hold_min_saving", lk: "itemSurplusHoldSaving", icon: "mdi:cash-minus", adv: true, grp: "surplus", dep: "surplus_price_hold", range: [0, 0.2, 0.01] },
+      { key: "surplus_price_hold_status", domain: "binary_sensor", lk: "statusSurplusHold", icon: "mdi:transmission-tower-export", grp: "surplus" },
+      { key: "smart_predischarge", domain: "switch", lk: "itemSmartPredischarge", icon: "mdi:battery-arrow-down-outline", grp: "predischarge", lead: true },
+      { key: "negative_injection_threshold", lk: "itemNegativeThreshold", icon: "mdi:cash-minus", adv: true, grp: "predischarge", dep: "smart_predischarge", range: [-0.5, 0.5, 0.01] },
+      { key: "predischarge_reserve_soc", lk: "itemPredischargeReserve", icon: "mdi:battery-lock", adv: true, grp: "predischarge", dep: "smart_predischarge" },
+      { key: "curtailment_status", domain: "binary_sensor", lk: "statusPredischarge", icon: "mdi:solar-power-variant", grp: "predischarge" },
       // Dynamic pricing and time slot only; the system button does not exist on
       // real-time installs, so there this row simply doesn't render.
       { key: "reevaluate_dynamic_pricing", domain: "button", lk: "itemReevaluatePrices", icon: "mdi:calendar-refresh", grp: "action" },
@@ -1289,6 +1311,17 @@ const DEFAULT_SYS_ORDER = (() => {
 // Shown as a hover title + tap popover. English is the fallback (see _help).
 const SYS_HELP = {
   en: {
+    weekly_full_charge: "State of this week's full charge: idle, charging to 100 %, complete or disabled. Attributes show the day, the reason it finished and each battery's state.",
+    predictive_charging_active: "On while a predictive charging slot is charging. Attributes show the plan: the energy balance, the selected slots and their prices, deadlines and the reason for the decision.",
+    temp_charge_limit: "On: “Temperature charge limit” applies and its settings below are shown. Default: off.",
+    capacity_protection: "On: “Peak shaving reserve” applies and its settings below are shown. Default: off.",
+    system_power_limits: "On: “System power limits” applies and its settings below are shown. Default: off.",
+    hourly_balance: "On: “Hourly balance” applies and its settings below are shown. Default: off.",
+    charge_delay: "On: “Charge delay” applies and its settings below are shown. Default: off.",
+    offgrid_mode: "On: “Off-grid meter mode” applies. Default: off.",
+    manual_mode: "On: “Manual mode” applies. Default: off.",
+    weekly_full_charge_delay: "Only with Charge Delay on (shown only then). On: the weekly full charge waits, like any other charge, until Charge Delay unlocks. Off: it skips the delay and charges right away. Default: off.",
+    predictive_charging: "Plans grid charging ahead from the solar forecast, the consumption profile and, with dynamic pricing, the prices: it charges in the cheapest slots that cover what the sun leaves short. Off: no predictive grid charging; the battery follows the house and the sun only. Default: off.",
     secPhaseProtection: "Master switch for three-phase current protection. When OFF, phase limits are ignored and battery phase selectors are unavailable. When ON, a battery without a phase remains outside the envelope and continues normal automatic operation.",
     three_phase_protection: "Enable or disable the three-phase current protection envelope. Default: off.",
     battery_phase: "Select the physical AC phase for this battery. Choose Unassigned when it is not connected to a protected phase; it then remains outside the three-phase envelope and continues normal automatic operation.",
@@ -1323,11 +1356,11 @@ const SYS_HELP = {
     secHourly: "Tracks grid import/export per hour and automatically adjusts the battery setpoint to achieve a target net energy balance.\n\n⚠️ Only useful in Spain, under the hourly surplus-compensation scheme (RD 244/2019), where grid surplus is settled hour by hour. In feed-in-tariff or annual-net-metering markets it provides no benefit and may cause lost export revenue and unnecessary battery cycling.",
     diagPeak: "When enabled, if battery SOC drops below a threshold, the battery keeps its remaining charge for peaks: it stops covering ordinary consumption and only covers the load above the Maximum grid import.",
     secSysLimits: "When enabled, the two sliders below cap the combined charge/discharge power of all active batteries.",
-    excluded_device_enabled: "On: Omnibattery handles this device as configured, as excluded (the home sensor includes it and the battery does not power it) or additional (the home sensor misses it and the battery covers it). Off: its handling is paused and it counts as ordinary home load. Default: on.",
-    excluded_device_solar_surplus: "On: the device may run on solar surplus directly, without the battery trying to compensate. Recommended for large loads such as EV chargers. Default: off.",
+    excluded_device_enabled: "On: Omnibattery handles this device as configured, as excluded (the home sensor includes it and the battery does not power it) or additional (the home sensor misses it and the battery covers it); the tag next to the name says which. Off: its handling is paused and it counts as ordinary home load. Default: on.",
+    excluded_device_solar_surplus: "On: the device may run on solar surplus directly, without the battery trying to compensate. Recommended for large loads such as EV chargers. Its two options below show while this is on. Default: off.",
     excluded_device_dynamic_power_control: "For devices that adjust their own demand from a grid meter. Needs Solar surplus on and an activity / EV charging sensor, which asks for priority before power appears. Genuine leftover export may still charge the battery. Default: off.",
     excluded_device_cover_home: "On (needs Solar surplus on and a solar sensor): the battery covers the home's own load while this device runs, and the grid supplies only the device. Off: the battery stays idle whenever the device is active. Default: off.",
-    excluded_device_exclusion_pct: "How much of this device's demand stays excluded from the battery. 100 % = fully excluded (the battery never powers it); lower values let the battery cover the rest (e.g. 60 % → the battery may cover 40 %). Only for excluded devices with a power sensor. Default: 100 %.",
+    excluded_device_exclusion_pct: "How much of this device's demand stays excluded from the battery. 100 % = fully excluded (the battery never powers it); lower values let the battery cover the rest (e.g. 60 % → the battery may cover 40 %). Only for excluded devices with a power sensor, so additional devices do not show it. Default: 100 %.",
     weekly_full_charge_enabled: "On: the batteries charge to 100 % one day a week (chosen below) for cell balancing, then return to your configured max SOC. Default: off.",
     price_discharge_control: "On: the battery only discharges while the current price is above the discharge price floor; without a manual floor it uses the charge price ceiling, else today's average price. If time slots restrict discharge, both conditions must be met. Default: off.",
     reevaluate_dynamic_pricing: "Rebuilds today's predictive charge plan right now with the latest prices and solar forecast. Not needed after changing a setting here: that re-plans on its own. Use it after a change outside Omnibattery (solar forecast, price source, loads). In time slot mode it re-runs the balance on the next cycle inside a charging window.",
@@ -1366,23 +1399,25 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperature range above the limit over which charge power ramps down to the minimum. Default: 10 °C.",
     temp_charge_limit_floor_pct: "Charge power at the limit plus the band, as a percentage of the normal charge ceiling. 0% stops charging entirely when very hot. Default: 40 %.",
     temp_charge_limit_discharge: "Apply the same temperature derate to discharge power. Discharge tolerates heat better, so this shares the charge threshold as a compromise; mainly it keeps discharge under the BMS hard cutoff. Default: off.",
-    max_price_threshold_enabled: "On: grid charging uses the charge ceiling below. Off (automatic): no fixed ceiling; the cheapest slots are picked (still subject to the arbitrage margin, if set). The value is kept. Default: off (automatic).",
-    discharge_price_threshold_enabled: "On: discharge uses the floor below. Off (automatic): falls back to the charge ceiling, else the daily-average price. The value is kept. Default: off (automatic).",
-    max_price_threshold: "Charge ceiling for dynamic pricing: the battery only grid-charges when the price is at or below this. Only applies while its manual switch is on. Must stay ≤ the discharge floor. Default: not set (automatic).",
-    discharge_price_threshold: "Discharge floor for dynamic pricing: the battery only discharges when the price is above this. Only applies while its manual switch is on. Must stay ≥ the charge ceiling. Default: not set (automatic).",
+    max_price_threshold_enabled: "On: grid charging uses the charge price ceiling below. Off (automatic): no fixed ceiling; the cheapest slots are picked (still subject to the arbitrage margin, if set). The value is kept. Default: off (automatic).",
+    discharge_price_threshold_enabled: "On: Discharge only above price uses the floor below. Off (automatic): it falls back to the charge price ceiling, else today's average price. The value is kept. Default: off (automatic).",
+    max_price_threshold: "Charge ceiling for dynamic pricing: the battery only grid-charges when the price is at or below this. Only applies while its manual switch is on; turning that on without a value starts from today's average price. Must stay ≤ the discharge price floor. Default: not set (automatic).",
+    discharge_price_threshold: "Discharge floor for dynamic pricing: with Discharge only above price on, the battery only discharges when the price is above this. Only applies while its manual switch is on; turning that on without a value starts from today's average price. Must stay ≥ the charge price ceiling. Default: not set (automatic).",
     min_arbitrage_margin: "Minimum profit per kWh required on top of the round-trip losses before grid charging. At 0 or empty only the losses count: energy is not charged when importing it at the time it is used costs less. When set, the ceiling follows the day's spread: charging is skipped when the expensive hours are not far enough above the cheap ones to repay conversion losses. The same margin works the other way round: with High-Price Sale on, a sale must beat the later buy-back price by at least this much. Default: 0 (losses only).",
     round_trip_efficiency: "Battery round-trip efficiency (kWh out / kWh in), used to value stored energy for the arbitrage margin and High-Price Sale. Lower values make the check stricter. Default: 0.85 (replaced by the value measured on your batteries once one has 50 cycles).",
-    temp_charge_limit: "On: “Temperature charge limit” applies and its settings below are shown. Default: off.",
-    capacity_protection: "On: “Peak shaving reserve” applies and its settings below are shown. Default: off.",
-    system_power_limits: "On: “System power limits” applies and its settings below are shown. Default: off.",
-    hourly_balance: "On: “Hourly balance” applies and its settings below are shown. Default: off.",
-    charge_delay: "On: “Charge delay” applies and its settings below are shown. Default: off.",
-    offgrid_mode: "On: “Off-grid meter mode” applies. Default: off.",
-    manual_mode: "On: “Manual mode” applies. Default: off.",
-    weekly_full_charge_delay: "Only with Charge Delay on. On: the weekly full charge waits, like any other charge, until Charge Delay unlocks. Off: it skips the delay and charges right away. Default: off.",
-    predictive_charging: "Plans grid charging ahead from the solar forecast, the consumption profile and, with dynamic pricing, the prices: it charges in the cheapest slots that cover what the sun leaves short. Off: no predictive grid charging; the battery follows the house and the sun only. Default: off.",
   },
   es: {
+    weekly_full_charge: "Estado de la carga completa de esta semana: inactiva, cargando al 100 %, completada o desactivada. Los atributos muestran el día, el motivo de finalización y el estado de cada batería.",
+    predictive_charging_active: "Activo mientras una franja de carga predictiva está cargando. Los atributos muestran el plan: el balance energético, las franjas elegidas y sus precios, los plazos y el motivo de la decisión.",
+    temp_charge_limit: "Activado: se aplica «Límite de carga por temperatura» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
+    capacity_protection: "Activado: se aplica «Reserva para reducción de picos» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
+    system_power_limits: "Activado: se aplica «Límites de potencia del sistema» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
+    hourly_balance: "Activado: se aplica «Balance horario» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
+    charge_delay: "Activado: se aplica «Retardo de carga» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
+    offgrid_mode: "Activado: se aplica «Modo de medidor off-grid». Por defecto: desactivado.",
+    manual_mode: "Activado: se aplica «Modo manual». Por defecto: desactivado.",
+    weekly_full_charge_delay: "Solo con el retardo de carga activado (solo se muestra entonces). Activado: la carga semanal completa espera, como cualquier otra carga, a que el retardo de carga se desbloquee. Desactivado: se salta el retardo y carga enseguida. Por defecto: desactivado.",
+    predictive_charging: "Planifica la carga de red por adelantado a partir de la previsión solar, el perfil de consumo y, con precios dinámicos, los precios: carga en las franjas más baratas que cubren lo que no aporta el sol. Desactivado: sin carga predictiva de red; la batería solo sigue a la casa y al sol. Por defecto: desactivado.",
     secPhaseProtection: "Interruptor general de la protección de corriente trifásica. Al desactivarlo se ignoran los límites de fase y los selectores de fase de las baterías no están disponibles. Al activarlo, una batería sin fase queda fuera de la envolvente y sigue funcionando normalmente en automático.",
     three_phase_protection: "Activa o desactiva la envolvente de protección de corriente trifásica. Por defecto: desactivado.",
     battery_phase: "Selecciona la fase física de CA de esta batería. Elige Sin asignar si no está conectada a una fase protegida; quedará fuera de la envolvente trifásica y seguirá funcionando normalmente en automático.",
@@ -1417,11 +1452,11 @@ const SYS_HELP = {
     secHourly: "Registra la importación/exportación de red por hora y ajusta automáticamente el setpoint de la batería para alcanzar un balance de energía objetivo.\n\n⚠️ Solo tiene utilidad en España, bajo el esquema de compensación de excedentes horaria (RD 244/2019), donde el excedente vertido a la red se liquida hora a hora. En mercados con tarifa de inyección (feed-in) o balance neto anual no aporta beneficio y puede causar pérdida de ingresos por exportación y ciclado innecesario de la batería.",
     diagPeak: "Si se activa, cuando el SOC de la batería baje de un umbral, la batería reserva la carga restante para los picos: deja de cubrir el consumo normal y solo cubre la carga que supere el máximo de importación de red.",
     secSysLimits: "Al activarlo, los dos sliders inferiores limitan la potencia combinada de carga/descarga de todas las baterias activas.",
-    excluded_device_enabled: "Activado: Omnibattery gestiona este aparato como está configurado, como excluido (el sensor del hogar lo incluye y la batería no lo alimenta) o adicional (el sensor del hogar no lo ve y la batería lo cubre). Desactivado: su gestión se pausa y cuenta como consumo normal del hogar. Por defecto: activado.",
-    excluded_device_solar_surplus: "Activado: el aparato puede consumir directamente el excedente solar, sin que la batería intente compensarlo. Recomendado para cargas grandes como cargadores de VE. Por defecto: desactivado.",
+    excluded_device_enabled: "Activado: Omnibattery gestiona este aparato como está configurado, como excluido (el sensor del hogar lo incluye y la batería no lo alimenta) o adicional (el sensor del hogar no lo ve y la batería lo cubre); la etiqueta junto al nombre indica cuál. Desactivado: su gestión se pausa y cuenta como consumo normal del hogar. Por defecto: activado.",
+    excluded_device_solar_surplus: "Activado: el aparato puede consumir directamente el excedente solar, sin que la batería intente compensarlo. Recomendado para cargas grandes como cargadores de VE. Sus dos opciones de abajo se muestran mientras está activado. Por defecto: desactivado.",
     excluded_device_dynamic_power_control: "Para aparatos que ajustan su demanda a partir de un contador de red. Requiere Excedente solar activado y un sensor de actividad / carga del VE, que pide prioridad antes de que aparezca potencia. El excedente residual real todavía puede cargar la batería. Por defecto: desactivado.",
     excluded_device_cover_home: "Activado (requiere Excedente solar activado y un sensor solar): la batería cubre el consumo propio del hogar mientras el aparato funciona, y la red solo abastece al aparato. Desactivado: la batería permanece inactiva mientras el aparato esté activo. Por defecto: desactivado.",
-    excluded_device_exclusion_pct: "Qué parte de la demanda de este aparato se mantiene excluida de la batería. 100 % = totalmente excluido (la batería nunca lo alimenta); valores menores dejan que la batería cubra el resto (ej. 60 % → la batería puede cubrir el 40 %). Solo para aparatos excluidos con sensor de potencia. Por defecto: 100 %.",
+    excluded_device_exclusion_pct: "Qué parte de la demanda de este aparato se mantiene excluida de la batería. 100 % = totalmente excluido (la batería nunca lo alimenta); valores menores dejan que la batería cubra el resto (ej. 60 % → la batería puede cubrir el 40 %). Solo para aparatos excluidos con sensor de potencia, por eso los adicionales no lo muestran. Por defecto: 100 %.",
     weekly_full_charge_enabled: "Activado: las baterías se cargan al 100 % un día a la semana (elegido abajo) para equilibrar las celdas y después vuelven al SOC máximo configurado. Por defecto: desactivado.",
     price_discharge_control: "Activado: la batería solo descarga mientras el precio actual está por encima del suelo de precio de descarga; sin suelo manual usa el techo de precio de carga y, si no hay, el precio medio de hoy. Si las franjas horarias restringen la descarga, deben cumplirse ambas condiciones. Por defecto: desactivado.",
     reevaluate_dynamic_pricing: "Recalcula ahora mismo la planificación de carga predictiva de hoy con los precios y la previsión solar más recientes. No hace falta tras cambiar un ajuste aquí: eso replanifica por sí solo. Úsalo tras un cambio fuera de Omnibattery (previsión solar, fuente de precios, cargas). En modo franja horaria vuelve a evaluar el balance en el siguiente ciclo dentro de una ventana de carga.",
@@ -1460,23 +1495,25 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Rango de temperatura por encima del límite a lo largo del cual la potencia de carga baja hasta el mínimo. Por defecto: 10 °C.",
     temp_charge_limit_floor_pct: "Potencia de carga en el límite más la banda, como porcentaje del techo de carga normal. 0 % detiene la carga por completo cuando hace mucho calor. Por defecto: 40 %.",
     temp_charge_limit_discharge: "Aplica la misma reducción por temperatura a la potencia de descarga. La descarga tolera mejor el calor, así que comparte el umbral de carga como compromiso; sobre todo mantiene la descarga por debajo del corte duro del BMS. Por defecto: desactivado.",
-    max_price_threshold_enabled: "Activado: la carga de red usa el techo de carga de abajo. Desactivado (automático): sin techo fijo; se eligen las horas más baratas (con el margen de arbitraje, si está fijado). El valor se conserva. Por defecto: desactivado (automático).",
-    discharge_price_threshold_enabled: "Activado: la descarga usa el suelo de abajo. Desactivado (automático): usa el techo de carga o, si no hay, el precio medio diario. El valor se conserva. Por defecto: desactivado (automático).",
-    max_price_threshold: "Techo de carga para precios dinámicos: la batería solo carga de red cuando el precio está en o por debajo de este valor. Solo se aplica con su interruptor manual activado. Debe mantenerse ≤ el suelo de descarga. Por defecto: sin definir (automático).",
-    discharge_price_threshold: "Suelo de descarga para precios dinámicos: la batería solo descarga cuando el precio está por encima de este valor. Solo se aplica con su interruptor manual activado. Debe mantenerse ≥ el techo de carga. Por defecto: sin definir (automático).",
+    max_price_threshold_enabled: "Activado: la carga de red usa el techo de precio de carga de abajo. Desactivado (automático): sin techo fijo; se eligen las horas más baratas (con el margen de arbitraje, si está fijado). El valor se conserva. Por defecto: desactivado (automático).",
+    discharge_price_threshold_enabled: "Activado: Descargar solo si precio alto usa el suelo de abajo. Desactivado (automático): usa el techo de precio de carga o, si no hay, el precio medio de hoy. El valor se conserva. Por defecto: desactivado (automático).",
+    max_price_threshold: "Techo de carga para precios dinámicos: la batería solo carga de red cuando el precio está en o por debajo de este valor. Solo se aplica con su interruptor manual activado; al activarlo sin valor parte del precio medio de hoy. Debe mantenerse ≤ el suelo de precio de descarga. Por defecto: sin definir (automático).",
+    discharge_price_threshold: "Suelo de descarga para precios dinámicos: con Descargar solo si precio alto activado, la batería solo descarga cuando el precio está por encima de este valor. Solo se aplica con su interruptor manual activado; al activarlo sin valor parte del precio medio de hoy. Debe mantenerse ≥ el techo de precio de carga. Por defecto: sin definir (automático).",
     min_arbitrage_margin: "Beneficio mínimo por kWh exigido, además de las pérdidas de ida y vuelta, antes de cargar de red. Con 0 o vacío solo cuentan las pérdidas: no se carga energía que cueste menos importar en el momento de usarla. Si se define, el techo sigue el diferencial del día: no se carga cuando las horas caras no superan lo suficiente a las baratas para compensar las pérdidas de conversión. El mismo margen actúa en sentido contrario: con la venta a precio alto activa, una venta debe superar el precio de recompra posterior al menos en esta cantidad. Por defecto: 0 (solo las pérdidas).",
     round_trip_efficiency: "Eficiencia de ciclo completo de la batería (kWh de salida / kWh de entrada), usada para valorar la energía almacenada en el margen de arbitraje y la venta a precio alto. Valores más bajos endurecen el filtro. Por defecto: 0,85 (se sustituye por el valor medido en tus baterías cuando una tenga 50 ciclos).",
-    temp_charge_limit: "Activado: se aplica «Límite de carga por temperatura» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
-    capacity_protection: "Activado: se aplica «Reserva para reducción de picos» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
-    system_power_limits: "Activado: se aplica «Límites de potencia del sistema» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
-    hourly_balance: "Activado: se aplica «Balance horario» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
-    charge_delay: "Activado: se aplica «Retardo de carga» y se muestran sus ajustes de abajo. Por defecto: desactivado.",
-    offgrid_mode: "Activado: se aplica «Modo de medidor off-grid». Por defecto: desactivado.",
-    manual_mode: "Activado: se aplica «Modo manual». Por defecto: desactivado.",
-    weekly_full_charge_delay: "Solo con el retardo de carga activado. Activado: la carga semanal completa espera, como cualquier otra carga, a que el retardo de carga se desbloquee. Desactivado: se salta el retardo y carga enseguida. Por defecto: desactivado.",
-    predictive_charging: "Planifica la carga de red por adelantado a partir de la previsión solar, el perfil de consumo y, con precios dinámicos, los precios: carga en las franjas más baratas que cubren lo que no aporta el sol. Desactivado: sin carga predictiva de red; la batería solo sigue a la casa y al sol. Por defecto: desactivado.",
   },
   ca: {
+    weekly_full_charge: "Estat de la càrrega completa d'aquesta setmana: inactiva, carregant al 100 %, completada o desactivada. Els atributs mostren el dia, el motiu de finalització i l'estat de cada bateria.",
+    predictive_charging_active: "Actiu mentre una franja de càrrega predictiva està carregant. Els atributs mostren el pla: el balanç energètic, les franges triades i els seus preus, els terminis i el motiu de la decisió.",
+    temp_charge_limit: "Activat: s'aplica «Límit de càrrega per temperatura» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
+    capacity_protection: "Activat: s'aplica «Reserva per a reducció de pics» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
+    system_power_limits: "Activat: s'aplica «Límits de potència del sistema» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
+    hourly_balance: "Activat: s'aplica «Balanç horari» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
+    charge_delay: "Activat: s'aplica «Retard de càrrega» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
+    offgrid_mode: "Activat: s'aplica «Mode de mesurador off-grid». Per defecte: desactivat.",
+    manual_mode: "Activat: s'aplica «Mode manual». Per defecte: desactivat.",
+    weekly_full_charge_delay: "Només amb el retard de càrrega activat (només es mostra aleshores). Activat: la càrrega setmanal completa espera, com qualsevol altra càrrega, que el retard de càrrega es desbloquegi. Desactivat: se salta el retard i carrega de seguida. Per defecte: desactivat.",
+    predictive_charging: "Planifica la càrrega de xarxa per avançat a partir de la previsió solar, el perfil de consum i, amb preus dinàmics, els preus: carrega a les franges més barates que cobreixen el que no aporta el sol. Desactivat: sense càrrega predictiva de xarxa; la bateria només segueix la casa i el sol. Per defecte: desactivat.",
     secPhaseProtection: "Interruptor general de la protecció de corrent trifàsica. Si es desactiva, s'ignoren els límits de fase i els selectors de fase de les bateries no estan disponibles. Si s'activa, una bateria sense fase queda fora de l'envolupant i continua funcionant normalment en automàtic.",
     three_phase_protection: "Activa o desactiva l'envolupant de protecció de corrent trifàsica. Per defecte: desactivat.",
     battery_phase: "Fase AC física (L1/L2/L3) on està cablejada aquesta bateria, o Sense assignar si queda fora de l'esquema de fases protegides. Una bateria sense fase queda fora de l'envolupant trifàsica i continua funcionant normalment en automàtic.",
@@ -1511,11 +1548,11 @@ const SYS_HELP = {
     secHourly: "Registra la importació/exportació de xarxa per hora i ajusta automàticament el setpoint de la bateria per assolir un balanç d'energia objectiu.\n\n⚠️ Només té utilitat a Espanya, sota l'esquema de compensació d'excedents horària (RD 244/2019), on l'excedent abocat a la xarxa es liquida hora a hora. En mercats amb tarifa d'injecció (feed-in) o balanç net anual no aporta cap benefici i pot causar pèrdua d'ingressos per exportació i cicles innecessaris de la bateria.",
     diagPeak: "Si s'activa, quan el SOC de la bateria baixi d'un llindar, la bateria reserva la càrrega restant per als pics: deixa de cobrir el consum normal i només cobreix la càrrega que superi el màxim d'importació de xarxa.",
     secSysLimits: "En activar-lo, els dos sliders inferiors limiten la potència combinada de càrrega/descàrrega de totes les bateries actives.",
-    excluded_device_enabled: "Activat: Omnibattery gestiona aquest aparell tal com està configurat, com a exclòs (el sensor de la llar l'inclou i la bateria no l'alimenta) o addicional (el sensor de la llar no el veu i la bateria el cobreix). Desactivat: la seva gestió es pausa i compta com a consum normal de la llar. Per defecte: activat.",
-    excluded_device_solar_surplus: "Activat: l'aparell pot consumir directament l'excedent solar, sense que la bateria intenti compensar-ho. Recomanat per a càrregues grans com carregadors de VE. Per defecte: desactivat.",
+    excluded_device_enabled: "Activat: Omnibattery gestiona aquest aparell tal com està configurat, com a exclòs (el sensor de la llar l'inclou i la bateria no l'alimenta) o addicional (el sensor de la llar no el veu i la bateria el cobreix); l'etiqueta al costat del nom indica quin. Desactivat: la seva gestió es pausa i compta com a consum normal de la llar. Per defecte: activat.",
+    excluded_device_solar_surplus: "Activat: l'aparell pot consumir directament l'excedent solar, sense que la bateria intenti compensar-ho. Recomanat per a càrregues grans com carregadors de VE. Les seves dues opcions de sota es mostren mentre està activat. Per defecte: desactivat.",
     excluded_device_dynamic_power_control: "Per a aparells que ajusten la demanda a partir d'un comptador de xarxa. Requereix Excedent solar activat i un sensor d'activitat / càrrega del VE, que demana prioritat abans que aparegui potència. L'excedent residual real encara pot carregar la bateria. Per defecte: desactivat.",
     excluded_device_cover_home: "Activat (requereix Excedent solar activat i un sensor solar): la bateria cobreix el consum propi de la llar mentre l'aparell funciona, i la xarxa només abasteix l'aparell. Desactivat: la bateria roman inactiva mentre l'aparell estigui actiu. Per defecte: desactivat.",
-    excluded_device_exclusion_pct: "Quina part de la demanda d'aquest aparell es manté exclosa de la bateria. 100 % = totalment exclòs (la bateria mai no l'alimenta); valors menors deixen que la bateria cobreixi la resta (p. ex. 60 % → la bateria pot cobrir el 40 %). Només per a aparells exclosos amb sensor de potència. Per defecte: 100 %.",
+    excluded_device_exclusion_pct: "Quina part de la demanda d'aquest aparell es manté exclosa de la bateria. 100 % = totalment exclòs (la bateria mai no l'alimenta); valors menors deixen que la bateria cobreixi la resta (p. ex. 60 % → la bateria pot cobrir el 40 %). Només per a aparells exclosos amb sensor de potència, per això els addicionals no el mostren. Per defecte: 100 %.",
     weekly_full_charge_enabled: "Activat: les bateries es carreguen al 100 % un dia a la setmana (triat a sota) per equilibrar les cel·les i després tornen al SOC màxim configurat. Per defecte: desactivat.",
     price_discharge_control: "Activat: la bateria només descarrega mentre el preu actual està per sobre del terra de preu de descàrrega; sense terra manual fa servir el sostre de preu de càrrega i, si no n'hi ha, el preu mitjà d'avui. Si les franges horàries restringeixen la descàrrega, s'han de complir totes dues condicions. Per defecte: desactivat.",
     reevaluate_dynamic_pricing: "Recalcula ara mateix la planificació de càrrega predictiva d'avui amb els preus i la previsió solar més recents. No cal després de canviar un ajust aquí: això replanifica tot sol. Fes-lo servir després d'un canvi fora d'Omnibattery (previsió solar, font de preus, càrregues). En mode franja horària torna a avaluar el balanç en el cicle següent dins d'una finestra de càrrega.",
@@ -1554,23 +1591,25 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Rang de temperatura per sobre del límit al llarg del qual la potència de càrrega baixa fins al mínim. Per defecte: 10 °C.",
     temp_charge_limit_floor_pct: "Potència de càrrega al límit més la banda, com a percentatge del sostre de càrrega normal. 0 % atura la càrrega del tot quan fa molta calor. Per defecte: 40 %.",
     temp_charge_limit_discharge: "Aplica la mateixa reducció per temperatura a la potència de descàrrega. La descàrrega tolera millor la calor, així que comparteix el llindar de càrrega com a compromís; sobretot manté la descàrrega per sota del tall dur del BMS. Per defecte: desactivat.",
-    max_price_threshold_enabled: "Activat: la càrrega de xarxa fa servir el sostre de càrrega de sota. Desactivat (automàtic): sense sostre fix; es trien les hores més barates (amb el marge d'arbitratge, si està fixat). El valor es conserva. Per defecte: desactivat (automàtic).",
-    discharge_price_threshold_enabled: "Activat: la descàrrega fa servir el terra de sota. Desactivat (automàtic): fa servir el sostre de càrrega o, si no n'hi ha, el preu mitjà diari. El valor es conserva. Per defecte: desactivat (automàtic).",
-    max_price_threshold: "Sostre de càrrega per a preus dinàmics: la bateria només carrega de xarxa quan el preu està en o per sota d'aquest valor. Només s'aplica amb el seu interruptor manual activat. S'ha de mantenir ≤ el terra de descàrrega. Per defecte: sense definir (automàtic).",
-    discharge_price_threshold: "Terra de descàrrega per a preus dinàmics: la bateria només descarrega quan el preu està per sobre d'aquest valor. Només s'aplica amb el seu interruptor manual activat. S'ha de mantenir ≥ el sostre de càrrega. Per defecte: sense definir (automàtic).",
+    max_price_threshold_enabled: "Activat: la càrrega de xarxa fa servir el sostre de preu de càrrega de sota. Desactivat (automàtic): sense sostre fix; es trien les hores més barates (amb el marge d'arbitratge, si està fixat). El valor es conserva. Per defecte: desactivat (automàtic).",
+    discharge_price_threshold_enabled: "Activat: Descarregar només si preu alt fa servir el terra de sota. Desactivat (automàtic): fa servir el sostre de preu de càrrega o, si no n'hi ha, el preu mitjà d'avui. El valor es conserva. Per defecte: desactivat (automàtic).",
+    max_price_threshold: "Sostre de càrrega per a preus dinàmics: la bateria només carrega de xarxa quan el preu està en o per sota d'aquest valor. Només s'aplica amb el seu interruptor manual activat; en activar-lo sense valor parteix del preu mitjà d'avui. S'ha de mantenir ≤ el terra de preu de descàrrega. Per defecte: sense definir (automàtic).",
+    discharge_price_threshold: "Terra de descàrrega per a preus dinàmics: amb Descarregar només si preu alt activat, la bateria només descarrega quan el preu està per sobre d'aquest valor. Només s'aplica amb el seu interruptor manual activat; en activar-lo sense valor parteix del preu mitjà d'avui. S'ha de mantenir ≥ el sostre de preu de càrrega. Per defecte: sense definir (automàtic).",
     min_arbitrage_margin: "Benefici mínim per kWh exigit, a més de les pèrdues d'anada i tornada, abans de carregar de xarxa. Amb 0 o buit només compten les pèrdues: no es carrega energia que costi menys importar en el moment d'usar-la. Si es defineix, el sostre segueix el diferencial del dia: no es carrega quan les hores cares no superen prou les barates per compensar les pèrdues de conversió. El mateix marge actua en sentit contrari: amb la venda a preu alt activa, una venda ha de superar el preu de recompra posterior com a mínim en aquesta quantitat. Per defecte: 0 (només les pèrdues).",
     round_trip_efficiency: "Eficiència de cicle complet de la bateria (kWh de sortida / kWh d'entrada), usada per valorar l'energia emmagatzemada al marge d'arbitratge i a la venda a preu alt. Valors més baixos endureixen el filtre. Per defecte: 0,85 (se substitueix pel valor mesurat a les teves bateries quan una tingui 50 cicles).",
-    temp_charge_limit: "Activat: s'aplica «Límit de càrrega per temperatura» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
-    capacity_protection: "Activat: s'aplica «Reserva per a reducció de pics» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
-    system_power_limits: "Activat: s'aplica «Límits de potència del sistema» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
-    hourly_balance: "Activat: s'aplica «Balanç horari» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
-    charge_delay: "Activat: s'aplica «Retard de càrrega» i es mostren els seus ajustos de sota. Per defecte: desactivat.",
-    offgrid_mode: "Activat: s'aplica «Mode de mesurador off-grid». Per defecte: desactivat.",
-    manual_mode: "Activat: s'aplica «Mode manual». Per defecte: desactivat.",
-    weekly_full_charge_delay: "Només amb el retard de càrrega activat. Activat: la càrrega setmanal completa espera, com qualsevol altra càrrega, que el retard de càrrega es desbloquegi. Desactivat: se salta el retard i carrega de seguida. Per defecte: desactivat.",
-    predictive_charging: "Planifica la càrrega de xarxa per avançat a partir de la previsió solar, el perfil de consum i, amb preus dinàmics, els preus: carrega a les franges més barates que cobreixen el que no aporta el sol. Desactivat: sense càrrega predictiva de xarxa; la bateria només segueix la casa i el sol. Per defecte: desactivat.",
   },
   de: {
+    weekly_full_charge: "Zustand der Vollladung dieser Woche: inaktiv, lädt auf 100 %, abgeschlossen oder deaktiviert. Die Attribute zeigen den Tag, den Abschlussgrund und den Zustand jeder Batterie.",
+    predictive_charging_active: "Ein, solange ein prädiktiver Ladeslot lädt. Die Attribute zeigen den Plan: die Energiebilanz, die gewählten Zeitfenster mit ihren Preisen, die Fristen und den Grund der Entscheidung.",
+    temp_charge_limit: "Ein: „Temperaturbasierte Ladebegrenzung“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
+    capacity_protection: "Ein: „Reserve für Spitzenlastkappung“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
+    system_power_limits: "Ein: „System-Leistungsgrenzen“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
+    hourly_balance: "Ein: „Stündliche Balance“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
+    charge_delay: "Ein: „Ladeverzögerung“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
+    offgrid_mode: "Ein: „Off-Grid-Zählermodus“ gilt. Standard: aus.",
+    manual_mode: "Ein: „Manueller Modus“ gilt. Standard: aus.",
+    weekly_full_charge_delay: "Nur bei eingeschalteter Ladeverzögerung (nur dann sichtbar). Ein: die wöchentliche Vollladung wartet wie jede andere Ladung, bis die Ladeverzögerung freigibt. Aus: sie überspringt die Verzögerung und lädt sofort. Standard: aus.",
+    predictive_charging: "Plant das Netzladen im Voraus aus Solarprognose, Verbrauchsprofil und, bei dynamischen Preisen, den Preisen: es lädt in den günstigsten Zeitfenstern, die abdecken, was die Sonne nicht liefert. Aus: kein prädiktives Netzladen; die Batterie folgt nur dem Haus und der Sonne. Standard: aus.",
     secPhaseProtection: "Hauptschalter für den Dreiphasen-Stromschutz. Im AUS-Zustand werden Phasengrenzen ignoriert und die Phasenauswahl der Batterien ist nicht verfügbar. Im EIN-Zustand bleibt eine Batterie ohne Phase außerhalb der Schutzhülle und arbeitet im Automatikbetrieb normal weiter.",
     three_phase_protection: "Aktiviert oder deaktiviert die Dreiphasen-Stromschutzhülle. Standard: aus.",
     battery_phase: "Physische AC-Phase (L1/L2/L3), an die diese Batterie angeschlossen ist, oder Nicht zugewiesen außerhalb des geschützten Phasenschemas. Eine Batterie ohne Phase liegt außerhalb der Dreiphasen-Schutzhülle und arbeitet im Automatikbetrieb normal weiter.",
@@ -1605,11 +1644,11 @@ const SYS_HELP = {
     secHourly: "Erfasst Netzimport/-export pro Stunde und passt den Batterie-Sollwert automatisch an, um eine Ziel-Nettoenergiebilanz zu erreichen.\n\n⚠️ Nur in Spanien sinnvoll, im Rahmen der stündlichen Überschussvergütung (RD 244/2019), bei der Netzüberschuss stundenweise abgerechnet wird. In Märkten mit Einspeisevergütung oder jährlichem Netzausgleich bietet sie keinen Nutzen und kann zu Einnahmeverlusten bei der Einspeisung und unnötigen Batteriezyklen führen.",
     diagPeak: "Wenn aktiviert, hält die Batterie bei Unterschreiten eines SOC-Schwellenwerts ihre Restladung für Spitzen zurück: Sie deckt den normalen Verbrauch nicht mehr und nur die Last über dem maximalen Netzbezug.",
     secSysLimits: "Wenn aktiviert, begrenzen die beiden Schieberegler unten die kombinierte Lade-/Entladeleistung aller aktiven Batterien.",
-    excluded_device_enabled: "Ein: Omnibattery behandelt dieses Gerät wie eingerichtet, als ausgeschlossen (der Haussensor erfasst es, die Batterie versorgt es nicht) oder zusätzlich (der Haussensor erfasst es nicht, die Batterie deckt es). Aus: die Behandlung pausiert und es zählt als gewöhnlicher Hausverbrauch. Standard: ein.",
-    excluded_device_solar_surplus: "Ein: das Gerät darf direkt Solarüberschuss nutzen, ohne dass die Batterie auszugleichen versucht. Empfohlen für große Lasten wie EV-Ladegeräte. Standard: aus.",
+    excluded_device_enabled: "Ein: Omnibattery behandelt dieses Gerät wie eingerichtet, als ausgeschlossen (der Haussensor erfasst es, die Batterie versorgt es nicht) oder zusätzlich (der Haussensor erfasst es nicht, die Batterie deckt es); das Etikett neben dem Namen zeigt, welches. Aus: die Behandlung pausiert und es zählt als gewöhnlicher Hausverbrauch. Standard: ein.",
+    excluded_device_solar_surplus: "Ein: das Gerät darf direkt Solarüberschuss nutzen, ohne dass die Batterie auszugleichen versucht. Empfohlen für große Lasten wie EV-Ladegeräte. Seine zwei Optionen darunter erscheinen, solange dies an ist. Standard: aus.",
     excluded_device_dynamic_power_control: "Für Geräte, die ihren Bedarf über einen Netzzähler selbst regeln. Benötigt Solarüberschuss an und einen Aktivitäts-/EV-Ladestatussensor, der Vorrang anfordert, bevor Leistung erscheint. Echter Restüberschuss kann weiterhin die Batterie laden. Standard: aus.",
     excluded_device_cover_home: "Ein (benötigt Solarüberschuss an und einen Solarsensor): die Batterie deckt den Eigenverbrauch des Hauses, während dieses Gerät läuft, und das Netz versorgt nur das Gerät. Aus: die Batterie bleibt inaktiv, solange das Gerät aktiv ist. Standard: aus.",
-    excluded_device_exclusion_pct: "Wie viel des Bedarfs dieses Geräts von der Batterie ausgeschlossen bleibt. 100 % = vollständig ausgeschlossen (die Batterie versorgt es nie); niedrigere Werte lassen die Batterie den Rest abdecken (z. B. 60 % → die Batterie darf 40 % abdecken). Nur für ausgeschlossene Geräte mit Leistungssensor. Standard: 100 %.",
+    excluded_device_exclusion_pct: "Wie viel des Bedarfs dieses Geräts von der Batterie ausgeschlossen bleibt. 100 % = vollständig ausgeschlossen (die Batterie versorgt es nie); niedrigere Werte lassen die Batterie den Rest abdecken (z. B. 60 % → die Batterie darf 40 % abdecken). Nur für ausgeschlossene Geräte mit Leistungssensor, zusätzliche Geräte zeigen es daher nicht. Standard: 100 %.",
     weekly_full_charge_enabled: "Ein: die Batterien laden einmal pro Woche (unten gewählter Tag) zum Zellausgleich auf 100 % und kehren dann zum konfigurierten max. SOC zurück. Standard: aus.",
     price_discharge_control: "Ein: die Batterie entlädt nur, solange der aktuelle Preis über der Entlade-Preisuntergrenze liegt; ohne manuelle Untergrenze gilt die Lade-Preisobergrenze, sonst der heutige Durchschnittspreis. Wenn Zeitfenster die Entladung einschränken, müssen beide Bedingungen erfüllt sein. Standard: aus.",
     reevaluate_dynamic_pricing: "Erstellt den heutigen prädiktiven Ladeplan sofort neu, mit den aktuellsten Preisen und der Solarprognose. Nach einer Einstellungsänderung hier nicht nötig: die plant von selbst neu. Nutze ihn nach einer Änderung außerhalb von Omnibattery (Solarprognose, Preisquelle, Lasten). Im Zeitfenster-Modus wird die Bilanz im nächsten Zyklus innerhalb eines Ladefensters neu berechnet.",
@@ -1648,23 +1687,25 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperaturbereich oberhalb der Grenze, über den die Ladeleistung bis zum Minimum absinkt. Standard: 10 °C.",
     temp_charge_limit_floor_pct: "Ladeleistung an der Grenze plus Bereich, als Prozentsatz der normalen Ladeobergrenze. 0 % stoppt die Ladung bei großer Hitze vollständig. Standard: 40 %.",
     temp_charge_limit_discharge: "Wendet dieselbe temperaturabhängige Drosselung auf die Entladeleistung an. Die Entladung verträgt Hitze besser, daher teilt sie sich als Kompromiss die Ladeschwelle; vor allem hält sie die Entladung unter der harten BMS-Abschaltung. Standard: aus.",
-    max_price_threshold_enabled: "Ein: die Netzladung nutzt die Lade-Obergrenze darunter. Aus (automatisch): keine feste Obergrenze; die günstigsten Stunden werden gewählt (mit Arbitragemarge, falls gesetzt). Der Wert bleibt erhalten. Standard: aus (automatisch).",
-    discharge_price_threshold_enabled: "Ein: die Entladung nutzt die Untergrenze darunter. Aus (automatisch): nutzt die Lade-Obergrenze, sonst den Tagesdurchschnittspreis. Der Wert bleibt erhalten. Standard: aus (automatisch).",
-    max_price_threshold: "Lade-Obergrenze für dynamische Preise: die Batterie lädt nur aus dem Netz, wenn der Preis auf oder unter diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist. Muss ≤ der Entlade-Untergrenze bleiben. Standard: nicht gesetzt (automatisch).",
-    discharge_price_threshold: "Entlade-Untergrenze für dynamische Preise: die Batterie entlädt nur, wenn der Preis über diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist. Muss ≥ der Lade-Obergrenze bleiben. Standard: nicht gesetzt (automatisch).",
+    max_price_threshold_enabled: "Ein: die Netzladung nutzt die Lade-Preisobergrenze darunter. Aus (automatisch): keine feste Obergrenze; die günstigsten Stunden werden gewählt (mit Arbitragemarge, falls gesetzt). Der Wert bleibt erhalten. Standard: aus (automatisch).",
+    discharge_price_threshold_enabled: "Ein: Nur über Preis entladen nutzt die Untergrenze darunter. Aus (automatisch): es gilt die Lade-Preisobergrenze, sonst der heutige Durchschnittspreis. Der Wert bleibt erhalten. Standard: aus (automatisch).",
+    max_price_threshold: "Lade-Obergrenze für dynamische Preise: die Batterie lädt nur aus dem Netz, wenn der Preis auf oder unter diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist; wird er ohne Wert eingeschaltet, startet er beim heutigen Durchschnittspreis. Muss ≤ der Entlade-Preisuntergrenze bleiben. Standard: nicht gesetzt (automatisch).",
+    discharge_price_threshold: "Entlade-Untergrenze für dynamische Preise: mit Nur über Preis entladen an entlädt die Batterie nur, wenn der Preis über diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist; wird er ohne Wert eingeschaltet, startet er beim heutigen Durchschnittspreis. Muss ≥ der Lade-Preisobergrenze bleiben. Standard: nicht gesetzt (automatisch).",
     min_arbitrage_margin: "Mindestgewinn pro kWh, der zusätzlich zu den Round-Trip-Verlusten vor dem Netzladen erforderlich ist. Bei 0 oder leer zählen nur die Verluste: Es wird keine Energie geladen, die zum Zeitpunkt der Nutzung günstiger zu importieren ist. Wenn gesetzt, folgt die Obergrenze der Tagesspreizung: es wird nicht geladen, wenn die teuren Stunden nicht weit genug über den günstigen liegen, um die Umwandlungsverluste zu decken. Dieselbe Marge gilt in der Gegenrichtung: Mit Verkauf bei Hochpreis an muss ein Verkauf den späteren Rückkaufpreis um mindestens diesen Betrag übertreffen. Standard: 0 (nur die Verluste).",
     round_trip_efficiency: "Round-Trip-Wirkungsgrad der Batterie (kWh raus / kWh rein), mit dem gespeicherte Energie für die Arbitragemarge und den Verkauf bei Hochpreis bewertet wird. Niedrigere Werte machen die Prüfung strenger. Standard: 0,85 (wird durch den an deinen Batterien gemessenen Wert ersetzt, sobald eine 50 Zyklen hat).",
-    temp_charge_limit: "Ein: „Temperaturbasierte Ladebegrenzung“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
-    capacity_protection: "Ein: „Reserve für Spitzenlastkappung“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
-    system_power_limits: "Ein: „System-Leistungsgrenzen“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
-    hourly_balance: "Ein: „Stündliche Balance“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
-    charge_delay: "Ein: „Ladeverzögerung“ gilt und die Einstellungen darunter werden angezeigt. Standard: aus.",
-    offgrid_mode: "Ein: „Off-Grid-Zählermodus“ gilt. Standard: aus.",
-    manual_mode: "Ein: „Manueller Modus“ gilt. Standard: aus.",
-    weekly_full_charge_delay: "Nur bei eingeschalteter Ladeverzögerung. Ein: die wöchentliche Vollladung wartet wie jede andere Ladung, bis die Ladeverzögerung freigibt. Aus: sie überspringt die Verzögerung und lädt sofort. Standard: aus.",
-    predictive_charging: "Plant das Netzladen im Voraus aus Solarprognose, Verbrauchsprofil und, bei dynamischen Preisen, den Preisen: es lädt in den günstigsten Zeitfenstern, die abdecken, was die Sonne nicht liefert. Aus: kein prädiktives Netzladen; die Batterie folgt nur dem Haus und der Sonne. Standard: aus.",
   },
   fr: {
+    weekly_full_charge: "État de la charge complète de la semaine : inactive, en charge jusqu'à 100 %, terminée ou désactivée. Les attributs indiquent le jour, le motif de fin et l'état de chaque batterie.",
+    predictive_charging_active: "Actif tant qu'un créneau de charge prédictive charge. Les attributs montrent le plan : le bilan énergétique, les créneaux choisis et leurs prix, les échéances et le motif de la décision.",
+    temp_charge_limit: "Activé : « Limite de charge par température » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
+    capacity_protection: "Activé : « Réserve pour écrêtement de pointe » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
+    system_power_limits: "Activé : « Limites de puissance du système » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
+    hourly_balance: "Activé : « Bilan horaire » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
+    charge_delay: "Activé : « Délai de charge » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
+    offgrid_mode: "Activé : « Mode compteur hors réseau » s'applique. Par défaut : désactivé.",
+    manual_mode: "Activé : « Mode manuel » s'applique. Par défaut : désactivé.",
+    weekly_full_charge_delay: "Uniquement avec le délai de charge activé (affiché seulement alors). Activé : la charge complète hebdomadaire attend, comme toute autre charge, que le délai de charge se libère. Désactivé : elle ignore le délai et charge tout de suite. Par défaut : désactivé.",
+    predictive_charging: "Planifie la charge réseau à l'avance à partir de la prévision solaire, du profil de consommation et, en tarification dynamique, des prix : elle charge dans les créneaux les moins chers qui couvrent ce que le soleil ne fournit pas. Désactivé : pas de charge réseau prédictive ; la batterie suit seulement la maison et le soleil. Par défaut : désactivé.",
     secPhaseProtection: "Interrupteur général de la protection de courant triphasé. Désactivé, les limites de phase sont ignorées et les sélecteurs de phase des batteries ne sont pas disponibles. Activé, une batterie sans phase reste hors de l'enveloppe et continue à fonctionner normalement en automatique.",
     three_phase_protection: "Active ou désactive l'enveloppe de protection de courant triphasé. Par défaut : désactivé.",
     battery_phase: "Phase AC physique (L1/L2/L3) à laquelle cette batterie est raccordée, ou Non assignée hors du schéma de phases protégées. Une batterie sans phase est exclue de l'enveloppe triphasée et continue à fonctionner normalement en automatique.",
@@ -1699,11 +1740,11 @@ const SYS_HELP = {
     secHourly: "Suit l'import/export réseau par heure et ajuste automatiquement la consigne de la batterie pour atteindre un bilan énergétique net cible.\n\n⚠️ Utile uniquement en Espagne, dans le cadre du régime de compensation horaire des surplus (RD 244/2019), où le surplus injecté sur le réseau est réglé heure par heure. Sur les marchés avec tarif de rachat (feed-in) ou bilan net annuel, elle n'offre aucun avantage et peut entraîner une perte de revenus d'injection et des cycles de batterie inutiles.",
     diagPeak: "Si activé, lorsque le SOC de la batterie descend sous un seuil, la batterie garde sa charge restante pour les pointes : elle ne couvre plus la consommation ordinaire et ne couvre que la charge au-dessus de l'import réseau maximal.",
     secSysLimits: "Si activé, les deux curseurs ci-dessous plafonnent la puissance combinée de charge/décharge de toutes les batteries actives.",
-    excluded_device_enabled: "Activé : Omnibattery traite cet appareil comme configuré, comme exclu (le capteur du foyer l'inclut et la batterie ne l'alimente pas) ou supplémentaire (le capteur du foyer ne le voit pas et la batterie le couvre). Désactivé : son traitement est suspendu et il compte comme consommation ordinaire du foyer. Par défaut : activé.",
-    excluded_device_solar_surplus: "Activé : l'appareil peut consommer directement le surplus solaire, sans que la batterie tente de compenser. Recommandé pour les grosses charges comme les chargeurs de VE. Par défaut : désactivé.",
+    excluded_device_enabled: "Activé : Omnibattery traite cet appareil comme configuré, comme exclu (le capteur du foyer l'inclut et la batterie ne l'alimente pas) ou supplémentaire (le capteur du foyer ne le voit pas et la batterie le couvre) ; l'étiquette à côté du nom indique lequel. Désactivé : son traitement est suspendu et il compte comme consommation ordinaire du foyer. Par défaut : activé.",
+    excluded_device_solar_surplus: "Activé : l'appareil peut consommer directement le surplus solaire, sans que la batterie tente de compenser. Recommandé pour les grosses charges comme les chargeurs de VE. Ses deux options ci-dessous s'affichent tant que ceci est activé. Par défaut : désactivé.",
     excluded_device_dynamic_power_control: "Pour les appareils qui ajustent leur demande à partir d'un compteur réseau. Nécessite Surplus solaire activé et un capteur d'activité / charge VE, qui demande la priorité avant l'apparition de puissance. Le surplus réellement restant peut encore charger la batterie. Par défaut : désactivé.",
     excluded_device_cover_home: "Activé (nécessite Surplus solaire activé et un capteur solaire) : la batterie couvre la consommation propre de la maison pendant que cet appareil fonctionne, et le réseau n'alimente que l'appareil. Désactivé : la batterie reste inactive tant que l'appareil est actif. Par défaut : désactivé.",
-    excluded_device_exclusion_pct: "Quelle part de la demande de cet appareil reste exclue de la batterie. 100 % = totalement exclu (la batterie ne l'alimente jamais) ; des valeurs plus faibles laissent la batterie couvrir le reste (ex. 60 % → la batterie peut couvrir 40 %). Uniquement pour les appareils exclus dotés d'un capteur de puissance. Par défaut : 100 %.",
+    excluded_device_exclusion_pct: "Quelle part de la demande de cet appareil reste exclue de la batterie. 100 % = totalement exclu (la batterie ne l'alimente jamais) ; des valeurs plus faibles laissent la batterie couvrir le reste (ex. 60 % → la batterie peut couvrir 40 %). Uniquement pour les appareils exclus dotés d'un capteur de puissance, les appareils supplémentaires ne l'affichent donc pas. Par défaut : 100 %.",
     weekly_full_charge_enabled: "Activé : les batteries se chargent à 100 % un jour par semaine (choisi ci-dessous) pour équilibrer les cellules, puis reviennent au SOC max configuré. Par défaut : désactivé.",
     price_discharge_control: "Activé : la batterie ne se décharge que tant que le prix actuel est au-dessus du plancher de prix de décharge ; sans plancher manuel, elle utilise le plafond de prix de charge, sinon le prix moyen du jour. Si les plages horaires limitent la décharge, les deux conditions doivent être remplies. Par défaut : désactivé.",
     reevaluate_dynamic_pricing: "Recalcule immédiatement le plan de charge prédictive du jour avec les derniers prix et la prévision solaire. Inutile après avoir modifié un réglage ici : cela replanifie de soi-même. Utilise-le après un changement hors d'Omnibattery (prévision solaire, source de prix, charges). En mode plage horaire, le bilan est recalculé au cycle suivant dans une fenêtre de charge.",
@@ -1742,23 +1783,25 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Plage de température au-dessus de la limite sur laquelle la puissance de charge diminue jusqu'au minimum. Par défaut : 10 °C.",
     temp_charge_limit_floor_pct: "Puissance de charge à la limite plus la plage, en pourcentage du plafond de charge normal. 0 % arrête complètement la charge en cas de forte chaleur. Par défaut : 40 %.",
     temp_charge_limit_discharge: "Applique la même réduction liée à la température à la puissance de décharge. La décharge tolère mieux la chaleur, elle partage donc le seuil de charge par compromis ; surtout, elle maintient la décharge sous la coupure dure du BMS. Par défaut : désactivé.",
-    max_price_threshold_enabled: "Activé : la charge réseau utilise le plafond de charge ci-dessous. Désactivé (automatique) : pas de plafond fixe ; les heures les moins chères sont choisies (avec la marge d'arbitrage, si définie). La valeur est conservée. Par défaut : désactivé (automatique).",
-    discharge_price_threshold_enabled: "Activé : la décharge utilise le plancher ci-dessous. Désactivé (automatique) : utilise le plafond de charge, sinon le prix moyen journalier. La valeur est conservée. Par défaut : désactivé (automatique).",
-    max_price_threshold: "Plafond de charge pour la tarification dynamique : la batterie ne charge depuis le réseau que si le prix est à ce niveau ou en dessous. S'applique uniquement si son interrupteur manuel est activé. Doit rester ≤ au plancher de décharge. Par défaut : non défini (automatique).",
-    discharge_price_threshold: "Plancher de décharge pour la tarification dynamique : la batterie ne décharge que si le prix est au-dessus de ce niveau. S'applique uniquement si son interrupteur manuel est activé. Doit rester ≥ au plafond de charge. Par défaut : non défini (automatique).",
+    max_price_threshold_enabled: "Activé : la charge réseau utilise le plafond de prix de charge ci-dessous. Désactivé (automatique) : pas de plafond fixe ; les heures les moins chères sont choisies (avec la marge d'arbitrage, si définie). La valeur est conservée. Par défaut : désactivé (automatique).",
+    discharge_price_threshold_enabled: "Activé : Décharger si prix élevé utilise le plancher ci-dessous. Désactivé (automatique) : utilise le plafond de prix de charge, sinon le prix moyen du jour. La valeur est conservée. Par défaut : désactivé (automatique).",
+    max_price_threshold: "Plafond de charge pour la tarification dynamique : la batterie ne charge depuis le réseau que si le prix est à ce niveau ou en dessous. S'applique uniquement si son interrupteur manuel est activé ; l'activer sans valeur part du prix moyen du jour. Doit rester ≤ au plancher de prix de décharge. Par défaut : non défini (automatique).",
+    discharge_price_threshold: "Plancher de décharge pour la tarification dynamique : avec Décharger si prix élevé activé, la batterie ne décharge que si le prix est au-dessus de ce niveau. S'applique uniquement si son interrupteur manuel est activé ; l'activer sans valeur part du prix moyen du jour. Doit rester ≥ au plafond de prix de charge. Par défaut : non défini (automatique).",
     min_arbitrage_margin: "Profit minimal par kWh exigé, en plus des pertes aller-retour, avant la charge réseau. À 0 ou vide, seules les pertes comptent : on ne charge pas une énergie qui coûte moins cher à importer au moment de l'utiliser. Si défini, le plafond suit l'écart du jour : la charge est ignorée lorsque les heures chères ne dépassent pas assez les heures creuses pour couvrir les pertes de conversion. La même marge joue dans l'autre sens : avec la vente à prix élevé active, une vente doit dépasser le prix de rachat ultérieur d'au moins autant. Par défaut : 0 (seules les pertes).",
     round_trip_efficiency: "Rendement aller-retour de la batterie (kWh sortis / kWh entrés), servant à valoriser l'énergie stockée pour la marge d'arbitrage et la vente à prix élevé. Des valeurs plus basses rendent le contrôle plus strict. Par défaut : 0,85 (remplacé par la valeur mesurée sur vos batteries dès que l'une a 50 cycles).",
-    temp_charge_limit: "Activé : « Limite de charge par température » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
-    capacity_protection: "Activé : « Réserve pour écrêtement de pointe » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
-    system_power_limits: "Activé : « Limites de puissance du système » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
-    hourly_balance: "Activé : « Bilan horaire » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
-    charge_delay: "Activé : « Délai de charge » s'applique et ses réglages ci-dessous s'affichent. Par défaut : désactivé.",
-    offgrid_mode: "Activé : « Mode compteur hors réseau » s'applique. Par défaut : désactivé.",
-    manual_mode: "Activé : « Mode manuel » s'applique. Par défaut : désactivé.",
-    weekly_full_charge_delay: "Uniquement avec le délai de charge activé. Activé : la charge complète hebdomadaire attend, comme toute autre charge, que le délai de charge se libère. Désactivé : elle ignore le délai et charge tout de suite. Par défaut : désactivé.",
-    predictive_charging: "Planifie la charge réseau à l'avance à partir de la prévision solaire, du profil de consommation et, en tarification dynamique, des prix : elle charge dans les créneaux les moins chers qui couvrent ce que le soleil ne fournit pas. Désactivé : pas de charge réseau prédictive ; la batterie suit seulement la maison et le soleil. Par défaut : désactivé.",
   },
   nl: {
+    weekly_full_charge: "Status van de volledige lading van deze week: inactief, ladend tot 100 %, voltooid of uitgeschakeld. De attributen tonen de dag, de reden van afronding en de status van elke batterij.",
+    predictive_charging_active: "Aan zolang een voorspellend laadslot laadt. De attributen tonen het plan: de energiebalans, de gekozen slots met hun prijzen, de deadlines en de reden van de beslissing.",
+    temp_charge_limit: "Aan: ‘Temperatuurbegrenzing laden’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
+    capacity_protection: "Aan: ‘Reserve voor piekbegrenzing’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
+    system_power_limits: "Aan: ‘Systeemvermogenslimieten’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
+    hourly_balance: "Aan: ‘Uurbalans’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
+    charge_delay: "Aan: ‘Laadvertraging’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
+    offgrid_mode: "Aan: ‘Off-grid metermodus’ geldt. Standaard: uit.",
+    manual_mode: "Aan: ‘Handmatige modus’ geldt. Standaard: uit.",
+    weekly_full_charge_delay: "Alleen met laadvertraging aan (alleen dan zichtbaar). Aan: de wekelijkse volledige lading wacht, zoals elke andere lading, tot de laadvertraging vrijgeeft. Uit: ze slaat de vertraging over en laadt meteen. Standaard: uit.",
+    predictive_charging: "Plant het laden van het net vooruit op basis van de zonneprognose, het verbruiksprofiel en, bij dynamische prijzen, de prijzen: het laadt in de goedkoopste slots die dekken wat de zon tekortschiet. Uit: geen voorspellend laden van het net; de batterij volgt alleen het huis en de zon. Standaard: uit.",
     secPhaseProtection: "Hoofdschakelaar voor de driefasen-stroombeveiliging. UIT: fasegrenzen worden genegeerd en de fasekeuze van de batterijen is niet beschikbaar. AAN: een batterij zonder fase blijft buiten de beveiliging en werkt normaal automatisch verder.",
     three_phase_protection: "Schakelt de driefasen-stroombeveiliging in of uit. Standaard: uit.",
     battery_phase: "Fysieke AC-fase (L1/L2/L3) waarop deze batterij is aangesloten, of Niet toegewezen buiten het beschermde faseschema. Een batterij zonder fase valt buiten de driefasenbeveiliging en blijft normaal automatisch werken.",
@@ -1793,11 +1836,11 @@ const SYS_HELP = {
     secHourly: "Volgt netimport/-export per uur en past het batterij-setpoint automatisch aan om een gewenste netto-energiebalans te bereiken.\n\n⚠️ Alleen nuttig in Spanje, onder de regeling voor uurlijkse compensatie van overschotten (RD 244/2019), waarbij netoverschot per uur wordt verrekend. In markten met terugleververgoeding (feed-in) of jaarlijkse saldering biedt het geen voordeel en kan het leiden tot gemiste teruglever-inkomsten en onnodige batterijcycli.",
     diagPeak: "Indien ingeschakeld, bewaart de batterij als de SOC onder een drempel daalt haar resterende lading voor pieken: ze dekt het gewone verbruik niet meer en alleen de belasting boven de maximale netafname.",
     secSysLimits: "Indien ingeschakeld begrenzen de twee schuifregelaars hieronder het gecombineerde laad-/ontlaadvermogen van alle actieve batterijen.",
-    excluded_device_enabled: "Aan: Omnibattery behandelt dit apparaat zoals ingesteld, als uitgesloten (de huissensor meet het en de batterij voedt het niet) of extra (de huissensor mist het en de batterij dekt het). Uit: de behandeling is gepauzeerd en het telt als gewoon huisverbruik. Standaard: aan.",
-    excluded_device_solar_surplus: "Aan: het apparaat mag direct zonne-overschot gebruiken, zonder dat de batterij probeert te compenseren. Aanbevolen voor grote verbruikers zoals EV-laders. Standaard: uit.",
+    excluded_device_enabled: "Aan: Omnibattery behandelt dit apparaat zoals ingesteld, als uitgesloten (de huissensor meet het en de batterij voedt het niet) of extra (de huissensor mist het en de batterij dekt het); het label naast de naam zegt welke. Uit: de behandeling is gepauzeerd en het telt als gewoon huisverbruik. Standaard: aan.",
+    excluded_device_solar_surplus: "Aan: het apparaat mag direct zonne-overschot gebruiken, zonder dat de batterij probeert te compenseren. Aanbevolen voor grote verbruikers zoals EV-laders. De twee opties hieronder verschijnen zolang dit aan staat. Standaard: uit.",
     excluded_device_dynamic_power_control: "Voor apparaten die hun vraag zelf via een netmeter regelen. Vereist Zonne-overschot aan en een activiteit-/EV-laadsensor, die voorrang vraagt voordat vermogen verschijnt. Echt resterend overschot kan de batterij nog steeds laden. Standaard: uit.",
     excluded_device_cover_home: "Aan (vereist Zonne-overschot aan en een zonnesensor): de batterij dekt het eigen huisverbruik terwijl dit apparaat draait, en het net voedt alleen het apparaat. Uit: de batterij blijft inactief zolang het apparaat actief is. Standaard: uit.",
-    excluded_device_exclusion_pct: "Hoeveel van de vraag van dit apparaat buiten de batterij blijft. 100 % = volledig uitgesloten (de batterij voedt het nooit); lagere waarden laten de batterij de rest dekken (bv. 60 % → de batterij mag 40 % dekken). Alleen voor uitgesloten apparaten met een vermogenssensor. Standaard: 100 %.",
+    excluded_device_exclusion_pct: "Hoeveel van de vraag van dit apparaat buiten de batterij blijft. 100 % = volledig uitgesloten (de batterij voedt het nooit); lagere waarden laten de batterij de rest dekken (bv. 60 % → de batterij mag 40 % dekken). Alleen voor uitgesloten apparaten met een vermogenssensor, extra apparaten tonen het dus niet. Standaard: 100 %.",
     weekly_full_charge_enabled: "Aan: de batterijen laden één dag per week (hieronder gekozen) tot 100 % voor celbalancering en keren daarna terug naar de geconfigureerde max. SOC. Standaard: uit.",
     price_discharge_control: "Aan: de batterij ontlaadt alleen zolang de huidige prijs boven de ontlaadprijsondergrens ligt; zonder handmatige ondergrens geldt het laadprijsplafond, anders de gemiddelde prijs van vandaag. Als tijdslots het ontladen beperken, moeten beide voorwaarden gelden. Standaard: uit.",
     reevaluate_dynamic_pricing: "Herberekent nu meteen het voorspellende laadplan van vandaag met de meest recente prijzen en zonneprognose. Niet nodig na het wijzigen van een instelling hier: dat plant vanzelf opnieuw. Gebruik het na een wijziging buiten Omnibattery (zonneprognose, prijsbron, belastingen). In tijdslotmodus wordt de balans in de volgende cyclus binnen een laadvenster opnieuw berekend.",
@@ -1836,21 +1879,12 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperatuurbereik boven de limiet waarover het laadvermogen tot het minimum afbouwt. Standaard: 10 °C.",
     temp_charge_limit_floor_pct: "Laadvermogen op de limiet plus de band, als percentage van het normale laadplafond. 0 % stopt het laden volledig bij grote hitte. Standaard: 40 %.",
     temp_charge_limit_discharge: "Past dezelfde temperatuurterugregeling toe op het ontlaadvermogen. Ontladen verdraagt warmte beter, dus deelt het als compromis de laaddrempel; vooral houdt het het ontladen onder de harde BMS-uitschakeling. Standaard: uit.",
-    max_price_threshold_enabled: "Aan: het laden van het net gebruikt het laadplafond hieronder. Uit (automatisch): geen vast plafond; de goedkoopste uren worden gekozen (met de arbitragemarge, indien ingesteld). De waarde blijft bewaard. Standaard: uit (automatisch).",
-    discharge_price_threshold_enabled: "Aan: het ontladen gebruikt de ondergrens hieronder. Uit (automatisch): gebruikt het laadplafond, anders de daggemiddelde prijs. De waarde blijft bewaard. Standaard: uit (automatisch).",
-    max_price_threshold: "Laadplafond voor dynamische prijzen: de batterij laadt alleen van het net wanneer de prijs op of onder deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat. Moet ≤ de ontlaadondergrens blijven. Standaard: niet ingesteld (automatisch).",
-    discharge_price_threshold: "Ontlaadondergrens voor dynamische prijzen: de batterij ontlaadt alleen wanneer de prijs boven deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat. Moet ≥ het laadplafond blijven. Standaard: niet ingesteld (automatisch).",
+    max_price_threshold_enabled: "Aan: het laden van het net gebruikt het laadprijsplafond hieronder. Uit (automatisch): geen vast plafond; de goedkoopste uren worden gekozen (met de arbitragemarge, indien ingesteld). De waarde blijft bewaard. Standaard: uit (automatisch).",
+    discharge_price_threshold_enabled: "Aan: Alleen ontladen bij hoge prijs gebruikt de ondergrens hieronder. Uit (automatisch): gebruikt het laadprijsplafond, anders de gemiddelde prijs van vandaag. De waarde blijft bewaard. Standaard: uit (automatisch).",
+    max_price_threshold: "Laadplafond voor dynamische prijzen: de batterij laadt alleen van het net wanneer de prijs op of onder deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat; inschakelen zonder waarde begint bij de gemiddelde prijs van vandaag. Moet ≤ de ontlaadprijsondergrens blijven. Standaard: niet ingesteld (automatisch).",
+    discharge_price_threshold: "Ontlaadondergrens voor dynamische prijzen: met Alleen ontladen bij hoge prijs aan ontlaadt de batterij alleen wanneer de prijs boven deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat; inschakelen zonder waarde begint bij de gemiddelde prijs van vandaag. Moet ≥ het laadprijsplafond blijven. Standaard: niet ingesteld (automatisch).",
     min_arbitrage_margin: "Minimale winst per kWh, bovenop de heen-en-terug-verliezen, die vereist is voordat er van het net geladen wordt. Bij 0 of leeg tellen alleen de verliezen: er wordt geen energie geladen die goedkoper is om te importeren op het moment van gebruik. Ingesteld laat het plafond de dagspreiding volgen: er wordt niet geladen wanneer de dure uren niet ver genoeg boven de goedkope liggen om de omzettingsverliezen terug te verdienen. Dezelfde marge werkt ook andersom: met verkoop bij hoge prijs aan moet een verkoop de latere terugkoopprijs met minstens dit bedrag overtreffen. Standaard: 0 (alleen de verliezen).",
     round_trip_efficiency: "Retourrendement van de batterij (kWh eruit / kWh erin), waarmee opgeslagen energie wordt gewaardeerd voor de arbitragemarge en de verkoop bij hoge prijs. Lagere waarden maken de controle strenger. Standaard: 0,85 (vervangen door de gemeten waarde van je batterijen zodra er één 50 cycli heeft).",
-    temp_charge_limit: "Aan: ‘Temperatuurbegrenzing laden’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
-    capacity_protection: "Aan: ‘Reserve voor piekbegrenzing’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
-    system_power_limits: "Aan: ‘Systeemvermogenslimieten’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
-    hourly_balance: "Aan: ‘Uurbalans’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
-    charge_delay: "Aan: ‘Laadvertraging’ geldt en de instellingen hieronder worden getoond. Standaard: uit.",
-    offgrid_mode: "Aan: ‘Off-grid metermodus’ geldt. Standaard: uit.",
-    manual_mode: "Aan: ‘Handmatige modus’ geldt. Standaard: uit.",
-    weekly_full_charge_delay: "Alleen met laadvertraging aan. Aan: de wekelijkse volledige lading wacht, zoals elke andere lading, tot de laadvertraging vrijgeeft. Uit: ze slaat de vertraging over en laadt meteen. Standaard: uit.",
-    predictive_charging: "Plant het laden van het net vooruit op basis van de zonneprognose, het verbruiksprofiel en, bij dynamische prijzen, de prijzen: het laadt in de goedkoopste slots die dekken wat de zon tekortschiet. Uit: geen voorspellend laden van het net; de batterij volgt alleen het huis en de zon. Standaard: uit.",
   },
 };
 
@@ -6807,8 +6841,14 @@ class MarstekVenusPanel extends HTMLElement {
           const alive = item.domain === "button" || unset
             ? st && st.state !== "unavailable"
             : st && st.state !== "unavailable" && st.state !== "unknown";
-          if (alive) {
-            rows.push({ item, id, multi: ids.length > 1 });
+          // an entity that says it does not apply (Exclusion % of an
+          // additional device) has no row
+          const applies = !st || !st.attributes || st.attributes.applies !== false;
+          if (alive && applies) {
+            const row = { item, id, multi: ids.length > 1 };
+            const device = st.attributes && st.attributes.excluded_device_index;
+            if (device != null) row.grp = `device${device}`;
+            rows.push(row);
           }
         }
       }
@@ -6817,11 +6857,18 @@ class MarstekVenusPanel extends HTMLElement {
       // their live entities by the displayed name instead, so adding a device
       // does not leave the card in registry/control-type order.
       if (sec.tk === "secExcluded") {
-        rows.sort((a, b) => {
-          const aName = this._entityShortName(this._hass.states[a.id], a.id);
-          const bName = this._entityShortName(this._hass.states[b.id], b.id);
-          return aName.localeCompare(bName, this._lang()) || a.id.localeCompare(b.id);
-        });
+        // devices by name, each device's rows in item order (Enabled first,
+        // its options after), so adding a device keeps the card readable
+        const device = (r) => {
+          const a = (this._hass.states[r.id] || {}).attributes || {};
+          return String(a.excluded_device ?? this._entityShortName(this._hass.states[r.id], r.id));
+        };
+        const order = (r) => sec.items.indexOf(r.item);
+        rows.sort((a, b) =>
+          device(a).localeCompare(device(b), this._lang())
+          || String(a.grp).localeCompare(String(b.grp))
+          || order(a) - order(b)
+          || a.id.localeCompare(b.id));
       }
       if (rows.length) {
         sections.push({ sec, rows });
@@ -6834,6 +6881,7 @@ class MarstekVenusPanel extends HTMLElement {
   /** Build the sectioned card stack into `store` (id -> widget). */
   _renderSysSections(defs, store, empty) {
     for (const k in store) delete store[k];
+    store[DEP_REFRESH] = [];
     const { sections, sig } = this._sysScan(defs);
     const wrap = document.createElement("div");
     wrap.className = "sys-stack";
@@ -6873,27 +6921,48 @@ class MarstekVenusPanel extends HTMLElement {
       // It's gated like a normal row, and marked `adv` when every live row of the
       // group it opens is advanced, so it can't linger alone with Advanced off.
       let lastGrp = null;
+      let lastTitle = null;
       // `dep: "<switch key>"` hides a row while that switch in the same card is
-      // OFF (e.g. a threshold behind its manual switch). It toggles the `sub-off`
-      // class rather than inline display, so it composes with the section gate.
-      const depNodes = {};
+      // OFF (e.g. a threshold behind its manual switch), and while any switch the
+      // parent row itself depends on is OFF, so a chain (discharge floor ->
+      // manual discharge price -> Discharge only above price) hides as a whole.
+      // It toggles the `sub-off` class rather than inline display, so it
+      // composes with the section gate. A row with `auto: "<text key>"` is
+      // replaced by a read-only line with that text while only its own switch
+      // is off, so a threshold left on automatic still says so.
+      const depRows = [];
       for (const r of rows) {
-        const g = r.item.grp;
+        const g = r.grp ?? r.item.grp;
+        const allAdv = () => rows.filter((x) => (x.grp ?? x.item.grp) === g).every((x) => x.item.adv);
         if (g && lastGrp && g !== lastGrp) {
           const sep = document.createElement("div");
           sep.className = "sys-sep";
-          if (rows.filter((x) => x.item.grp === g).every((x) => x.item.adv)) sep.classList.add("adv-row");
+          if (allAdv()) sep.classList.add("adv-row");
           grid.appendChild(sep);
           gatedNodes.push(sep);
         }
+        const title = g && g !== lastGrp && sec.grpTitles && sec.grpTitles[g];
+        if (title && title !== lastTitle) {
+          const h = document.createElement("div");
+          h.className = "sys-grp-title";
+          h.textContent = this._t(title);
+          // hidden with Advanced off only when every row under it is advanced
+          const under = rows.filter((x) => sec.grpTitles[x.grp ?? x.item.grp] === title);
+          if (under.every((x) => x.item.adv)) h.classList.add("adv-row");
+          grid.appendChild(h);
+          gatedNodes.push(h);
+        }
+        if (title) lastTitle = title;
         if (g) lastGrp = g;
         const frag = this._buildSysControl(r.item, r.id, store, r.multi);
         const nodes = [...frag.childNodes];
         if (r.item.adv) for (const n of nodes) n.classList?.add("adv-row");
-        if (r.item.dep) (depNodes[r.item.dep] ||= []).push(...nodes);
+        const auto = r.item.auto ? this._sysAutoLine(nodes[0], r.item) : null;
+        if (r.item.dep) depRows.push({ item: r.item, nodes, grp: r.grp, auto });
         grid.appendChild(frag);
+        if (auto) grid.append(...auto);
         if (r.item.gate) gateKey = this._sysStoreKey(r.item, r.id);
-        else gatedNodes.push(...nodes);
+        else gatedNodes.push(...nodes, ...(auto || []));
       }
       if (gateKey && gatedNodes.length && store[gateKey]) {
         const w = store[gateKey];
@@ -6902,12 +6971,48 @@ class MarstekVenusPanel extends HTMLElement {
         const shown = w.invert ? !on : on;
         for (const n of gatedNodes) n.style.display = shown ? "" : "none";
       }
-      for (const r of rows) {
-        const w = depNodes[r.item.key] && store[this._sysStoreKey(r.item, r.id)];
-        if (!w) continue;
-        w.depNodes = depNodes[r.item.key];
-        const on = (this._hass.states[r.id] || {}).state === "on";
-        for (const n of w.depNodes) n.classList?.toggle("sub-off", !on);
+      if (depRows.length) {
+        // keyed per device for the per-device rows, so a device's option
+        // follows its own switch
+        const rowKey = (grp, key) => `${grp ?? ""}|${key}`;
+        const rowByKey = new Map(rows.map((r) => [rowKey(r.grp, r.item.key), r]));
+        // Every switch on the way up; a parent that is not rendered ends the
+        // chain (it cannot hide anything).
+        for (const d of depRows) {
+          d.ids = [];
+          const seen = new Set();
+          for (let dep = d.item.dep; dep && !seen.has(dep); ) {
+            seen.add(dep);
+            const parent = rowByKey.get(rowKey(d.grp, dep));
+            if (!parent) {
+              // a switch on another card (the weekly delay behind Charge Delay);
+              // a per-device row never looks outside its device
+              const other = d.grp == null ? this._sysEntityId(dep) : null;
+              if (other) d.ids.push(other);
+              break;
+            }
+            d.ids.push(parent.id);
+            dep = parent.item.dep;
+          }
+        }
+        const refreshDeps = () => {
+          const on = (id) => (this._hass.states[id] || {}).state === "on";
+          for (const d of depRows) {
+            const shown = d.ids.every(on);
+            for (const n of d.nodes) n.classList?.toggle("sub-off", !shown);
+            // own switch off, every switch above it on
+            const autoShown = !shown && d.ids.slice(1).every(on);
+            for (const n of d.auto || []) n.classList.toggle("sub-off", !autoShown);
+          }
+        };
+        for (const r of rows) {
+          if (!depRows.some((d) => d.ids.includes(r.id))) continue;
+          const w = store[this._sysStoreKey(r.item, r.id)];
+          if (w) w.depRefresh = refreshDeps;
+        }
+        // also re-checked after every patch, for parents on another card
+        store[DEP_REFRESH].push(refreshDeps);
+        refreshDeps();
       }
       if (sec.tk === "secHourly") {
         const warn = this._hourlyWarnEl();
@@ -7169,6 +7274,7 @@ class MarstekVenusPanel extends HTMLElement {
       const st = this._hass.states[w.realId || id];
       if (st) this._patchSysControl(w, st);
     }
+    for (const refresh of this[storeKey][DEP_REFRESH] || []) refresh();
   }
 
   /** Slider grid floor: a native <input type=range> snaps to min+k*step, but HA
@@ -7273,6 +7379,14 @@ class MarstekVenusPanel extends HTMLElement {
     const i = s.indexOf(".");
     return i < 0 ? 0 : Math.min(3, s.length - i - 1);
   }
+  /** Step that sets the decimals of a slider with a panel `range`: its coarser
+   *  step while the value sits on it (0.02 €/kWh, whole cents), else the
+   *  entity's, so a typed 0.025 still shows exactly. */
+  _ctlDisplayStep(value, step, range) {
+    if (!range) return step;
+    const q = Number(value) / range[2];
+    return Math.abs(q - Math.round(q)) < 1e-6 ? range[2] : step;
+  }
   _fmtCtlNum(value, step, unit) {
     const v = Number(value);
     const txt = Number.isNaN(v) ? "—" : v.toFixed(this._stepDecimals(step));
@@ -7297,6 +7411,28 @@ class MarstekVenusPanel extends HTMLElement {
   /** Build one system control's grid items (label + widget), keyed by entity_id
    *  in `store`. Mirrors _buildControlRow but resolves by id and formats numbers
    *  with step-derived decimals (PD params use fractional steps). */
+  /** The read-only "automatic" stand-in for a `dep` row with `auto` (see
+   *  _renderSysSections): its label, then the text. */
+  _sysAutoLine(k, item) {
+    const key = k.cloneNode(true);
+    const help = this._help(item.key);
+    if (help) {
+      key.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this._showInfoPopover(key, help);
+      });
+    }
+    const val = document.createElement("span");
+    val.className = "ctl-val ctl-sensor";
+    val.textContent = this._t(item.auto);
+    const nodes = [key, val];
+    for (const n of nodes) {
+      n.classList.add("sub-off");
+      if (item.adv) n.classList.add("adv-row");
+    }
+    return nodes;
+  }
+
   _buildSysControl(item, id, store, multi) {
     const hass = this._hass;
     const state = hass.states[id];
@@ -7343,6 +7479,7 @@ class MarstekVenusPanel extends HTMLElement {
     const k = document.createElement("span");
     k.className = "ctl-k";
     k.innerHTML = `<ha-icon icon="${item.icon || "mdi:cog-outline"}"></ha-icon><span>${label}</span>`;
+    if (item.lead) k.classList.add("ctl-k-lead");
     if (item.titleFn) {
       k.classList.add("ctl-k-info");
       // tap/click shows the detail popover — mobile has no hover. The native
@@ -7362,6 +7499,17 @@ class MarstekVenusPanel extends HTMLElement {
           e.stopPropagation();
           this._showInfoPopover(k, help);
         });
+      }
+    }
+    if (item.typeTag) {
+      // excluded (the home sensor includes it) or additional (the battery
+      // covers it): the setting that matters most, otherwise only in setup
+      const type = state && state.attributes && state.attributes.type;
+      if (type) {
+        const tag = document.createElement("span");
+        tag.className = "ctl-type";
+        tag.textContent = this._t(type === "additional" ? "typeAdditional" : "typeExcluded");
+        k.appendChild(tag);
       }
     }
     frag.appendChild(k);
@@ -7403,18 +7551,22 @@ class MarstekVenusPanel extends HTMLElement {
       const step = Number(a.step) || 1;
       range.addEventListener("input", () => {
         range.__sliding = true;
-        valEl.textContent = this._fmtCtlNum(this._clampToEntity(id, range.value), step, unit);
+        const v = this._clampToEntity(id, range.value);
+        valEl.textContent = this._fmtCtlNum(v, this._ctlDisplayStep(v, step, item.range), unit);
       });
       range.addEventListener("change", () => {
         const value = this._clampToEntity(id, range.value);
         this._markRangePending(range, value);
         hass.callService("number", "set_value", { entity_id: id, value });
       });
-      this._wireValueEdit(valEl, range, id, (v) => this._fmtCtlNum(v, step, unit));
+      this._wireValueEdit(valEl, range, id, (v) => this._fmtCtlNum(v, this._ctlDisplayStep(v, step, item.range), unit));
       wrap.appendChild(range);
       wrap.appendChild(valEl);
       frag.appendChild(wrap);
-      store[sk] = { type: "number", el: range, val: valEl, step, unit };
+      // `range: [min, max, step]` narrows the slider only (per-kWh values whose
+      // entity range is far wider than anyone drags); a typed value outside it
+      // is still accepted and the thumb then sits at the end.
+      store[sk] = { type: "number", el: range, val: valEl, step, unit, range: item.range };
     }
     // optional hover tooltip (set on the label cell, kept fresh on patch)
     if (item.titleFn && store[sk]) {
@@ -7433,7 +7585,8 @@ class MarstekVenusPanel extends HTMLElement {
       w.el.classList.toggle("on", shown);
       // gated feature switch: show/hide its sibling param rows when toggled
       if (w.gatedNodes) for (const n of w.gatedNodes) n.style.display = shown ? "" : "none";
-      if (w.depNodes) for (const n of w.depNodes) n.classList?.toggle("sub-off", !shown);
+      // a switch other rows depend on: re-check every chain in its card
+      if (w.depRefresh) w.depRefresh();
     } else if (w.type === "select") {
       const opts = Array.isArray(state.attributes.options) ? state.attributes.options : [];
       const sig = opts.join("|");
@@ -7458,11 +7611,18 @@ class MarstekVenusPanel extends HTMLElement {
     } else if (w.type === "number") {
       const a = state.attributes || {};
       const step = Number(a.step) || w.step || 1;
-      if (a.step != null) w.el.step = a.step;
-      // Floor min to a step boundary so the grid is absolute multiples of step
-      // (matches HA's number slider, e.g. 12,15,20,…); commits clamp to real min.
-      if (a.min != null) w.el.min = this._sliderMin(a.min, step);
-      if (a.max != null) w.el.max = a.max;
+      if (w.range) {
+        const [lo, hi, sliderStep] = w.range;
+        w.el.min = lo;
+        w.el.max = hi;
+        w.el.step = sliderStep;
+      } else {
+        if (a.step != null) w.el.step = a.step;
+        // Floor min to a step boundary so the grid is absolute multiples of step
+        // (matches HA's number slider, e.g. 12,15,20,…); commits clamp to real min.
+        if (a.min != null) w.el.min = this._sliderMin(a.min, step);
+        if (a.max != null) w.el.max = a.max;
+      }
       const unit = a.unit_of_measurement || w.unit || "";
       if (!this._rangePatchLocked(w.el, state, step)) {
         const v = Number(state.state);
@@ -7473,7 +7633,7 @@ class MarstekVenusPanel extends HTMLElement {
         w.val.textContent =
           state.state == null || state.state === "unknown" || state.state === "unavailable"
             ? "—"
-            : this._fmtCtlNum(state.state, step, unit);
+            : this._fmtCtlNum(state.state, this._ctlDisplayStep(state.state, step, w.range), unit);
       }
     }
   }
@@ -8051,6 +8211,7 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-num { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
       .ctl-num input[type="range"] { flex: 1 1 auto; accent-color: var(--accent); cursor: pointer; min-width: 0; }
       .ctl-num .ctl-val { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink); white-space: nowrap; min-width: 56px; text-align: right; }
+      .ctl-k .ctl-type { margin-left: 6px; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
       .ctl-num .ctl-val-edit { cursor: text; text-decoration: underline dotted var(--ink-dim); text-underline-offset: 3px; }
       .ctl-num .ctl-val-input { width: 72px; font-family: var(--font-display); font-size: 13px; color: var(--ink); background: var(--bg-2); border: 1px solid var(--accent-line); border-radius: 6px; padding: 2px 6px; text-align: right; }
       .ctl-btn { grid-column: 1 / -1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%; padding: 8px 12px; border-radius: 11px; border: 1px solid var(--line-strong); background: var(--bg-2); color: var(--ink-mid); font-family: var(--font-ui); font-weight: 600; font-size: 13px; cursor: pointer; --mdc-icon-size: 16px; transition: background 0.15s, color 0.15s; }
@@ -8152,6 +8313,9 @@ class MarstekVenusPanel extends HTMLElement {
          and wrap, so sliders/buttons never overflow the card box at ~1080p */
       .sys-grid { margin-top: 14px; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); }
       .sys-sep { grid-column: 1 / -1; height: 1px; margin: 2px 0; background: var(--line); }
+      /* a group's heading, or its main switch's label: what the group is about */
+      .sys-grp-title { grid-column: 1 / -1; color: var(--ink); font-size: 13px; font-weight: 600; }
+      .sys-grid .ctl-k-lead { color: var(--ink); font-weight: 600; }
       .sys-grid .ctl-k { white-space: normal; overflow-wrap: anywhere; }
       /* Auto-fit can legitimately make a card ~300px wide. At that point a
          label/value pair leaves too little room for a usable range input. Stack

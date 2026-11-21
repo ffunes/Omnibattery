@@ -44,6 +44,8 @@ Elige el comportamiento que coincide con tu objetivo:
 - **Device – Cover Home** permite que la batería continúe cubriendo la demanda doméstica real mientras solo queda excluida la parte de red del dispositivo.
 - **Device – Dynamic Power Control** da a una wallbox flexible tiempo para detectar y reclamar la exportación cambiante antes de que la batería cargue con el resto.
 
+En la tarjeta **Dispositivos excluidos** cada dispositivo tiene su propio bloque, ordenado por nombre y separado por una línea: Enabled, Solar Surplus, Dynamic Power Control, Cover Home, Exclusion %. Una etiqueta muestra el tipo de dispositivo, *excluido* (incluido en el contador principal) o *adicional*. Las opciones aparecen solo donde aplican: todas solo mientras el dispositivo está activado, **Dynamic Power Control** y **Cover Home** solo mientras **Solar Surplus** está activado, y **Exclusion %** solo para dispositivos excluidos.
+
 Un cargador de VE solo con estado pausa la carga y descarga de batería cuando aparece la carga. Tras la pausa, la batería puede cargar con excedente solar, pero permanece bloqueada para descargar hacia el VE hasta que termine la carga.
 
 Si el dispositivo tiene configurada demanda restante prevista, la carga predictiva resta esa demanda del sol disponible para la batería. Una entidad de presencia libera la reserva cuando el VE o dispositivo está ausente. La [página de configuración](../configuration/excluded-devices.md) contiene las unidades aceptadas y las reglas de presencia.

@@ -33,6 +33,7 @@
 - **Real-Time Price plans up to sunrise**: a cheap period in the afternoon or evening now also covers the night, not only the load until midnight.
 - **Dynamic Pricing: the plan is no longer capped by the room in the battery when it is made**: a battery that runs down before the cheap slots has more room when they start. A 60 % battery evaluated at 00:05 booked only its 2.05 kWh of room for 06:00, where 4.6 kWh fit, and a re-evaluation an hour later booked more. Every plan is now sized from what each hour needs and what fits when each slot starts, as it already was with tomorrow's prices published, and only energy worth storing after the round-trip losses is bought; that can include daytime slots for an evening peak. The notification's "Grid charge planned" now shows what the plan books, not the energy balance.
 - **Panel: every setting's tooltip states its default**, in all six languages. Thanks to @anorakophobia
+- **Panel: settings grouped per feature and per device**: the predictive charging card has one group per feature under three headings (Planning, Price-based charge & discharge, Grid sale), clearer labels, whole-cent price sliders, an "Automatic · …" line when a threshold's manual switch is off, and a status row (also on Weekly Full Charge). A feature's settings show only while it is on. The excluded devices card has one block per device in a fixed order. Thanks to @anorakophobia
 
 ### Fixed
 
