@@ -926,6 +926,8 @@ const K = {
   dischargeWindow: "discharge_window",
   predictiveSwitch: "predictive_charging",
   peakSwitch: "capacity_protection",
+  smartPredischargeSwitch: "smart_predischarge",
+  surplusHoldSwitch: "surplus_price_hold",
   hourlyBalanceSwitch: "hourly_balance",
   // diagnostic-category entities of the "Marstek Venus System" device
   predictiveActive: "predictive_charging_active",
@@ -968,6 +970,16 @@ const DIAG_ROWS = [
   { key: K.netBalance, lk: "diagNetBalance" },
   { key: K.pdQuality, lk: "diagPdState" },
 ];
+
+// Status rows whose entity only says "acting now or not" (on/off). Off is also
+// what a switched-off feature reports, so the feature's own switch tells the
+// row which of the two it shows.
+const DIAG_ROW_SWITCH = {
+  [K.predictiveActive]: K.predictiveSwitch,
+  [K.curtailmentActive]: K.smartPredischargeSwitch,
+  [K.surplusHold]: K.surplusHoldSwitch,
+  [K.capacityActive]: K.peakSwitch,
+};
 
 // Cell-imbalance color thresholds (raw delta, mV). Mirror const.py
 // BALANCE_THRESHOLD_YELLOW/ORANGE/RED so the panel tier matches the integration.
@@ -2441,6 +2453,13 @@ class MarstekVenusPanel extends HTMLElement {
     // while its switch is off; the switch tells the row which case it shows.
     const hbSwitch = this._stateFor(byKey, K.hourlyBalanceSwitch);
     const hourlyBalanceOff = hbSwitch != null && hbSwitch.state === "off";
+    // Same for the on/off status rows: a row without a switch entity keeps
+    // showing the entity's own state.
+    const featureOff = {};
+    for (const [rowKey, switchKey] of Object.entries(DIAG_ROW_SWITCH)) {
+      const sw = this._stateFor(byKey, switchKey);
+      featureOff[rowKey] = sw != null && sw.state === "off";
+    }
 
     // exact daily solar/home/grid energy (kWh) from the backend accumulator sensors
     const dailySolar = this._num(this._stateFor(byKey, K.sysDailySolar));
@@ -2497,6 +2516,7 @@ class MarstekVenusPanel extends HTMLElement {
       alarm: alarmObj ? alarmObj.state : null,
       diagStates,
       hourlyBalanceOff,
+      featureOff,
     };
   }
 
@@ -5174,6 +5194,11 @@ class MarstekVenusPanel extends HTMLElement {
       case K.curtailmentActive:
       case K.surplusHold:
       case K.capacityActive:
+        // Switched off, the entity reads "Not running" like an enabled feature
+        // that has nothing to do; show it as disabled like the other rows.
+        if (raw !== "on" && m.featureOff && m.featureOff[key]) {
+          return { text: this._t("disabled"), tone: "neutral" };
+        }
         return { text: disp, tone: raw === "on" ? "good" : "neutral" };
       case K.highPriceDischarge: {
         if (raw === "active") return { text: disp, tone: "good" };
@@ -5182,6 +5207,9 @@ class MarstekVenusPanel extends HTMLElement {
         return { text: disp, tone: "neutral" };
       }
       case K.dischargeWindow: {
+        // No enabled slot governs discharge: the window has no switch of its
+        // own, this is how it is switched off.
+        if (raw === "no_slots") return { text: this._t("disabled"), tone: "neutral" };
         const n = so.attributes && so.attributes.active_slot;
         const txt = raw === "active" && n ? `${disp} · ${this._t("itemSlot")} ${n}` : disp;
         return { text: txt, tone: raw === "active" ? "good" : "neutral" };

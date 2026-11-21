@@ -42,6 +42,7 @@
 
 ### Fixed
 
+- **Summary: status rows of a switched-off feature read "Disabled"**: Predictive charging, Smart pre-discharge, Surplus price hold and Peak shaving reserve showed "Not running" both while the feature was on with nothing to do and while its switch was off; the Discharge window showed "No slots". With the feature off they now read "Disabled", as the Net balance, Weekly charge and Charge delay rows already do. Only the Summary rows change; the entities keep their states.
 - **Weekly Full Charge plans for a battery under the Temperature Charge Limit**: the run was sized at rated charge power, so a battery the limit slowed down could miss its window. The plan now uses the power the limit allows and aims to be full a quarter of the run's time before the window closes (at least half an hour). Thanks to @anorakophobia
 - **Dynamic Pricing re-plans when the battery is above its plan too**: with more stored energy than planned, the plan and the Daily Operation chart kept the old, earlier depletion until the next evaluation. 3 points above the line now re-plan (at most hourly, never during a charge slot).
 - **Relay cooldown no longer loops on a small leftover load** (#909): at the end of a charge the hold raised a 15 W flow to the 100 W minimum, which restarted the cooldown and kept charging from the grid for hours; it now holds at most the power already flowing. Thanks to @jvanschie
