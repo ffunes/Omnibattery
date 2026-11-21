@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Temperature Charge Limit Status**: a new status entity (and a row on the Temperature charge limit card) that is on while a battery is hot enough for its charge power to be throttled, with each battery's allowed power as a percentage of normal, its temperature and the hottest battery. Thanks to @anorakophobia.
 - **15-minute window for the grid import cap** (#506): with the new **Grid Import 15-min Window** switch on (default in Belgium), Maximum grid import limits the mean import of each local quarter, as capacity tariffs bill it, measured from the grid sensor you already have (it must be the billing meter). A short spike passes when the quarter has budget left; a spike the battery could not cover is paid back over the rest of the quarter; near a boundary, after a restart or a meter gap the instantaneous cap applies. Grid charging never goes above the configured value. **Peak Shaving Active** shows `window_valid`, `window_import_kwh` and `window_cap_w`, and one warning is logged per quarter whose budget is spent.
 - **Weekly Full Charge says whether today's sun can reach 100 %** (#876): during the run, its sensor carries `solar_sufficient` with the kWh still needed and the net solar left, re-evaluated when the forecast changes; with Predictive Charging off, a notification warns once when the sun falls short, so an automation can charge from the grid. The new **Weekly Full Charge Grid Boost** blueprint does that by raising PD Target Grid Power until the run ends.
 

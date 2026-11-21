@@ -2467,6 +2467,9 @@
       "surplus_price_hold_status": {
         "name": "Status Preisbremse Solarüberschuss"
       },
+      "temperature_charge_limit_status": {
+        "name": "Status temperaturbasierte Ladebegrenzung"
+      },
       "discharge_reserve_status": {
         "name": "Status Entladereserve"
       },

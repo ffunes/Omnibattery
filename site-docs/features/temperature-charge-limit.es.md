@@ -38,13 +38,13 @@ Por debajo del límite configurado, esta función no cambia el techo de potencia
 
 Con los valores predeterminados, la reducción empieza por encima de 40 °C y alcanza el suelo del 40% a 50 °C. Otros límites de batería activos aún pueden producir un techo inferior.
 
-**Estado de la integración** incluye detalles `temperature_charge_limit` de cada batería: temperatura informada, límite configurado, banda de rampa, suelo, factor de reducción y si la reducción está activa.
+**Estado del límite de carga por temperatura** está activado mientras alguna batería está lo bastante caliente como para reducir su potencia; la tarjeta lo muestra como fila de estado del grupo. Sus atributos indican, por batería, la potencia que puede tomar como porcentaje de la normal (`derate_pct`) y su temperatura, además de la batería más caliente, el límite, la banda y el suelo configurados, y si también se limita la descarga. **Estado de la integración** sigue incluyendo los mismos detalles `temperature_charge_limit`.
 
 ## Si no funciona
 
 | Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| La potencia no se reduce cuando una batería está caliente | La función está desactivada o la temperatura no ha superado el límite configurado | **Límite de carga por temperatura**, **Temperatura interna** y el umbral configurado |
+| La potencia no se reduce cuando una batería está caliente | La función está desactivada o la temperatura no ha superado el límite configurado | **Límite de carga por temperatura**, **Estado del límite de carga por temperatura**, **Temperatura interna** y el umbral configurado |
 | Una batería reduce potencia y otra no | Los límites se calculan a partir de la temperatura propia de cada batería | Los valores de **Temperatura interna** de ambas baterías |
 | Una batería sin lectura de temperatura sigue cargando | Los datos de temperatura ausentes o no válidos dejan sin cambios su límite existente | Disponibilidad de la batería y entidad de temperatura interna |
 | La potencia no baja tanto como sugiere el porcentaje | El controlador declara una potencia operativa mínima fiable | El rango de potencia admitido de la batería y **Estado de la integración** |

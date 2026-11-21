@@ -2464,6 +2464,9 @@
       "surplus_price_hold_status": {
         "name": "Surplus Price Hold Status"
       },
+      "temperature_charge_limit_status": {
+        "name": "Temperature Charge Limit Status"
+      },
       "discharge_reserve_status": {
         "name": "Discharge Reserve Status"
       },

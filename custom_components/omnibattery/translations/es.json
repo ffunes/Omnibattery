@@ -2467,6 +2467,9 @@
       "surplus_price_hold_status": {
         "name": "Estado de retención de excedente por precio"
       },
+      "temperature_charge_limit_status": {
+        "name": "Estado del límite de carga por temperatura"
+      },
       "discharge_reserve_status": {
         "name": "Estado de la reserva de descarga"
       },

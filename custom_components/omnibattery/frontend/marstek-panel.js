@@ -55,7 +55,7 @@ const DAILY_OPERATION_SUNSET_ZERO_INTERVALS = 4;
 // names in translations/*.json so the panel reads consistently with HA.
 const I18N = {
   en: {
-    subtitle: "Control Panel", statusSurplusHold: "Surplus price hold status", statusDischargeReserve: "Discharge reserve status", statusPredischarge: "Smart pre-discharge status", statusPredictive: "Predictive charging status", statusWeekly: "Weekly full charge status", typeExcluded: "excluded", typeAdditional: "additional",
+    subtitle: "Control Panel", statusSurplusHold: "Surplus price hold status", statusDischargeReserve: "Discharge reserve status", statusPredischarge: "Smart pre-discharge status", statusPredictive: "Predictive charging status", statusWeekly: "Weekly full charge status", typeExcluded: "excluded", typeAdditional: "additional", statusTempLimit: "Temperature charge limit status",
     live: "Live",
     evCharger: "EV charger",
     flowToggle: "Switch diagram",
@@ -146,7 +146,7 @@ const I18N = {
     slotStateLabel: "State", slotActiveWord: "active", slotInactiveWord: "inactive",
   },
   es: {
-    subtitle: "Panel de Control", statusSurplusHold: "Estado de retención de excedente por precio", statusDischargeReserve: "Estado de reserva de descarga", statusPredischarge: "Estado de predescarga inteligente", statusPredictive: "Estado de la carga predictiva", statusWeekly: "Estado de la carga semanal completa", typeExcluded: "excluido", typeAdditional: "adicional",
+    subtitle: "Panel de Control", statusSurplusHold: "Estado de retención de excedente por precio", statusDischargeReserve: "Estado de reserva de descarga", statusPredischarge: "Estado de predescarga inteligente", statusPredictive: "Estado de la carga predictiva", statusWeekly: "Estado de la carga semanal completa", typeExcluded: "excluido", typeAdditional: "adicional", statusTempLimit: "Estado del límite de carga por temperatura",
     live: "En vivo",
     evCharger: "Cargador VE",
     flowToggle: "Cambiar diagrama",
@@ -237,7 +237,7 @@ const I18N = {
     slotStateLabel: "Estado", slotActiveWord: "activa", slotInactiveWord: "inactiva",
   },
   ca: {
-    subtitle: "Tauler de control", statusSurplusHold: "Estat de retenció d'excedent per preu", statusDischargeReserve: "Estat de reserva de descàrrega", statusPredischarge: "Estat de predescàrrega intel·ligent", statusPredictive: "Estat de la càrrega predictiva", statusWeekly: "Estat de la càrrega setmanal completa", typeExcluded: "exclòs", typeAdditional: "addicional",
+    subtitle: "Tauler de control", statusSurplusHold: "Estat de retenció d'excedent per preu", statusDischargeReserve: "Estat de reserva de descàrrega", statusPredischarge: "Estat de predescàrrega intel·ligent", statusPredictive: "Estat de la càrrega predictiva", statusWeekly: "Estat de la càrrega setmanal completa", typeExcluded: "exclòs", typeAdditional: "addicional", statusTempLimit: "Estat del límit de càrrega per temperatura",
     ctlLock: "Bloqueja els controls", ctlUnlock: "Desbloqueja els controls",
     live: "En directe",
     evCharger: "Carregador VE",
@@ -324,7 +324,7 @@ const I18N = {
     slotStateLabel: "Estat", slotActiveWord: "activa", slotInactiveWord: "inactiva",
   },
   de: {
-    subtitle: "Bedienfeld", statusSurplusHold: "Status Preisbremse Solarüberschuss", statusDischargeReserve: "Status Entladereserve", statusPredischarge: "Status intelligente Vorentladung", statusPredictive: "Status prädiktives Laden", statusWeekly: "Status wöchentliche Vollladung", typeExcluded: "ausgeschlossen", typeAdditional: "zusätzlich",
+    subtitle: "Bedienfeld", statusSurplusHold: "Status Preisbremse Solarüberschuss", statusDischargeReserve: "Status Entladereserve", statusPredischarge: "Status intelligente Vorentladung", statusPredictive: "Status prädiktives Laden", statusWeekly: "Status wöchentliche Vollladung", typeExcluded: "ausgeschlossen", typeAdditional: "zusätzlich", statusTempLimit: "Status temperaturbasierte Ladebegrenzung",
     ctlLock: "Steuerelemente sperren", ctlUnlock: "Steuerelemente entsperren",
     live: "Live",
     evCharger: "E-Auto-Lader",
@@ -411,7 +411,7 @@ const I18N = {
     slotStateLabel: "Status", slotActiveWord: "aktiv", slotInactiveWord: "inaktiv",
   },
   fr: {
-    subtitle: "Panneau de contrôle", statusSurplusHold: "État de la retenue de surplus", statusDischargeReserve: "État de la réserve de décharge", statusPredischarge: "État de la pré-décharge intelligente", statusPredictive: "État de la charge prédictive", statusWeekly: "État de la charge complète hebdomadaire", typeExcluded: "exclu", typeAdditional: "supplémentaire",
+    subtitle: "Panneau de contrôle", statusSurplusHold: "État de la retenue de surplus", statusDischargeReserve: "État de la réserve de décharge", statusPredischarge: "État de la pré-décharge intelligente", statusPredictive: "État de la charge prédictive", statusWeekly: "État de la charge complète hebdomadaire", typeExcluded: "exclu", typeAdditional: "supplémentaire", statusTempLimit: "État de la limite de charge par température",
     ctlLock: "Verrouiller les commandes", ctlUnlock: "Déverrouiller les commandes",
     live: "En direct",
     evCharger: "Chargeur VE",
@@ -498,7 +498,7 @@ const I18N = {
     slotStateLabel: "État", slotActiveWord: "actif", slotInactiveWord: "inactif",
   },
   nl: {
-    subtitle: "Bedieningspaneel", statusSurplusHold: "Status prijsrem zonne-overschot", statusDischargeReserve: "Status ontlaadreserve", statusPredischarge: "Status slim voorontladen", statusPredictive: "Status voorspellend laden", statusWeekly: "Status wekelijkse volledige lading", typeExcluded: "uitgesloten", typeAdditional: "extra",
+    subtitle: "Bedieningspaneel", statusSurplusHold: "Status prijsrem zonne-overschot", statusDischargeReserve: "Status ontlaadreserve", statusPredischarge: "Status slim voorontladen", statusPredictive: "Status voorspellend laden", statusWeekly: "Status wekelijkse volledige lading", typeExcluded: "uitgesloten", typeAdditional: "extra", statusTempLimit: "Status temperatuurbegrenzing laden",
     ctlLock: "Bediening vergrendelen", ctlUnlock: "Bediening ontgrendelen",
     live: "Live",
     evCharger: "EV-lader",
@@ -1270,6 +1270,7 @@ const SYS_SECTIONS = [
       { key: "temp_charge_limit_band_c", lk: "itemTempLimitBand", icon: "mdi:thermometer-lines" },
       { key: "temp_charge_limit_floor_pct", lk: "itemTempLimitFloor", icon: "mdi:battery-charging-low" },
       { key: "temp_charge_limit_discharge", domain: "switch", lk: "itemTempApplyDischarge", icon: "mdi:battery-arrow-down" },
+      { key: "temperature_charge_limit_status", domain: "binary_sensor", lk: "statusTempLimit", icon: "mdi:thermometer-alert" },
     ],
   },
 ];
@@ -1400,6 +1401,7 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperature range above the limit over which charge power ramps down to the minimum. Default: 10 °C.",
     temp_charge_limit_floor_pct: "Charge power at the limit plus the band, as a percentage of the normal charge ceiling. 0% stops charging entirely when very hot. Default: 40 %.",
     temp_charge_limit_discharge: "Apply the same temperature derate to discharge power. Discharge tolerates heat better, so this shares the charge threshold as a compromise; mainly it keeps discharge under the BMS hard cutoff. Default: off.",
+    temperature_charge_limit_status: "On while a battery is hot enough for its charge power to be throttled. Attributes show per battery the power it may take as a percentage of normal, its temperature, plus the hottest battery and the limit and band.",
     max_price_threshold_enabled: "On: grid charging uses the charge price ceiling below. Off (automatic): no fixed ceiling; the cheapest slots are picked (still subject to the arbitrage margin, if set). The value is kept. Default: off (automatic).",
     discharge_price_threshold_enabled: "On: Discharge only above price uses the floor below. Off (automatic): it falls back to the charge price ceiling, else today's average price. The value is kept. Default: off (automatic).",
     max_price_threshold: "Charge ceiling for dynamic pricing: the battery only grid-charges when the price is at or below this. Only applies while its manual switch is on; turning that on without a value starts from today's average price. Must stay ≤ the discharge price floor. Default: not set (automatic).",
@@ -1496,6 +1498,7 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Rango de temperatura por encima del límite a lo largo del cual la potencia de carga baja hasta el mínimo. Por defecto: 10 °C.",
     temp_charge_limit_floor_pct: "Potencia de carga en el límite más la banda, como porcentaje del techo de carga normal. 0 % detiene la carga por completo cuando hace mucho calor. Por defecto: 40 %.",
     temp_charge_limit_discharge: "Aplica la misma reducción por temperatura a la potencia de descarga. La descarga tolera mejor el calor, así que comparte el umbral de carga como compromiso; sobre todo mantiene la descarga por debajo del corte duro del BMS. Por defecto: desactivado.",
+    temperature_charge_limit_status: "Activo mientras una batería está lo bastante caliente como para reducir su potencia de carga. Los atributos muestran por batería la potencia que puede tomar como porcentaje de la normal y su temperatura, además de la batería más caliente, el límite y la banda.",
     max_price_threshold_enabled: "Activado: la carga de red usa el techo de precio de carga de abajo. Desactivado (automático): sin techo fijo; se eligen las horas más baratas (con el margen de arbitraje, si está fijado). El valor se conserva. Por defecto: desactivado (automático).",
     discharge_price_threshold_enabled: "Activado: Descargar solo si precio alto usa el suelo de abajo. Desactivado (automático): usa el techo de precio de carga o, si no hay, el precio medio de hoy. El valor se conserva. Por defecto: desactivado (automático).",
     max_price_threshold: "Techo de carga para precios dinámicos: la batería solo carga de red cuando el precio está en o por debajo de este valor. Solo se aplica con su interruptor manual activado; al activarlo sin valor parte del precio medio de hoy. Debe mantenerse ≤ el suelo de precio de descarga. Por defecto: sin definir (automático).",
@@ -1592,6 +1595,7 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Rang de temperatura per sobre del límit al llarg del qual la potència de càrrega baixa fins al mínim. Per defecte: 10 °C.",
     temp_charge_limit_floor_pct: "Potència de càrrega al límit més la banda, com a percentatge del sostre de càrrega normal. 0 % atura la càrrega del tot quan fa molta calor. Per defecte: 40 %.",
     temp_charge_limit_discharge: "Aplica la mateixa reducció per temperatura a la potència de descàrrega. La descàrrega tolera millor la calor, així que comparteix el llindar de càrrega com a compromís; sobretot manté la descàrrega per sota del tall dur del BMS. Per defecte: desactivat.",
+    temperature_charge_limit_status: "Actiu mentre una bateria és prou calenta perquè es redueixi la seva potència de càrrega. Els atributs mostren per bateria la potència que pot prendre com a percentatge de la normal i la seva temperatura, a més de la bateria més calenta, el límit i la banda.",
     max_price_threshold_enabled: "Activat: la càrrega de xarxa fa servir el sostre de preu de càrrega de sota. Desactivat (automàtic): sense sostre fix; es trien les hores més barates (amb el marge d'arbitratge, si està fixat). El valor es conserva. Per defecte: desactivat (automàtic).",
     discharge_price_threshold_enabled: "Activat: Descarregar només si preu alt fa servir el terra de sota. Desactivat (automàtic): fa servir el sostre de preu de càrrega o, si no n'hi ha, el preu mitjà d'avui. El valor es conserva. Per defecte: desactivat (automàtic).",
     max_price_threshold: "Sostre de càrrega per a preus dinàmics: la bateria només carrega de xarxa quan el preu està en o per sota d'aquest valor. Només s'aplica amb el seu interruptor manual activat; en activar-lo sense valor parteix del preu mitjà d'avui. S'ha de mantenir ≤ el terra de preu de descàrrega. Per defecte: sense definir (automàtic).",
@@ -1688,6 +1692,7 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperaturbereich oberhalb der Grenze, über den die Ladeleistung bis zum Minimum absinkt. Standard: 10 °C.",
     temp_charge_limit_floor_pct: "Ladeleistung an der Grenze plus Bereich, als Prozentsatz der normalen Ladeobergrenze. 0 % stoppt die Ladung bei großer Hitze vollständig. Standard: 40 %.",
     temp_charge_limit_discharge: "Wendet dieselbe temperaturabhängige Drosselung auf die Entladeleistung an. Die Entladung verträgt Hitze besser, daher teilt sie sich als Kompromiss die Ladeschwelle; vor allem hält sie die Entladung unter der harten BMS-Abschaltung. Standard: aus.",
+    temperature_charge_limit_status: "Ein, solange eine Batterie so warm ist, dass ihre Ladeleistung gedrosselt wird. Die Attribute zeigen je Batterie die erlaubte Leistung in Prozent der normalen und ihre Temperatur, dazu die wärmste Batterie, die Grenze und den Bereich.",
     max_price_threshold_enabled: "Ein: die Netzladung nutzt die Lade-Preisobergrenze darunter. Aus (automatisch): keine feste Obergrenze; die günstigsten Stunden werden gewählt (mit Arbitragemarge, falls gesetzt). Der Wert bleibt erhalten. Standard: aus (automatisch).",
     discharge_price_threshold_enabled: "Ein: Nur über Preis entladen nutzt die Untergrenze darunter. Aus (automatisch): es gilt die Lade-Preisobergrenze, sonst der heutige Durchschnittspreis. Der Wert bleibt erhalten. Standard: aus (automatisch).",
     max_price_threshold: "Lade-Obergrenze für dynamische Preise: die Batterie lädt nur aus dem Netz, wenn der Preis auf oder unter diesem Wert liegt. Gilt nur, solange der manuelle Schalter an ist; wird er ohne Wert eingeschaltet, startet er beim heutigen Durchschnittspreis. Muss ≤ der Entlade-Preisuntergrenze bleiben. Standard: nicht gesetzt (automatisch).",
@@ -1784,6 +1789,7 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Plage de température au-dessus de la limite sur laquelle la puissance de charge diminue jusqu'au minimum. Par défaut : 10 °C.",
     temp_charge_limit_floor_pct: "Puissance de charge à la limite plus la plage, en pourcentage du plafond de charge normal. 0 % arrête complètement la charge en cas de forte chaleur. Par défaut : 40 %.",
     temp_charge_limit_discharge: "Applique la même réduction liée à la température à la puissance de décharge. La décharge tolère mieux la chaleur, elle partage donc le seuil de charge par compromis ; surtout, elle maintient la décharge sous la coupure dure du BMS. Par défaut : désactivé.",
+    temperature_charge_limit_status: "Actif tant qu'une batterie est assez chaude pour que sa puissance de charge soit réduite. Les attributs indiquent par batterie la puissance qu'elle peut prendre en pourcentage de la normale et sa température, ainsi que la batterie la plus chaude, la limite et la bande.",
     max_price_threshold_enabled: "Activé : la charge réseau utilise le plafond de prix de charge ci-dessous. Désactivé (automatique) : pas de plafond fixe ; les heures les moins chères sont choisies (avec la marge d'arbitrage, si définie). La valeur est conservée. Par défaut : désactivé (automatique).",
     discharge_price_threshold_enabled: "Activé : Décharger si prix élevé utilise le plancher ci-dessous. Désactivé (automatique) : utilise le plafond de prix de charge, sinon le prix moyen du jour. La valeur est conservée. Par défaut : désactivé (automatique).",
     max_price_threshold: "Plafond de charge pour la tarification dynamique : la batterie ne charge depuis le réseau que si le prix est à ce niveau ou en dessous. S'applique uniquement si son interrupteur manuel est activé ; l'activer sans valeur part du prix moyen du jour. Doit rester ≤ au plancher de prix de décharge. Par défaut : non défini (automatique).",
@@ -1880,6 +1886,7 @@ const SYS_HELP = {
     temp_charge_limit_band_c: "Temperatuurbereik boven de limiet waarover het laadvermogen tot het minimum afbouwt. Standaard: 10 °C.",
     temp_charge_limit_floor_pct: "Laadvermogen op de limiet plus de band, als percentage van het normale laadplafond. 0 % stopt het laden volledig bij grote hitte. Standaard: 40 %.",
     temp_charge_limit_discharge: "Past dezelfde temperatuurterugregeling toe op het ontlaadvermogen. Ontladen verdraagt warmte beter, dus deelt het als compromis de laaddrempel; vooral houdt het het ontladen onder de harde BMS-uitschakeling. Standaard: uit.",
+    temperature_charge_limit_status: "Aan zolang een batterij zo warm is dat haar laadvermogen wordt beperkt. De attributen tonen per batterij het toegestane vermogen als percentage van normaal en de temperatuur, plus de warmste batterij, de grens en de band.",
     max_price_threshold_enabled: "Aan: het laden van het net gebruikt het laadprijsplafond hieronder. Uit (automatisch): geen vast plafond; de goedkoopste uren worden gekozen (met de arbitragemarge, indien ingesteld). De waarde blijft bewaard. Standaard: uit (automatisch).",
     discharge_price_threshold_enabled: "Aan: Alleen ontladen bij hoge prijs gebruikt de ondergrens hieronder. Uit (automatisch): gebruikt het laadprijsplafond, anders de gemiddelde prijs van vandaag. De waarde blijft bewaard. Standaard: uit (automatisch).",
     max_price_threshold: "Laadplafond voor dynamische prijzen: de batterij laadt alleen van het net wanneer de prijs op of onder deze waarde ligt. Geldt alleen zolang de handmatige schakelaar aan staat; inschakelen zonder waarde begint bij de gemiddelde prijs van vandaag. Moet ≤ de ontlaadprijsondergrens blijven. Standaard: niet ingesteld (automatisch).",
