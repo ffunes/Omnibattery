@@ -47,7 +47,7 @@ def _ctrl(coords, *, weekly, solar="5.0", consumption=2.0):
         predictive_charging_overridden=False,
         coordinators=list(coords),
         _weekly_charge_mgr=SimpleNamespace(is_active=lambda: weekly),
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         _predictive_min_soc_floor=0.0,
         _predictive_min_soc_floor_enabled=False,
         _daily_consumption_history=[],

@@ -52,7 +52,6 @@ FINGERPRINT = {
 }
 
 LIVE = {
-    "_predictive_safety_margin_stored",  # transitional, removed in this branch
     "_charge_delay_balance_deadband_kwh",
     "_delay_safety_margin_h",
     "_delay_soc_setpoint",

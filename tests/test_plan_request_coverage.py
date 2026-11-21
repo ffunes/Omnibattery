@@ -79,7 +79,7 @@ def _manager(*, periods=None, soc=30.0, sunrise=7.0, **controller):
         ],
         _is_battery_manual_owned=lambda _c: False,
         solar_profile_mode="active",
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         max_contracted_power=3000,
         max_charge_capacity=3000,
         max_price_threshold=None,

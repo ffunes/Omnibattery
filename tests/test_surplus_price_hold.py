@@ -97,7 +97,7 @@ def _controller(**overrides):
         _manual_slot_owned=None,
         manual_mode_enabled=False,
         coordinators=[],
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         max_charge_capacity=2500.0,
         _solar_t_start=6.0,
         _consumption_tracker=SimpleNamespace(
@@ -598,3 +598,36 @@ def test_the_daylight_share_is_zero_after_the_deadline():
     manager = _manager()
 
     assert manager._daylight_share(10.0, NOW, NOW - timedelta(hours=1)) == 0.0
+
+
+@pytest.mark.parametrize(
+    "decision, margin_kwh",
+    [
+        ({"remaining_consumption_kwh": 4.0, "remaining_solar_kwh": 12.0}, 1.2),
+        # No sun forecast, no margin.
+        ({"remaining_consumption_kwh": 4.0}, 0.0),
+    ],
+    ids=["ten_percent_of_todays_sun", "no_sun"],
+)
+async def test_the_margin_is_a_share_of_todays_sun_in_both_targets(decision, margin_kwh):
+    """10 % of the 12 kWh still to come: 4 kWh of load + 1.2 margin − 3 kWh
+    stored above the floor. The live target keeps the margin the plan used."""
+    slots = [_slot(10, 0.28), _slot(12, 0.12)]
+    snapshot = BatterySnapshot("battery-1", 50.0, 10.0, 100.0, 20.0, 2500.0, True)
+
+    async def _decision(**_kwargs):
+        return dict(decision)
+
+    pricing = _pricing(
+        get_future_export_price_slots=lambda horizon_end=None: slots,
+        _evaluate_remaining_grid_charging=_decision,
+        _curtailment_battery_snapshots=lambda: [snapshot],
+        _curtailment_forecast_model=lambda now: (12.0, None, None),
+    )
+    controller = _controller(_pricing_mgr=pricing, _predictive_safety_margin_pct=10.0)
+    manager = _manager(controller)
+
+    await manager.async_rebuild_plan("test", force=True)
+    assert manager.plan.target_kwh == pytest.approx(1.0 + margin_kwh)
+    manager._refresh_live_target()
+    assert manager._live_target_kwh == pytest.approx(1.0 + margin_kwh)

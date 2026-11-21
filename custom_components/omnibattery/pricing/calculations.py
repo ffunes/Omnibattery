@@ -1202,14 +1202,14 @@ def select_cheapest_slots_by_duration(
     return sorted(selected, key=lambda item: item.start)
 
 
-def solar_safety_margin_kwh(controller, solar_kwh) -> float:
-    """The safety margin in kWh: the user's % of ``solar_kwh``.
+def solar_safety_margin_kwh(pct, solar_kwh) -> float:
+    """The safety margin in kWh: ``pct`` % of ``solar_kwh``.
 
     ``solar_kwh`` is the forecast sun the caller plans against. No usable sun
-    (None, not finite, <= 0) means no margin.
+    (None, not finite, <= 0) or no usable % means no margin.
     """
     try:
-        pct = float(getattr(controller, "_predictive_safety_margin_pct", 0.0) or 0.0)
+        pct = float(pct or 0.0)
         sun = float(solar_kwh)
     except (TypeError, ValueError):
         return 0.0

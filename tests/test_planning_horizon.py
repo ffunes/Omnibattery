@@ -97,7 +97,7 @@ def _manager(solar_periods=None, soc=30.0):
         coordinators=[coordinator],
         _is_battery_manual_owned=lambda _c: False,
         solar_profile_mode="active",
-        _predictive_safety_margin_kwh=0.0,
+        _predictive_safety_margin_pct=0.0,
         max_contracted_power=3000,
         max_charge_capacity=3000,
         max_price_threshold=None,
@@ -344,54 +344,7 @@ def test_balance_credits_tomorrows_sun_only_on_an_extended_horizon():
     assert seen == [pytest.approx(1.0), pytest.approx(9.0)]
 
 
-def test_balance_takes_the_safety_margin_off_each_days_sun():
-    """2026-11-17: 4 kWh came off today's 5.48 and tomorrow's 9.14 kWh once,
-    so today kept 73 % of its sun instead of 27 %. The margin is per day."""
-    import asyncio
-
-    from tests.test_excluded_demand_claim import _ctrl, _run
-
-    manager = _manager(_solar(8.0))
-    seen = []
-
-    async def _decision(**kwargs):
-        seen.append(kwargs.get("solar_days_kwh"))
-        return {"should_charge": False}
-
-    async def _average():
-        return 12.0
-
-    controller = manager._controller
-    controller._should_activate_grid_charging = _decision
-    controller._consumption_tracker.get_dynamic_base_consumption = _average
-    controller._daily_home_energy_date = None
-    controller._daily_home_energy_kwh = 0.0
-    controller._household_accumulator_date = None
-    manager._remaining_solar_today_kwh = lambda _now: 1.0
-
-    asyncio.run(manager._evaluate_remaining_grid_charging(now=NOW))
-    asyncio.run(manager._evaluate_remaining_grid_charging(now=NOW, horizon_end=CAP))
-    assert seen == [None, (pytest.approx(1.0), pytest.approx(8.0))]
-
-    both = _run(
-        _ctrl(safety_margin=4.0, capacity=20.0),
-        consumption_override_kwh=20.0,
-        solar_forecast_override_kwh=14.62,
-        solar_days_kwh=(5.48, 9.14),
-    )
-    assert both["solar_safety_margin_kwh"] == pytest.approx(8.0)
-    assert both["solar_remaining_effective_kwh"] == pytest.approx(6.62)
-    # A day with less sun than the margin gives up only its own sun.
-    short = _run(
-        _ctrl(safety_margin=4.0, capacity=20.0),
-        consumption_override_kwh=20.0,
-        solar_forecast_override_kwh=10.0,
-        solar_days_kwh=(2.0, 8.0),
-    )
-    assert short["solar_remaining_effective_kwh"] == pytest.approx(4.0)
-
-
-def test_plan_timeline_takes_the_safety_margin_off_each_days_sun():
+def _two_day_timeline(pct):
     from custom_components.omnibattery.pricing.plan_inputs import solar_timeline
     from custom_components.omnibattery.pricing.solar_timeline import build_boundaries
 
@@ -413,7 +366,7 @@ def test_plan_timeline_takes_the_safety_margin_off_each_days_sun():
         solar_start=None,
         solar_end=None,
         mode="active",
-        safety_margin_kwh=4.0,
+        safety_margin_pct=pct,
         extended_timezone=UTC,
         excluded_claim_kwh=0.0,
         today_end=MIDNIGHT,
@@ -425,15 +378,59 @@ def test_plan_timeline_takes_the_safety_margin_off_each_days_sun():
             if (start >= MIDNIGHT) == after
         )
 
-    assert energy(False) == pytest.approx(0.0, abs=1e-9)
-    assert energy(True) == pytest.approx(4.0)
-    assert result.timeline.safety_margin_kwh == pytest.approx(6.0)
+    return result, energy
+
+
+def test_plan_timeline_takes_the_margin_share_off_each_days_sun():
+    """2 kWh today and 8 tomorrow at 25 %: each day keeps 75 % of its own sun.
+    (A flat 4 kWh used to leave today with nothing.)"""
+    result, energy = _two_day_timeline(25.0)
+
+    assert energy(False) == pytest.approx(1.5)
+    assert energy(True) == pytest.approx(6.0)
+    assert result.timeline.safety_margin_kwh == pytest.approx(2.5)
     assert result.timeline.energy_error_kwh == pytest.approx(0.0, abs=1e-9)
 
 
-def test_sun_on_one_day_keeps_the_one_day_margin():
-    """The control horizon runs to the next sunrise: crossing midnight with
-    today's sun only must give exactly the timeline it gave before."""
+def test_balance_margin_is_the_sum_of_the_timeline_cut():
+    """The scalar balance and the plan's timeline give up the same sun."""
+    from tests.test_excluded_demand_claim import _ctrl, _run
+
+    result, energy = _two_day_timeline(25.0)
+    balance = _run(
+        _ctrl(safety_margin=25.0, capacity=20.0),
+        consumption_override_kwh=20.0,
+        solar_forecast_override_kwh=10.0,
+    )
+    assert balance["solar_safety_margin_kwh"] == pytest.approx(2.5)
+    assert balance["solar_remaining_effective_kwh"] == pytest.approx(
+        energy(False) + energy(True)
+    )
+
+
+def test_partial_day_keeps_its_share_of_the_sun():
+    """3.2 kWh left this morning: a 6 kWh margin counted none of it; 10 % of
+    the sun keeps 2.88 kWh."""
+    from tests.test_excluded_demand_claim import _ctrl, _run
+
+    result = _run(
+        _ctrl(safety_margin=10.0, capacity=20.0),
+        consumption_override_kwh=20.0,
+        solar_forecast_override_kwh=3.2,
+    )
+    assert result["solar_safety_margin_kwh"] == pytest.approx(0.32)
+    assert result["solar_remaining_effective_kwh"] == pytest.approx(2.88)
+
+
+def test_no_sun_forecast_means_no_margin_in_the_balance():
+    from tests.test_excluded_demand_claim import _ctrl, _run
+
+    result = _run(_ctrl(solar=None, safety_margin=10.0))
+    assert result["solar_forecast_kwh"] is None
+    assert result["solar_safety_margin_kwh"] == 0.0
+
+
+def test_zero_percent_is_the_timeline_without_margin():
     from custom_components.omnibattery.pricing.plan_inputs import solar_timeline
     from custom_components.omnibattery.pricing.solar_timeline import (
         build_boundaries,
@@ -447,14 +444,14 @@ def test_sun_on_one_day_keeps_the_one_day_margin():
     boundaries = build_boundaries(now, end)
     solar = SolarForecastInput(3.0, "remaining_sensor", temporal_shape=shape)
     kwargs = dict(solar_start=None, solar_end=None, mode="active")
-    for margin in (2.0, 5.0):
+    for pct, margin_kwh in ((0.0, 0.0), (20.0, 0.2 * 3.0)):
         result = solar_timeline(
-            boundaries, solar, None, safety_margin_kwh=margin,
+            boundaries, solar, None, safety_margin_pct=pct,
             extended_timezone=None, excluded_claim_kwh=0.0, today_end=MIDNIGHT,
             **kwargs,
         )
         before = build_solar_timeline(
-            boundaries, 3.0, safety_margin_kwh=margin, temporal_shape=shape, **kwargs
+            boundaries, 3.0, safety_margin_kwh=margin_kwh, temporal_shape=shape, **kwargs
         )
         assert result.timeline == before
 

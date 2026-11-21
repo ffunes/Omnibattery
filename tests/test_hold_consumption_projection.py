@@ -54,7 +54,7 @@ def _scenario(now: datetime, night_kw: float, *, soc: float, remaining: float,
         base, now=now, sunrise_h=6.0, solar_noon_h=13.75, slots=slots,
         bins_kwh=_profile(night_kw), solar_periods=periods, solar_remaining_kwh=remaining,
         fleet=({**base.fleet[0], "soc": soc},),
-        settings={**base.settings, "safety_margin_kwh": 1.0},
+        settings={**base.settings, "safety_margin_pct": 5.0},
     )
 
 

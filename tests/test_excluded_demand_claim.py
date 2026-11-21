@@ -50,7 +50,7 @@ def _ctrl(*, claim=None, solar="20.0", consumption=8.0, soc=50.0,
         predictive_charging_enabled=True,
         predictive_charging_overridden=False,
         coordinators=[_Coord(soc, capacity)],
-        _predictive_safety_margin_kwh=safety_margin,
+        _predictive_safety_margin_pct=safety_margin,
         _predictive_min_soc_floor=floor,
         _predictive_min_soc_floor_enabled=floor > 0,
         _daily_consumption_history=[],
@@ -118,7 +118,7 @@ def test_claim_is_capped_at_the_available_solar():
 
 
 def test_claim_applies_after_the_safety_margin():
-    result = _run(_ctrl(claim=5.0, safety_margin=2.0))
+    result = _run(_ctrl(claim=5.0, safety_margin=10.0))  # 10 % of 20 kWh
 
     assert result["solar_remaining_effective_kwh"] == pytest.approx(18.0)
     assert result["excluded_demand_claim_kwh"] == pytest.approx(5.0)

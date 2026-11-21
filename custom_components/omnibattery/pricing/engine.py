@@ -2866,8 +2866,9 @@ class PricingManager:
                 predischarge_reserve_soc=float(
                     getattr(self._controller, "predischarge_reserve_soc", 0.0)
                 ),
-                headroom_margin_kwh=float(
-                    getattr(self._controller, "_predictive_safety_margin_kwh", 0.0)
+                headroom_margin_pct=float(
+                    getattr(self._controller, "_predictive_safety_margin_pct", 0.0)
+                    or 0.0
                 ),
                 charge_power_w=float(getattr(self._controller, "max_charge_capacity", 0.0) or 0.0),
                 max_export_power_w=export_limit_w,
@@ -4040,7 +4041,7 @@ class PricingManager:
             safety = max(
                 0.0,
                 float(
-                    getattr(self._controller, "_predictive_safety_margin_kwh", 0.0)
+                    getattr(self._controller, "_predictive_safety_margin_pct", 0.0)
                     or 0.0
                 ),
             )
@@ -4100,7 +4101,7 @@ class PricingManager:
                 solar_start=solar_start_dt,
                 solar_end=solar_end_dt,
                 mode=solar_profile_mode,
-                safety_margin_kwh=safety,
+                safety_margin_pct=safety,
                 extended_timezone=(
                     solar_forecast_local_timezone(self._hass, self._controller, now)
                     if is_extended and solar_input.periods
@@ -4201,7 +4202,7 @@ class PricingManager:
                 0.0,
                 float(
                     getattr(
-                        self._controller, "_predictive_safety_margin_kwh", 0.0
+                        self._controller, "_predictive_safety_margin_pct", 0.0
                     )
                     or 0.0
                 ),
@@ -4230,7 +4231,7 @@ class PricingManager:
                 boundaries,
                 solar_input,
                 learned_snapshot,
-                safety_margin_kwh=safety,
+                safety_margin_pct=safety,
                 **solar_kwargs,
             )
             timeline = solar_result.timeline
@@ -4350,7 +4351,7 @@ class PricingManager:
                     boundaries,
                     solar_input,
                     learned_snapshot,
-                    safety_margin_kwh=0.0,
+                    safety_margin_pct=0.0,
                     **solar_kwargs,
                 )
                 shown_solar = shown_result.intervals_kwh
@@ -7151,14 +7152,6 @@ class PricingManager:
         decision = await controller._should_activate_grid_charging(
             consumption_override_kwh=remaining_consumption_kwh,
             solar_forecast_override_kwh=balance_solar_kwh,
-            # Today's sun and tomorrow's each give up the margin (per day).
-            **(
-                {"solar_days_kwh": (
-                    remaining_solar_kwh, balance_solar_kwh - remaining_solar_kwh
-                )}
-                if planning_extended
-                else {}
-            ),
         )
         # Keep explicit diagnostics for the pre-slot notification and future
         # consumers while preserving the legacy avg_consumption_kwh field.

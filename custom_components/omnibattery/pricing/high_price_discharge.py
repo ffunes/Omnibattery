@@ -20,8 +20,9 @@ Two invariants hold everywhere in this module:
    fixed duration - it fails safe with zero allocations.
 2. **Protected demand is never sold without a later buy-back.** Trigger 2
    links each kWh to a specific later deficit (``DemandLink``); trigger 1
-   sells only energy beyond that demand and the safety margin, and requires
-   a proven solar refill.
+   sells only energy beyond that demand, and requires a proven solar refill.
+   The solar safety margin is already off the slots' solar, which raises
+   that demand where the sun does not cover the load.
 """
 from __future__ import annotations
 
@@ -354,7 +355,6 @@ def plan_high_price_discharge(
     additional_cost_per_kwh: float = 0.0,
     max_export_power_w: float | None = None,
     discharge_efficiency: float = 1.0,
-    safety_margin_kwh: float = 0.0,
     fill_slots: Sequence[HorizonSlot] = (),
     chronological_coverage: bool = True,
 ) -> HighPriceDischargePlan:
@@ -395,14 +395,6 @@ def plan_high_price_discharge(
             horizon_end=horizon_end,
         )
     additional_cost = float(additional_cost_per_kwh)
-    if not _finite(safety_margin_kwh) or float(safety_margin_kwh) < 0:
-        return HighPriceDischargePlan(
-            status=STATUS_FAIL_SAFE,
-            reason=REASON_INVALID_CONFIGURATION,
-            evaluation_time=now,
-            horizon_end=horizon_end,
-        )
-    margin = float(safety_margin_kwh)
 
     # ``None`` means "no limit" and is valid; anything else must be a finite,
     # non-negative watt figure (zero legitimately forbids export).
@@ -481,7 +473,7 @@ def plan_high_price_discharge(
     refill_price: float | None = None
     trigger_1_reason = REASON_DISABLED
     if trigger_1_enabled:
-        budget = max(0.0, usable_energy_kwh - protected_demand_kwh - margin)
+        budget = max(0.0, usable_energy_kwh - protected_demand_kwh)
         if budget <= EPSILON:
             trigger_1_reason = REASON_NO_SURPLUS
         else:

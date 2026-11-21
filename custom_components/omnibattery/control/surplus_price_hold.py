@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..infra.clock import local_now
 from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
+from ..pricing.calculations import solar_safety_margin_kwh
 from ..pricing.curtailment import distribute_solar_forecast, estimate_consumption_by_slot
 from ..pricing.plan_inputs import energy_over
 from ..pricing.surplus_absorption import (
@@ -85,6 +86,7 @@ class SurplusPriceHoldManager:
         self._live_target_kwh: float | None = None
         self._live_target_failed = False
         self._planned_remaining_consumption_kwh: float | None = None
+        self._planned_margin_kwh = 0.0
         self._status: dict[str, Any] = {
             "state": STATUS_DISABLED,
             "reason": STATUS_DISABLED,
@@ -134,6 +136,7 @@ class SurplusPriceHoldManager:
         self._live_target_kwh = None
         self._live_target_failed = False
         self._planned_remaining_consumption_kwh = None
+        self._planned_margin_kwh = 0.0
 
     def clear(self, reason: str = "cleanup") -> None:
         """Drop the cached plan and release the blocker."""
@@ -239,6 +242,12 @@ class SurplusPriceHoldManager:
 
         snapshots = pricing._curtailment_battery_snapshots()
         surplus_by_slot = self._surplus_by_slot(pricing, slots, decision, now, deadline)
+        # The margin is a share of today's remaining sun (not the decision's
+        # own margin, which also covers tomorrow on an extended horizon).
+        margin_kwh = solar_safety_margin_kwh(
+            getattr(controller, "_predictive_safety_margin_pct", 0.0),
+            decision.get("remaining_solar_kwh"),
+        )
 
         try:
             plan = plan_surplus_absorption(
@@ -251,9 +260,7 @@ class SurplusPriceHoldManager:
                 # target counts eligible batteries against their floors. Two
                 # definitions would make the live target unreachable.
                 usable_energy_kwh=calculate_usable_energy_kwh(snapshots),
-                safety_margin_kwh=float(
-                    getattr(controller, "_predictive_safety_margin_kwh", 0.0) or 0.0
-                ),
+                safety_margin_kwh=margin_kwh,
                 max_charge_power_w=float(
                     getattr(controller, "max_charge_capacity", 0.0) or 0.0
                 ),
@@ -276,6 +283,7 @@ class SurplusPriceHoldManager:
         self._planned_remaining_consumption_kwh = decision.get(
             "remaining_consumption_kwh"
         )
+        self._planned_margin_kwh = margin_kwh
         _LOGGER.debug(
             "Surplus price hold: rebuilt (%s) status=%s target=%.2f kWh slots=%d/%d",
             reason, plan.status, plan.target_kwh,
@@ -321,7 +329,7 @@ class SurplusPriceHoldManager:
             self._planned_remaining_consumption_kwh,
             calculate_usable_energy_kwh(snapshots),
             calculate_free_space_kwh(snapshots),
-            float(getattr(self._controller, "_predictive_safety_margin_kwh", 0.0) or 0.0),
+            self._planned_margin_kwh,
         )
         if self._live_target_kwh is None:
             self._live_target_failed = True

@@ -193,8 +193,6 @@ from .const import (
     PRICE_INTEGRATION_EPEX,
     PRICE_INTEGRATION_ENTSOE,
     CONF_METER_INVERTED,
-    CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
-    default_predictive_safety_margin_kwh,
     CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
@@ -1314,10 +1312,6 @@ class ChargeDischargeController:
         self._delay_soc_setpoint = config_entry.data.get(CONF_DELAY_SOC_SETPOINT, DEFAULT_DELAY_SOC_SETPOINT)
         self._weekly_full_charge_skip_delay = config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
-        )
-        # None until the user sets one: the default then follows the fleet.
-        self._predictive_safety_margin_stored: float | None = config_entry.data.get(
-            CONF_PREDICTIVE_SAFETY_MARGIN_KWH
         )
         # Share of the forecast sun each planner gives up (see
         # pricing.calculations.solar_safety_margin_kwh).
@@ -3428,9 +3422,6 @@ class ChargeDischargeController:
         self._weekly_full_charge_skip_delay = self.config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
         )
-        self._predictive_safety_margin_stored = self.config_entry.data.get(
-            CONF_PREDICTIVE_SAFETY_MARGIN_KWH
-        )
         self._predictive_safety_margin_pct = self.config_entry.data.get(
             CONF_PREDICTIVE_SAFETY_MARGIN_PCT, DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT
         )
@@ -4134,28 +4125,6 @@ class ChargeDischargeController:
             for coordinator in getattr(self, "coordinators", None) or []
             if getattr(coordinator, "data", None)
         }
-
-    @property
-    def _predictive_safety_margin_kwh(self) -> float:
-        """The margin the user set, or 5% of the fleet's capacity.
-
-        The default counts a battery that reports its own capacity (Marstek over
-        Modbus, a Zendure or Hoymiles left at 0 for auto-detection) with what it
-        reports, so it is read when used rather than frozen at setup, before the
-        first poll.
-        """
-        stored = getattr(self, "_predictive_safety_margin_stored", None)
-        if stored is not None:
-            return stored
-        entry = getattr(self, "config_entry", None)
-        return default_predictive_safety_margin_kwh(
-            getattr(entry, "data", None) or {},
-            ChargeDischargeController._reported_battery_capacity_kwh(self),
-        )
-
-    @_predictive_safety_margin_kwh.setter
-    def _predictive_safety_margin_kwh(self, value: float) -> None:
-        self._predictive_safety_margin_stored = value
 
     def _weekly_full_charge_pending(self) -> bool:
         """Return True while a weekly full charge still has to reach 100% today."""
@@ -5617,7 +5586,6 @@ class ChargeDischargeController:
         *,
         consumption_override_kwh: float | None = None,
         solar_forecast_override_kwh: float | None = None,
-        solar_days_kwh: Sequence[float] | None = None,
     ) -> dict:
         """
         Evaluate whether to activate grid charging using energy balance approach.
@@ -5627,8 +5595,6 @@ class ChargeDischargeController:
         ``consumption_override_kwh`` and ``solar_forecast_override_kwh`` allow a
         caller to evaluate a shorter horizon, such as the energy still needed
         before midnight. The normal daily evaluation leaves both unset.
-        ``solar_days_kwh`` splits a forecast that spans several days into each
-        day's sun, so the safety margin comes off every day on its own.
 
         Where:
         - usable_energy = stored_energy - cutoff_energy
@@ -5760,17 +5726,6 @@ class ChargeDischargeController:
             for c in coordinators_with_data
         )
         effective_min_soc = min_soc  # Actual hardware cutoff, no safety margin
-
-        # Safety margin: user-configurable buffer added to consumption forecast.
-        # Guardrail: never exceed total system capacity.
-        safety_margin_kwh = min(self._predictive_safety_margin_kwh, total_capacity_kwh)
-        if solar_days_kwh:
-            # The margin is per forecast day: each day gives up its own, at
-            # most its own sun.
-            safety_margin_kwh = sum(
-                min(safety_margin_kwh, max(0.0, float(day_kwh)))
-                for day_kwh in solar_days_kwh
-            )
 
         # Guaranteed minimum SOC floor (#417): the whole-day balance can read
         # zero deficit on a solar-positive day, yet the battery still hits the
@@ -5973,7 +5928,8 @@ class ChargeDischargeController:
                 "should_charge": should_charge,
                 "solar_forecast_kwh": None,
                 "solar_remaining_raw_kwh": None,
-                "solar_safety_margin_kwh": safety_margin_kwh,
+                # No sun forecast, no margin.
+                "solar_safety_margin_kwh": 0.0,
                 "solar_remaining_effective_kwh": 0.0,
                 # No solar to claim in conservative mode; the key stays present
                 # so consumers never have to special-case a missing value.
@@ -6037,7 +5993,11 @@ class ChargeDischargeController:
 
         # === STEP 6: Calculate Energy Balance and Decide ===
         # Apply the safety margin once to the solar budget before any temporal
-        # shape is constructed from the remaining total.
+        # shape is constructed from the remaining total. It is a share of that
+        # sun, so a horizon spanning two days gives up the share of each.
+        safety_margin_kwh = calculations.solar_safety_margin_kwh(
+            self._predictive_safety_margin_pct, solar_forecast_kwh
+        )
         solar_remaining_effective_kwh = max(0.0, solar_forecast_kwh - safety_margin_kwh)
         # Excluded devices that the home sensor already sees (an EV charger on
         # solar surplus, say) consume part of that forecast themselves. Reserve
