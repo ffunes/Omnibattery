@@ -2733,7 +2733,7 @@
       "charge_hysteresis_percent": {
         "name": "Percentatge Histèresi Càrrega"
       },
-      "predictive_safety_margin_kwh": {
+      "predictive_safety_margin_pct": {
         "name": "Marge de Seguretat Previsió Solar"
       },
       "negative_injection_threshold": {

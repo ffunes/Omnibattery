@@ -95,7 +95,7 @@ Bajo cada encabezado, cada función es un grupo, separado por una línea: su int
 
     En una flota con varias baterías, el objetivo de red se distribuye proporcionalmente a la distancia de cada batería a su SOC máximo configurado. Precio dinámico y Franja horaria también pueden asignar una cuota a cada periodo y transferir la energía no entregada solo a periodos posteriores que aún cumplan su plazo.
 
-    **Margen de seguridad de previsión solar** se resta una vez de la solar esperada. Las instalaciones nuevas tienen por defecto aproximadamente el 5% de la capacidad total de batería configurada; si la capacidad no está disponible durante la configuración, el método alternativo es no aplicar margen.
+    **Margen de seguridad de previsión solar** se resta una vez de la solar esperada. Es una parte del sol previsto (10 % por defecto), así que un día parcial o un horizonte de dos días cede su propia parte; sin previsión solar no hay margen.
 
     ### Demanda de la vivienda durante una franja de carga
 

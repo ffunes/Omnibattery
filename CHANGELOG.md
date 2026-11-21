@@ -9,6 +9,7 @@
 
 ### Changed
 
+- **Solar safety margin is now a % of the forecast sun** (#828): one slider, 0–50 %, default 10 %, so a partial day or a two-day horizon gives up its own share and no sun means no margin. It replaces the kWh slider: `number.omnibattery_predictive_safety_margin_kwh` becomes `number.omnibattery_predictive_safety_margin_pct` (update automations that use it); a margin set to 0 stays 0 %, any other kWh value is reset to 10 %. Anti-curtailment keeps that share of each negative-price slot's sun as room; High-Price Sale no longer subtracts a separate kWh cushion (the margin is already off its solar).
 - **Dynamic Pricing now holds the battery when using it later is cheaper** (#888): a normal decision of the plan, for everyone, whenever the whole plan costs less (each new hold costs the planner 1 c, so it does not flip between holding and covering). The Discharge Reserve switch and its minimum saving are gone; Discharge Reserve Status now shows the plan's hold. When the previous planner makes the plan, nothing is held.
 - **Backup Function no longer takes a battery out of automatic control; Backup Offgrid Threshold removed** (#660, #540): a load on the backup port no longer excludes the battery, on any brand. To run a whole house from the backup port, use the battery's Manual Control switch. Only a Huawei inverter that reports going off-grid is still left out during the outage.
 - **Dynamic Pricing: the planner is about 2.5 times faster**: it simulates all of a slot's charge amounts in one pass; the plans are identical.

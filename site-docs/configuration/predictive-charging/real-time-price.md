@@ -65,7 +65,7 @@ Turn on **Price-Based Discharge** if you also want to preserve the battery while
 
     The energy target is still predictive: Omnibattery calculates the current-horizon deficit and a per-battery target. What remains reactive is period selection. A current-price sensor cannot prove that a future period will exist or reach an energy deadline, so this mode creates no future reservations.
 
-    **Solar Forecast Safety Margin** is subtracted from expected solar. New installations start at approximately 5% of total configured battery capacity; if capacity is unknown during setup, the fallback is no margin. It is a live control entity rather than a setup-form field.
+    **Solar Forecast Safety Margin** is subtracted from expected solar. It is a share of the forecast sun (default 10 %), so a partial day or a two-day horizon gives up its own share; with no solar forecast there is no margin. It is a live control entity rather than a setup-form field.
 
     ### Price-Based Discharge
 

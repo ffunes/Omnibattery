@@ -69,7 +69,7 @@ These entities belong to **Omnibattery System** rather than one battery.
     - Capacity protection: `capacity_protection_soc_threshold`
     - Charge delay: `delay_safety_margin_min`, `charge_delay_balance_deadband_kwh`, `delay_soc_setpoint`
     - Temperature: `temp_charge_limit_c`, `temp_charge_limit_band_c`, `temp_charge_limit_floor_pct`
-    - Predictive charging: `predictive_safety_margin_kwh`, `predictive_min_soc_floor`
+    - Predictive charging: `predictive_safety_margin_pct`, `predictive_min_soc_floor`
     - Dynamic Pricing: `max_price_threshold`, `discharge_price_threshold`, `min_arbitrage_margin`, `round_trip_efficiency`, `negative_injection_threshold`, `predischarge_reserve_soc`, `surplus_hold_min_saving`
     - Hourly net balance: `hourly_balance_target_net_wh`, `hourly_balance_max_offset_w`, `hourly_balance_deadband_wh`, `hourly_balance_hysteresis_w`
     - Excluded load: `excluded_device_exclusion_pct`, one per compatible configured device
@@ -177,7 +177,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
 
     | Attribute | Meaning |
     |---|---|
-    | `trigger_1_budget_kwh` | Battery energy that **High-Price Sale** (*Surplus only* or above) may sell after preserving the forecast need before sunrise and the safety margin |
+    | `trigger_1_budget_kwh` | Battery energy that **High-Price Sale** (*Surplus only* or above) may sell after preserving the forecast need before sunrise (solar counted less the safety margin) |
     | `refill_price` | Export-price reference for solar refilling the battery tomorrow |
     | `trigger_1_reason` | Why surplus export is active or inactive |
     | `surplus_export_enabled` | Whether **High-Price Sale** is set to *Surplus only* or above |

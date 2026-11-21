@@ -84,4 +84,4 @@ The plan adapts inside an active window when SOC changes materially, the guarant
 
     Household-consumption history still covers the whole day. Battery AC charging is removed from derived household demand so a predictive window does not teach the profile that the battery itself is a recurring home load.
 
-    **Solar Forecast Safety Margin** is subtracted from expected solar. For a new installation its initial value is approximately 5% of configured fleet capacity; it falls back to no margin when capacity is unknown during setup. The margin is a live control entity rather than a field in this mode's setup form.
+    **Solar Forecast Safety Margin** is subtracted from expected solar. It is a share of the forecast sun (default 10 %), so a partial day or a two-day horizon gives up its own share; with no solar forecast there is no margin. The margin is a live control entity rather than a field in this mode's setup form.
