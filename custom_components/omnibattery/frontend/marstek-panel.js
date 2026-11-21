@@ -6933,8 +6933,13 @@ class MarstekVenusPanel extends HTMLElement {
       const depRows = [];
       for (const r of rows) {
         const g = r.grp ?? r.item.grp;
-        const allAdv = () => rows.filter((x) => (x.grp ?? x.item.grp) === g).every((x) => x.item.adv);
-        if (g && lastGrp && g !== lastGrp) {
+        // Groups under one heading read as one block: the divider goes only where
+        // the heading changes (or around an untitled group); bold switches split
+        // the features inside it.
+        const heading = sec.grpTitles?.[g];
+        const inBlock = (x) => (heading ? sec.grpTitles[x.grp ?? x.item.grp] === heading : (x.grp ?? x.item.grp) === g);
+        const allAdv = () => rows.filter(inBlock).every((x) => x.item.adv);
+        if (g && lastGrp && g !== lastGrp && !(heading && heading === sec.grpTitles[lastGrp])) {
           const sep = document.createElement("div");
           sep.className = "sys-sep";
           if (allAdv()) sep.classList.add("adv-row");

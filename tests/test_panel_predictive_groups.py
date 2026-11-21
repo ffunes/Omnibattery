@@ -64,11 +64,12 @@ def test_renderer_draws_a_divider_on_group_change():
     start = panel.index("_renderSysSections(defs, store, empty) {")
     body = panel[start : panel.index("_hourlyWarnEl()", start)]
 
-    # Only between two live rows (no leading/orphan line), gated like a row, and
-    # hidden with Advanced off when the whole group it opens is advanced.
-    assert "if (g && lastGrp && g !== lastGrp) {" in body
+    # Only between two live rows (no leading/orphan line), not between groups of
+    # one heading, gated like a row, and hidden with Advanced off when the whole
+    # block it opens is advanced.
+    assert "if (g && lastGrp && g !== lastGrp && !(heading && heading === sec.grpTitles[lastGrp])) {" in body
     assert 'sep.className = "sys-sep";' in body
-    assert "const allAdv = () => rows.filter((x) => (x.grp ?? x.item.grp) === g).every((x) => x.item.adv);" in body
+    assert "const allAdv = () => rows.filter(inBlock).every((x) => x.item.adv);" in body
     assert 'if (allAdv()) sep.classList.add("adv-row");' in body
     assert "gatedNodes.push(sep);" in body
     assert ".sys-sep { grid-column: 1 / -1;" in panel
