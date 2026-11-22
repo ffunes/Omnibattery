@@ -571,6 +571,10 @@ class GenericHaEntityDriver(BatteryDriver):
         snapped = max(low, min(high, snapped))
         return round(snapped, 3)
 
+    def power_sample_time(self):
+        """When the source last reported the power: it may poll every 30 s or more."""
+        return getattr(self.hass.states.get(self._power_entity), "last_reported", None)
+
     def operating_mode_from_data(self, data: dict) -> Optional[NativeOperatingMode]:
         """The mode entity's live state; None when it is neither of the two."""
         state = self.hass.states.get(self._mode_entity) if self._mode_options else None

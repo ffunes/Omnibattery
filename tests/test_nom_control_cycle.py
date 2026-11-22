@@ -355,3 +355,11 @@ def test_a_manual_charge_slot_waits_too():
     house.run(10)
     assert applied and all(mode == "manual" for _, mode in applied), applied
     assert applied[0][0] == 1500
+
+
+def test_a_fixed_discharge_into_a_charge_we_did_not_foresee_is_stopped():
+    """NOM discharges on its own schedule while the sun charges the other one."""
+    house = House(solar=1500, nom=-400.0).run(60)
+    assert house.battery.driver.mode == "manual"
+    assert house.manager.last_cross_flow["charging"].keys() == {"battery"}
+    assert house.command == pytest.approx(1500, abs=60), "only the sun's"

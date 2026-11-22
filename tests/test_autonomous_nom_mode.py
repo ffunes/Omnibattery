@@ -31,6 +31,7 @@ class FakeNomDriver:
     ac_contribution_w = BatteryDriver.ac_contribution_w
     is_self_managed = BatteryDriver.is_self_managed
     on_backup_power = BatteryDriver.on_backup_power
+    power_sample_time = BatteryDriver.power_sample_time
     dc_coupled = False
 
     def __init__(self, mode=MANUAL):
@@ -183,7 +184,7 @@ async def test_a_battery_without_a_mode_is_never_touched():
     rig = Rig(observed, commandable)
     assert rig.manager.batteries == []
     await rig.run(60)
-    assert observed.driver.writes == [] and rig.manager._states == {}
+    assert observed.driver.writes == []
 
 
 @pytest.mark.asyncio
@@ -608,6 +609,120 @@ async def test_a_charge_that_started_is_not_stopped_by_the_battery_waking_up():
     battery.driver.mode = NOM               # the vendor app
     assert all(await _charge(rig, 10))
     assert battery.driver.mode is MANUAL
+
+
+# ------------------------------------------------------------- opposite flow
+
+def charging_marstek(power):
+    """A commandable battery, ``power`` > 0 charging."""
+    battery = Battery("Marstek", nom=False)
+    battery.capabilities.supports_power_setpoint = True
+    battery.data = {"battery_soc": 50, "ac_power": power}
+    return battery
+
+
+@pytest.mark.asyncio
+async def test_two_readings_of_opposite_flow_take_nom_to_manual():
+    nom, other = nom_battery(power=-600), charging_marstek(500)
+    rig = Rig(nom, other)
+    await rig.cycle()
+    await rig.cycle()
+    assert nom.driver.mode is NOM, "one reading may be a ramp"
+    await rig.run(6)
+    assert nom.driver.mode is MANUAL
+    assert rig.manager.status(nom) == "nom_suspended_cross_charge"
+    cause = rig.manager.snapshot(nom)["suspension_causes"]["cross_charge"]
+    assert cause == {"charging": {"Marstek": 500}, "discharging_w": 600}
+    assert rig.manager.last_cross_flow["battery"] == "NOM"
+    assert rig.manager.last_cross_flow["at"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("nom_w,other_w", [(-600, 40), (-40, 600), (600, 500), (-600, -500)])
+async def test_noise_and_same_direction_do_not(nom_w, other_w):
+    nom = nom_battery(power=nom_w)
+    rig = Rig(nom, charging_marstek(other_w))
+    await rig.run(60)
+    assert nom.driver.writes == [] and rig.manager.last_cross_flow is None
+
+
+@pytest.mark.asyncio
+async def test_one_slow_report_is_not_two_readings():
+    """A source that polls every 30 s shows the same reading for many cycles."""
+    nom, other = nom_battery(power=-600), charging_marstek(500)
+    nom.driver.power_sample_time = lambda: "12:00:00"
+    rig = Rig(nom, other)
+    await rig.run(40)
+    assert nom.driver.mode is NOM
+    nom.data["battery_power"] = 0.0         # the next report: it had stopped
+    nom.driver.power_sample_time = lambda: "12:00:30"
+    await rig.run(60)
+    assert nom.driver.writes == []
+    # ... but a source that only reports changes is not trusted for ever.
+    nom.data["battery_power"] = -600.0
+    await rig.run(70)
+    assert nom.driver.mode is MANUAL
+
+
+@pytest.mark.asyncio
+async def test_the_latch_outlives_the_flow_and_every_other_cause():
+    nom, other = nom_battery(power=-600), charging_marstek(500)
+    rig = Rig(nom, other)
+    await rig.run(10)
+    nom.data["battery_power"] = 0.0
+    other.data["ac_power"] = 0.0
+    await rig.run(200)
+    assert nom.driver.mode is MANUAL
+    rig.causes["excluded_device:x"] = {}
+    await rig.run(150)
+    assert nom.driver.mode is MANUAL, "the latch is over, the device is not"
+    rig.causes.clear()
+    await rig.run(60)
+    assert nom.driver.mode is NOM
+
+
+@pytest.mark.asyncio
+async def test_of_two_opposite_nom_batteries_the_discharging_one_stops():
+    giving, taking = nom_battery(name="giving", power=-400), nom_battery(name="taking", power=400)
+    rig = Rig(giving, taking)
+    await rig.run(10)
+    assert giving.driver.mode is MANUAL and taking.driver.mode is NOM
+
+
+@pytest.mark.asyncio
+async def test_without_a_mode_the_flow_is_only_written_down():
+    observed, other = Battery(nom=False, mode=NOM, power=-600), charging_marstek(500)
+    rig = Rig(observed, other)
+    await rig.run(60)
+    assert observed.driver.writes == []
+    assert rig.manager.last_cross_flow["battery"] == "NOM"
+
+
+@pytest.mark.asyncio
+async def test_a_battery_we_command_is_never_a_suspect():
+    """Two commanded batteries are the distributor's business."""
+    rig = Rig(charging_marstek(-500), charging_marstek(500))
+    await rig.run(60)
+    assert rig.manager.last_cross_flow is None and rig.manager._states == {}
+
+
+# ------------------------------------------------------------- import cap
+
+@pytest.mark.asyncio
+async def test_a_charge_over_the_import_cap_suspends_nom_first():
+    nom = nom_battery(power=3000)
+    rig = Rig(
+        nom, max_contracted_power=4600, consumption_sensor="sensor.grid",
+        hass=SimpleNamespace(states=SimpleNamespace(get=lambda _e: 5200.0)),
+        _apply_meter_transform=lambda state: state, _grid_import_cap_w=lambda: 4600.0,
+    )
+    await rig.run(4)
+    assert nom.driver.mode is MANUAL
+    assert rig.manager.status(nom) == "nom_suspended_import_cap"
+    idle = nom_battery(name="idle", power=0)            # not its doing
+    rig.batteries.append(idle)
+    await rig.run(4)
+    assert idle.driver.mode is NOM
 
 
 # ------------------------------------------------------------- entity

@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -28,7 +29,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 
 from ..const import CONF_AUTONOMOUS_REQUESTED_MODE, DOMAIN
-from ..drivers.base import NativeOperatingMode, supports_nom_mode
+from ..drivers.base import NativeOperatingMode, is_observed, supports_nom_mode
 from .residual_load import _battery_ac_power_w
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,10 +53,23 @@ GRID_CHARGE_WAIT_S = 60.0
 # A cause asserted by a control step lasts until that step stops repeating it.
 CAUSE_TTL_S = 10.0
 
+# One battery discharging while another charges, both by more than this: below it
+# is standby draw, sign noise and inverter losses.
+CROSS_THRESHOLD_W = 50.0
+# It takes two readings of the autonomous battery. They must be this far apart
+# (a commanded battery needs some seconds to ramp down when the sun goes) and be
+# two different reports, unless the source only reports changes.
+CROSS_SAMPLE_S = 5.0
+CROSS_REPEATED_S = 60.0
+# How long NOM stays off after the last opposite flow, or after its charge was
+# last seen over the import cap.
+LATCH_S = 300.0
+
 CAUSE_GLOBAL_MANUAL = "global_manual_mode"
 CAUSE_GRID_CHARGE = "grid_charge"
 CAUSE_EXCLUDED = "excluded_device"
 CAUSE_CROSS_CHARGE = "cross_charge"
+CAUSE_IMPORT_CAP = "import_cap"
 CAUSE_TELEMETRY = "telemetry_untrusted"
 
 
@@ -76,6 +90,12 @@ class _BatteryState:
     last_change: datetime | None = None
     last_error: str | None = None
     task: asyncio.Task | None = None
+    # Opposite flow seen in the last reading: how many readings, when, which.
+    cross_samples: int = 0
+    cross_at: float = float("-inf")
+    cross_token: Any = None
+    # Latched cause -> (until, details).
+    latched: dict[str, tuple[float, dict]] = field(default_factory=dict)
 
 
 @dataclass
@@ -105,6 +125,9 @@ class AutonomousBatteryModeManager:
         # source -> (last asserted at, details); see ``assert_cause``.
         self._asserted: dict[str, tuple[float, dict]] = {}
         self._charges: dict[str, _GridCharge] = {}
+        # Last opposite flow between two batteries, and when the recent ones were.
+        self.last_cross_flow: dict[str, Any] | None = None
+        self._cross_episodes: dict[Any, deque[float]] = {}
         # Excluded device -> was it running when it was last readable.
         self._device_running: dict[str, bool] = {}
         # issue id -> raised. Unknown means this run has not looked yet, and an
@@ -240,7 +263,76 @@ class AutonomousBatteryModeManager:
         causes: dict[str, dict] = {}
         if self.requested(coordinator) is NOM and _battery_ac_power_w(coordinator) is None:
             causes[CAUSE_TELEMETRY] = {}
+        state = self._state(coordinator)
+        self._watch_cross_flow(coordinator, state)
+        self._watch_import_cap(coordinator, state)
+        now = self._clock()
+        causes.update(
+            (source, details)
+            for source, (until, details) in state.latched.items()
+            if now < until
+        )
         return causes
+
+    def _watch_cross_flow(self, coordinator, state: _BatteryState) -> None:
+        """Latch ``cross_charge`` while this battery discharges into another one.
+
+        Independent of who commanded what: it covers the races, the charges the
+        user starts elsewhere and the delays of the firmware that the interlocks
+        cannot see coming.
+        """
+        delivered = _battery_ac_power_w(coordinator)
+        charging = {}
+        if delivered is not None and delivered > CROSS_THRESHOLD_W:
+            for other in self._controller.coordinators:
+                power = None if other is coordinator else _battery_ac_power_w(other)
+                if power is not None and power < -CROSS_THRESHOLD_W:
+                    charging[other.name] = round(-power)
+        if not charging:
+            state.cross_samples = 0
+            return
+        now = self._clock()
+        token = coordinator.driver.power_sample_time()
+        since = now - state.cross_at
+        if state.cross_samples == 0 or (
+            since >= CROSS_SAMPLE_S
+            and (token is None or token != state.cross_token or since >= CROSS_REPEATED_S)
+        ):
+            state.cross_samples += 1
+            state.cross_at = now
+            state.cross_token = token
+        if state.cross_samples < 2:
+            return
+        details = {"charging": charging, "discharging_w": round(delivered)}
+        if now >= state.latched.get(CAUSE_CROSS_CHARGE, (float("-inf"),))[0]:
+            # A new episode, not more of the one in course.
+            self._cross_episodes.setdefault(coordinator, deque(maxlen=10)).append(now)
+            self.last_cross_flow = {
+                "battery": coordinator.name, **details, "at": dt_util.utcnow().isoformat(),
+            }
+            _LOGGER.warning(
+                "[%s] discharges %dW while %s charge(s)%s",
+                coordinator.name, details["discharging_w"], charging,
+                "; taking it to Manual" if supports_nom_mode(coordinator) else "",
+            )
+        state.latched[CAUSE_CROSS_CHARGE] = (now + LATCH_S, details)
+
+    def _watch_import_cap(self, coordinator, state: _BatteryState) -> None:
+        """Latch ``import_cap`` while this battery's charge breaks the import cap."""
+        controller = self._controller
+        if not float(getattr(controller, "max_contracted_power", 0) or 0):
+            return
+        delivered = _battery_ac_power_w(coordinator)
+        if delivered is None or delivered > -CROSS_THRESHOLD_W:
+            return
+        grid = controller._apply_meter_transform(
+            controller.hass.states.get(controller.consumption_sensor)
+        )
+        cap = controller._grid_import_cap_w()
+        if grid is not None and grid > cap:
+            state.latched[CAUSE_IMPORT_CAP] = (
+                self._clock() + LATCH_S, {"charging_w": round(-delivered)}
+            )
 
     def blind_batteries(self) -> list:
         """Batteries that may be moving power nobody can see.
@@ -270,6 +362,10 @@ class AutonomousBatteryModeManager:
 
     async def async_reconcile(self) -> None:
         """Compare what each battery should do with what it does, and act."""
+        for coordinator in self._controller.coordinators:
+            if is_observed(coordinator) and not supports_nom_mode(coordinator):
+                # Nothing to switch: the opposite flow is only written down.
+                self._watch_cross_flow(coordinator, self._state(coordinator))
         batteries = self.batteries
         if not batteries:
             return
@@ -411,6 +507,7 @@ class AutonomousBatteryModeManager:
             (CAUSE_GRID_CHARGE, "nom_suspended_grid_charge"),
             (CAUSE_EXCLUDED, "nom_suspended_excluded_load"),
             (CAUSE_CROSS_CHARGE, "nom_suspended_cross_charge"),
+            (CAUSE_IMPORT_CAP, "nom_suspended_import_cap"),
         ):
             if kind in kinds:
                 return name

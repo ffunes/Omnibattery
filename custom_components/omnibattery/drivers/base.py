@@ -1115,6 +1115,14 @@ class BatteryDriver(ABC):
         """The native mode the device is in now, or None when it is not known."""
         return None
 
+    def power_sample_time(self) -> Any:
+        """Identity of the power reading in use, when the source stamps it.
+
+        Two equal answers are one reading seen twice. None: every poll is a
+        reading of its own.
+        """
+        return None
+
     # --- entity definitions (read by the coordinator and the platforms) ----
 
     @property
