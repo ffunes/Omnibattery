@@ -694,7 +694,7 @@ class ConsumptionTracker:
         """Persist the solar start marker without leaking Store exceptions."""
         try:
             await self._solar_t_start_store.async_save({
-                "date": date.today().isoformat(),
+                "date": local_now().date().isoformat(),
                 "t_start": self._controller._solar_t_start,
             })
         except Exception as exc:  # noqa: BLE001
@@ -706,7 +706,7 @@ class ConsumptionTracker:
             data = await self._solar_t_start_store.async_load()
             if not data:
                 return
-            if data.get("date") == date.today().isoformat() and data.get("t_start") is not None:
+            if data.get("date") == local_now().date().isoformat() and data.get("t_start") is not None:
                 self._controller._solar_t_start = data["t_start"]
                 _LOGGER.info(
                     "Charge Delay: Restored solar T_start=%.2fh from storage (HA restart)",
@@ -749,9 +749,9 @@ class ConsumptionTracker:
             if not data:
                 return
             stored_date_str = data.get("date")
-            if not stored_date_str or stored_date_str != date.today().isoformat():
+            if not stored_date_str or stored_date_str != local_now().date().isoformat():
                 return
-            today = date.today()
+            today = local_now().date()
             ctrl = self._controller
             if data.get("consumption_scope") != CONSUMPTION_HISTORY_SCOPE:
                 # The old same-day accumulator may exclude hours inside a
@@ -801,7 +801,7 @@ class ConsumptionTracker:
         if not math.isfinite(value) or value < 0.0:
             return False
 
-        today = date.today()
+        today = local_now().date()
         ctrl = self._controller
         if (
             ctrl._daily_solar_forecast_initial_date == today
@@ -821,7 +821,7 @@ class ConsumptionTracker:
         # has something worth saving (import/export); the date is keyed to today.
         try:
             await self._daily_energy_store.async_save({
-                "date": date.today().isoformat(),
+                "date": local_now().date().isoformat(),
                 "solar_kwh": round(ctrl._daily_solar_energy_kwh, 4),
                 "home_kwh": round(ctrl._daily_home_energy_kwh, 4),
                 "grid_import_kwh": round(ctrl._daily_grid_import_energy_kwh, 4),
@@ -841,9 +841,9 @@ class ConsumptionTracker:
         ctrl = self._controller
         try:
             data = await self._daily_energy_store.async_load()
-            if not data or data.get("date") != date.today().isoformat():
+            if not data or data.get("date") != local_now().date().isoformat():
                 return
-            today = date.today()
+            today = local_now().date()
             ctrl._daily_solar_energy_kwh = float(data.get("solar_kwh", 0.0))
             ctrl._daily_solar_energy_date = today
             ctrl._daily_home_energy_kwh = float(data.get("home_kwh", 0.0))
@@ -877,7 +877,7 @@ class ConsumptionTracker:
     def handle_daily_energy_reset(self) -> None:
         """Reset the exact daily solar/home totals at local-midnight rollover."""
         ctrl = self._controller
-        today = date.today()
+        today = local_now().date()
         if ctrl._daily_solar_energy_date != today:
             if ctrl._daily_solar_energy_date is not None:
                 _LOGGER.info(
@@ -1428,7 +1428,7 @@ class ConsumptionTracker:
         not make the household or battery inactive. Every calendar day therefore
         belongs in the consumption history.
         """
-        before = before or date.today()
+        before = before or local_now().date()
         return [before - timedelta(days=offset) for offset in range(1, n + 1)]
 
     def _home_consumption_entity_id(self) -> Optional[str]:
@@ -1787,7 +1787,7 @@ class ConsumptionTracker:
         """
         ctrl = self._controller
 
-        today = date.today()
+        today = local_now().date()
         day_start = datetime.combine(today, time.min, tzinfo=dt_util.now().tzinfo)
         if self._period_intersects(day_start, day_start + timedelta(days=1)):
             ctrl._daily_consumption_history = [
@@ -2059,7 +2059,7 @@ class ConsumptionTracker:
         """
         ctrl = self._controller
 
-        today = date.today()
+        today = local_now().date()
         if ctrl._household_accumulator_date != today:
             if ctrl._household_accumulator_date is not None:
                 _LOGGER.info(

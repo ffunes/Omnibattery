@@ -246,10 +246,11 @@ def parse_pvpc_prices(attrs: dict) -> list:
     once PVPC publishes them (around 20:00).
     Returns list[PriceSlot] in local time.
     """
-    from datetime import date as _date, time as _time
+    from datetime import time as _time
 
     slots = []
-    today = _date.today()
+    # Home Assistant's date: the attributes are that day's hours (#898).
+    today = local_now().date()
     for prefix, target_date in (
         ("price_", today),
         ("price_next_day_", today + timedelta(days=1)),

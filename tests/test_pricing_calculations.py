@@ -211,10 +211,10 @@ def test_parse_pvpc():
 
 def test_parse_pvpc_next_day():
     # #568: tomorrow's curve must be parsed so the dawn horizon can see it
-    from datetime import date
+    from custom_components.omnibattery.infra.clock import local_now
     attrs = {"price_23h": 0.30, "price_next_day_00h": 0.28, "price_next_day_01h": 0.27}
     slots = calculations.parse_pvpc_prices(attrs)
-    today = date.today()
+    today = local_now().date()
     assert [(s.start.date() - today).days for s in slots] == [0, 1, 1]
     assert [s.start.hour for s in slots] == [23, 0, 1]
     assert [s.price for s in slots] == [0.30, 0.28, 0.27]
