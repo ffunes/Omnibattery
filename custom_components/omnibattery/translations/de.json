@@ -2724,6 +2724,22 @@
         "state": {
           "nom": "NOM (null am Zähler)",
           "manual": "Manuell (keine Aktion)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "manual": "Manuell",
+              "nom_active": "NOM aktiv",
+              "nom_pending": "NOM kehrt gleich zurück",
+              "nom_suspended_excluded_load": "NOM ausgesetzt: ausgeschlossenes Gerät läuft",
+              "nom_suspended_grid_charge": "NOM ausgesetzt: Netzladung",
+              "nom_suspended_global_manual": "NOM ausgesetzt: globaler Handbetrieb",
+              "nom_suspended_cross_charge": "NOM ausgesetzt: entlud sich in eine andere Batterie",
+              "nom_suspended_import_cap": "NOM ausgesetzt: ihre Ladung überschritt das Importlimit",
+              "degraded": "Modus oder Leistung nicht bestätigt"
+            }
+          }
         }
       },
       "user_work_mode": {

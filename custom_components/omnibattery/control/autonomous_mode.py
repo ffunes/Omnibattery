@@ -29,7 +29,12 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 
 from ..const import CONF_AUTONOMOUS_REQUESTED_MODE, DOMAIN
-from ..drivers.base import NativeOperatingMode, is_observed, supports_nom_mode
+from ..drivers.base import (
+    NativeOperatingMode,
+    can_take_setpoint,
+    is_observed,
+    supports_nom_mode,
+)
 from .residual_load import _battery_ac_power_w
 
 _LOGGER = logging.getLogger(__name__)
@@ -96,6 +101,7 @@ class _BatteryState:
     last_change: datetime | None = None
     last_error: str | None = None
     blind_since: float | None = None
+    mode_seen_at: float | None = None
     task: asyncio.Task | None = None
     # Opposite flow seen in the last reading: how many readings, when, which.
     cross_samples: int = 0
@@ -392,6 +398,7 @@ class AutonomousBatteryModeManager:
         effective = self.effective(coordinator)
         if effective is not None:
             state.last_known = effective
+            state.mode_seen_at = now
         state.causes = {**system, **self._battery_causes(coordinator)}
         if state.causes:
             state.clear_since = None
@@ -572,4 +579,62 @@ class AutonomousBatteryModeManager:
             "last_change": state.last_change.isoformat() if state.last_change else None,
             "last_error": state.last_error,
             "failed_attempts": state.attempts,
+        }
+
+    def pool_attributes(self) -> dict[str, Any]:
+        """Who is in which pool, for the system sensors; empty without a NOM battery."""
+        batteries = self.batteries
+        if not batteries:
+            return {}
+        wanting = [c for c in batteries if self.requested(c) is NOM]
+        return {
+            "controllable_batteries": [
+                c.name for c in self._controller.coordinators if can_take_setpoint(c)
+            ],
+            "nom_requested_batteries": [c.name for c in wanting],
+            "nom_active_batteries": [
+                c.name for c in batteries if self.effective(c) is NOM
+            ],
+            "nom_suspended_batteries": {
+                c.name: sorted(self._state(c).causes)
+                for c in wanting if self._state(c).causes
+            },
+            "nom_degraded_batteries": [c.name for c in batteries if self.degraded(c)],
+            "grid_charge_waiting_for_manual": bool(
+                getattr(self._controller, "_grid_charge_waiting", False)
+            ),
+        }
+
+    def diagnostics(self) -> dict[str, Any]:
+        """Everything above plus ages, for the downloaded diagnostics."""
+        now = self._clock()
+
+        def _battery(coordinator) -> dict[str, Any]:
+            state = self._state(coordinator)
+            sampled = coordinator.driver.power_sample_time()
+            return {
+                **self.snapshot(coordinator),
+                "last_known_mode": state.last_known.value if state.last_known else None,
+                "mode_read_age_s": (
+                    round(now - state.mode_seen_at) if state.mode_seen_at is not None else None
+                ),
+                "power_w": _battery_ac_power_w(coordinator),
+                "power_age_s": (
+                    round((dt_util.utcnow() - sampled).total_seconds())
+                    if isinstance(sampled, datetime) else None
+                ),
+                "last_write_age_s": (
+                    round(now - state.written_at)
+                    if state.written_at != float("-inf") else None
+                ),
+            }
+
+        if not self.batteries and self.last_cross_flow is None:
+            return {}
+        return {
+            **self.pool_attributes(),
+            "batteries": {c.name: _battery(c) for c in self.batteries},
+            "last_cross_flow": self.last_cross_flow,
+            "excluded_devices_running": dict(self._device_running),
+            "repairs": sorted(issue for issue, raised in self._issues.items() if raised),
         }

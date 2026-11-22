@@ -887,6 +887,75 @@ async def test_a_charge_over_the_import_cap_suspends_nom_first():
     assert idle.driver.mode is NOM
 
 
+# ------------------------------------------------------------- what is shown
+
+@pytest.mark.asyncio
+async def test_the_pools_are_told_apart_in_sensors_and_diagnostics():
+    from custom_components.omnibattery import diagnostics as diag
+
+    running, resting = nom_battery(name="running"), Battery("resting")
+    suspended = nom_battery(name="suspended")
+    suspended.is_available = False
+    other = charging_marstek(0)
+    rig = Rig(running, resting, suspended, other)
+    await rig.run(6)
+    pools = rig.manager.pool_attributes()
+    assert pools["controllable_batteries"] == ["Marstek"]
+    assert pools["nom_requested_batteries"] == ["running", "suspended"]
+    assert pools["nom_active_batteries"] == ["running"]
+    assert pools["nom_suspended_batteries"] == {"suspended": ["telemetry_untrusted"]}
+    assert pools["nom_degraded_batteries"] == ["suspended"]
+
+    report = diag._json_safe(rig.manager.diagnostics())
+    battery = report["batteries"]["suspended"]
+    assert battery["requested_mode"] == "nom" and battery["effective_mode"] == "manual"
+    assert battery["power_w"] is None and battery["last_write_age_s"] is not None
+    assert report["batteries"]["running"]["mode_read_age_s"] == 0
+    assert "last_cross_flow" in report and "excluded_devices_running" in report
+
+
+def test_without_a_nom_battery_the_sensors_show_nothing_new():
+    rig = Rig(Battery(nom=False), charging_marstek(0))
+    assert rig.manager.pool_attributes() == {} and rig.manager.diagnostics() == {}
+
+
+@pytest.mark.asyncio
+async def test_every_status_has_its_text_in_every_language():
+    import json
+    from pathlib import Path
+
+    statuses = {"manual", "nom_active", "nom_pending", "degraded"}
+    for source in ("global_manual_mode", "grid_charge:x", "excluded_device:x",
+                   "cross_charge", "import_cap"):
+        battery = nom_battery()
+        rig = Rig(battery)
+        rig.causes[source] = {}
+        await rig.run(6)
+        statuses.add(rig.manager.status(battery))
+    assert len(statuses) == 9
+    base = Path("custom_components/omnibattery")
+    issues = {"nom_manual_unconfirmed", "nom_restore_failed", "nom_telemetry_lost",
+              "nom_cross_charge"}
+    for path in [base / "strings.json", *sorted((base / "translations").glob("*.json"))]:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        select = data["entity"]["select"]["autonomous_operating_mode"]
+        assert set(select["state"]) == {"nom", "manual"}, path
+        assert set(select["state_attributes"]["status"]["state"]) == statuses, path
+        assert issues <= set(data["issues"]), path
+
+
+def test_the_panel_offers_the_mode_first_in_six_languages():
+    from pathlib import Path
+
+    panel = Path("custom_components/omnibattery/frontend/marstek-panel.js").read_text(
+        encoding="utf-8"
+    )
+    controls = panel[panel.index("const BAT_CONTROLS = ["):]
+    first = controls[controls.index("{ key:"):].split("}")[0]
+    assert 'key: "autonomous_operating_mode"' in first and "status: true" in first
+    assert panel.count("bcOperatingMode:") == 6
+
+
 # ------------------------------------------------------------- entity
 
 def test_the_select_shows_the_request_and_explains_the_rest():

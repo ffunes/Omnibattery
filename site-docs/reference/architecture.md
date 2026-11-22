@@ -76,6 +76,8 @@ Shared code reads `coordinator.capabilities`; it should not branch on a brand or
 | Control | `hardware_soc_cutoff` | The device itself enforces the configured state-of-charge (SOC) cutoffs. |
 | Control | `has_force_mode` | The device exposes a distinct forced charge/discharge/idle mode. |
 | Control | `has_rs485_control` | An external RS-485 or Modbus control gate can be toggled. |
+| Control | `supports_power_setpoint` | The device accepts a signed power command. Read it through `can_take_setpoint()`. |
+| Control | `supports_nom_mode` | The device takes no watts but can be switched between NOM and Manual with `apply_operating_mode()`; `operating_mode_from_data()` reads the mode it is in and `power_sample_time()` dates its power reading. |
 | Power | `max_charge_power_w`, `max_discharge_power_w` | Inclusive per-device power envelope. |
 | Power | `min_charge_power_w`, `min_discharge_power_w` | Lowest reliable non-zero command in each direction. |
 | Timing | `actuator_latency_s` | Approximate physical response time used by direction-change protection. |

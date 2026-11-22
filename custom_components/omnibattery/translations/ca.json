@@ -2724,6 +2724,22 @@
         "state": {
           "nom": "NOM (0 al comptador)",
           "manual": "Manual (sense acció)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Estat",
+            "state": {
+              "manual": "Manual",
+              "nom_active": "NOM actiu",
+              "nom_pending": "NOM a punt de tornar",
+              "nom_suspended_excluded_load": "NOM suspès: dispositiu exclòs en marxa",
+              "nom_suspended_grid_charge": "NOM suspès: càrrega de xarxa",
+              "nom_suspended_global_manual": "NOM suspès: mode manual global",
+              "nom_suspended_cross_charge": "NOM suspès: descarregava cap a una altra bateria",
+              "nom_suspended_import_cap": "NOM suspès: la seva càrrega va superar el límit d'importació",
+              "degraded": "No es pot confirmar el mode o la potència"
+            }
+          }
         }
       },
       "user_work_mode": {

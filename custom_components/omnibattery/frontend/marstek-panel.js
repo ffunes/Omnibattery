@@ -115,7 +115,7 @@ const I18N = {
     ctlLock: "Lock controls", ctlUnlock: "Unlock controls",
     sysEmptyTitle: "No controls available",
     sysEmptyMsg: "This integration exposes no system controls, or they are disabled. Enable them in Settings → entities.",
-    bcAllowCharge: "Allow charge", bcAllowDischarge: "Allow discharge", bcBatteryManual: "Manual battery control",
+    bcOperatingMode: "Operating mode", bcAllowCharge: "Allow charge", bcAllowDischarge: "Allow discharge", bcBatteryManual: "Manual battery control",
     bcSocMax: "Max SOC", bcSocMin: "Min SOC", bcForceMode: "Force mode",
     bcChargePower: "Charge power", bcDischargePower: "Discharge power",
     bcMaxCharge: "Max charge", bcMaxDischarge: "Max discharge",
@@ -206,7 +206,7 @@ const I18N = {
     ctlLock: "Bloquear controles", ctlUnlock: "Desbloquear controles",
     sysEmptyTitle: "Sin controles disponibles",
     sysEmptyMsg: "Esta integración no expone controles de sistema, o están deshabilitados. Actívalos en Ajustes → entidades.",
-    bcAllowCharge: "Permitir carga", bcAllowDischarge: "Permitir descarga", bcBatteryManual: "Control manual de batería",
+    bcOperatingMode: "Modo de operación", bcAllowCharge: "Permitir carga", bcAllowDischarge: "Permitir descarga", bcBatteryManual: "Control manual de batería",
     bcSocMax: "SOC máximo", bcSocMin: "SOC mínimo", bcForceMode: "Modo forzado",
     bcChargePower: "Potencia de carga", bcDischargePower: "Potencia de descarga",
     bcMaxCharge: "Máx. carga", bcMaxDischarge: "Máx. descarga",
@@ -294,7 +294,7 @@ const I18N = {
     ctlAdvanced: "Ajustos avançats",
     sysEmptyTitle: "Sense controls disponibles",
     sysEmptyMsg: "Aquesta integració no exposa controls de sistema, o estan deshabilitats. Activa'ls a Configuració → entitats.",
-    bcAllowCharge: "Permet la càrrega", bcAllowDischarge: "Permet la descàrrega", bcBatteryManual: "Control manual de la bateria",
+    bcOperatingMode: "Mode d'operació", bcAllowCharge: "Permet la càrrega", bcAllowDischarge: "Permet la descàrrega", bcBatteryManual: "Control manual de la bateria",
     bcSocMax: "SOC màxim", bcSocMin: "SOC mínim", bcForceMode: "Mode forçat",
     bcChargePower: "Potència de càrrega", bcDischargePower: "Potència de descàrrega",
     bcMaxCharge: "Màx. càrrega", bcMaxDischarge: "Màx. descàrrega",
@@ -381,7 +381,7 @@ const I18N = {
     ctlAdvanced: "Erweiterte Einstellungen",
     sysEmptyTitle: "Keine Steuerungen verfügbar",
     sysEmptyMsg: "Diese Integration stellt keine Systemsteuerungen bereit oder sie sind deaktiviert. Aktiviere sie in Einstellungen → Entitäten.",
-    bcAllowCharge: "Laden erlauben", bcAllowDischarge: "Entladen erlauben", bcBatteryManual: "Manuelle Batteriesteuerung",
+    bcOperatingMode: "Betriebsmodus", bcAllowCharge: "Laden erlauben", bcAllowDischarge: "Entladen erlauben", bcBatteryManual: "Manuelle Batteriesteuerung",
     bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Betriebsmodus erzwingen",
     bcChargePower: "Ladeleistung", bcDischargePower: "Entladeleistung",
     bcMaxCharge: "Max. Ladeleistung", bcMaxDischarge: "Max. Entladeleistung",
@@ -468,7 +468,7 @@ const I18N = {
     ctlAdvanced: "Paramètres avancés",
     sysEmptyTitle: "Aucun contrôle disponible",
     sysEmptyMsg: "Cette intégration n'expose aucun contrôle système, ou ils sont désactivés. Activez-les dans Paramètres → entités.",
-    bcAllowCharge: "Autoriser la charge", bcAllowDischarge: "Autoriser la décharge", bcBatteryManual: "Contrôle manuel de la batterie",
+    bcOperatingMode: "Mode de fonctionnement", bcAllowCharge: "Autoriser la charge", bcAllowDischarge: "Autoriser la décharge", bcBatteryManual: "Contrôle manuel de la batterie",
     bcSocMax: "SOC max.", bcSocMin: "SOC min.", bcForceMode: "Mode forcé",
     bcChargePower: "Puissance de charge", bcDischargePower: "Puissance de décharge",
     bcMaxCharge: "Charge max.", bcMaxDischarge: "Décharge max.",
@@ -555,7 +555,7 @@ const I18N = {
     ctlAdvanced: "Geavanceerde instellingen",
     sysEmptyTitle: "Geen bedieningen beschikbaar",
     sysEmptyMsg: "Deze integratie biedt geen systeembedieningen, of ze zijn uitgeschakeld. Schakel ze in via Instellingen → entiteiten.",
-    bcAllowCharge: "Laden toestaan", bcAllowDischarge: "Ontladen toestaan", bcBatteryManual: "Handmatige batterijregeling",
+    bcOperatingMode: "Bedrijfsmodus", bcAllowCharge: "Laden toestaan", bcAllowDischarge: "Ontladen toestaan", bcBatteryManual: "Handmatige batterijregeling",
     bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Geforceerde modus",
     bcChargePower: "Laadvermogen", bcDischargePower: "Ontlaadvermogen",
     bcMaxCharge: "Max. laden", bcMaxDischarge: "Max. ontladen",
@@ -979,6 +979,9 @@ const DELTA_MV_RED = 250;
 // rendered when its entity is enabled (has a live state); most default to
 // disabled in the integration. `domain` selects the widget + service.
 const BAT_CONTROLS = [
+  // Only on a battery that regulates on its own: what it was asked for, and
+  // below it what is holding NOM off (the select's `status` attribute).
+  { key: "autonomous_operating_mode", domain: "select", lk: "bcOperatingMode", icon: "mdi:home-lightning-bolt-outline", status: true },
   { key: "battery_allow_charge", domain: "switch", lk: "bcAllowCharge", icon: "mdi:battery-arrow-up" },
   { key: "battery_allow_discharge", domain: "switch", lk: "bcAllowDischarge", icon: "mdi:battery-arrow-down" },
   { key: "battery_manual_mode", domain: "switch", lk: "bcBatteryManual", icon: "mdi:hand-back-right-outline" },
@@ -6585,6 +6588,12 @@ class MarstekVenusPanel extends HTMLElement {
       );
       frag.appendChild(sel);
       r.controls[c.key] = { type: "select", el: sel };
+      if (c.status) {
+        const note = document.createElement("div");
+        note.className = "ctl-status dim";
+        frag.appendChild(note);
+        r.controls[c.key].note = note;
+      }
     } else {
       // number → slider + value
       const wrap = document.createElement("div");
@@ -6617,8 +6626,23 @@ class MarstekVenusPanel extends HTMLElement {
     return frag;
   }
 
+  /** Status line under a select: hidden while the battery does what it was asked. */
+  _patchStatusNote(note, state) {
+    const status = state.attributes && state.attributes.status;
+    const quiet = !status || status === "manual" || status === "nom_active";
+    note.hidden = quiet;
+    if (quiet) return;
+    let text = status;
+    if (typeof this._hass.formatEntityAttributeValue === "function") {
+      try { text = this._hass.formatEntityAttributeValue(state, "status"); } catch (e) { /* fall through */ }
+    }
+    note.textContent = text;
+    note.classList.toggle("warn", status === "degraded");
+  }
+
   _patchControlRow(w, state) {
     if (!state || w.type === "button") return;
+    if (w.note) this._patchStatusNote(w.note, state);
     const focused = this.shadowRoot && this.shadowRoot.activeElement === w.el;
     if (w.type === "switch") {
       w.el.classList.toggle("on", state.state === "on");
@@ -8224,6 +8248,9 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-k { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-mid); font-size: 13px; --mdc-icon-size: 16px; white-space: nowrap; }
       .ctl-k ha-icon { color: var(--ink-dim); flex-shrink: 0; }
       .ctl-empty { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; }
+      .ctl-status { grid-column: 1 / -1; margin-top: -6px; font-size: 12px; line-height: 1.45; }
+      .ctl-status[hidden] { display: none; }
+      .ctl-status.warn { color: oklch(0.82 0.14 75); }
       .ctl-toggle { justify-self: start; position: relative; width: 40px; height: 22px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--bg-2); cursor: pointer; padding: 0; transition: background 0.2s, border-color 0.2s; }
       .ctl-toggle .ctl-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--ink-dim); transition: transform 0.2s, background 0.2s; }
       .ctl-toggle.on { background: var(--accent-soft); border-color: var(--accent-line); }

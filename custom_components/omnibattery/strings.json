@@ -2719,6 +2719,22 @@
         "state": {
           "nom": "NOM (zero on the meter)",
           "manual": "Manual (no action)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "manual": "Manual",
+              "nom_active": "NOM active",
+              "nom_pending": "NOM about to resume",
+              "nom_suspended_excluded_load": "NOM suspended: excluded device running",
+              "nom_suspended_grid_charge": "NOM suspended: grid charge",
+              "nom_suspended_global_manual": "NOM suspended: global manual mode",
+              "nom_suspended_cross_charge": "NOM suspended: it discharged into another battery",
+              "nom_suspended_import_cap": "NOM suspended: its charge went over the import cap",
+              "degraded": "Mode or power cannot be confirmed"
+            }
+          }
         }
       },
       "grid_reverse": {

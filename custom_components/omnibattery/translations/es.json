@@ -2724,6 +2724,22 @@
         "state": {
           "nom": "NOM (0 en el contador)",
           "manual": "Manual (sin acción)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Estado",
+            "state": {
+              "manual": "Manual",
+              "nom_active": "NOM activo",
+              "nom_pending": "NOM a punto de volver",
+              "nom_suspended_excluded_load": "NOM suspendido: dispositivo excluido en marcha",
+              "nom_suspended_grid_charge": "NOM suspendido: carga de red",
+              "nom_suspended_global_manual": "NOM suspendido: modo manual global",
+              "nom_suspended_cross_charge": "NOM suspendido: descargaba hacia otra batería",
+              "nom_suspended_import_cap": "NOM suspendido: su carga superó el límite de importación",
+              "degraded": "No se puede confirmar el modo o la potencia"
+            }
+          }
         }
       },
       "grid_reverse": {

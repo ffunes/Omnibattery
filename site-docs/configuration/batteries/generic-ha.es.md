@@ -1,6 +1,6 @@
-# Otras baterías, solo lectura a través de Home Assistant
+# Otras baterías a través de Home Assistant
 
-Omnibattery puede tener en cuenta una batería que no puede controlar, siempre que otra integración ya la publique en Home Assistant. La lee, la incluye en el cálculo del consumo doméstico y nunca le envía una orden.
+Omnibattery puede tener en cuenta una batería que no puede controlar, siempre que otra integración ya la publique en Home Assistant. La lee, la incluye en el cálculo del consumo doméstico y nunca le envía una orden de potencia. Si esa integración tiene además un select o un interruptor que activa y desactiva la regulación propia de la batería, Omnibattery puede usarlo para [pararla cuando no debe actuar](#modo-de-operacion-nom-y-manual).
 
 Úsalo para un inversor de otro fabricante con su propia integración de Home Assistant —por ejemplo una batería BYD detrás de un Kostal Plenticore— donde la batería aplica su propia lógica de autoconsumo.
 
@@ -34,9 +34,11 @@ Omnibattery puede tener en cuenta una batería que no puede controlar, siempre q
 | **Contadores de energía cargada** | Contadores totales (Wh, kWh o MWh), opcionales. Elige varios si la fuente los separa —Kostal publica por separado la carga desde solar y desde la red— y se suman |
 | **Contador de energía descargada** | Contador total (Wh, kWh o MWh), opcional |
 | **Estado de carga objetivo** | Número escribible, opcional, p. ej. `number.scb_battery_min_soc` |
+| **Entidad de modo de operación** | Select o interruptor, opcional, que elige si la batería regula por su cuenta. Véase [más abajo](#modo-de-operacion-nom-y-manual) |
 | **Considerar la telemetría perdida tras** | Cuánto puede callar la integración de origen. Auméntalo si consulta lentamente |
 
-4. En el paso siguiente, introduce la **capacidad nominal** en kWh. Es el único límite que pide el formulario.
+4. Si has elegido una entidad de modo, indica cuál de sus estados es **NOM** y cuál **Manual**.
+5. En el paso siguiente, introduce la **capacidad nominal** en kWh. Es el único límite que pide el formulario.
 
 ## Qué verás
 
@@ -45,6 +47,40 @@ Un dispositivo con un sensor de estado de carga, un sensor de potencia y los con
 No verás permitir carga, permitir descarga, control manual, modo forzado, límites de estado de carga por software ni topes de potencia. Todos ellos dan forma a órdenes que esta batería nunca recibe, así que se omiten deliberadamente.
 
 El efecto visible está en **Consumo doméstico**: debería coincidir ahora con la cifra de consumo del propio inversor mientras la batería carga o descarga. Esa corrección es el motivo de esta conexión.
+
+## Modo de operación: NOM y Manual {#modo-de-operacion-nom-y-manual}
+
+Muchas baterías mantienen su propio contador a 0 W por sí solas. Eso es **NOM** (cero en el contador). **Manual** es lo contrario: la regulación está parada y la batería reposa. Si la integración que lee la batería tiene un select o un interruptor para ello, indícalo en **Entidad de modo de operación**.
+
+La batería tiene entonces un selector **Modo de operación**:
+
+- **Manual** (lo predeterminado en una batería recién añadida): la batería no hace nada. Omnibattery tampoco le envía órdenes de potencia.
+- **NOM**: la batería regula primero y las que Omnibattery controla cubren lo que ella deja. Casa a 3000 W y NOM da 1200 W: las demás dan 1800 W. Con 2000 W de excedente solar y NOM tomando 800 W, las demás cargan con los 1200 W restantes. La carga de NOM nunca se convierte en descarga de otra batería.
+
+El selector muestra **lo que has pedido**. Lo que hace la batería está en sus atributos: `effective_mode`, `status`, `suspended`, `suspension_causes`, `last_change`, `last_error`.
+
+Con NOM pedido, Omnibattery mantiene la batería en Manual mientras:
+
+| Causa | Por qué |
+|---|---|
+| Hay o va a haber una carga de red (predictiva, precio negativo, semanal, franja manual, carga manual de otra batería) | La batería vería la importación y descargaría hacia ella |
+| Un dispositivo excluido está en marcha, entero o en parte | No puede dejar sin cubrir esa demanda. Excedente solar, Cubrir Hogar y control dinámico no cambian nada |
+| Un dispositivo excluido aún no se ha podido leer, o se perdió estando en marcha | Nada indica que esté apagado |
+| El **Modo Manual** global está activo | Mandas tú |
+| Descargó mientras otra batería cargaba, en dos lecturas | La energía que pasa de una batería a otra se paga dos veces. Dura 5 minutos desde la última vez |
+| Su carga llevó la importación por encima de la **Máximo de Importación de Red** | Mejor pararla que descargar otra batería para compensar. Dura 5 minutos |
+| No se puede leer su potencia | Nadie sabe qué está haciendo |
+
+NOM vuelve solo 30 segundos después de que desaparezca la última causa.
+
+**Una carga de red nunca se cancela por esto.** Espera como máximo 60 segundos, una sola vez, a que se confirme Manual, con el control normal en marcha mientras tanto. Si no se confirma, arranca igual, un aviso de reparación te lo dice, la batería aparece como degradada y Omnibattery lo sigue intentando; el aviso se borra solo. El peor caso es lo que ocurre sin entidad de modo: la batería descarga hacia la carga.
+
+!!! warning "Lo que Omnibattery no puede limitar"
+    Puede parar esta batería, pero no fijar su potencia. Los límites de potencia del sistema y por fase se aplican solo a las baterías que Omnibattery controla, así que el total físico puede superarlos.
+
+    Si la batería o su integración están sin conexión y no aceptan Manual, nada puede pararla. Omnibattery lo dice y no afirma que esté parada. Si no se puede leer su potencia y lo último que se vio no fue Manual, las demás baterías no descargan hasta saber una de las dos cosas (el límite de importación sigue mandando).
+
+Reiniciar o recargar conserva tu elección: la batería pasa a Manual al descargarse la integración y vuelve a NOM unos 30 segundos después de que todo se pueda leer otra vez.
 
 !!! warning "Revisa tu sensor de producción solar en un inversor híbrido"
     Omnibattery deriva la carga doméstica como `red + potencia de batería + producción solar`. En un inversor híbrido, elige el sensor que mide la producción de **continua** (la suma de las entradas de string). La salida de alterna del inversor ya lleva restada la carga de la batería, así que usarla restaría la batería dos veces en cuanto configures esta conexión.
@@ -59,8 +95,11 @@ El efecto visible está en **Consumo doméstico**: debería coincidir ahora con 
 | La batería pasa a no disponible constantemente | La integración de origen consulta más despacio que el límite configurado | Aumenta **Considerar la telemetría perdida tras** |
 | El estado de carga del sistema incluye esta batería | Funciona según lo previsto | El estado de carga del sistema, la capacidad total y la energía almacenada describen la instalación, y esta batería forma parte física de ella. Solo la *planificación* la deja fuera — véase la fila siguiente |
 | La carga predictiva compra energía de red aunque esta batería esté llena | Funciona según lo previsto, por ahora | Sus kilovatios hora se mantienen deliberadamente fuera del balance energético. Consulta la nota siguiente |
+| **Modo de operación** dice NOM pero la batería reposa | Una causa la mantiene en Manual | `status` y `suspension_causes` del selector, o la línea bajo él en el panel |
+| NOM no vuelve nunca y la causa es un dispositivo excluido | Su sensor no se puede leer, o consume más de 10 W en reposo | La entidad que aparece en `suspension_causes` |
+| Aviso «No se ha podido parar» | La entidad de modo no aceptó el cambio | Cámbiala a mano en **Herramientas para desarrolladores → Acciones**; el aviso se borra solo cuando la batería muestre Manual |
 
-!!! warning "Limitación conocida de esta primera etapa"
+!!! warning "Sin entidad de modo"
     Una batería que Omnibattery no puede pausar puede descargarse *dentro* de
     una carga de red que él mismo está pagando. Si la batería observada aplica
     su propia lógica de autoconsumo, cubre la casa desde sus celdas mientras
@@ -70,10 +109,11 @@ El efecto visible está en **Consumo doméstico**: debería coincidir ahora con 
     se pierde nada dos veces, pero la carga nocturna puede resultar mayor de lo
     necesario.
 
-    Todavía no hay un ajuste para esto. Si te cuesta dinero de verdad, lo
-    práctico es subir el estado de carga mínimo de la otra batería durante las
-    horas en que Omnibattery carga de la red, para que deje de descargarse
-    mientras eso ocurre.
+    Si su integración tiene un select o un interruptor de modo, configúralo como
+    **Entidad de modo de operación** y esto deja de ocurrir. Si no, sube el
+    estado de carga mínimo de la otra batería durante las horas en que
+    Omnibattery carga de la red, para que deje de descargarse mientras eso
+    ocurre.
 
 ??? "Detalles avanzados"
     Omnibattery publica la potencia de esta batería solo bajo `battery_power`, nunca bajo `ac_power`. Los agregados usan entonces su respaldo documentado, `-battery_power`, que es lo que aporta al balance doméstico una batería sin puerto de alterna propio.
@@ -87,5 +127,7 @@ El efecto visible está en **Consumo doméstico**: debería coincidir ahora con 
     Tampoco entra en el rendimiento de ida y vuelta medido que fija el margen de arbitraje. Sus propios contadores pueden ser del todo fiables, pero la energía que compra una decisión de arbitraje recorre el ciclo completo en las baterías que Omnibattery sí gobierna, y solo el rendimiento de estas puede decidir qué diferencial de precio debe superar esa compra.
 
     Su energía almacenada se mantiene por ahora completamente fuera de la carga predictiva. Contarla exigiría que entrara la mitad almacenada mientras la mitad del hueco libre se queda fuera —Omnibattery no puede ni cargar esta batería desde la red ni liberarla a demanda— y esa separación es un cambio aparte.
+
+    Solo se guarda el modo pedido. El efectivo se lee en vivo de la entidad mapeada; un estado que no es ninguno de los dos cuenta como desconocido. Las escrituras van en segundo plano y se confirman en ciclos de control posteriores; una fallida se reintenta a los 5, 10, 20 y 40 segundos y después cada 60, y NOM se escribe como mucho cada 30 segundos. Tras 60 segundos fuera del modo buscado la batería está en `degraded`. El detector de flujo opuesto necesita las dos potencias por encima de 50 W en dos lecturas distintas separadas al menos 5 segundos; sin entidad de modo solo anota el evento en los diagnósticos.
 
     El número **Target SOC** escribe en la entidad configurada, redondeado al paso que esa entidad acepta y acotado a su rango.

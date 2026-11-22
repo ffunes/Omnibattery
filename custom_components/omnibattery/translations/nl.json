@@ -2724,6 +2724,22 @@
         "state": {
           "nom": "NOM (nul op de meter)",
           "manual": "Handmatig (geen actie)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "manual": "Handmatig",
+              "nom_active": "NOM actief",
+              "nom_pending": "NOM komt zo terug",
+              "nom_suspended_excluded_load": "NOM onderbroken: uitgesloten apparaat draait",
+              "nom_suspended_grid_charge": "NOM onderbroken: laden van het net",
+              "nom_suspended_global_manual": "NOM onderbroken: algemene handmatige modus",
+              "nom_suspended_cross_charge": "NOM onderbroken: ontlaadde in een andere batterij",
+              "nom_suspended_import_cap": "NOM onderbroken: haar lading ging over de importlimiet",
+              "degraded": "Modus of vermogen niet bevestigd"
+            }
+          }
         }
       },
       "user_work_mode": {
