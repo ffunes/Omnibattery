@@ -393,6 +393,168 @@ async def test_a_repair_left_by_an_earlier_run_is_cleared_on_the_first_look():
     assert len(deleted) == len(set(deleted)), "once, not on every cycle"
 
 
+@pytest.mark.asyncio
+async def test_a_nom_that_keeps_failing_becomes_a_repair_and_clears():
+    battery = Battery(requested="nom")
+    battery.driver.ok = False
+    rig = Rig(battery)
+    await rig.run(60)
+    assert "nom_restore_failed" not in rig.issues
+    await rig.run(180)
+    assert "nom_restore_failed" in rig.issues
+    battery.driver.ok = True
+    await rig.run(70)
+    assert battery.driver.mode is NOM and rig.issues == set()
+
+
+@pytest.mark.asyncio
+async def test_lost_telemetry_becomes_a_repair_and_clears():
+    battery = nom_battery()
+    rig = Rig(battery)
+    await rig.run(10)
+    battery.is_available = False
+    await rig.run(200)
+    assert battery.driver.mode is MANUAL and "nom_telemetry_lost" not in rig.issues
+    await rig.run(120)
+    assert rig.issues == {"nom_telemetry_lost"}
+    assert rig.manager.status(battery) == "degraded"
+    battery.is_available = True
+    await rig.cycle()
+    assert rig.issues == set()
+
+
+@pytest.mark.asyncio
+async def test_repeated_opposite_flow_becomes_a_repair():
+    nom, other = nom_battery(power=-600), charging_marstek(500)
+    rig = Rig(nom, other)
+    for episode in range(3):
+        assert "nom_cross_charge" not in rig.issues
+        nom.driver.mode = NOM
+        nom.data["battery_power"] = -600.0
+        await rig.run(12)
+        nom.data["battery_power"] = 0.0
+        await rig.run(400)
+    assert "nom_cross_charge" in rig.issues
+    await rig.run(3600, step=10)
+    assert rig.issues == set()
+
+
+@pytest.mark.asyncio
+async def test_no_repair_while_home_assistant_is_still_starting():
+    """The integration that owns the battery may take minutes to load."""
+    battery = nom_battery()
+    battery.driver.obeys = False
+    battery.driver.mode = None
+    rig = Rig(battery)
+    rig.causes["global_manual_mode"] = {}
+    rig.manager._hass.is_running = False
+    await rig.run(120)
+    assert rig.issues == set() and rig.manager.status(battery) == "degraded"
+    rig.manager._hass.is_running = True
+    await rig.cycle()
+    assert rig.issues == {"nom_manual_unconfirmed"}
+
+
+# ------------------------------------------------------------- start, reload, unload
+
+@pytest.mark.asyncio
+async def test_at_startup_a_nom_battery_is_stopped_until_it_can_be_read():
+    """NOM stored, no first reading yet: no window over an excluded device."""
+    battery = nom_battery()
+    battery.data = None
+    battery.is_available = False
+    rig = Rig(battery)
+    await rig.run(20)
+    assert battery.driver.mode is MANUAL
+    battery.data = {"battery_soc": 50, "battery_power": 0.0}
+    battery.is_available = True
+    await rig.run(28)
+    assert battery.driver.mode is MANUAL
+    await rig.run(20)
+    assert battery.driver.mode is NOM
+
+
+@pytest.mark.asyncio
+async def test_a_reload_keeps_the_preference_and_not_the_causes():
+    battery = nom_battery()
+    rig = Rig(battery)
+    rig.causes["grid_charge:predictive"] = {}
+    await rig.run(10)
+    assert battery.driver.mode is MANUAL
+    again = Rig(battery)                    # a new run over the same device
+    await again.run(60)
+    assert battery.driver.mode is NOM
+    assert again.manager.snapshot(battery)["suspension_causes"] == {}
+
+
+def test_the_preference_is_restored_from_the_stored_battery(monkeypatch):
+    from tests.test_generic_ha_integration import _coordinator
+
+    coordinator, _ = _coordinator(monkeypatch)
+    assert coordinator.autonomous_requested_mode == "manual"
+    coordinator, _ = _coordinator(monkeypatch, autonomous_requested_mode="nom")
+    assert coordinator.autonomous_requested_mode == "nom"
+    assert AutonomousBatteryModeManager.requested(coordinator) is NOM
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("obeys", [True, False])
+async def test_unloading_goes_to_manual_and_shows_a_failure(monkeypatch, obeys):
+    """Also with the telemetry down: the mode entity is not the telemetry."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    import custom_components.omnibattery as integration
+    from custom_components.omnibattery.const import DOMAIN
+
+    battery = nom_battery()
+    battery.driver.obeys = obeys
+    battery._is_connected = False
+    battery.capabilities.has_rs485_control = False
+    battery.set_shutting_down = lambda _v: None
+    battery.disconnect = AsyncMock()
+
+    async def _standby():
+        return (await battery.driver.apply_operating_mode(MANUAL)).ok and battery.driver.mode is MANUAL
+
+    battery.standby = _standby
+    rig = Rig(battery)
+    rig.causes["global_manual_mode"] = {}
+    battery.driver.obeys = False
+    await rig.run(70)
+    assert rig.issues == {"nom_manual_unconfirmed"}
+    battery.driver.obeys = obeys
+    battery.driver.writes.clear()
+
+    controller = MagicMock()
+    controller._autonomous_mode_mgr = rig.manager
+    controller.async_stop_background_tasks = AsyncMock()
+    controller._hourly_balance_mgr = None
+    controller._consumption_tracker = None
+    controller._daily_operation_timeline = None
+    hass = MagicMock()
+    hass.data = {DOMAIN: {"e1": {"coordinators": [battery], "controller": controller}}}
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    hass.config_entries.async_entries = lambda _d: []
+    monkeypatch.setattr(integration, "_async_unregister_frontend_panel", lambda _h: None)
+    assert await integration.async_unload_entry(hass, SimpleNamespace(entry_id="e1")) is True
+    assert battery.driver.writes == [MANUAL], "to Manual, and never back to NOM"
+    assert rig.issues == (set() if obeys else {"nom_manual_unconfirmed"})
+
+
+@pytest.mark.asyncio
+async def test_a_house_with_only_autonomous_batteries_is_told_why_nothing_is_planned():
+    from custom_components.omnibattery import ChargeDischargeController
+
+    battery = nom_battery()
+    controller = SimpleNamespace(
+        coordinators=[battery], predictive_charging_enabled=True,
+        predictive_charging_overridden=False,
+    )
+    decision = await ChargeDischargeController._should_activate_grid_charging(controller)
+    assert decision["should_charge"] is False
+    assert decision["reason"] == "no_controllable_battery"
+
+
 # ------------------------------------------------------------- global manual
 
 @pytest.mark.asyncio

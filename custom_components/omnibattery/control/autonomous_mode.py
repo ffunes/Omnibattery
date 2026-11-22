@@ -47,6 +47,12 @@ CONFIRM_S = 10.0
 RETRY_BACKOFF_S = (5.0, 10.0, 20.0, 40.0, 60.0)
 # Longer than this in a mode that is not the wanted one is a visible failure.
 UNCONFIRMED_AFTER_S = 60.0
+# Failed tries to go back to NOM, seconds without a power reading, and opposite
+# flows within CROSS_EPISODES_WINDOW_S that become a repair.
+RESTORE_FAILED_AFTER = 3
+TELEMETRY_LOST_S = 300.0
+CROSS_EPISODES = 3
+CROSS_EPISODES_WINDOW_S = 3600.0
 # A grid charge waits this long, once, for Manual to be confirmed; then it goes
 # ahead with a visible warning. Charging is never called off.
 GRID_CHARGE_WAIT_S = 60.0
@@ -89,6 +95,7 @@ class _BatteryState:
     last_known: NativeOperatingMode | None = None
     last_change: datetime | None = None
     last_error: str | None = None
+    blind_since: float | None = None
     task: asyncio.Task | None = None
     # Opposite flow seen in the last reading: how many readings, when, which.
     cross_samples: int = 0
@@ -261,12 +268,17 @@ class AutonomousBatteryModeManager:
     def _battery_causes(self, coordinator) -> dict[str, dict]:
         """Causes that suspend this battery only."""
         causes: dict[str, dict] = {}
-        if self.requested(coordinator) is NOM and _battery_ac_power_w(coordinator) is None:
-            causes[CAUSE_TELEMETRY] = {}
         state = self._state(coordinator)
+        now = self._clock()
+        if _battery_ac_power_w(coordinator) is not None:
+            state.blind_since = None
+        else:
+            if state.blind_since is None:
+                state.blind_since = now
+            if self.requested(coordinator) is NOM:
+                causes[CAUSE_TELEMETRY] = {}
         self._watch_cross_flow(coordinator, state)
         self._watch_import_cap(coordinator, state)
-        now = self._clock()
         causes.update(
             (source, details)
             for source, (until, details) in state.latched.items()
@@ -467,14 +479,48 @@ class AutonomousBatteryModeManager:
     def _update_issues(self, coordinator) -> None:
         """Raise and clear this battery's repairs."""
         state = self._state(coordinator)
-        self._set_issue(
-            coordinator, "nom_manual_unconfirmed",
-            state.want is MANUAL and self._unconfirmed(coordinator),
-        )
+        now = self._clock()
+        episodes = self._cross_episodes.get(coordinator, ())
+        for key, wanted in (
+            (
+                "nom_manual_unconfirmed",
+                state.want is MANUAL and self._unconfirmed(coordinator),
+            ),
+            (
+                "nom_restore_failed",
+                state.want is NOM and state.attempts >= RESTORE_FAILED_AFTER,
+            ),
+            (
+                "nom_telemetry_lost",
+                CAUSE_TELEMETRY in state.causes
+                and state.blind_since is not None
+                and now - state.blind_since >= TELEMETRY_LOST_S,
+            ),
+            (
+                "nom_cross_charge",
+                sum(now - at <= CROSS_EPISODES_WINDOW_S for at in episodes)
+                >= CROSS_EPISODES,
+            ),
+        ):
+            self._set_issue(coordinator, key, wanted)
+
+    def raise_unconfirmed(self, coordinator) -> None:
+        """Leave the unconfirmed-Manual repair behind when the entry unloads."""
+        self._set_issue(coordinator, "nom_manual_unconfirmed", True)
+
+    def clear_issues(self) -> None:
+        """Take down the repairs of a run that ends; the next one looks again."""
+        for issue_id, raised in self._issues.items():
+            if raised:
+                self._delete_issue(issue_id)
+        self._issues.clear()
 
     def _set_issue(self, coordinator, key: str, wanted: bool) -> None:
         issue_id = f"{key}_{self._entry.entry_id}_{coordinator.device_key}"
         if self._issues.get(issue_id) is wanted:
+            return
+        if wanted and not getattr(self._hass, "is_running", True):
+            # The integration that owns the battery may still be loading.
             return
         self._issues[issue_id] = wanted
         if wanted:

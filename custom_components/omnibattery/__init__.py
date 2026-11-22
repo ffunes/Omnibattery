@@ -143,7 +143,6 @@ from .const import (
     CONF_CAPACITY_PROTECTION_SOC_THRESHOLD,
     DEFAULT_CAPACITY_PROTECTION_SOC,
     CONF_MANUAL_MODE_ENABLED,
-    CONF_AUTONOMOUS_REQUESTED_MODE,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_PREDICTIVE_CHARGING_MODE,
@@ -244,11 +243,11 @@ from .drivers.base import (
     AC_REGISTER_ONLY,
     DELIVERED_AC_POWER_KEY,
     InverterStatus,
-    NativeOperatingMode,
     can_take_setpoint,
     has_connected_mppt_pv,
     is_observed,
     mppt_power_keys,
+    supports_nom_mode,
 )
 from .drivers.registry import DEFAULT_BRAND, driver_class
 from .control.discharge_reserve import DischargeReserveManager
@@ -5739,7 +5738,11 @@ class ChargeDischargeController:
             and ChargeDischargeController._counts_towards_fleet_energy(c)
         ]
         if not coordinators_with_data:
-            _LOGGER.error("No battery coordinators with valid data for predictive charging evaluation")
+            commandable = not self.coordinators or any(
+                can_take_setpoint(c) for c in self.coordinators
+            )
+            if commandable:
+                _LOGGER.error("No battery coordinators with valid data for predictive charging evaluation")
             return {
                 "should_charge": False,
                 "solar_forecast_kwh": None,
@@ -5752,7 +5755,9 @@ class ChargeDischargeController:
                 "total_available_kwh": 0,
                 "energy_deficit_kwh": 0,
                 "days_in_history": 0,
-                "reason": "No battery data available"
+                "reason": (
+                    "No battery data available" if commandable else "no_controllable_battery"
+                ),
             }
 
         # === STEP 3: Calculate Energy Balance ===
@@ -12351,9 +12356,6 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
         coordinator.battery_manual_mode_enabled = bool(
             battery_config.get(CONF_BATTERY_MANUAL_MODE_ENABLED, False)
         )
-        coordinator.autonomous_requested_mode = battery_config.get(
-            CONF_AUTONOMOUS_REQUESTED_MODE, NativeOperatingMode.MANUAL.value
-        )
         coordinator.battery_capacity_kwh = battery_config.get("battery_capacity_kwh", 0.0)
         # Restore the user's configured ceilings into the normalized coordinator
         # model. ``effective_max_*`` then applies the physical/device cap without
@@ -12966,6 +12968,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             controller._pricing_mgr.clear_negative_price_runtime("unload")
             controller._high_price_discharge_mgr.clear_runtime("unload")
 
+            mode_manager = getattr(controller, "_autonomous_mode_mgr", None)
+            if mode_manager is not None:
+                mode_manager.clear_issues()
+
         # Set shutdown flag on all coordinators to suppress expected errors.
         for coordinator in coordinators:
             coordinator.set_shutting_down(True)
@@ -12986,7 +12992,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             try:
                 # Skip shutdown writes if device was unreachable to avoid blocking
                 # on TCP connection timeout (~10s per register write attempt)
-                if not coordinator._is_connected:
+                # (a battery with a native mode is switched through its own entity,
+                # which answers even when its telemetry does not).
+                if not coordinator._is_connected and not supports_nom_mode(coordinator):
                     _LOGGER.info(
                         "Skipping shutdown writes for %s - device was not connected",
                         coordinator.name,
@@ -13004,7 +13012,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 # paces its own writes — the client's inter-message pacing is
                 # suppressed during shutdown.
                 _LOGGER.info("Setting %s to standby mode", coordinator.name)
-                await coordinator.standby()
+                idle = await coordinator.standby()
+                if not idle and supports_nom_mode(coordinator):
+                    # Nobody is left to retry it: say so where it can be seen.
+                    _LOGGER.error(
+                        "%s: could not be confirmed in Manual while unloading",
+                        coordinator.name,
+                    )
+                    mode_manager = getattr(
+                        data.get("controller"), "_autonomous_mode_mgr", None
+                    )
+                    if mode_manager is not None:
+                        mode_manager.raise_unconfirmed(coordinator)
 
                 # Disable RS485 Control Mode (return control to battery's internal logic)
                 _LOGGER.info("Disabling RS485 control mode for %s", coordinator.name)

@@ -363,3 +363,23 @@ def test_a_fixed_discharge_into_a_charge_we_did_not_foresee_is_stopped():
     assert house.battery.driver.mode == "manual"
     assert house.manager.last_cross_flow["charging"].keys() == {"battery"}
     assert house.command == pytest.approx(1500, abs=60), "only the sun's"
+
+
+def test_only_autonomous_batteries_and_no_commandable_one():
+    """The modes are still managed and nothing divides by zero."""
+    house = House(house=1500, nom=regulate(800), with_marstek=False).run(60)
+    assert house.commands == []
+    assert house.manager.status(house.battery) == "nom_active"
+    house.start_grid_charge()
+    house.run(20)
+    assert house.controller.grid_charging_active is False, "nothing to charge"
+    house.controller.manual_mode_enabled = True
+    house.controller._apply_software_manual_setpoints = _nothing
+    house.controller._surplus_hold_mgr = house.controller._discharge_reserve_mgr = None
+    house.controller._pricing_mgr.clear_curtailment_runtime = lambda _r: None
+    house.run(10)
+    assert house.battery.driver.mode == "manual"
+
+
+async def _nothing(*_args, **_kwargs):
+    return None

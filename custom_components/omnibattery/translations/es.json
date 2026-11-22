@@ -30,6 +30,18 @@
       "title": "No se ha podido parar {battery}",
       "description": "Omnibattery ha pedido a {battery} que pase a Manual y no muestra ese modo, así que puede seguir cargando o descargando por su cuenta. La carga de red de las demás baterías se hace igualmente: el peor caso es que {battery} descargue hacia ella. Omnibattery lo sigue intentando y este aviso se borra solo en cuanto la batería muestre Manual. Comprueba que la integración que lee {battery} funciona y que su entidad de modo se puede cambiar a mano."
     },
+    "nom_restore_failed": {
+      "title": "{battery} no vuelve a NOM",
+      "description": "Has elegido NOM para {battery} y varios intentos de cambiarla han fallado, así que sigue en Manual y no hace nada. Omnibattery lo sigue intentando y este aviso se borra solo. Comprueba que la integración que lee {battery} funciona y que su entidad de modo se puede cambiar a mano."
+    },
+    "nom_telemetry_lost": {
+      "title": "No se puede leer la potencia de {battery}",
+      "description": "{battery} está en NOM pero Omnibattery lleva varios minutos sin lectura de su potencia, así que la mantiene en Manual. Mientras tampoco se confirme Manual, las demás baterías no descargan: podrían estar alimentando una carga que nadie ve. Comprueba la integración que lee {battery}. Todo vuelve a la normalidad solo cuando vuelve la lectura."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} descarga una y otra vez hacia otra batería",
+      "description": "Al menos tres veces en la última hora {battery} estaba descargando mientras otra batería cargaba, y hubo que pararla. La energía que pasa de una batería a otra se paga dos veces. Busca algo más que gobierne una de ellas: la programación de la app de la batería, una automatización o dos reguladores con objetivos distintos en el mismo contador."
+    },
     "configured_sensor_missing": {
       "title": "Un sensor configurado ya no existe",
       "description": "Omnibattery está configurado con {sensors}, que no existe en Home Assistant. Todas las funciones que lo leen están inactivas. La referencia guardada se conserva a propósito, porque el selector de entidades no puede mostrar una entidad que ya no está y borraría tu ajuste en silencio: abre Opciones → Sensores y elige un sustituto, o vacía el campo cuando la entidad vuelva."

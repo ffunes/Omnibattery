@@ -30,6 +30,18 @@
       "title": "{battery} kon niet worden stilgezet",
       "description": "Omnibattery heeft {battery} gevraagd naar Handmatig te gaan en ze toont die modus niet; ze kan dus nog zelf laden of ontladen. Laden van het net van de andere batterijen gaat toch door: in het ergste geval ontlaadt {battery} daarin. Omnibattery blijft het proberen en deze melding verdwijnt vanzelf zodra de batterij Handmatig toont. Controleer of de integratie die {battery} leest werkt en of haar modusentiteit met de hand te wijzigen is."
     },
+    "nom_restore_failed": {
+      "title": "{battery} gaat niet terug naar NOM",
+      "description": "Je hebt NOM gekozen voor {battery} en meerdere pogingen om te schakelen zijn mislukt; ze blijft in Handmatig en doet niets. Omnibattery blijft het proberen en deze melding verdwijnt vanzelf. Controleer of de integratie die {battery} leest werkt en of haar modusentiteit met de hand te wijzigen is."
+    },
+    "nom_telemetry_lost": {
+      "title": "Het vermogen van {battery} is niet leesbaar",
+      "description": "{battery} staat op NOM, maar Omnibattery heeft al enkele minuten geen vermogensmeting en houdt haar daarom in Handmatig. Zolang Handmatig ook niet is bevestigd, ontladen de andere batterijen niet: ze zouden een lading kunnen voeden die niemand ziet. Controleer de integratie die {battery} leest. Alles herstelt vanzelf zodra de meting terugkomt."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} ontlaadt steeds weer in een andere batterij",
+      "description": "Minstens drie keer in het afgelopen uur ontlaadde {battery} terwijl een andere batterij laadde, en moest ze worden stilgezet. Energie die van batterij naar batterij gaat, wordt dubbel betaald. Zoek naar iets anders dat een van beide aanstuurt: het schema in de app van de batterij, een automatisering of twee regelaars met verschillende doelen op dezelfde meter."
+    },
     "configured_sensor_missing": {
       "title": "Geconfigureerde sensor bestaat niet meer",
       "description": "Omnibattery is geconfigureerd met {sensors}, die niet in Home Assistant bestaat. Alle functies die hem uitlezen zijn inactief. De opgeslagen verwijzing blijft bewust bewaard, omdat de entiteitskiezer een verdwenen entiteit niet kan tonen en je instelling stilzwijgend zou wissen: open Opties → Sensoren en kies een vervanger, of maak het veld leeg zodra de entiteit terug is."

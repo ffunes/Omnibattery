@@ -49,6 +49,7 @@ class House:
     def __init__(
         self, *, house=0.0, solar=0.0, nom=0.0, mode=NOM, requested="nom",
         has_mode=True, dc_coupled=False, max_w=2500.0, cap=0.0, with_nom=True,
+        with_marstek=True,
     ):
         self.house, self.solar, self.nom = house, solar, nom
         # DC-coupled: what its own panels put in it never reaches the meter.
@@ -69,6 +70,8 @@ class House:
         self.battery = Battery(mode=mode, requested=requested, nom=has_mode)
         if with_nom:
             c.coordinators.append(self.battery)
+        if not with_marstek:
+            c.coordinators.remove(self.marstek)
         self.commands: list[float] = []     # what Marstek was told, + = charge
         self.history: list[tuple[float, float, float]] = []
 
@@ -89,9 +92,9 @@ class House:
             derivative_tau=3.0, max_power_change_per_cycle=2500, direction_hysteresis=0,
             _should_log_rate_limiter=lambda _change: False,
             _clear_rate_limiter_state=lambda: None,
-            _get_available_batteries=lambda is_charging, include_operation_blocks=True, **_k: [
-                self.marstek
-            ],
+            _get_available_batteries=lambda is_charging, include_operation_blocks=True, **_k: (
+                [self.marstek] if with_marstek else []
+            ),
             _effective_system_capacity=lambda batteries, is_charging: (
                 max_w if self.marstek in batteries else 0.0
             ),

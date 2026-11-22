@@ -263,7 +263,7 @@ class _HaState:
         self.last_reported = None
 
 
-def _coordinator(monkeypatch):
+def _coordinator(monkeypatch, **stored):
     """A real coordinator for brand generic_ha. No Home Assistant runtime."""
     monkeypatch.setattr(DataUpdateCoordinator, "__init__", lambda *a, **k: None)
     table = {
@@ -301,6 +301,7 @@ def _coordinator(monkeypatch):
             "ha_discharge_energy_entity": None,
             "ha_target_soc_entity": "number.scb_battery_min_soc",
             "ha_stale_after_s": 600,
+            **stored,
         },
         "sensor.scb_grid_power",
     )

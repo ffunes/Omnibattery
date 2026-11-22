@@ -30,6 +30,18 @@
       "title": "{battery} konnte nicht angehalten werden",
       "description": "Omnibattery hat {battery} aufgefordert, auf Manuell zu gehen, aber sie zeigt diesen Modus nicht und lädt oder entlädt möglicherweise weiter von selbst. Eine Netzladung der anderen Batterien läuft trotzdem: Im schlimmsten Fall entlädt {battery} in sie hinein. Omnibattery versucht es weiter, und dieser Hinweis verschwindet von selbst, sobald die Batterie Manuell zeigt. Prüfe, ob die Integration, die {battery} liest, funktioniert und ob sich ihre Modus-Entität von Hand ändern lässt."
     },
+    "nom_restore_failed": {
+      "title": "{battery} geht nicht zu NOM zurück",
+      "description": "Du hast für {battery} NOM gewählt, aber mehrere Umschaltversuche sind fehlgeschlagen; sie bleibt in Manuell und tut nichts. Omnibattery versucht es weiter, und dieser Hinweis verschwindet von selbst. Prüfe, ob die Integration, die {battery} liest, funktioniert und ob sich ihre Modus-Entität von Hand ändern lässt."
+    },
+    "nom_telemetry_lost": {
+      "title": "Die Leistung von {battery} ist nicht lesbar",
+      "description": "{battery} steht auf NOM, aber Omnibattery hat seit mehreren Minuten keinen Leistungswert und hält sie deshalb in Manuell. Solange auch Manuell nicht bestätigt ist, entladen die anderen Batterien nicht: Sie könnten eine Ladung speisen, die niemand sieht. Prüfe die Integration, die {battery} liest. Sobald der Wert zurückkommt, normalisiert sich alles von selbst."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} entlädt sich immer wieder in eine andere Batterie",
+      "description": "Mindestens dreimal in der letzten Stunde hat {battery} entladen, während eine andere Batterie lud, und musste angehalten werden. Energie, die von Batterie zu Batterie fließt, wird doppelt bezahlt. Suche nach etwas anderem, das eine von ihnen steuert: der Zeitplan der Batterie-App, eine Automation oder zwei Regler mit verschiedenen Zielen am selben Zähler."
+    },
     "configured_sensor_missing": {
       "title": "Konfigurierter Sensor existiert nicht mehr",
       "description": "Omnibattery ist mit {sensors} konfiguriert, das in Home Assistant nicht existiert. Alle Funktionen, die ihn lesen, sind inaktiv. Der gespeicherte Verweis wird absichtlich beibehalten, denn die Entitätsauswahl kann eine verschwundene Entität nicht anzeigen und würde Ihre Einstellung stillschweigend löschen: Öffnen Sie Optionen → Sensoren und wählen Sie einen Ersatz, oder leeren Sie das Feld, sobald die Entität zurück ist."

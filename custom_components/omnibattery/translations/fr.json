@@ -30,6 +30,18 @@
       "title": "{battery} n'a pas pu être arrêtée",
       "description": "Omnibattery a demandé à {battery} de passer en Manuel et elle n'affiche pas ce mode : elle peut donc encore se charger ou se décharger d'elle-même. La charge réseau des autres batteries a lieu malgré tout : au pire, {battery} s'y décharge. Omnibattery continue d'essayer et cet avis disparaît de lui-même dès que la batterie affiche Manuel. Vérifiez que l'intégration qui lit {battery} fonctionne et que son entité de mode peut être changée à la main."
     },
+    "nom_restore_failed": {
+      "title": "{battery} ne repasse pas en NOM",
+      "description": "Vous avez choisi NOM pour {battery} et plusieurs tentatives de bascule ont échoué : elle reste en Manuel et ne fait rien. Omnibattery continue d'essayer et cet avis disparaît de lui-même. Vérifiez que l'intégration qui lit {battery} fonctionne et que son entité de mode peut être changée à la main."
+    },
+    "nom_telemetry_lost": {
+      "title": "La puissance de {battery} est illisible",
+      "description": "{battery} est réglée sur NOM mais Omnibattery n'a plus de lecture de sa puissance depuis plusieurs minutes : elle est maintenue en Manuel. Tant que Manuel n'est pas confirmé non plus, les autres batteries ne se déchargent pas : elles pourraient alimenter une charge invisible. Vérifiez l'intégration qui lit {battery}. Tout revient à la normale de lui-même au retour de la lecture."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} se décharge sans cesse dans une autre batterie",
+      "description": "Au moins trois fois au cours de la dernière heure, {battery} se déchargeait pendant qu'une autre batterie se chargeait, et il a fallu l'arrêter. L'énergie qui passe d'une batterie à l'autre est payée deux fois. Cherchez ce qui commande aussi l'une d'elles : le programme de l'application de la batterie, une automatisation ou deux régulateurs aux objectifs différents sur le même compteur."
+    },
     "configured_sensor_missing": {
       "title": "Un capteur configuré n'existe plus",
       "description": "Omnibattery est configuré avec {sensors}, qui n'existe pas dans Home Assistant. Toutes les fonctions qui le lisent sont inactives. La référence enregistrée est conservée volontairement, car le sélecteur d'entités ne peut pas afficher une entité disparue et effacerait votre réglage en silence : ouvrez Options → Capteurs et choisissez un remplaçant, ou videz le champ une fois l'entité revenue."
