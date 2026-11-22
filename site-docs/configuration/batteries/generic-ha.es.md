@@ -22,7 +22,7 @@ Omnibattery puede tener en cuenta una batería que no puede controlar, siempre q
 ## Cómo añadirla
 
 1. Abre **Ajustes → Dispositivos y servicios → Omnibattery → Configurar → Baterías** y aumenta en uno el número de baterías.
-2. Elige **Other battery, read-only via Home Assistant entities** como marca.
+2. Elige **Other battery via Home Assistant entities** como marca.
 3. Rellena el formulario:
 
 | Campo | Qué introducir |
@@ -69,6 +69,7 @@ Con NOM pedido, Omnibattery mantiene la batería en Manual mientras:
 | El **Modo Manual** global está activo | Mandas tú |
 | Descargó mientras otra batería cargaba, en dos lecturas | La energía que pasa de una batería a otra se paga dos veces. Dura 5 minutos desde la última vez |
 | Su carga llevó la importación por encima de la **Máximo de Importación de Red** | Mejor pararla que descargar otra batería para compensar. Dura 5 minutos |
+| El controlador apunta a propósito a más de 100 W de cero (venta a precio alto, predescarga, balance horario, un objetivo de red fijo así de grande) | Mantiene el contador a 0 W: absorbería lo que se vende o descargaría hacia lo que se compra |
 | No se puede leer su potencia | Nadie sabe qué está haciendo |
 
 NOM vuelve solo 30 segundos después de que desaparezca la última causa.
@@ -80,7 +81,7 @@ NOM vuelve solo 30 segundos después de que desaparezca la última causa.
 
     Si la batería o su integración están sin conexión y no aceptan Manual, nada puede pararla. Omnibattery lo dice y no afirma que esté parada. Si no se puede leer su potencia y lo último que se vio no fue Manual, las demás baterías no descargan hasta saber una de las dos cosas (el límite de importación sigue mandando).
 
-Reiniciar o recargar conserva tu elección: la batería pasa a Manual al descargarse la integración y vuelve a NOM unos 30 segundos después de que todo se pueda leer otra vez.
+Reiniciar o recargar conserva tu elección: la batería pasa a Manual al descargarse la integración o al parar Home Assistant y vuelve a NOM unos 30 segundos después de que todo se pueda leer otra vez.
 
 !!! warning "Revisa tu sensor de producción solar en un inversor híbrido"
     Omnibattery deriva la carga doméstica como `red + potencia de batería + producción solar`. En un inversor híbrido, elige el sensor que mide la producción de **continua** (la suma de las entradas de string). La salida de alterna del inversor ya lleva restada la carga de la batería, así que usarla restaría la batería dos veces en cuanto configures esta conexión.

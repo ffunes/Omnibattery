@@ -213,7 +213,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configurar la batería {battery_num} — Entidades de Home Assistant",
-        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería pero nunca la gobierna: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
+        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería y nunca fija su potencia: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
         "data": {
           "name": "Nombre",
           "ha_soc_entity": "Sensor de estado de carga",
@@ -755,7 +755,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Reconfigurar batería {battery_num} — Home Assistant entities",
-        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería pero nunca la gobierna: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
+        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería y nunca fija su potencia: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
         "data": {
           "name": "Nombre",
           "ha_soc_entity": "Sensor de estado de carga",
@@ -1055,7 +1055,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configurar la batería {battery_num} — Entidades de Home Assistant",
-        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería pero nunca la gobierna: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
+        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería y nunca fija su potencia: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
         "data": {
           "name": "Nombre",
           "ha_soc_entity": "Sensor de estado de carga",
@@ -2737,6 +2737,7 @@
               "nom_suspended_global_manual": "NOM suspendido: modo manual global",
               "nom_suspended_cross_charge": "NOM suspendido: descargaba hacia otra batería",
               "nom_suspended_import_cap": "NOM suspendido: su carga superó el límite de importación",
+              "nom_suspended_grid_target": "NOM suspendido: importación o exportación a propósito",
               "degraded": "No se puede confirmar el modo o la potencia"
             }
           }

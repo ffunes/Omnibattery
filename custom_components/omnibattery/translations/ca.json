@@ -213,7 +213,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configura la bateria {battery_num} — Entitats de Home Assistant",
-        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria però mai no la governa: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
+        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria i mai no en fixa la potència: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Sensor d'estat de càrrega",
@@ -755,7 +755,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Reconfigura la bateria {battery_num} — Home Assistant entities",
-        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria però mai no la governa: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
+        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria i mai no en fixa la potència: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Sensor d'estat de càrrega",
@@ -1055,7 +1055,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configura la bateria {battery_num} — Entitats de Home Assistant",
-        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria però mai no la governa: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
+        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria i mai no en fixa la potència: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Sensor d'estat de càrrega",
@@ -2737,6 +2737,7 @@
               "nom_suspended_global_manual": "NOM suspès: mode manual global",
               "nom_suspended_cross_charge": "NOM suspès: descarregava cap a una altra bateria",
               "nom_suspended_import_cap": "NOM suspès: la seva càrrega va superar el límit d'importació",
+              "nom_suspended_grid_target": "NOM suspès: importació o exportació a propòsit",
               "degraded": "No es pot confirmar el mode o la potència"
             }
           }

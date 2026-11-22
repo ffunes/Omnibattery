@@ -77,11 +77,18 @@ CROSS_REPEATED_S = 60.0
 # last seen over the import cap.
 LATCH_S = 300.0
 
+# A target further than this from 0 W means importing or exporting on purpose
+# (sale, pre-discharge, hourly balance): a battery that holds the meter at 0 W
+# would undo it from its own cells, or fill up with what is being sold. Small
+# standing targets are left alone.
+GRID_TARGET_W = 100.0
+
 CAUSE_GLOBAL_MANUAL = "global_manual_mode"
 CAUSE_GRID_CHARGE = "grid_charge"
 CAUSE_EXCLUDED = "excluded_device"
 CAUSE_CROSS_CHARGE = "cross_charge"
 CAUSE_IMPORT_CAP = "import_cap"
+CAUSE_GRID_TARGET = "grid_target"
 CAUSE_TELEMETRY = "telemetry_untrusted"
 
 
@@ -145,6 +152,7 @@ class AutonomousBatteryModeManager:
         # issue id -> raised. Unknown means this run has not looked yet, and an
         # earlier one may have left it behind.
         self._issues: dict[str, bool] = {}
+        self._stopping = False
 
     # --- what there is -------------------------------------------------------
 
@@ -192,6 +200,10 @@ class AutonomousBatteryModeManager:
                 causes[f"{CAUSE_GRID_CHARGE}:manual_battery"] = {
                     "battery": coordinator.name
                 }
+        # The cap and the reserve follow the meter: they ask nobody to move it.
+        target = getattr(self._controller, "compute_active_target_excluding", None)
+        if callable(target) and abs(target("capacity_protection")) > GRID_TARGET_W:
+            causes[CAUSE_GRID_TARGET] = {}
         causes.update(self._excluded_causes())
         return causes
 
@@ -379,6 +391,8 @@ class AutonomousBatteryModeManager:
 
     async def async_reconcile(self) -> None:
         """Compare what each battery should do with what it does, and act."""
+        if self._stopping:
+            return
         for coordinator in self._controller.coordinators:
             if is_observed(coordinator) and not supports_nom_mode(coordinator):
                 # Nothing to switch: the opposite flow is only written down.
@@ -390,6 +404,15 @@ class AutonomousBatteryModeManager:
         for coordinator in batteries:
             self._reconcile_one(coordinator, system)
             self._update_issues(coordinator)
+
+    async def async_rest_all(self) -> None:
+        """Take every battery to Manual for good; Home Assistant is stopping."""
+        self._stopping = True
+        for coordinator in self.batteries:
+            if not await coordinator.standby():
+                _LOGGER.error(
+                    "%s: could not be confirmed in Manual while stopping", coordinator.name
+                )
 
     def _reconcile_one(self, coordinator, system: dict[str, dict]) -> None:
         now = self._clock()
@@ -558,6 +581,7 @@ class AutonomousBatteryModeManager:
             (CAUSE_EXCLUDED, "nom_suspended_excluded_load"),
             (CAUSE_CROSS_CHARGE, "nom_suspended_cross_charge"),
             (CAUSE_IMPORT_CAP, "nom_suspended_import_cap"),
+            (CAUSE_GRID_TARGET, "nom_suspended_grid_target"),
         ):
             if kind in kinds:
                 return name

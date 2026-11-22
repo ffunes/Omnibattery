@@ -414,3 +414,62 @@ def test_only_autonomous_batteries_and_no_commandable_one():
 
 async def _nothing(*_args, **_kwargs):
     return None
+
+
+def test_a_lost_battery_is_not_still_charging_at_its_last_power():
+    """Its last 800 W stay in the data; confirmed in Manual it takes nothing."""
+    house = _with_blockers(House(house=1000, nom=800.0)).run(40)
+    house.battery.is_available = False
+    house.run(60)
+    assert house.battery.driver.mode == "manual"
+    assert house.command == pytest.approx(-1000, abs=60)
+
+
+def test_a_load_step_under_a_solar_charge_is_not_paid_by_nom():
+    """The kettle: NOM holds the meter at zero, so only its power shows the load."""
+    house = House(solar=2000, nom=regulate(1200)).run(60)
+    assert house.command > 700
+    house.house = 1500
+    house.run(60)
+    fed = min(house.command, -house.history[-1][2])
+    assert fed < 50, "NOM discharges into the other battery's charge"
+    assert abs(house.grid) < 60
+    assert house.battery.driver.writes == [] and house.manager.last_cross_flow is None
+
+
+def test_no_charge_starts_on_an_export_nom_is_making():
+    house = House(nom=-400.0).run(6)
+    assert all(c == 0 for c in house.commands), house.commands
+
+
+@pytest.mark.parametrize("target", [-1500.0, 800.0])
+def test_importing_or_exporting_on_purpose_takes_nom_out(target):
+    """It would absorb the sale, or discharge into what is being bought."""
+    house = House(house=300, nom=regulate(1200)).run(40)
+    house.controller._setpoint_overrides = {"high_price": (5, target)}
+    house.run(80)
+    assert house.battery.driver.mode == "manual"
+    assert house.manager.status(house.battery) == "nom_suspended_grid_target"
+    assert house.grid == pytest.approx(target, abs=60)
+    house.controller._setpoint_overrides = {}
+    house.run(80)
+    assert house.battery.driver.mode == "nom"
+
+
+def test_a_small_standing_target_and_the_reserve_leave_nom_alone():
+    house = House(house=800, nom=regulate(1200))
+    house.controller._setpoint_offsets = {"user_target": -30.0}
+    house.controller._setpoint_overrides = {"capacity_protection": (10, 2500.0)}
+    house.run(40)
+    assert house.battery.driver.mode == "nom"
+
+
+def test_a_nom_discharge_does_not_hide_the_charge_of_a_manual_battery():
+    """Added up battery by battery: 800 W in and 500 W out are not 300 W in."""
+    house = House(house=900, nom=-500.0)
+    other = type(house.battery)("other", nom=False)
+    other.data["battery_power"] = 800.0
+    house.controller.coordinators.append(other)
+    house.house += 800.0
+    house.run(6)                            # before the detector ends it
+    assert house.command == pytest.approx(-400, abs=60)

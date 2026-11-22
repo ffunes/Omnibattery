@@ -213,7 +213,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Batterie {battery_num} einrichten — Home-Assistant-Entitäten",
-        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie und gibt ihr nie eine Leistung vor: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "Ladezustandssensor",
@@ -755,7 +755,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Batterie {battery_num} neu konfigurieren — Home-Assistant-Entitäten",
-        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie und gibt ihr nie eine Leistung vor: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "Ladezustandssensor",
@@ -1055,7 +1055,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Batterie {battery_num} einrichten — Home-Assistant-Entitäten",
-        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie und gibt ihr nie eine Leistung vor: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "Ladezustandssensor",
@@ -2737,6 +2737,7 @@
               "nom_suspended_global_manual": "NOM ausgesetzt: globaler Handbetrieb",
               "nom_suspended_cross_charge": "NOM ausgesetzt: entlud sich in eine andere Batterie",
               "nom_suspended_import_cap": "NOM ausgesetzt: ihre Ladung überschritt das Importlimit",
+              "nom_suspended_grid_target": "NOM ausgesetzt: gewollter Bezug oder Einspeisung",
               "degraded": "Modus oder Leistung nicht bestätigt"
             }
           }

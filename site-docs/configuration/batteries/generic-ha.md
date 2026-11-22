@@ -22,7 +22,7 @@ Use this for a vendor inverter with its own Home Assistant integration — a BYD
 ## How to add it
 
 1. Open **Settings → Devices & services → Omnibattery → Configure → Batteries** and raise the battery count by one.
-2. Choose **Other battery, read-only via Home Assistant entities** as the brand.
+2. Choose **Other battery via Home Assistant entities** as the brand.
 3. Fill in the form:
 
 | Field | What to enter |
@@ -69,6 +69,7 @@ With NOM asked for, Omnibattery holds the battery in Manual while:
 | Global **Manual Mode** is on | You are in charge |
 | It discharged while another battery was charging, in two readings | Energy moved between batteries is paid for twice. Held for 5 minutes after the last time |
 | Its charge took the grid import over **Maximum Grid Import** | Better to stop it than to discharge another battery to make up. Held for 5 minutes |
+| The controller aims more than 100 W away from zero on purpose (high-price sale, pre-discharge, hourly balance, a standing grid target that large) | It holds the meter at 0 W: it would absorb what is being sold, or discharge into what is being bought |
 | Its power cannot be read | Nobody knows what it is doing |
 
 NOM comes back by itself 30 seconds after the last cause is gone.
@@ -80,7 +81,7 @@ NOM comes back by itself 30 seconds after the last cause is gone.
 
     If the battery or its integration is offline and Manual is not accepted, nothing can stop it. Omnibattery says so and does not claim it is stopped. If its power cannot be read and it was not last seen in Manual, the other batteries do not discharge until one of the two is known (the import cap still overrides this).
 
-Restarting or reloading keeps your choice: the battery goes to Manual when the integration unloads and back to NOM about 30 seconds after everything can be read again.
+Restarting or reloading keeps your choice: the battery goes to Manual when the integration unloads or Home Assistant stops, and back to NOM about 30 seconds after everything can be read again.
 
 !!! warning "Check your solar production sensor on a hybrid inverter"
     Omnibattery derives household load as `grid + battery power + solar production`. On a hybrid inverter, pick the sensor that measures **DC** production (the sum of the string inputs). The inverter's AC output already has battery charging subtracted from it, so using that instead subtracts the battery twice once this battery is configured.

@@ -213,7 +213,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Batterij {battery_num} instellen — Home Assistant-entiteiten",
-        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij maar stuurt haar nooit aan: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
+        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij en stelt haar vermogen nooit in: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
         "data": {
           "name": "Naam",
           "ha_soc_entity": "Laadtoestandsensor",
@@ -755,7 +755,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Batterij {battery_num} opnieuw configureren — Home Assistant entities",
-        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij maar stuurt haar nooit aan: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
+        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij en stelt haar vermogen nooit in: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
         "data": {
           "name": "Naam",
           "ha_soc_entity": "Laadtoestandsensor",
@@ -1055,7 +1055,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Batterij {battery_num} instellen — Home Assistant-entiteiten",
-        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij maar stuurt haar nooit aan: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
+        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij en stelt haar vermogen nooit in: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
         "data": {
           "name": "Naam",
           "ha_soc_entity": "Laadtoestandsensor",
@@ -2737,6 +2737,7 @@
               "nom_suspended_global_manual": "NOM onderbroken: algemene handmatige modus",
               "nom_suspended_cross_charge": "NOM onderbroken: ontlaadde in een andere batterij",
               "nom_suspended_import_cap": "NOM onderbroken: haar lading ging over de importlimiet",
+              "nom_suspended_grid_target": "NOM onderbroken: bewust afnemen of terugleveren",
               "degraded": "Modus of vermogen niet bevestigd"
             }
           }

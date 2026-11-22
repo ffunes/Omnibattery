@@ -542,6 +542,30 @@ async def test_unloading_goes_to_manual_and_shows_a_failure(monkeypatch, obeys):
 
 
 @pytest.mark.asyncio
+async def test_stopping_home_assistant_takes_the_batteries_to_manual_for_good():
+    """Home Assistant does not unload the entries when it stops."""
+    import inspect
+
+    import custom_components.omnibattery as integration
+
+    battery = nom_battery()
+
+    async def _standby():
+        battery.driver.mode = MANUAL
+        return True
+
+    battery.standby = _standby
+    rig = Rig(battery)
+    await rig.cycle()
+    await rig.manager.async_rest_all()
+    await rig.run(120)
+    assert battery.driver.mode is MANUAL and battery.driver.writes == []
+    assert battery.persisted == {}, "the preference is not touched"
+    setup = inspect.getsource(integration._async_setup_entry)
+    assert "EVENT_HOMEASSISTANT_STOP" in setup and "async_rest_all" in setup
+
+
+@pytest.mark.asyncio
 async def test_a_house_with_only_autonomous_batteries_is_told_why_nothing_is_planned():
     from custom_components.omnibattery import ChargeDischargeController
 
@@ -931,13 +955,13 @@ async def test_every_status_has_its_text_in_every_language():
 
     statuses = {"manual", "nom_active", "nom_pending", "degraded"}
     for source in ("global_manual_mode", "grid_charge:x", "excluded_device:x",
-                   "cross_charge", "import_cap"):
+                   "cross_charge", "import_cap", "grid_target"):
         battery = nom_battery()
         rig = Rig(battery)
         rig.causes[source] = {}
         await rig.run(6)
         statuses.add(rig.manager.status(battery))
-    assert len(statuses) == 9
+    assert len(statuses) == 10
     base = Path("custom_components/omnibattery")
     issues = {"nom_manual_unconfirmed", "nom_restore_failed", "nom_telemetry_lost",
               "nom_cross_charge"}

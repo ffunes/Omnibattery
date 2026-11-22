@@ -213,7 +213,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configurer la batterie {battery_num} — Entités Home Assistant",
-        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie et ne fixe jamais sa puissance : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Capteur d'état de charge",
@@ -755,7 +755,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Reconfigurer la batterie {battery_num} — Home Assistant entities",
-        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie et ne fixe jamais sa puissance : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Capteur d'état de charge",
@@ -1055,7 +1055,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configurer la batterie {battery_num} — Entités Home Assistant",
-        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie et ne fixe jamais sa puissance : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Capteur d'état de charge",
@@ -2737,6 +2737,7 @@
               "nom_suspended_global_manual": "NOM suspendu : mode manuel global",
               "nom_suspended_cross_charge": "NOM suspendu : elle se déchargeait dans une autre batterie",
               "nom_suspended_import_cap": "NOM suspendu : sa charge dépassait la limite d'import",
+              "nom_suspended_grid_target": "NOM suspendu : import ou export voulu",
               "degraded": "Mode ou puissance non confirmés"
             }
           }

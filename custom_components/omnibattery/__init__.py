@@ -12,6 +12,7 @@ from typing import Any, Optional, Sequence
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    EVENT_HOMEASSISTANT_STOP,
     Platform,
     CONF_HOST,
     CONF_NAME,
@@ -8668,12 +8669,23 @@ class ChargeDischargeController:
         fallback reconstructs a setpoint this integration issued, and for a
         battery it never commands there is nothing to reconstruct.
         """
-        total = 0.0
+        return sum(
+            power
+            for _, power in ChargeDischargeController._uncommanded_battery_powers(self)
+        )
+
+    def _uncommanded_battery_powers(self) -> list:
+        """(battery, signed AC power, + charge) of each one not under control."""
+        powers = []
         for coordinator in self.coordinators:
             observed = is_observed(coordinator)
             if not observed and not ChargeDischargeController._is_battery_manual_owned(
                 coordinator
             ):
+                continue
+            if supports_nom_mode(coordinator) and not coordinator.is_available:
+                # Its last power stays in ``data`` for as long as it is lost. It
+                # is either resting in Manual or blocking every discharge.
                 continue
             measured = ChargeDischargeController._coordinator_delivered_power(
                 coordinator
@@ -8690,10 +8702,10 @@ class ChargeDischargeController:
                 )
             try:
                 if power is not None and math.isfinite(float(power)):
-                    total += float(power)
+                    powers.append((coordinator, float(power)))
             except (TypeError, ValueError):
                 continue
-        return total
+        return powers
 
     def _without_uncommanded_charge(self, grid_w: float, target_w: float) -> float:
         """Grid reading as the automatic batteries must act on it.
@@ -8707,15 +8719,24 @@ class ChargeDischargeController:
         Without that middle value a charge would turn straight into a discharge
         when the surplus ends, and a battery filling from its own PV, which
         leaves the meter at zero, would read as an export nobody makes.
+
+        What a NOM battery discharges is no surplus either: it holds the meter
+        at zero under a load step, and without counting it a charge from the sun
+        would go on out of its cells.
         """
-        charging = ChargeDischargeController._manual_battery_power_for_grid_feedback(self)
-        if charging <= 0:
+        powers = ChargeDischargeController._uncommanded_battery_powers(self)
+        charging = sum(max(0.0, power) for _, power in powers)
+        giving = sum(max(0.0, -power) for c, power in powers if supports_nom_mode(c))
+        if charging <= 0 and giving <= 0:
             return grid_w
-        adjusted = max(grid_w - charging, min(grid_w, target_w + self.previous_power))
-        _LOGGER.debug(
-            "Ignoring %.0fW of %.0fW manual or observed battery charging",
-            grid_w - adjusted, charging,
+        adjusted = max(
+            grid_w - charging, min(grid_w + giving, target_w + self.previous_power)
         )
+        if adjusted != grid_w:
+            _LOGGER.debug(
+                "Grid %.0fW read as %.0fW: batteries not under control charge %.0fW, "
+                "discharge %.0fW", grid_w, adjusted, charging, giving,
+            )
         return adjusted
 
     def _measured_battery_power(self):
@@ -10610,7 +10631,10 @@ class ChargeDischargeController:
         self._uncommanded_charge_w = uncommanded_charge
         # What is left of that charge in the reading; none once the import cap
         # asks for it to be covered.
-        charging = ChargeDischargeController._manual_battery_power_for_grid_feedback(self)
+        charging = sum(
+            max(0.0, power)
+            for _, power in ChargeDischargeController._uncommanded_battery_powers(self)
+        )
         uncommanded_left = max(0.0, charging - uncommanded_charge)
 
         # GRID IMPORT CAP + SOC RESERVE (#506): keep the physical import under
@@ -12829,6 +12853,16 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
     controller._predictive_balance_fingerprint = controller.predictive_balance_fingerprint()
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    # Home Assistant does not unload the entries when it stops, and a battery
+    # left in NOM would go on regulating with nobody watching the excluded
+    # devices. Setup restores the user's choice.
+    async def _on_homeassistant_stop(_event):
+        await controller._autonomous_mode_mgr.async_rest_all()
+
+    entry.async_on_unload(_call_once(
+        hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, _on_homeassistant_stop)
+    ))
 
     # Schedule daily consumption capture at 23:55 local time every day
     # This captures the day's battery discharge energy before the sensor resets at midnight local

@@ -215,7 +215,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -751,7 +751,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Reconfigure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -1053,7 +1053,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -2734,6 +2734,7 @@
               "nom_suspended_global_manual": "NOM suspended: global manual mode",
               "nom_suspended_cross_charge": "NOM suspended: it discharged into another battery",
               "nom_suspended_import_cap": "NOM suspended: its charge went over the import cap",
+              "nom_suspended_grid_target": "NOM suspended: importing or exporting on purpose",
               "degraded": "Mode or power cannot be confirmed"
             }
           }

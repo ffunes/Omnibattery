@@ -173,9 +173,9 @@ See [troubleshooting](../troubleshooting.md) for symptom-led checks.
 
     A battery added [through Home Assistant entities](../configuration/batteries/generic-ha.md) with an operating mode entity is in neither pool: it takes no watts, only **NOM** (it keeps its own meter at 0 W) or **Manual** (it rests). Its **Manual** is not the **Manual Battery Control** above: that one hands you a battery that does take setpoints.
 
-    NOM goes first and the controlled batteries cover what it leaves, in both directions. The controller reads the meter in two ways: charging is decided on the physical reading, discharging on the reading less what the batteries nobody commands are charging. Where neither asks for its own direction, the command is walked back to 0 W without crossing. The import cap always uses the physical reading.
+    NOM goes first and the controlled batteries cover what it leaves, in both directions. The controller reads the meter in two ways: charging is decided on the physical reading, discharging on the reading less what the batteries nobody commands are charging. What a NOM battery discharges is not counted as surplus either. Where neither asks for its own direction, the command is walked back to 0 W without crossing. The import cap always uses the physical reading.
 
-    NOM is suspended by a grid charge, a running excluded device, global manual mode, an opposite flow between batteries, a charge over the import cap, or a power that cannot be read. The system and per-phase power limits do not reach these batteries.
+    NOM is suspended by a grid charge, a running excluded device, global manual mode, an opposite flow between batteries, a charge over the import cap, a deliberate import or export of more than 100 W, or a power that cannot be read. The system and per-phase power limits do not reach these batteries.
 
     **Active Batteries** and **Integration Status** add `controllable_batteries`, `nom_requested_batteries`, `nom_active_batteries`, `nom_suspended_batteries`, `nom_degraded_batteries` and `grid_charge_waiting_for_manual` when there is one.
 

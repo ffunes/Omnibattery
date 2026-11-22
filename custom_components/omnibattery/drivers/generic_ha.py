@@ -153,7 +153,7 @@ class GenericHaEntityDriver(BatteryDriver):
 
     BRAND = "generic_ha"
     SETUP = GENERIC_HA_SETUP
-    LABEL = "Other battery, read-only via Home Assistant entities"
+    LABEL = "Other battery via Home Assistant entities"
     # The device registry wants a vendor before any entity has been read, and
     # the honest answer at that point is where the readings come from rather
     # than a guess at whose battery it is. ``model_label`` refines it to the

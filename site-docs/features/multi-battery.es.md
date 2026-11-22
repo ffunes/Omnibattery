@@ -173,9 +173,9 @@ Consulta [solución de problemas](../troubleshooting.md) para comprobaciones por
 
     Una batería añadida [a través de entidades de Home Assistant](../configuration/batteries/generic-ha.md) con entidad de modo de operación no está en ninguno de los dos grupos: no acepta vatios, solo **NOM** (mantiene su propio contador a 0 W) o **Manual** (reposa). Su **Manual** no es el **Control Manual de Batería** de arriba: ese te cede una batería que sí acepta consignas.
 
-    NOM va primero y las baterías controladas cubren lo que deja, en ambos sentidos. El controlador lee el contador de dos maneras: la carga se decide con la lectura física y la descarga con la lectura menos lo que cargan las baterías que nadie gobierna. Donde ninguna pide su propio sentido, la orden se lleva a 0 W sin cruzar. El límite de importación usa siempre la lectura física.
+    NOM va primero y las baterías controladas cubren lo que deja, en ambos sentidos. El controlador lee el contador de dos maneras: la carga se decide con la lectura física y la descarga con la lectura menos lo que cargan las baterías que nadie gobierna. Lo que descarga una NOM tampoco cuenta como excedente. Donde ninguna pide su propio sentido, la orden se lleva a 0 W sin cruzar. El límite de importación usa siempre la lectura física.
 
-    NOM se suspende por una carga de red, un dispositivo excluido en marcha, el modo manual global, un flujo opuesto entre baterías, una carga por encima del límite de importación o una potencia que no se puede leer. Los límites de potencia del sistema y por fase no alcanzan a estas baterías.
+    NOM se suspende por una carga de red, un dispositivo excluido en marcha, el modo manual global, un flujo opuesto entre baterías, una carga por encima del límite de importación, una importación o exportación a propósito de más de 100 W o una potencia que no se puede leer. Los límites de potencia del sistema y por fase no alcanzan a estas baterías.
 
     **Active Batteries** e **Integration Status** añaden `controllable_batteries`, `nom_requested_batteries`, `nom_active_batteries`, `nom_suspended_batteries`, `nom_degraded_batteries` y `grid_charge_waiting_for_manual` cuando hay alguna.
 
