@@ -7521,8 +7521,11 @@ class ChargeDischargeController:
         """
         manual = [
             coordinator for coordinator in self.coordinators
-            if global_mode
-            or getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+            if can_take_setpoint(coordinator)
+            and (
+                global_mode
+                or getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+            )
         ]
         allowance = ChargeDischargeController._manual_charge_allowance(
             self, [c for c in manual if c.needs_software_manual_control]
