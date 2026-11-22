@@ -51,6 +51,7 @@ MODE_DWELL_S = 30.0
 CONFIRM_S = 10.0
 RETRY_BACKOFF_S = (5.0, 10.0, 20.0, 40.0, 60.0)
 # Longer than this in a mode that is not the wanted one is a visible failure.
+# The same as the wait of a grid charge, which then starts with the warning on.
 UNCONFIRMED_AFTER_S = 60.0
 # Failed tries to go back to NOM, seconds without a power reading, and opposite
 # flows within CROSS_EPISODES_WINDOW_S that become a repair.
@@ -60,7 +61,7 @@ CROSS_EPISODES = 3
 CROSS_EPISODES_WINDOW_S = 3600.0
 # A grid charge waits this long, once, for Manual to be confirmed; then it goes
 # ahead with a visible warning. Charging is never called off.
-GRID_CHARGE_WAIT_S = 60.0
+GRID_CHARGE_WAIT_S = UNCONFIRMED_AFTER_S
 # A cause asserted by a control step lasts until that step stops repeating it.
 CAUSE_TTL_S = 10.0
 
@@ -122,8 +123,6 @@ class _GridCharge:
     last_seen: float
     wait_since: float | None = None
     started: bool = False
-    # Started without Manual being confirmed.
-    forced: bool = False
 
 
 class AutonomousBatteryModeManager:
@@ -264,17 +263,9 @@ class AutonomousBatteryModeManager:
                 "Grid charge (%s) starts without %s being confirmed in Manual: "
                 "it may discharge into the charge", source, ", ".join(unconfirmed),
             )
-            charge.started = charge.forced = True
+            charge.started = True
             return True
         return False
-
-    def _forced_charge(self) -> bool:
-        """Whether a grid charge is running that did not get its confirmation."""
-        now = self._clock()
-        return any(
-            charge.forced and now - charge.last_seen <= CAUSE_TTL_S
-            for charge in self._charges.values()
-        )
 
     def _battery_causes(self, coordinator) -> dict[str, dict]:
         """Causes that suspend this battery only."""
@@ -478,11 +469,9 @@ class AutonomousBatteryModeManager:
     def _unconfirmed(self, coordinator) -> bool:
         """Whether the battery has been out of the wanted mode for too long."""
         state = self._state(coordinator)
-        if state.unconfirmed_since is None:
-            return False
         return (
-            self._clock() - state.unconfirmed_since >= UNCONFIRMED_AFTER_S
-            or (state.want is MANUAL and self._forced_charge())
+            state.unconfirmed_since is not None
+            and self._clock() - state.unconfirmed_since >= UNCONFIRMED_AFTER_S
         )
 
     def degraded(self, coordinator) -> bool:
