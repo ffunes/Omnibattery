@@ -1123,6 +1123,31 @@ def _stored_battery(flow, entry) -> dict | None:
     return batteries[flow.battery_index] if flow.battery_index < len(batteries) else None
 
 
+def _live_limits(ctx: SetupContext, brand: str) -> dict:
+    """The limits the loaded battery works with now; empty when it is not loaded.
+
+    The entities change them after setup, and some are only known to the device.
+    """
+    coordinator = ctx.coordinator
+    if coordinator is None or not isinstance(coordinator.driver, registry.driver_class(brand)):
+        return {}
+    live = {
+        "max_charge_power": coordinator.configured_max_charge_power,
+        "max_discharge_power": coordinator.configured_max_discharge_power,
+    }
+    # Elsewhere the SOC limit may be raised for a while (weekly full charge) and
+    # the stored one is the user's; here the device keeps it.
+    if coordinator.traits.device_owns_initial_config:
+        live["max_soc"] = int(coordinator.max_soc)
+        live["min_soc"] = int(coordinator.min_soc)
+    return live
+
+
+def _configured_power(battery: dict, live: dict, key: str, fallback: int) -> int:
+    """The user's power limit: the loaded one, the slider's stored one, the form's."""
+    return int(live.get(key, battery.get(f"user_{key}", battery.get(key, fallback))))
+
+
 def _setup_context(flow, brand: str) -> SetupContext:
     """The context a brand's step handler receives (built per call; ``work`` persists)."""
     kind = _flow_kind(flow)
@@ -1471,12 +1496,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 user_input = None
             else:
                 merged = dict(self._current_battery_data)
-                # The form may not offer the power fields (the brand's hook sets them).
-                for key in ("max_charge_power", "max_discharge_power"):
+                # The form may not offer some of them (the brand's hook sets them).
+                for key in ("max_charge_power", "max_discharge_power", "max_soc", "min_soc"):
                     if key in user_input:
                         merged[key] = int(user_input[key])
-                merged["max_soc"] = int(user_input["max_soc"])
-                merged["min_soc"] = int(user_input["min_soc"])
                 if self.config_data.get(CONF_THREE_PHASE_ENABLED):
                     merged[CONF_BATTERY_PHASE] = normalize_battery_phase(phase)
                 limits.finalize_limits(merged, user_input, self._current_battery_data, ctx)
@@ -1484,7 +1507,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 merged["enable_charge_hysteresis"] = True
                 merged["charge_hysteresis_percent"] = max(
                     MIN_CHARGE_HYSTERESIS_PERCENT,
-                    int(user_input.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
+                    int(user_input.get(
+                        "charge_hysteresis_percent",
+                        merged.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT),
+                    )),
                 )
                 _apply_mac_tracking(user_input, merged)
                 self.battery_configs.append(merged)
@@ -2750,12 +2776,13 @@ class OptionsFlowHandler(OptionsFlow):
                     merged.update(self._current_battery_data)
                 else:
                     merged = dict(self._current_battery_data)
-                # The form may not offer the power fields (the brand's hook sets them).
-                for key in ("max_charge_power", "max_discharge_power"):
+                # The form may not offer some of them (the brand's hook sets them).
+                for key in ("max_charge_power", "max_discharge_power", "max_soc", "min_soc"):
                     if key in user_input:
                         merged[key] = int(user_input[key])
-                merged["max_soc"] = int(user_input["max_soc"])
-                merged["min_soc"] = int(user_input["min_soc"])
+                        # The slider's value, when it has one, wins at setup.
+                        if f"user_{key}" in merged:
+                            merged[f"user_{key}"] = merged[key]
                 if self.config_entry.data.get(
                     CONF_THREE_PHASE_ENABLED,
                     self.config_data.get(CONF_THREE_PHASE_ENABLED, DEFAULT_THREE_PHASE_ENABLED),
@@ -2766,7 +2793,10 @@ class OptionsFlowHandler(OptionsFlow):
                 merged["enable_charge_hysteresis"] = True
                 merged["charge_hysteresis_percent"] = max(
                     MIN_CHARGE_HYSTERESIS_PERCENT,
-                    int(user_input.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
+                    int(user_input.get(
+                        "charge_hysteresis_percent",
+                        merged.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT),
+                    )),
                 )
                 _apply_mac_tracking(user_input, merged)
                 self.battery_configs.append(merged)
@@ -2781,11 +2811,12 @@ class OptionsFlowHandler(OptionsFlow):
             if self.battery_index < len(current_batteries):
                 current_battery = dict(current_batteries[self.battery_index])
                 current_battery.update(self._current_battery_data)
+                live = _live_limits(ctx, brand)
                 defaults = {
-                    "max_charge_power": min(current_battery.get("max_charge_power", max_charge_power), max_charge_power),
-                    "max_discharge_power": min(current_battery.get("max_discharge_power", max_discharge_power), max_discharge_power),
-                    "max_soc": current_battery.get("max_soc", soc_max_default),
-                    "min_soc": current_battery.get("min_soc", soc_min_default),
+                    "max_charge_power": min(_configured_power(current_battery, live, "max_charge_power", max_charge_power), max_charge_power),
+                    "max_discharge_power": min(_configured_power(current_battery, live, "max_discharge_power", max_discharge_power), max_discharge_power),
+                    "max_soc": live.get("max_soc", current_battery.get("max_soc", soc_max_default)),
+                    "min_soc": live.get("min_soc", current_battery.get("min_soc", soc_min_default)),
                     "charge_hysteresis_percent": max(
                         MIN_CHARGE_HYSTERESIS_PERCENT,
                         int(current_battery.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
@@ -2821,10 +2852,10 @@ class OptionsFlowHandler(OptionsFlow):
 
         _schema: dict = {}
         _schema[vol.Required("max_charge_power", default=defaults["max_charge_power"])] = NumberSelector(
-            NumberSelectorConfig(min=100, max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+            NumberSelectorConfig(min=min(100, defaults["max_charge_power"]), max=max_charge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
         )
         _schema[vol.Required("max_discharge_power", default=defaults["max_discharge_power"])] = NumberSelector(
-            NumberSelectorConfig(min=100, max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
+            NumberSelectorConfig(min=min(100, defaults["max_discharge_power"]), max=max_discharge_power, step=50, unit_of_measurement="W", mode=NumberSelectorMode.SLIDER)
         )
         _schema.update({
             vol.Required("max_soc", default=max(soc_max_lo, min(soc_max_hi, defaults["max_soc"]))):

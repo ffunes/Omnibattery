@@ -29,13 +29,14 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from ..const import CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED
+from ..const import CONF_AUTONOMOUS_REQUESTED_MODE, CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED
 from .setup import DriverSetup, FlowKind, SetupContext
 
 _LOGGER = logging.getLogger(__name__)
 
 STEP_CONNECTION = "battery_connection_generic_ha"
 STEP_RECONFIGURE = "reconfigure_battery_generic_ha"
+STEP_MODE = "battery_mode_generic_ha"
 
 DEFAULT_STALE_AFTER_S = 600
 
@@ -82,6 +83,9 @@ def _schema(defaults: dict) -> dict:
     schema[_optional("ha_target_soc_entity")] = EntitySelector(
         EntitySelectorConfig(domain=["number", "input_number"])
     )
+    schema[_optional("ha_mode_entity")] = EntitySelector(
+        EntitySelectorConfig(domain=["select", "input_select", "switch", "input_boolean"])
+    )
     schema[vol.Required(
         "ha_stale_after_s", default=defaults.get("ha_stale_after_s", DEFAULT_STALE_AFTER_S),
     )] = NumberSelector(NumberSelectorConfig(
@@ -101,7 +105,7 @@ def _store(user_input: dict, previous: dict | None = None) -> dict:
     charge_entities = user_input.get("ha_charge_energy_entities") or []
     if isinstance(charge_entities, str):
         charge_entities = [charge_entities]
-    return {
+    data = {
         CONF_NAME: user_input[CONF_NAME],
         CONF_HOST: host,
         CONF_PORT: 0,
@@ -114,6 +118,75 @@ def _store(user_input: dict, previous: dict | None = None) -> dict:
         "ha_target_soc_entity": user_input.get("ha_target_soc_entity"),
         "ha_stale_after_s": int(user_input.get("ha_stale_after_s", DEFAULT_STALE_AFTER_S)),
     }
+    mode_entity = user_input.get("ha_mode_entity")
+    if mode_entity or previous.get("ha_mode_entity"):
+        # Written as None when it is cleared: the result is laid over the stored
+        # battery, so a missing key would keep the old entity.
+        data["ha_mode_entity"] = mode_entity or None
+    if mode_entity and not previous.get("ha_mode_entity"):
+        # A battery that has just gained a mode starts in Manual.
+        data[CONF_AUTONOMOUS_REQUESTED_MODE] = "manual"
+    return data
+
+
+async def _mode_step(flow, data: dict, ctx: SetupContext) -> FlowResult:
+    """Ask which state of the mode entity is NOM and which is Manual."""
+    ctx.work["pending"] = data
+    return await getattr(flow, f"async_step_{STEP_MODE}")()
+
+
+def _mode_options(flow, entity_id: str, ctx: SetupContext) -> list[str]:
+    """The mode entity's options; the saved pair while the same entity is offline."""
+    from .generic_ha import mode_entity_options
+
+    saved = ctx.battery or {}
+    options = mode_entity_options(flow.hass, entity_id)
+    if not options and saved.get("ha_mode_entity") == entity_id:
+        options = [saved["ha_mode_nom_option"], saved["ha_mode_manual_option"]]
+    return options
+
+
+def _mode_unreadable(flow, user_input: dict, ctx: SetupContext) -> bool:
+    """True when a mode entity was picked but its options cannot be listed."""
+    entity_id = user_input.get("ha_mode_entity")
+    return bool(entity_id) and len(_mode_options(flow, entity_id, ctx)) < 2
+
+
+async def _mode(flow, user_input: dict[str, Any] | None, ctx: SetupContext) -> FlowResult | dict:
+    """Map the mode entity's states to NOM and Manual (all three flows)."""
+    data = ctx.work["pending"]
+    errors: dict[str, str] = {}
+    if user_input is not None:
+        if user_input["ha_mode_nom_option"] != user_input["ha_mode_manual_option"]:
+            return {
+                **data,
+                "ha_mode_nom_option": user_input["ha_mode_nom_option"],
+                "ha_mode_manual_option": user_input["ha_mode_manual_option"],
+            }
+        errors["base"] = "generic_ha_mode_same"
+
+    options = _mode_options(flow, data["ha_mode_entity"], ctx)
+    saved = {**(ctx.battery or {}), **(user_input or {})}
+    selector = SelectSelector(SelectSelectorConfig(
+        options=options, mode=SelectSelectorMode.LIST,
+    ))
+
+    def _field(key: str):
+        value = saved.get(key)
+        return vol.Required(key, default=value) if value in options else vol.Required(key)
+
+    return flow.async_show_form(
+        step_id=STEP_MODE,
+        data_schema=vol.Schema({
+            _field("ha_mode_nom_option"): selector,
+            _field("ha_mode_manual_option"): selector,
+        }),
+        errors=errors,
+        description_placeholders={
+            "battery_num": str(flow.battery_index + 1),
+            "entity": data["ha_mode_entity"],
+        },
+    )
 
 
 async def _connection(flow, user_input: dict[str, Any] | None, ctx: SetupContext) -> FlowResult | dict:
@@ -138,8 +211,12 @@ async def _connection(flow, user_input: dict[str, Any] | None, ctx: SetupContext
             if missing:
                 errors["base"] = "generic_ha_entities_missing"
                 placeholders["missing"] = ", ".join(missing)
+            elif _mode_unreadable(flow, user_input, ctx):
+                errors["ha_mode_entity"] = "generic_ha_mode_unreadable"
             else:
                 data = _store(user_input, current)
+                if user_input.get("ha_mode_entity"):
+                    return await _mode_step(flow, data, ctx)
                 if not options:
                     return data
                 # The options flow opens the limits step inside this try, so an
@@ -189,8 +266,13 @@ async def _reconfigure(flow, user_input: dict[str, Any] | None, ctx: SetupContex
         if missing:
             errors["base"] = "generic_ha_entities_missing"
             placeholders["missing"] = ", ".join(missing)
+        elif _mode_unreadable(flow, user_input, ctx):
+            errors["ha_mode_entity"] = "generic_ha_mode_unreadable"
         else:
-            return _store(user_input, current)
+            data = _store(user_input, current)
+            if user_input.get("ha_mode_entity"):
+                return await _mode_step(flow, data, ctx)
+            return data
 
     defaults = dict(current)
     defaults.setdefault(CONF_NAME, f"Battery {battery_num}")
@@ -203,17 +285,11 @@ async def _reconfigure(flow, user_input: dict[str, Any] | None, ctx: SetupContex
 
 
 class _GenericHaSetup(DriverSetup):
-    def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
-        """Nothing is ever commanded, so the ceilings are a formality.
-
-        Kept at the shared default rather than 0 so the limits form renders a
-        usable widget on the brands' common path; the driver reports a 0 W
-        envelope in its capabilities, which is what control actually reads.
-        """
-        return super().power_ceilings(battery_data)
-
     def limits_schema(self, battery_data: dict, base_fields: dict, ctx: SetupContext) -> dict:
-        """Base fields plus a required capacity (an observed battery reports none).
+        """Only a required capacity (an observed battery reports none).
+
+        No power, SOC or hysteresis limit can be applied to a battery that takes
+        no power command, so none is asked for.
 
         The capacity is what the system aggregates need: this battery publishes
         no nominal-capacity reading of its own, and without a figure here its
@@ -222,7 +298,7 @@ class _GenericHaSetup(DriverSetup):
 
         Options flow: the default is the capacity already stored for this slot.
         """
-        fields = dict(base_fields)
+        fields: dict = {}
         saved = 0.0
         if ctx.kind is FlowKind.OPTIONS and ctx.battery is not None:
             saved = float((ctx.battery | battery_data).get("battery_capacity_kwh", 0.0))
@@ -243,13 +319,19 @@ class _GenericHaSetup(DriverSetup):
         merged["battery_capacity_kwh"] = round(
             float(user_input.get("battery_capacity_kwh", 0.0)), 2
         )
+        # Not asked for, but the shared code expects every battery to have them.
+        for key, value in (
+            ("max_charge_power", 2500), ("max_discharge_power", 2500),
+            ("max_soc", 100), ("min_soc", 12),
+        ):
+            merged.setdefault(key, value)
         # No voltage taper on a battery whose charge this integration never
         # shapes; the trait says so too, this keeps the stored value honest.
         merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = False
 
 
 GENERIC_HA_SETUP = _GenericHaSetup(
-    steps={STEP_CONNECTION: _connection, STEP_RECONFIGURE: _reconfigure},
+    steps={STEP_CONNECTION: _connection, STEP_RECONFIGURE: _reconfigure, STEP_MODE: _mode},
     entry_step=STEP_CONNECTION,
     reconfigure_entry_step=STEP_RECONFIGURE,
 )

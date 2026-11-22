@@ -169,6 +169,16 @@ See [troubleshooting](../troubleshooting.md) for symptom-led checks.
 
     This control is independent from the global `Manual Mode` switch. For example, with two batteries, battery A can be left in manual mode at a user-selected power while battery B remains automatic. If B is already charging, the PD controller includes A's measured AC grid charge so B reduces its own charge and the meter remains at zero. Once the automatic batteries are no longer charging, A's intentional grid charge is excluded from feedback so B does not discharge to compensate it. DC-coupled solar power is not included when the driver exposes a separate AC-power reading.
 
+    ## Batteries that regulate on their own (NOM)
+
+    A battery added [through Home Assistant entities](../configuration/batteries/generic-ha.md) with an operating mode entity is in neither pool: it takes no watts, only **NOM** (it keeps its own meter at 0 W) or **Manual** (it rests). Its **Manual** is not the **Manual Battery Control** above: that one hands you a battery that does take setpoints.
+
+    NOM goes first and the controlled batteries cover what it leaves, in both directions. The controller reads the meter in two ways: charging is decided on the physical reading, discharging on the reading less what the batteries nobody commands are charging. What a NOM battery discharges is not counted as surplus either. Where neither asks for its own direction, the command is walked back to 0 W without crossing. The import cap always uses the physical reading.
+
+    NOM is suspended by a grid charge, a running excluded device, global manual mode, an opposite flow between batteries, a charge over the import cap, a deliberate import or export of more than 100 W, or a power that cannot be read. The system and per-phase power limits do not reach these batteries.
+
+    **Active Batteries** and **Integration Status** add `controllable_batteries`, `nom_requested_batteries`, `nom_active_batteries`, `nom_suspended_batteries`, `nom_degraded_batteries` and `grid_charge_waiting_for_manual` when there is one.
+
     ## Unified blocker registry
 
     Charge and discharge permissions are resolved through a runtime blocker registry. Blockers can be system-wide or scoped to one battery. The controller checks this registry before deadband and stale-sensor early returns, so an active command is stopped as soon as a blocker appears.

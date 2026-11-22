@@ -146,6 +146,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
     | Switch | `full_charge_voltage_taper` | Compatible cell telemetry |
     | Switch | `backup_function`, `rs485_control_mode`, `lamp_switch` | Driver exposes the control |
     | Select | `force_mode`, `grid_off_mode`, `user_work_mode` | Driver exposes the control |
+    | Select | `autonomous_operating_mode` (`nom`, `manual`) | Battery read through Home Assistant entities with an operating mode entity. The state is what you asked for; `effective_mode`, `status`, `suspended`, `suspension_causes`, `last_change`, `last_error` and `failed_attempts` are attributes |
     | Button | `reset_device` | Driver exposes the command |
 
 ## Status and diagnostic attributes

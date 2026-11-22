@@ -75,6 +75,9 @@ _CHARGING_SUBSTRINGS: frozenset[str] = frozenset({
 # solving the cold-start deadlock without an external automation. A short yield
 # then lets the external controller claim export before Omnibattery resumes on
 # any residual. Brief zero-power pauses are latched for sensor-less setups.
+# A device drawing more than this is running (the same line the device status
+# and the discharge block without a solar sensor use).
+DEVICE_ACTIVE_POWER_W = 10.0
 DYNAMIC_CONTROL_ACTIVE_POWER_W = 100.0
 DYNAMIC_CONTROL_HOLD = timedelta(minutes=5)
 DYNAMIC_CONTROL_INITIAL_YIELD = timedelta(seconds=30)
@@ -680,6 +683,46 @@ class ExternalLoads:
         if power is not None and power <= 10:
             return "idle", attrs
         return rule, attrs
+
+    def autonomous_discharge_interlocks(self) -> list[dict[str, Any]]:
+        """Excluded devices, as a battery that regulates on its own meets them.
+
+        Such a battery sees the whole meter: it cannot leave a device's demand,
+        or a part of it, uncovered. So any device the batteries are not meant to
+        cover in full counts, whatever its solar-surplus, cover-home or dynamic
+        settings. ``active`` is None while the device cannot be read.
+
+        A pure read: the control path that keeps the dynamic latches is skipped
+        on many cycles and must not be needed for this answer.
+        """
+        dynamic = set((self.dynamic_power_control_status or {}).get("devices") or [])
+        devices = []
+        for device in self._config_entry.data.get("excluded_devices", []):
+            if not device.get("enabled", True):
+                continue
+            power_sensor = device.get("power_sensor")
+            activity_sensor = device.get("activity_sensor")
+            power = None
+            if device.get("ev_charger_no_telemetry", False):
+                entity_id = activity_sensor or power_sensor
+                state = self._hass.states.get(entity_id) if entity_id else None
+                readable = state is not None and state.state not in ("unknown", "unavailable")
+                active = self._state_is_active(state) if readable else None
+            else:
+                if (
+                    not device.get("included_in_consumption", True)
+                    or self._exclusion_factor(device) <= 0
+                ):
+                    continue
+                entity_id = power_sensor
+                power = self._read_sensor_w_opt(power_sensor)
+                if power_sensor in dynamic or self._activity_sensor_is_active(activity_sensor):
+                    active = True
+                else:
+                    active = None if power is None else power > DEVICE_ACTIVE_POWER_W
+            if entity_id:
+                devices.append({"entity": entity_id, "active": active, "power_w": power})
+        return devices
 
     def _read_sensor_w(self, entity_id: str) -> float:
         """Read a power sensor and return its value in watts. Returns 0.0 if unavailable."""

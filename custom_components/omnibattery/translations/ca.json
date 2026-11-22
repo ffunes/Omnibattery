@@ -26,6 +26,22 @@
       "title": "La bateria {battery} no lliura potència",
       "description": "{battery} fa {minutes} minuts que accepta ordres de càrrega/descàrrega sense lliurar potència ({reason}). Omnibattery la manté fora del repartiment i la reintenta cada {cooldown} minuts, de manera que la resta de la flota cobreix la casa mentrestant. Cal revisar la bateria o la seva connexió: comprova que no estigui en espera sota el control de la seva pròpia aplicació i que la connexió no estigui saturada. Activar i desactivar el Control Manual d'aquesta bateria sovint la recupera."
     },
+    "nom_manual_unconfirmed": {
+      "title": "No s'ha pogut aturar {battery}",
+      "description": "Omnibattery ha demanat a {battery} que passi a Manual i no mostra aquest mode, així que pot continuar carregant o descarregant pel seu compte. La càrrega de xarxa de les altres bateries es fa igualment: el pitjor cas és que {battery} hi descarregui. Omnibattery ho continua provant i aquest avís s'esborra sol quan la bateria mostri Manual. Comprova que la integració que llegeix {battery} funciona i que la seva entitat de mode es pot canviar a mà."
+    },
+    "nom_restore_failed": {
+      "title": "{battery} no torna a NOM",
+      "description": "Has triat NOM per a {battery} i diversos intents de canviar-la han fallat, així que continua en Manual i no fa res. Omnibattery ho continua provant i aquest avís s'esborra sol. Comprova que la integració que llegeix {battery} funciona i que la seva entitat de mode es pot canviar a mà."
+    },
+    "nom_telemetry_lost": {
+      "title": "No es pot llegir la potència de {battery}",
+      "description": "{battery} està en NOM però Omnibattery fa uns quants minuts que no en llegeix la potència, així que la manté en Manual. Mentre tampoc no es confirmi Manual, les altres bateries no descarreguen: podrien estar alimentant una càrrega que ningú no veu. Comprova la integració que llegeix {battery}. Tot torna a la normalitat sol quan torna la lectura."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} descarrega una vegada i una altra cap a una altra bateria",
+      "description": "Almenys tres vegades en l'última hora {battery} estava descarregant mentre una altra bateria carregava, i s'ha hagut d'aturar. L'energia que passa d'una bateria a una altra es paga dues vegades. Busca alguna cosa més que governi una d'elles: la programació de l'app de la bateria, una automatització o dos reguladors amb objectius diferents al mateix comptador."
+    },
     "configured_sensor_missing": {
       "title": "Un sensor configurat ja no existeix",
       "description": "Omnibattery està configurat amb {sensors}, que no existeix a Home Assistant. Totes les funcions que el llegeixen estan inactives. La referència desada es manté expressament, perquè el selector d'entitats no pot mostrar una entitat que ja no hi és i esborraria el teu ajust en silenci: obre Opcions → Sensors i tria un substitut, o buida el camp quan l'entitat torni."
@@ -197,7 +213,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configura la bateria {battery_num} — Entitats de Home Assistant",
-        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria però mai no la governa: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
+        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria i mai no en fixa la potència: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Sensor d'estat de càrrega",
@@ -206,17 +222,31 @@
           "ha_charge_energy_entities": "Comptadors d'energia carregada",
           "ha_discharge_energy_entity": "Comptador d'energia descarregada",
           "ha_target_soc_entity": "Estat de càrrega objectiu",
+          "ha_mode_entity": "Entitat de mode d'operació",
           "ha_stale_after_s": "Considera la telemetria perduda després de"
         },
         "data_description": {
           "name": "Nom descriptiu per identificar aquesta bateria",
           "ha_soc_entity": "Un sensor que indica l'estat de càrrega d'aquesta bateria en percentatge",
-          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega en watts",
+          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega, en W o kW",
           "ha_power_positive_is": "Si el sensor compta com a positiva la càrrega o la descàrrega. Comprova-ho mentre la bateria es carrega: Kostal i uns quants més indiquen la càrrega en negatiu",
-          "ha_charge_energy_entities": "Comptadors totals opcionals en kWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
-          "ha_discharge_energy_entity": "Energia total descarregada opcional en kWh. Sense ella, l'energia es dedueix de la potència mesurada",
+          "ha_charge_energy_entities": "Comptadors totals opcionals, en Wh, kWh o MWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
+          "ha_discharge_energy_entity": "Energia total descarregada opcional, en Wh, kWh o MWh. Sense ella, l'energia es dedueix de la potència mesurada",
           "ha_target_soc_entity": "Estat de càrrega objectiu o mínim, opcional i escrivible. Apareix com un número que pots ajustar tu mateix; Omnibattery mai no l'escriu pel seu compte",
-          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc"
+          "ha_mode_entity": "Select o interruptor opcional de la integració d'origen que tria si la bateria regula el seu propi comptador a zero (NOM) o es queda en repòs. Amb ell, Omnibattery pot aturar la bateria durant una càrrega de xarxa o mentre funciona un dispositiu exclòs. Mai no en fixa la potència",
+          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc. El silenci amb la bateria en repòs no compta"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Bateria {battery_num} — mode d'operació",
+        "description": "Quin estat de {entity} vol dir que la bateria regula pel seu compte i quin que es queda en repòs? La bateria {battery_num} comença en Manual; després ho canvies amb el seu selector Mode d'operació.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zero al comptador)",
+          "ha_mode_manual_option": "Manual (la bateria reposa)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "La bateria carrega i descarrega pel seu compte per mantenir el seu comptador a 0 W",
+          "ha_mode_manual_option": "La bateria ni carrega ni descarrega"
         }
       },
       "battery_limits": {
@@ -725,7 +755,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Reconfigura la bateria {battery_num} — Home Assistant entities",
-        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria però mai no la governa: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
+        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria i mai no en fixa la potència: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Sensor d'estat de càrrega",
@@ -734,17 +764,19 @@
           "ha_charge_energy_entities": "Comptadors d'energia carregada",
           "ha_discharge_energy_entity": "Comptador d'energia descarregada",
           "ha_target_soc_entity": "Estat de càrrega objectiu",
+          "ha_mode_entity": "Entitat de mode d'operació",
           "ha_stale_after_s": "Considera la telemetria perduda després de"
         },
         "data_description": {
           "name": "Nom descriptiu per identificar aquesta bateria",
           "ha_soc_entity": "Un sensor que indica l'estat de càrrega d'aquesta bateria en percentatge",
-          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega en watts",
+          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega, en W o kW",
           "ha_power_positive_is": "Si el sensor compta com a positiva la càrrega o la descàrrega. Comprova-ho mentre la bateria es carrega: Kostal i uns quants més indiquen la càrrega en negatiu",
-          "ha_charge_energy_entities": "Comptadors totals opcionals en kWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
-          "ha_discharge_energy_entity": "Energia total descarregada opcional en kWh. Sense ella, l'energia es dedueix de la potència mesurada",
+          "ha_charge_energy_entities": "Comptadors totals opcionals, en Wh, kWh o MWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
+          "ha_discharge_energy_entity": "Energia total descarregada opcional, en Wh, kWh o MWh. Sense ella, l'energia es dedueix de la potència mesurada",
           "ha_target_soc_entity": "Estat de càrrega objectiu o mínim, opcional i escrivible. Apareix com un número que pots ajustar tu mateix; Omnibattery mai no l'escriu pel seu compte",
-          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc"
+          "ha_mode_entity": "Select o interruptor opcional de la integració d'origen que tria si la bateria regula el seu propi comptador a zero (NOM) o es queda en repòs. Amb ell, Omnibattery pot aturar la bateria durant una càrrega de xarxa o mentre funciona un dispositiu exclòs. Mai no en fixa la potència",
+          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc. El silenci amb la bateria en repòs no compta"
         }
       },
       "restore_backup": {
@@ -827,6 +859,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Al dispositiu ESPHome seleccionat li falten entitats necessàries: {missing}. Assegura't que executa el firmware marstek-lilygo-rs485 amb els noms d'entitat originals.",
       "generic_ha_entities_missing": "Omnibattery no ha pogut llegir aquestes entitats: {missing}. Tria entitats que existeixin i que ara mateix indiquin un número.",
+      "generic_ha_mode_same": "NOM i Manual han de ser dos estats diferents.",
+      "generic_ha_mode_unreadable": "Omnibattery no ha pogut llegir les opcions d'aquesta entitat. Tria un select o un interruptor que ara estigui disponible.",
       "sensor_not_found": "El sensor de predicció solar no existeix. Verifica que el sensor estigui disponible.",
       "invalid_unit": "El sensor de predicció solar ha de tenir com a unitat 'kWh' o 'Wh'.",
       "solar_production_sensor_not_found": "El sensor de producció solar no existeix. Verifica que el sensor estigui disponible.",
@@ -1021,7 +1055,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configura la bateria {battery_num} — Entitats de Home Assistant",
-        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria però mai no la governa: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
+        "description": "Indica a Omnibattery les entitats que una altra integració ja publica per a la bateria {battery_num}. Omnibattery llegeix aquesta bateria i mai no en fixa la potència: l'estat de càrrega i la potència són el que fa correcte el càlcul del consum domèstic.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Sensor d'estat de càrrega",
@@ -1030,17 +1064,31 @@
           "ha_charge_energy_entities": "Comptadors d'energia carregada",
           "ha_discharge_energy_entity": "Comptador d'energia descarregada",
           "ha_target_soc_entity": "Estat de càrrega objectiu",
+          "ha_mode_entity": "Entitat de mode d'operació",
           "ha_stale_after_s": "Considera la telemetria perduda després de"
         },
         "data_description": {
           "name": "Nom descriptiu per identificar aquesta bateria",
           "ha_soc_entity": "Un sensor que indica l'estat de càrrega d'aquesta bateria en percentatge",
-          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega en watts",
+          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega, en W o kW",
           "ha_power_positive_is": "Si el sensor compta com a positiva la càrrega o la descàrrega. Comprova-ho mentre la bateria es carrega: Kostal i uns quants més indiquen la càrrega en negatiu",
-          "ha_charge_energy_entities": "Comptadors totals opcionals en kWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
-          "ha_discharge_energy_entity": "Energia total descarregada opcional en kWh. Sense ella, l'energia es dedueix de la potència mesurada",
+          "ha_charge_energy_entities": "Comptadors totals opcionals, en Wh, kWh o MWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
+          "ha_discharge_energy_entity": "Energia total descarregada opcional, en Wh, kWh o MWh. Sense ella, l'energia es dedueix de la potència mesurada",
           "ha_target_soc_entity": "Estat de càrrega objectiu o mínim, opcional i escrivible. Apareix com un número que pots ajustar tu mateix; Omnibattery mai no l'escriu pel seu compte",
-          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc"
+          "ha_mode_entity": "Select o interruptor opcional de la integració d'origen que tria si la bateria regula el seu propi comptador a zero (NOM) o es queda en repòs. Amb ell, Omnibattery pot aturar la bateria durant una càrrega de xarxa o mentre funciona un dispositiu exclòs. Mai no en fixa la potència",
+          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc. El silenci amb la bateria en repòs no compta"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Bateria {battery_num} — mode d'operació",
+        "description": "Quin estat de {entity} vol dir que la bateria regula pel seu compte i quin que es queda en repòs? La bateria {battery_num} comença en Manual; després ho canvies amb el seu selector Mode d'operació.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zero al comptador)",
+          "ha_mode_manual_option": "Manual (la bateria reposa)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "La bateria carrega i descarrega pel seu compte per mantenir el seu comptador a 0 W",
+          "ha_mode_manual_option": "La bateria ni carrega ni descarrega"
         }
       },
       "battery_limits": {
@@ -1493,6 +1541,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Al dispositiu ESPHome seleccionat li falten entitats necessàries: {missing}. Assegura't que executa el firmware marstek-lilygo-rs485 amb els noms d'entitat originals.",
       "generic_ha_entities_missing": "Omnibattery no ha pogut llegir aquestes entitats: {missing}. Tria entitats que existeixin i que ara mateix indiquin un número.",
+      "generic_ha_mode_same": "NOM i Manual han de ser dos estats diferents.",
+      "generic_ha_mode_unreadable": "Omnibattery no ha pogut llegir les opcions d'aquesta entitat. Tria un select o un interruptor que ara estigui disponible.",
       "sensor_not_found": "El sensor de predicció solar no existeix. Verifica que el sensor estigui disponible.",
       "invalid_unit": "El sensor de predicció solar ha de tenir com a unitat 'kWh' o 'Wh'.",
       "solar_production_sensor_not_found": "El sensor de producció solar no existeix. Verifica que el sensor estigui disponible.",
@@ -2669,6 +2719,30 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Mode d'operació",
+        "state": {
+          "nom": "NOM (0 al comptador)",
+          "manual": "Manual (sense acció)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Estat",
+            "state": {
+              "manual": "Manual",
+              "nom_active": "NOM actiu",
+              "nom_pending": "NOM a punt de tornar",
+              "nom_suspended_excluded_load": "NOM suspès: dispositiu exclòs en marxa",
+              "nom_suspended_grid_charge": "NOM suspès: càrrega de xarxa",
+              "nom_suspended_global_manual": "NOM suspès: mode manual global",
+              "nom_suspended_cross_charge": "NOM suspès: descarregava cap a una altra bateria",
+              "nom_suspended_import_cap": "NOM suspès: la seva càrrega va superar el límit d'importació",
+              "nom_suspended_grid_target": "NOM suspès: importació o exportació a propòsit",
+              "degraded": "No es pot confirmar el mode o la potència"
+            }
+          }
+        }
+      },
       "user_work_mode": {
         "name": "Mode de Treball",
         "state": {
@@ -2859,6 +2933,9 @@
         "name": "Histèresi de balanç horari"
       },
       "soc_set": {
+        "name": "SOC Objectiu"
+      },
+      "target_soc": {
         "name": "SOC Objectiu"
       },
       "min_soc": {

@@ -26,6 +26,22 @@
       "title": "Battery {battery} is not delivering power",
       "description": "{battery} has been accepting charge/discharge commands without delivering power for {minutes} minutes ({reason}). Omnibattery keeps it out of the pool and retries it every {cooldown} minutes, so the rest of the fleet covers the house meanwhile. The battery itself or its connection needs attention: check that it is not sitting in standby under its own app's control, and that the connection is not saturated. Switching Manual Battery Control on and off again for that battery often restores it."
     },
+    "nom_manual_unconfirmed": {
+      "title": "{battery} could not be stopped",
+      "description": "Omnibattery asked {battery} to go to Manual and it does not show that mode, so it may still be charging or discharging on its own. A grid charge of the other batteries goes ahead anyway: the worst case is that {battery} discharges into it. Omnibattery keeps trying and this notice clears by itself once the battery shows Manual. Check that the integration that reads {battery} is working and that its mode entity can be changed by hand."
+    },
+    "nom_restore_failed": {
+      "title": "{battery} does not go back to NOM",
+      "description": "You chose NOM for {battery} and several tries to switch it have failed, so it stays in Manual and does nothing. Omnibattery keeps trying and this notice clears by itself. Check that the integration that reads {battery} is working and that its mode entity can be changed by hand."
+    },
+    "nom_telemetry_lost": {
+      "title": "The power of {battery} cannot be read",
+      "description": "{battery} is set to NOM but Omnibattery has had no reading of its power for several minutes, so it is being held in Manual. While Manual is not confirmed either, the other batteries do not discharge: they might be feeding a charge nobody can see. Check the integration that reads {battery}. Everything goes back to normal by itself when the reading returns."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} keeps discharging into another battery",
+      "description": "At least three times in the last hour {battery} was discharging while another battery was charging, and it had to be stopped. Energy moved between batteries is paid for twice. Look for something else that commands one of them: the schedule of the battery's own app, an automation, or two regulators with different targets on the same meter."
+    },
     "configured_sensor_missing": {
       "title": "Configured sensor no longer exists",
       "description": "Omnibattery is configured with {sensors}, which does not exist in Home Assistant. Every feature that reads it is inactive. The stored reference is kept on purpose, because the entity picker cannot show an entity that is gone and would otherwise clear your setting silently: open Options → Sensors and pick a replacement, or clear the field once the entity is back."
@@ -199,7 +215,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -208,17 +224,31 @@
           "ha_charge_energy_entities": "Charged energy counters",
           "ha_discharge_energy_entity": "Discharged energy counter",
           "ha_target_soc_entity": "Target state of charge",
+          "ha_mode_entity": "Operating mode entity",
           "ha_stale_after_s": "Treat telemetry as lost after"
         },
         "data_description": {
           "name": "Descriptive name to identify this battery",
           "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
-          "ha_power_entity": "A sensor reporting charge and discharge power in watts",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
-          "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
-          "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
           "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
-          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
+          "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Battery {battery_num} — operating mode",
+        "description": "Which state of {entity} means that the battery regulates on its own, and which one means that it rests? Battery {battery_num} starts in Manual; you change it later with its Operating mode select.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zero on the meter)",
+          "ha_mode_manual_option": "Manual (the battery rests)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "The battery charges and discharges by itself to keep its meter at 0 W",
+          "ha_mode_manual_option": "The battery neither charges nor discharges"
         }
       },
       "battery_limits": {
@@ -721,7 +751,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Reconfigure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -730,17 +760,19 @@
           "ha_charge_energy_entities": "Charged energy counters",
           "ha_discharge_energy_entity": "Discharged energy counter",
           "ha_target_soc_entity": "Target state of charge",
+          "ha_mode_entity": "Operating mode entity",
           "ha_stale_after_s": "Treat telemetry as lost after"
         },
         "data_description": {
           "name": "Descriptive name to identify this battery",
           "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
-          "ha_power_entity": "A sensor reporting charge and discharge power in watts",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
-          "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
-          "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
           "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
-          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
+          "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
         }
       },
       "restore_backup": {
@@ -823,6 +855,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "The selected ESPHome device is missing required entities: {missing}. Make sure it runs the marstek-lilygo-rs485 firmware with the stock entity names.",
       "generic_ha_entities_missing": "Omnibattery could not read these entities: {missing}. Pick entities that exist and currently report a number.",
+      "generic_ha_mode_same": "NOM and Manual must be two different states.",
+      "generic_ha_mode_unreadable": "Omnibattery could not list this entity's options. Pick a select or a switch that is available now.",
       "sensor_not_found": "Solar forecast sensor does not exist. Verify the sensor is available.",
       "invalid_unit": "Solar forecast sensor must have 'kWh' or 'Wh' as unit.",
       "solar_production_sensor_not_found": "Solar production sensor does not exist. Verify the sensor is available.",
@@ -1019,7 +1053,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configure battery {battery_num} — Home Assistant entities",
-        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery but never commands it: state of charge and power are what make the household-consumption calculation correct.",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "State of charge sensor",
@@ -1028,17 +1062,31 @@
           "ha_charge_energy_entities": "Charged energy counters",
           "ha_discharge_energy_entity": "Discharged energy counter",
           "ha_target_soc_entity": "Target state of charge",
+          "ha_mode_entity": "Operating mode entity",
           "ha_stale_after_s": "Treat telemetry as lost after"
         },
         "data_description": {
           "name": "Descriptive name to identify this battery",
           "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
-          "ha_power_entity": "A sensor reporting charge and discharge power in watts",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
-          "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
-          "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
           "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
-          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
+          "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Battery {battery_num} — operating mode",
+        "description": "Which state of {entity} means that the battery regulates on its own, and which one means that it rests? Battery {battery_num} starts in Manual; you change it later with its Operating mode select.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zero on the meter)",
+          "ha_mode_manual_option": "Manual (the battery rests)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "The battery charges and discharges by itself to keep its meter at 0 W",
+          "ha_mode_manual_option": "The battery neither charges nor discharges"
         }
       },
       "battery_limits": {
@@ -1485,6 +1533,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "The selected ESPHome device is missing required entities: {missing}. Make sure it runs the marstek-lilygo-rs485 firmware with the stock entity names.",
       "generic_ha_entities_missing": "Omnibattery could not read these entities: {missing}. Pick entities that exist and currently report a number.",
+      "generic_ha_mode_same": "NOM and Manual must be two different states.",
+      "generic_ha_mode_unreadable": "Omnibattery could not list this entity's options. Pick a select or a switch that is available now.",
       "sensor_not_found": "Solar forecast sensor does not exist. Verify the sensor is available.",
       "invalid_unit": "Solar forecast sensor must have 'kWh' or 'Wh' as unit.",
       "solar_production_sensor_not_found": "Solar production sensor does not exist. Verify the sensor is available.",
@@ -2666,6 +2716,30 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Operating Mode",
+        "state": {
+          "nom": "NOM (zero on the meter)",
+          "manual": "Manual (no action)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "manual": "Manual",
+              "nom_active": "NOM active",
+              "nom_pending": "NOM about to resume",
+              "nom_suspended_excluded_load": "NOM suspended: excluded device running",
+              "nom_suspended_grid_charge": "NOM suspended: grid charge",
+              "nom_suspended_global_manual": "NOM suspended: global manual mode",
+              "nom_suspended_cross_charge": "NOM suspended: it discharged into another battery",
+              "nom_suspended_import_cap": "NOM suspended: its charge went over the import cap",
+              "nom_suspended_grid_target": "NOM suspended: importing or exporting on purpose",
+              "degraded": "Mode or power cannot be confirmed"
+            }
+          }
+        }
+      },
       "grid_reverse": {
         "name": "Energy Export",
         "state": {
@@ -2850,6 +2924,9 @@
         "name": "Hourly Balance Hysteresis"
       },
       "soc_set": {
+        "name": "Target SOC"
+      },
+      "target_soc": {
         "name": "Target SOC"
       },
       "min_soc": {

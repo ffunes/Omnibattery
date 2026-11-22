@@ -22,6 +22,7 @@ from ..const import (
     SCAN_INTERVAL,
     DEBUG_POLL_SENSOR_SKIPS,
     DEBUG_POLL_SENSOR_VALUES,
+    CONF_AUTONOMOUS_REQUESTED_MODE,
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     BURST_POLL_WINDOW_S,
@@ -33,6 +34,8 @@ from ..drivers.base import (
     DriverReconciliation,
     ReconcileState,
     SetpointResult,
+    NativeOperatingMode,
+    OperatingModeResult,
     can_take_setpoint,
     canonical_key,
     stored_battery_value,
@@ -474,6 +477,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self._entity_registry = None
         self.rs485_user_disabled = False  # Set by RS485 switch when user explicitly disables
         self._config_entry = None  # Set after creation to allow persisting rs485_user_disabled
+        # Native mode the user asked for (only with ``supports_nom_mode``). The
+        # one the device is in is never restored: it is read from the device.
+        self.autonomous_requested_mode = battery_config.get(
+            CONF_AUTONOMOUS_REQUESTED_MODE, NativeOperatingMode.MANUAL.value
+        )
         self.balance_hold = False  # Legacy BalanceMonitor hold flag; kept for persisted-state cleanup
 
         # Hardware I/O goes through a brand-agnostic driver. The driver owns this
@@ -1120,7 +1128,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # === CONNECTION HEALTH CHECK ===
         # If connection is suspended (too many failures), wait for cooldown
         if self._suspension_reset_time is not None:
-            if now >= self._suspension_reset_time:
+            if now >= self._suspension_reset_time or self.driver.telemetry_is_back():
                 _LOGGER.info("[%s] Connection suspension expired - attempting fresh reconnection", self.name)
                 self._suspension_reset_time = None
                 # Do NOT clear _consecutive_failures here: async_reconnect_fresh()
@@ -1778,6 +1786,24 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             elif not self._is_shutting_down:
                 _LOGGER.warning("[%s] Failed to write charge cutoff", self.name)
             return ok
+
+    async def apply_operating_mode(
+        self, mode: NativeOperatingMode
+    ) -> OperatingModeResult:
+        """Write the native mode via the driver, holding self.lock. No read back.
+
+        The autonomous mode manager confirms it on later cycles.
+        """
+        async with self.lock:
+            try:
+                return await self.driver.apply_operating_mode(mode, read_back=False)
+            except Exception as e:  # noqa: BLE001 - a failed write, like the others
+                if not self._is_shutting_down:
+                    _LOGGER.error("[%s] Exception writing operating mode: %s", self.name, e)
+                return OperatingModeResult(
+                    ok=False, confirmed=False, requested_mode=mode,
+                    failure_reason="driver_exception",
+                )
 
     async def standby(self) -> bool:
         """Idle the battery for teardown via the driver, holding self.lock.

@@ -249,6 +249,10 @@ FLOOR_HYSTERESIS_PCT = 5
 CONF_ENABLE_WEEKLY_FULL_CHARGE = "enable_weekly_full_charge"
 CONF_MANUAL_MODE_ENABLED = "manual_mode_enabled"
 CONF_BATTERY_MANUAL_MODE_ENABLED = "battery_manual_mode_enabled"
+# Native mode the user asked of a battery that regulates on its own ("nom" or
+# "manual"). Unrelated to the manual ownership above: that one hands a battery
+# that does take setpoints to the user.
+CONF_AUTONOMOUS_REQUESTED_MODE = "autonomous_requested_mode"
 CONF_PREDICTIVE_CHARGING_OVERRIDDEN = "predictive_charging_overridden"
 CONF_WEEKLY_FULL_CHARGE_DAY = "weekly_full_charge_day"
 CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY = "enable_weekly_full_charge_delay"
@@ -779,8 +783,13 @@ def effective_battery_power_limits(battery) -> tuple[int, int]:
 
 def total_battery_power(data) -> tuple[int, int]:
     """Return summed static effective (charge_w, discharge_w) limits."""
-    batteries = data.get("batteries") or []
-    limits = [effective_battery_power_limits(battery) for battery in batteries]
+    from ..drivers.registry import traits_for_brand  # the drivers import this package
+
+    limits = [
+        effective_battery_power_limits(battery)
+        for battery in data.get("batteries") or []
+        if traits_for_brand(battery.get("brand"), battery).takes_power_setpoint
+    ]
     return (
         sum(charge_w for charge_w, _ in limits),
         sum(discharge_w for _, discharge_w in limits),

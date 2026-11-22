@@ -108,7 +108,7 @@ const I18N = {
     offgrid: "Off-grid", infoComm: "Comm module",
     invBackup: "Backup", invUpdating: "Updating", invCalibrating: "Calibrating", invStandby: "Standby", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
-    ctlEmpty: "No controls enabled. Enable them on the device (Settings → disabled entities).",
+    ctlEmpty: "No controls. If this battery has disabled ones, enable them on the device (Settings → disabled entities).",
     ctlAdvanced: "Advanced settings",
     ctlArrange: "Arrange", ctlArrangeHint: "Drag cards to reorder · controls are locked",
     ctlCols: "Columns", ctlRows: "Rows", ctlAuto: "Auto",
@@ -116,8 +116,8 @@ const I18N = {
     ctlLock: "Lock controls", ctlUnlock: "Unlock controls",
     sysEmptyTitle: "No controls available",
     sysEmptyMsg: "This integration exposes no system controls, or they are disabled. Enable them in Settings → entities.",
-    bcAllowCharge: "Allow charge", bcAllowDischarge: "Allow discharge", bcBatteryManual: "Manual battery control",
-    bcSocMax: "Max SOC", bcSocMin: "Min SOC", bcForceMode: "Force mode",
+    bcOperatingMode: "Operating mode", bcAllowCharge: "Allow charge", bcAllowDischarge: "Allow discharge", bcBatteryManual: "Manual battery control",
+    bcSocMax: "Max SOC", bcSocMin: "Min SOC", bcTargetSoc: "Target SOC", bcForceMode: "Force mode",
     bcChargePower: "Charge power", bcDischargePower: "Discharge power",
     bcMaxCharge: "Max charge", bcMaxDischarge: "Max discharge",
     bcChargeToSoc: "Charge to SOC", bcChargeHysteresis: "Charge hysteresis", bcBackup: "Backup function", bcOffgridMode: "Off-grid mode", bcOffgridModeWarn: "With the off-grid port on (normal or economy) and something plugged in, the firmware does not charge from the grid in its usual mode. Omnibattery then sends charge commands in manual mode, which the device may save to its flash memory on every power change. If you don't use this port, set it to off.", bcEnergyExport: "Energy export",
@@ -199,7 +199,7 @@ const I18N = {
     offgrid: "Offgrid", infoComm: "Módulo com.",
     invBackup: "Respaldo", invUpdating: "Actualizando", invCalibrating: "Calibrando", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
-    ctlEmpty: "No hay controles habilitados. Actívalos en el dispositivo (Ajustes → entidades deshabilitadas).",
+    ctlEmpty: "Sin controles. Si esta batería tiene alguno deshabilitado, actívalo en el dispositivo (Ajustes → entidades deshabilitadas).",
     ctlAdvanced: "Ajustes avanzados",
     ctlArrange: "Reordenar", ctlArrangeHint: "Arrastra las tarjetas para reordenar · controles bloqueados",
     ctlCols: "Columnas", ctlRows: "Filas", ctlAuto: "Auto",
@@ -207,8 +207,8 @@ const I18N = {
     ctlLock: "Bloquear controles", ctlUnlock: "Desbloquear controles",
     sysEmptyTitle: "Sin controles disponibles",
     sysEmptyMsg: "Esta integración no expone controles de sistema, o están deshabilitados. Actívalos en Ajustes → entidades.",
-    bcAllowCharge: "Permitir carga", bcAllowDischarge: "Permitir descarga", bcBatteryManual: "Control manual de batería",
-    bcSocMax: "SOC máximo", bcSocMin: "SOC mínimo", bcForceMode: "Modo forzado",
+    bcOperatingMode: "Modo de operación", bcAllowCharge: "Permitir carga", bcAllowDischarge: "Permitir descarga", bcBatteryManual: "Control manual de batería",
+    bcSocMax: "SOC máximo", bcSocMin: "SOC mínimo", bcTargetSoc: "SOC objetivo", bcForceMode: "Modo forzado",
     bcChargePower: "Potencia de carga", bcDischargePower: "Potencia de descarga",
     bcMaxCharge: "Máx. carga", bcMaxDischarge: "Máx. descarga",
     bcChargeToSoc: "Cargar hasta SOC", bcChargeHysteresis: "Histéresis de carga", bcBackup: "Función de respaldo", bcOffgridMode: "Modo off-grid", bcOffgridModeWarn: "Con el puerto off-grid activo (normal o económico) y algo enchufado, el firmware no carga desde la red en su modo habitual. Omnibattery envía entonces las órdenes de carga en modo manual, que el equipo puede guardar en su memoria flash en cada cambio de potencia. Si no usas este puerto, déjalo en off.", bcEnergyExport: "Exportación de energía",
@@ -291,12 +291,12 @@ const I18N = {
     offgrid: "Offgrid", infoComm: "Mòdul com.",
     invBackup: "Reserva", invUpdating: "Actualitzant", invCalibrating: "Calibrant", invStandby: "En espera", invBypass: "Bypass",
     active: "Activa", inactive: "Inactiva",
-    ctlEmpty: "No hi ha controls habilitats. Activa'ls al dispositiu (Configuració → entitats deshabilitades).",
+    ctlEmpty: "Sense controls. Si aquesta bateria en té algun de deshabilitat, activa'l al dispositiu (Configuració → entitats deshabilitades).",
     ctlAdvanced: "Ajustos avançats",
     sysEmptyTitle: "Sense controls disponibles",
     sysEmptyMsg: "Aquesta integració no exposa controls de sistema, o estan deshabilitats. Activa'ls a Configuració → entitats.",
-    bcAllowCharge: "Permet la càrrega", bcAllowDischarge: "Permet la descàrrega", bcBatteryManual: "Control manual de la bateria",
-    bcSocMax: "SOC màxim", bcSocMin: "SOC mínim", bcForceMode: "Mode forçat",
+    bcOperatingMode: "Mode d'operació", bcAllowCharge: "Permet la càrrega", bcAllowDischarge: "Permet la descàrrega", bcBatteryManual: "Control manual de la bateria",
+    bcSocMax: "SOC màxim", bcSocMin: "SOC mínim", bcTargetSoc: "SOC objectiu", bcForceMode: "Mode forçat",
     bcChargePower: "Potència de càrrega", bcDischargePower: "Potència de descàrrega",
     bcMaxCharge: "Màx. càrrega", bcMaxDischarge: "Màx. descàrrega",
     bcChargeToSoc: "Carregar fins a SOC", bcChargeHysteresis: "Histèresi de càrrega", bcBackup: "Funció de reserva", bcOffgridMode: "Mode fora de xarxa", bcOffgridModeWarn: "Amb el port fora de xarxa actiu (normal o econòmic) i alguna cosa endollada, el firmware no carrega des de la xarxa en el seu mode habitual. Omnibattery envia aleshores les ordres de càrrega en mode manual, que l'equip pot desar a la seva memòria flash a cada canvi de potència. Si no fas servir aquest port, deixa'l en off.", bcEnergyExport: "Exportació d'energia",
@@ -378,12 +378,12 @@ const I18N = {
     offgrid: "Inselbetrieb", infoComm: "Komm.-Modul",
     invBackup: "Backup", invUpdating: "Aktualisierung", invCalibrating: "Kalibrierung", invStandby: "Standby", invBypass: "Bypass",
     active: "Aktiv", inactive: "Inaktiv",
-    ctlEmpty: "Keine Steuerungen aktiviert. Aktiviere sie am Gerät (Einstellungen → deaktivierte Entitäten).",
+    ctlEmpty: "Keine Steuerungen. Falls diese Batterie deaktivierte hat, aktiviere sie am Gerät (Einstellungen → deaktivierte Entitäten).",
     ctlAdvanced: "Erweiterte Einstellungen",
     sysEmptyTitle: "Keine Steuerungen verfügbar",
     sysEmptyMsg: "Diese Integration stellt keine Systemsteuerungen bereit oder sie sind deaktiviert. Aktiviere sie in Einstellungen → Entitäten.",
-    bcAllowCharge: "Laden erlauben", bcAllowDischarge: "Entladen erlauben", bcBatteryManual: "Manuelle Batteriesteuerung",
-    bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Betriebsmodus erzwingen",
+    bcOperatingMode: "Betriebsmodus", bcAllowCharge: "Laden erlauben", bcAllowDischarge: "Entladen erlauben", bcBatteryManual: "Manuelle Batteriesteuerung",
+    bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcTargetSoc: "Ziel-SOC", bcForceMode: "Betriebsmodus erzwingen",
     bcChargePower: "Ladeleistung", bcDischargePower: "Entladeleistung",
     bcMaxCharge: "Max. Ladeleistung", bcMaxDischarge: "Max. Entladeleistung",
     bcChargeToSoc: "Laden bis SOC", bcChargeHysteresis: "Ladehysterese", bcBackup: "Backup-Funktion", bcOffgridMode: "Inselnetz-Modus", bcOffgridModeWarn: "Bei aktivem Inselnetz-Ausgang (normal oder Sparmodus) mit angeschlossenem Verbraucher lädt die Firmware im üblichen Modus nicht aus dem Netz. Omnibattery sendet Ladebefehle dann im manuellen Modus, den das Gerät bei jeder Leistungsänderung in seinen Flash-Speicher schreiben kann. Wenn du diesen Ausgang nicht nutzt, schalte ihn aus.", bcEnergyExport: "Energieeinspeisung",
@@ -465,12 +465,12 @@ const I18N = {
     offgrid: "Hors réseau", infoComm: "Module comm.",
     invBackup: "Secours", invUpdating: "Mise à jour", invCalibrating: "Calibrage", invStandby: "En attente", invBypass: "Bypass",
     active: "Active", inactive: "Inactive",
-    ctlEmpty: "Aucun contrôle activé. Activez-les sur l'appareil (Paramètres → entités désactivées).",
+    ctlEmpty: "Aucun contrôle. Si cette batterie en a de désactivés, activez-les sur l'appareil (Paramètres → entités désactivées).",
     ctlAdvanced: "Paramètres avancés",
     sysEmptyTitle: "Aucun contrôle disponible",
     sysEmptyMsg: "Cette intégration n'expose aucun contrôle système, ou ils sont désactivés. Activez-les dans Paramètres → entités.",
-    bcAllowCharge: "Autoriser la charge", bcAllowDischarge: "Autoriser la décharge", bcBatteryManual: "Contrôle manuel de la batterie",
-    bcSocMax: "SOC max.", bcSocMin: "SOC min.", bcForceMode: "Mode forcé",
+    bcOperatingMode: "Mode de fonctionnement", bcAllowCharge: "Autoriser la charge", bcAllowDischarge: "Autoriser la décharge", bcBatteryManual: "Contrôle manuel de la batterie",
+    bcSocMax: "SOC max.", bcSocMin: "SOC min.", bcTargetSoc: "SOC cible", bcForceMode: "Mode forcé",
     bcChargePower: "Puissance de charge", bcDischargePower: "Puissance de décharge",
     bcMaxCharge: "Charge max.", bcMaxDischarge: "Décharge max.",
     bcChargeToSoc: "Charger jusqu'à SOC", bcChargeHysteresis: "Hystérésis de charge", bcBackup: "Fonction de secours", bcOffgridMode: "Mode hors-réseau", bcOffgridModeWarn: "Avec le port hors-réseau actif (normal ou économie) et un appareil branché, le firmware ne charge pas depuis le réseau dans son mode habituel. Omnibattery envoie alors les commandes de charge en mode manuel, que l'appareil peut enregistrer dans sa mémoire flash à chaque changement de puissance. Si vous n'utilisez pas ce port, mettez-le sur off.", bcEnergyExport: "Export d'énergie",
@@ -552,12 +552,12 @@ const I18N = {
     offgrid: "Eilandbedrijf", infoComm: "Comm.-module",
     invBackup: "Back-up", invUpdating: "Bijwerken", invCalibrating: "Kalibreren", invStandby: "Stand-by", invBypass: "Bypass",
     active: "Actief", inactive: "Inactief",
-    ctlEmpty: "Geen bedieningen ingeschakeld. Schakel ze in op het apparaat (Instellingen → uitgeschakelde entiteiten).",
+    ctlEmpty: "Geen bedieningen. Heeft deze batterij uitgeschakelde, schakel ze dan in op het apparaat (Instellingen → uitgeschakelde entiteiten).",
     ctlAdvanced: "Geavanceerde instellingen",
     sysEmptyTitle: "Geen bedieningen beschikbaar",
     sysEmptyMsg: "Deze integratie biedt geen systeembedieningen, of ze zijn uitgeschakeld. Schakel ze in via Instellingen → entiteiten.",
-    bcAllowCharge: "Laden toestaan", bcAllowDischarge: "Ontladen toestaan", bcBatteryManual: "Handmatige batterijregeling",
-    bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcForceMode: "Geforceerde modus",
+    bcOperatingMode: "Bedrijfsmodus", bcAllowCharge: "Laden toestaan", bcAllowDischarge: "Ontladen toestaan", bcBatteryManual: "Handmatige batterijregeling",
+    bcSocMax: "Max. SOC", bcSocMin: "Min. SOC", bcTargetSoc: "Doel-SOC", bcForceMode: "Geforceerde modus",
     bcChargePower: "Laadvermogen", bcDischargePower: "Ontlaadvermogen",
     bcMaxCharge: "Max. laden", bcMaxDischarge: "Max. ontladen",
     bcChargeToSoc: "Laden tot SOC", bcChargeHysteresis: "Laadhysterese", bcBackup: "Back-upfunctie", bcOffgridMode: "Off-grid-modus", bcOffgridModeWarn: "Met de off-grid-poort aan (normaal of eco) en iets aangesloten, laadt de firmware in zijn gewone modus niet uit het net. Omnibattery stuurt laadopdrachten dan in handmatige modus, die het apparaat bij elke vermogenswijziging in zijn flashgeheugen kan opslaan. Gebruik je deze poort niet, zet hem dan uit.", bcEnergyExport: "Energie-export",
@@ -992,6 +992,9 @@ const DELTA_MV_RED = 250;
 // rendered when its entity is enabled (has a live state); most default to
 // disabled in the integration. `domain` selects the widget + service.
 const BAT_CONTROLS = [
+  // Only on a battery that regulates on its own: what it was asked for, and
+  // below it what is holding NOM off (the select's `status` attribute).
+  { key: "autonomous_operating_mode", domain: "select", lk: "bcOperatingMode", icon: "mdi:home-lightning-bolt-outline", status: true },
   { key: "battery_allow_charge", domain: "switch", lk: "bcAllowCharge", icon: "mdi:battery-arrow-up" },
   { key: "battery_allow_discharge", domain: "switch", lk: "bcAllowDischarge", icon: "mdi:battery-arrow-down" },
   { key: "battery_manual_mode", domain: "switch", lk: "bcBatteryManual", icon: "mdi:hand-back-right-outline" },
@@ -1002,6 +1005,8 @@ const BAT_CONTROLS = [
   { key: "soc_set", domain: "number", lk: "bcSocMax", icon: "mdi:battery-high" },
   { key: "discharging_cutoff_capacity", domain: "number", lk: "bcSocMin", icon: "mdi:battery-low" },
   { key: "min_soc", domain: "number", lk: "bcSocMin", icon: "mdi:battery-low" },
+  // Battery read through HA entities: its own regulator's target, when it has one.
+  { key: "target_soc", domain: "number", lk: "bcTargetSoc", icon: "mdi:battery-lock" },
   { key: "force_mode", domain: "select", lk: "bcForceMode", icon: "mdi:gesture-tap-button" },
   { key: "set_charge_power", domain: "number", lk: "bcChargePower", icon: "mdi:battery-arrow-up-outline" },
   { key: "set_discharge_power", domain: "number", lk: "bcDischargePower", icon: "mdi:battery-arrow-down-outline" },
@@ -6630,6 +6635,12 @@ class MarstekVenusPanel extends HTMLElement {
       );
       frag.appendChild(sel);
       r.controls[c.key] = { type: "select", el: sel };
+      if (c.status) {
+        const note = document.createElement("div");
+        note.className = "ctl-status dim";
+        frag.appendChild(note);
+        r.controls[c.key].note = note;
+      }
     } else {
       // number → slider + value
       const wrap = document.createElement("div");
@@ -6662,8 +6673,23 @@ class MarstekVenusPanel extends HTMLElement {
     return frag;
   }
 
+  /** Status line under a select: hidden while the battery does what it was asked. */
+  _patchStatusNote(note, state) {
+    const status = state.attributes && state.attributes.status;
+    const quiet = !status || status === "manual" || status === "nom_active";
+    note.hidden = quiet;
+    if (quiet) return;
+    let text = status;
+    if (typeof this._hass.formatEntityAttributeValue === "function") {
+      try { text = this._hass.formatEntityAttributeValue(state, "status"); } catch (e) { /* fall through */ }
+    }
+    note.textContent = text;
+    note.classList.toggle("warn", status === "degraded");
+  }
+
   _patchControlRow(w, state) {
     if (!state || w.type === "button") return;
+    if (w.note) this._patchStatusNote(w.note, state);
     const focused = this.shadowRoot && this.shadowRoot.activeElement === w.el;
     if (w.type === "switch") {
       w.el.classList.toggle("on", state.state === "on");
@@ -8314,6 +8340,9 @@ class MarstekVenusPanel extends HTMLElement {
       .ctl-k { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-mid); font-size: 13px; --mdc-icon-size: 16px; white-space: nowrap; }
       .ctl-k ha-icon { color: var(--ink-dim); flex-shrink: 0; }
       .ctl-empty { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; }
+      .ctl-status { grid-column: 1 / -1; margin-top: -6px; font-size: 12px; line-height: 1.45; }
+      .ctl-status[hidden] { display: none; }
+      .ctl-status.warn { color: oklch(0.82 0.14 75); }
       .ctl-toggle { justify-self: start; position: relative; width: 40px; height: 22px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--bg-2); cursor: pointer; padding: 0; transition: background 0.2s, border-color 0.2s; }
       .ctl-toggle .ctl-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--ink-dim); transition: transform 0.2s, background 0.2s; }
       .ctl-toggle.on { background: var(--accent-soft); border-color: var(--accent-line); }

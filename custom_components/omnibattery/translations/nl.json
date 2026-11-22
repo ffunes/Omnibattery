@@ -26,6 +26,22 @@
       "title": "Batterij {battery} levert geen vermogen",
       "description": "{battery} neemt al {minutes} minuten laad-/ontlaadopdrachten aan zonder vermogen te leveren ({reason}). Omnibattery houdt hem buiten de verdeling en probeert het elke {cooldown} minuten opnieuw, zodat de rest van de vloot het huis ondertussen dekt. De batterij zelf of de verbinding ermee heeft aandacht nodig: controleer of hij niet in stand-by staat onder besturing van zijn eigen app en of de verbinding niet overbelast is. Handmatige batterijbesturing voor die batterij aan- en weer uitzetten herstelt hem vaak."
     },
+    "nom_manual_unconfirmed": {
+      "title": "{battery} kon niet worden stilgezet",
+      "description": "Omnibattery heeft {battery} gevraagd naar Handmatig te gaan en ze toont die modus niet; ze kan dus nog zelf laden of ontladen. Laden van het net van de andere batterijen gaat toch door: in het ergste geval ontlaadt {battery} daarin. Omnibattery blijft het proberen en deze melding verdwijnt vanzelf zodra de batterij Handmatig toont. Controleer of de integratie die {battery} leest werkt en of haar modusentiteit met de hand te wijzigen is."
+    },
+    "nom_restore_failed": {
+      "title": "{battery} gaat niet terug naar NOM",
+      "description": "Je hebt NOM gekozen voor {battery} en meerdere pogingen om te schakelen zijn mislukt; ze blijft in Handmatig en doet niets. Omnibattery blijft het proberen en deze melding verdwijnt vanzelf. Controleer of de integratie die {battery} leest werkt en of haar modusentiteit met de hand te wijzigen is."
+    },
+    "nom_telemetry_lost": {
+      "title": "Het vermogen van {battery} is niet leesbaar",
+      "description": "{battery} staat op NOM, maar Omnibattery heeft al enkele minuten geen vermogensmeting en houdt haar daarom in Handmatig. Zolang Handmatig ook niet is bevestigd, ontladen de andere batterijen niet: ze zouden een lading kunnen voeden die niemand ziet. Controleer de integratie die {battery} leest. Alles herstelt vanzelf zodra de meting terugkomt."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} ontlaadt steeds weer in een andere batterij",
+      "description": "Minstens drie keer in het afgelopen uur ontlaadde {battery} terwijl een andere batterij laadde, en moest ze worden stilgezet. Energie die van batterij naar batterij gaat, wordt dubbel betaald. Zoek naar iets anders dat een van beide aanstuurt: het schema in de app van de batterij, een automatisering of twee regelaars met verschillende doelen op dezelfde meter."
+    },
     "configured_sensor_missing": {
       "title": "Geconfigureerde sensor bestaat niet meer",
       "description": "Omnibattery is geconfigureerd met {sensors}, die niet in Home Assistant bestaat. Alle functies die hem uitlezen zijn inactief. De opgeslagen verwijzing blijft bewust bewaard, omdat de entiteitskiezer een verdwenen entiteit niet kan tonen en je instelling stilzwijgend zou wissen: open Opties → Sensoren en kies een vervanger, of maak het veld leeg zodra de entiteit terug is."
@@ -197,7 +213,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Batterij {battery_num} instellen — Home Assistant-entiteiten",
-        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij maar stuurt haar nooit aan: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
+        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij en stelt haar vermogen nooit in: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
         "data": {
           "name": "Naam",
           "ha_soc_entity": "Laadtoestandsensor",
@@ -206,17 +222,31 @@
           "ha_charge_energy_entities": "Tellers geladen energie",
           "ha_discharge_energy_entity": "Teller ontladen energie",
           "ha_target_soc_entity": "Gewenste laadtoestand",
+          "ha_mode_entity": "Entiteit voor de bedrijfsmodus",
           "ha_stale_after_s": "Telemetrie als verloren beschouwen na"
         },
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te herkennen",
           "ha_soc_entity": "Een sensor die de laadtoestand van deze batterij in procenten meldt",
-          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in watt meldt",
+          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in W of kW meldt",
           "ha_power_positive_is": "Of de sensor laden of ontladen als positief telt. Controleer het terwijl de batterij laadt: Kostal en enkele andere melden laden als negatief",
-          "ha_charge_energy_entities": "Optionele totaaltellers in kWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
-          "ha_discharge_energy_entity": "Optionele totaal ontladen energie in kWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
+          "ha_charge_energy_entities": "Optionele totaaltellers, in Wh, kWh of MWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
+          "ha_discharge_energy_entity": "Optionele totaal ontladen energie, in Wh, kWh of MWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
           "ha_target_soc_entity": "Optionele schrijfbare gewenste of minimale laadtoestand. Verschijnt als een getal dat je zelf instelt; Omnibattery schrijft het nooit uit zichzelf",
-          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller"
+          "ha_mode_entity": "Optionele select of schakelaar van de bronintegratie die bepaalt of de batterij haar eigen meter op nul regelt (NOM) of rust. Daarmee kan Omnibattery de batterij stilzetten tijdens laden van het net of zolang een uitgesloten apparaat draait. Het vermogen wordt nooit ingesteld",
+          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller. Stilte terwijl de batterij rust telt niet mee"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterij {battery_num} — bedrijfsmodus",
+        "description": "Welke status van {entity} betekent dat de batterij zelf regelt, en welke dat ze rust? Batterij {battery_num} start in Handmatig; later wijzig je dat met haar selectie Bedrijfsmodus.",
+        "data": {
+          "ha_mode_nom_option": "NOM (nul op de meter)",
+          "ha_mode_manual_option": "Handmatig (de batterij rust)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "De batterij laadt en ontlaadt zelf om haar meter op 0 W te houden",
+          "ha_mode_manual_option": "De batterij laadt en ontlaadt niet"
         }
       },
       "battery_limits": {
@@ -725,7 +755,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Batterij {battery_num} opnieuw configureren — Home Assistant entities",
-        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij maar stuurt haar nooit aan: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
+        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij en stelt haar vermogen nooit in: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
         "data": {
           "name": "Naam",
           "ha_soc_entity": "Laadtoestandsensor",
@@ -734,17 +764,19 @@
           "ha_charge_energy_entities": "Tellers geladen energie",
           "ha_discharge_energy_entity": "Teller ontladen energie",
           "ha_target_soc_entity": "Gewenste laadtoestand",
+          "ha_mode_entity": "Entiteit voor de bedrijfsmodus",
           "ha_stale_after_s": "Telemetrie als verloren beschouwen na"
         },
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te herkennen",
           "ha_soc_entity": "Een sensor die de laadtoestand van deze batterij in procenten meldt",
-          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in watt meldt",
+          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in W of kW meldt",
           "ha_power_positive_is": "Of de sensor laden of ontladen als positief telt. Controleer het terwijl de batterij laadt: Kostal en enkele andere melden laden als negatief",
-          "ha_charge_energy_entities": "Optionele totaaltellers in kWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
-          "ha_discharge_energy_entity": "Optionele totaal ontladen energie in kWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
+          "ha_charge_energy_entities": "Optionele totaaltellers, in Wh, kWh of MWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
+          "ha_discharge_energy_entity": "Optionele totaal ontladen energie, in Wh, kWh of MWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
           "ha_target_soc_entity": "Optionele schrijfbare gewenste of minimale laadtoestand. Verschijnt als een getal dat je zelf instelt; Omnibattery schrijft het nooit uit zichzelf",
-          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller"
+          "ha_mode_entity": "Optionele select of schakelaar van de bronintegratie die bepaalt of de batterij haar eigen meter op nul regelt (NOM) of rust. Daarmee kan Omnibattery de batterij stilzetten tijdens laden van het net of zolang een uitgesloten apparaat draait. Het vermogen wordt nooit ingesteld",
+          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller. Stilte terwijl de batterij rust telt niet mee"
         }
       },
       "restore_backup": {
@@ -827,6 +859,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Het geselecteerde ESPHome-apparaat mist vereiste entiteiten: {missing}. Zorg dat het de marstek-lilygo-rs485-firmware met de originele entiteitsnamen draait.",
       "generic_ha_entities_missing": "Omnibattery kon deze entiteiten niet lezen: {missing}. Kies entiteiten die bestaan en op dit moment een getal melden.",
+      "generic_ha_mode_same": "NOM en Handmatig moeten twee verschillende statussen zijn.",
+      "generic_ha_mode_unreadable": "Omnibattery kon de opties van deze entiteit niet lezen. Kies een select of schakelaar die nu beschikbaar is.",
       "sensor_not_found": "Zonnevoorspellingssensor bestaat niet. Controleer of de sensor beschikbaar is.",
       "invalid_unit": "Zonnevoorspellingssensor moet 'kWh' of 'Wh' als eenheid hebben.",
       "solar_production_sensor_not_found": "Zonneproductiesensor bestaat niet. Controleer of de sensor beschikbaar is.",
@@ -1021,7 +1055,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Batterij {battery_num} instellen — Home Assistant-entiteiten",
-        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij maar stuurt haar nooit aan: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
+        "description": "Wijs Omnibattery de entiteiten aan die een andere integratie al publiceert voor batterij {battery_num}. Omnibattery leest deze batterij en stelt haar vermogen nooit in: laadtoestand en vermogen maken de berekening van het huisverbruik kloppend.",
         "data": {
           "name": "Naam",
           "ha_soc_entity": "Laadtoestandsensor",
@@ -1030,17 +1064,31 @@
           "ha_charge_energy_entities": "Tellers geladen energie",
           "ha_discharge_energy_entity": "Teller ontladen energie",
           "ha_target_soc_entity": "Gewenste laadtoestand",
+          "ha_mode_entity": "Entiteit voor de bedrijfsmodus",
           "ha_stale_after_s": "Telemetrie als verloren beschouwen na"
         },
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te herkennen",
           "ha_soc_entity": "Een sensor die de laadtoestand van deze batterij in procenten meldt",
-          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in watt meldt",
+          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in W of kW meldt",
           "ha_power_positive_is": "Of de sensor laden of ontladen als positief telt. Controleer het terwijl de batterij laadt: Kostal en enkele andere melden laden als negatief",
-          "ha_charge_energy_entities": "Optionele totaaltellers in kWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
-          "ha_discharge_energy_entity": "Optionele totaal ontladen energie in kWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
+          "ha_charge_energy_entities": "Optionele totaaltellers, in Wh, kWh of MWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
+          "ha_discharge_energy_entity": "Optionele totaal ontladen energie, in Wh, kWh of MWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
           "ha_target_soc_entity": "Optionele schrijfbare gewenste of minimale laadtoestand. Verschijnt als een getal dat je zelf instelt; Omnibattery schrijft het nooit uit zichzelf",
-          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller"
+          "ha_mode_entity": "Optionele select of schakelaar van de bronintegratie die bepaalt of de batterij haar eigen meter op nul regelt (NOM) of rust. Daarmee kan Omnibattery de batterij stilzetten tijdens laden van het net of zolang een uitgesloten apparaat draait. Het vermogen wordt nooit ingesteld",
+          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller. Stilte terwijl de batterij rust telt niet mee"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterij {battery_num} — bedrijfsmodus",
+        "description": "Welke status van {entity} betekent dat de batterij zelf regelt, en welke dat ze rust? Batterij {battery_num} start in Handmatig; later wijzig je dat met haar selectie Bedrijfsmodus.",
+        "data": {
+          "ha_mode_nom_option": "NOM (nul op de meter)",
+          "ha_mode_manual_option": "Handmatig (de batterij rust)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "De batterij laadt en ontlaadt zelf om haar meter op 0 W te houden",
+          "ha_mode_manual_option": "De batterij laadt en ontlaadt niet"
         }
       },
       "battery_limits": {
@@ -1493,6 +1541,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Het geselecteerde ESPHome-apparaat mist vereiste entiteiten: {missing}. Zorg dat het de marstek-lilygo-rs485-firmware met de originele entiteitsnamen draait.",
       "generic_ha_entities_missing": "Omnibattery kon deze entiteiten niet lezen: {missing}. Kies entiteiten die bestaan en op dit moment een getal melden.",
+      "generic_ha_mode_same": "NOM en Handmatig moeten twee verschillende statussen zijn.",
+      "generic_ha_mode_unreadable": "Omnibattery kon de opties van deze entiteit niet lezen. Kies een select of schakelaar die nu beschikbaar is.",
       "sensor_not_found": "Zonnevoorspellingssensor bestaat niet. Controleer of de sensor beschikbaar is.",
       "invalid_unit": "Zonnevoorspellingssensor moet 'kWh' of 'Wh' als eenheid hebben.",
       "solar_production_sensor_not_found": "Zonneproductiesensor bestaat niet. Controleer of de sensor beschikbaar is.",
@@ -2669,6 +2719,30 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Bedrijfsmodus",
+        "state": {
+          "nom": "NOM (nul op de meter)",
+          "manual": "Handmatig (geen actie)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "manual": "Handmatig",
+              "nom_active": "NOM actief",
+              "nom_pending": "NOM komt zo terug",
+              "nom_suspended_excluded_load": "NOM onderbroken: uitgesloten apparaat draait",
+              "nom_suspended_grid_charge": "NOM onderbroken: laden van het net",
+              "nom_suspended_global_manual": "NOM onderbroken: algemene handmatige modus",
+              "nom_suspended_cross_charge": "NOM onderbroken: ontlaadde in een andere batterij",
+              "nom_suspended_import_cap": "NOM onderbroken: haar lading ging over de importlimiet",
+              "nom_suspended_grid_target": "NOM onderbroken: bewust afnemen of terugleveren",
+              "degraded": "Modus of vermogen niet bevestigd"
+            }
+          }
+        }
+      },
       "user_work_mode": {
         "name": "Werkmodus",
         "state": {
@@ -2859,6 +2933,9 @@
         "name": "Hysterese uurbalans"
       },
       "soc_set": {
+        "name": "Doel-SOC"
+      },
+      "target_soc": {
         "name": "Doel-SOC"
       },
       "min_soc": {

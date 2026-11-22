@@ -6,6 +6,7 @@ absence: no command, no fabricated zero, no allocation.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -13,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from homeassistant.util import dt as dt_util
 
+from custom_components.omnibattery.drivers.base import NativeOperatingMode
 from custom_components.omnibattery.drivers.generic_ha import (
     DEFAULT_STALE_AFTER_S,
     GenericHaEntityDriver,
@@ -182,9 +184,27 @@ async def test_a_blinking_counter_drops_the_whole_sum():
 async def test_unreadable_values_are_omitted_never_zeroed(raw):
     """Zero is a valid battery power; inventing one hides a dead sensor."""
     driver = _driver(_hass(_table(**{POWER: _State(raw)})))
-    snapshot = await driver.read_telemetry()
-    assert "battery_power" not in snapshot
-    assert snapshot["battery_soc"] == 34
+    assert await driver.read_telemetry() == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("lost", [SOC, POWER])
+async def test_half_a_battery_is_a_lost_battery(lost):
+    """The target SOC may live in another integration and keep answering."""
+    table = _table(**{lost: _State("unavailable")})
+    driver = _driver(_hass(table))
+    assert await driver.read_telemetry() == {}
+    assert driver.telemetry_is_back() is False
+    table[lost] = _State("34")
+    assert driver.telemetry_is_back() is True
+
+
+def test_a_stalled_source_is_not_back():
+    old = dt_util.utcnow() - timedelta(seconds=DEFAULT_STALE_AFTER_S + 1)
+    driver = _driver(_hass(_table(**{
+        SOC: _State("34", last_reported=old), POWER: _State("-403", last_reported=old),
+    })))
+    assert driver.telemetry_is_back() is False
 
 
 @pytest.mark.asyncio
@@ -322,6 +342,19 @@ async def test_target_soc_is_written_to_the_configured_number():
 
 
 @pytest.mark.asyncio
+async def test_target_soc_is_written_to_an_input_number_too():
+    """``number.set_value`` on an input_number writes nothing and raises nothing."""
+    target = "input_number.my_target"
+    hass = _hass(_table(**{target: _State("60", attributes={"min": 0, "max": 100, "step": 1})}))
+    driver = _driver(hass, target_soc_entity=target)
+    await driver.connect()
+    assert await driver.write_control("target_soc", 55) is True
+    hass.services.async_call.assert_awaited_once_with(
+        "input_number", "set_value", {"entity_id": target, "value": 55}, blocking=True
+    )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("requested,expected", [(62, 60), (63, 65), (0, 5), (999, 100)])
 async def test_target_soc_is_snapped_onto_the_grid_the_entity_accepts(requested, expected):
     """An entity showing a value its write path rejects is worse than no entity."""
@@ -429,3 +462,163 @@ def test_from_config_builds_the_driver_from_stored_entity_ids():
     assert driver._charge_energy_entities == (CHARGE_PV,)
     assert driver._stale_after_s == 1200.0
     assert driver.capabilities.supports_power_setpoint is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("power,expected", [("0", True), ("-12", True), ("-403", False)])
+async def test_a_source_that_only_reports_changes_is_not_lost_while_at_rest(power, expected):
+    """Nothing changes all night in a battery at rest; a frozen 403 W is a dead feed."""
+    old = dt_util.utcnow() - timedelta(hours=5)
+    table = {
+        entity: _State(state.state, last_reported=old, attributes=state.attributes)
+        for entity, state in _table(**{POWER: _State(power)}).items()
+    }
+    snapshot = await _driver(_hass(table)).read_telemetry()
+    assert bool(snapshot) is expected
+
+
+# --------------------------------------------------------------------------- native mode
+
+MODE = "select.scb_mode"
+
+
+def _mode_driver(state="auto", entity=MODE, nom="auto", manual="hold", on_call=None):
+    table = _table(**{entity: _State(state)})
+    hass = _hass(table)
+
+    async def _call(domain, service, data, blocking):
+        if on_call is not None:
+            await on_call(table, entity)
+        elif service == "select_option":
+            table[entity] = _State(data["option"])
+        else:
+            table[entity] = _State(service.removeprefix("turn_"))
+
+    hass.services.async_call = AsyncMock(side_effect=_call)
+    return _driver(
+        hass, mode_entity=entity, mode_nom_option=nom, mode_manual_option=manual
+    ), hass
+
+
+async def _ignored(table, entity):
+    """A device that accepts the write and never changes mode."""
+
+
+def test_nom_mode_is_only_declared_with_a_complete_mapping():
+    assert _mode_driver()[0].capabilities.supports_nom_mode is True
+    assert _driver(_hass(_table())).capabilities.supports_nom_mode is False
+    assert _mode_driver(manual="auto")[0].capabilities.supports_nom_mode is False
+    assert _mode_driver(manual=None)[0].capabilities.supports_nom_mode is False
+
+
+def test_no_other_driver_declares_it():
+    """Characterises the defaults: nothing changes for a battery we command."""
+    from custom_components.omnibattery.drivers.base import DriverCapabilities
+
+    fields = DriverCapabilities.__dataclass_fields__
+    assert fields["supports_nom_mode"].default is False
+    assert fields["supports_power_setpoint"].default is True
+
+
+@pytest.mark.parametrize("state,expected", [
+    ("auto", "nom"), ("hold", "manual"), ("backup", None),
+    ("unavailable", None), ("unknown", None),
+])
+def test_the_mode_is_read_from_the_mapped_entity(state, expected):
+    driver, _ = _mode_driver(state)
+    assert driver.operating_mode_from_data({}) == expected
+
+
+@pytest.mark.asyncio
+async def test_a_select_is_written_and_confirmed():
+    driver, hass = _mode_driver("auto")
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    hass.services.async_call.assert_awaited_once_with(
+        "select", "select_option", {"entity_id": MODE, "option": "hold"}, blocking=True
+    )
+    assert result.ok and result.confirmed
+    assert result.effective_mode is NativeOperatingMode.MANUAL
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entity", ["switch.nom", "input_boolean.nom"])
+async def test_a_switch_is_turned_on_or_off(entity):
+    driver, hass = _mode_driver("on", entity=entity, nom="on", manual="off")
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    hass.services.async_call.assert_awaited_once_with(
+        entity.split(".")[0], "turn_off", {"entity_id": entity}, blocking=True
+    )
+    assert result.confirmed
+
+
+@pytest.mark.asyncio
+async def test_an_accepted_write_the_device_never_shows_is_not_confirmed(monkeypatch):
+    import custom_components.omnibattery.drivers.generic_ha as mod
+
+    monkeypatch.setattr(mod, "MODE_CONFIRM_TIMEOUT_S", 0.3)
+    driver, _ = _mode_driver("auto", on_call=_ignored)
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    assert result.ok is True and result.confirmed is False
+    assert result.effective_mode is NativeOperatingMode.NOM
+
+
+@pytest.mark.asyncio
+async def test_a_mode_that_shows_up_late_is_still_confirmed():
+    tasks = []
+
+    async def _late(table, entity):
+        async def _apply():
+            await asyncio.sleep(0.3)
+            table[entity] = _State("hold")
+
+        tasks.append(asyncio.create_task(_apply()))
+
+    driver, _ = _mode_driver("auto", on_call=_late)
+    assert (await driver.apply_operating_mode(NativeOperatingMode.MANUAL)).confirmed
+    # The manager does not wait: it confirms on a later cycle.
+    driver, _ = _mode_driver("auto", on_call=_late)
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL, read_back=False)
+    assert result.ok is True and result.confirmed is False
+    await asyncio.gather(*tasks)
+
+
+@pytest.mark.asyncio
+async def test_a_service_that_hangs_or_fails_is_a_failed_write(monkeypatch):
+    import custom_components.omnibattery.drivers.generic_ha as mod
+
+    monkeypatch.setattr(mod, "MODE_WRITE_TIMEOUT_S", 0.05)
+
+    async def _hang(table, entity):
+        await asyncio.sleep(5)
+
+    async def _boom(table, entity):
+        raise RuntimeError("cloud down")
+
+    driver, _ = _mode_driver("auto", on_call=_hang)
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    assert (result.ok, result.failure_reason) == (False, "timeout")
+    driver, _ = _mode_driver("auto", on_call=_boom)
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    assert (result.ok, result.failure_reason) == (False, "cloud down")
+
+
+@pytest.mark.asyncio
+async def test_standby_selects_manual_and_reports_an_unconfirmed_one(monkeypatch):
+    import custom_components.omnibattery.drivers.generic_ha as mod
+
+    driver, _ = _mode_driver("auto")
+    assert await driver.standby() is True
+    assert driver.operating_mode_from_data({}) is NativeOperatingMode.MANUAL
+
+    monkeypatch.setattr(mod, "MODE_CONFIRM_TIMEOUT_S", 0.0)
+    driver, _ = _mode_driver("auto", on_call=_ignored)
+    assert await driver.standby() is False
+
+
+@pytest.mark.asyncio
+async def test_connecting_and_closing_never_touch_the_mode():
+    driver, hass = _mode_driver("hold")
+    await driver.connect()
+    await driver.close()
+    await driver.connect()
+    hass.services.async_call.assert_not_awaited()
