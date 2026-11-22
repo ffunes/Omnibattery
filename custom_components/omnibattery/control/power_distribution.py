@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
+from ..drivers.base import can_take_setpoint
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -64,6 +66,19 @@ class PowerDistribution:
             return bool(helper(coordinator))
         return bool(getattr(coordinator, "battery_manual_mode_enabled", False))
 
+    def _is_outside_power_control(self, coordinator) -> bool:
+        """Whether this battery may not receive an allocation at all.
+
+        Two different reasons, one answer. The user may own it (manual mode), or
+        the device may simply take no power command -- a battery Omnibattery can
+        only observe. Allocating to the latter is worse than wasteful: the share
+        it is handed is subtracted from the deficit the commandable batteries
+        were meant to cover, so the fleet silently under-delivers.
+        """
+        if self._is_battery_manual_owned(coordinator):
+            return True
+        return not can_take_setpoint(coordinator)
+
     def _round_to_5w(self, value: float) -> int:
         """Round value to nearest 5W granularity."""
         return round(value / 5) * 5
@@ -85,7 +100,7 @@ class PowerDistribution:
         """
         available_batteries = [
             coordinator for coordinator in available_batteries
-            if not self._is_battery_manual_owned(coordinator)
+            if not self._is_outside_power_control(coordinator)
         ]
         if is_charging:
             return charge_order(self._controller, available_batteries)
@@ -112,7 +127,7 @@ class PowerDistribution:
         """
         available_batteries = [
             coordinator for coordinator in available_batteries
-            if not self._is_battery_manual_owned(coordinator)
+            if not self._is_outside_power_control(coordinator)
         ]
         if not available_batteries:
             return {}
@@ -218,7 +233,7 @@ class PowerDistribution:
         """
         available_batteries = [
             coordinator for coordinator in available_batteries
-            if not self._is_battery_manual_owned(coordinator)
+            if not self._is_outside_power_control(coordinator)
         ]
         # No power requested: clear load-sharing state. This must run before
         # the single-battery fast path so a one-battery system is not retained
@@ -407,7 +422,7 @@ class PowerDistribution:
         )
         active_batteries = [
             coordinator for coordinator in active_batteries
-            if not self._is_battery_manual_owned(coordinator)
+            if not self._is_outside_power_control(coordinator)
         ]
         if is_charging:
             self._controller._active_charge_batteries = active_batteries
@@ -474,7 +489,7 @@ class PowerDistribution:
                 await self._controller._set_battery_power(coordinator, 0, power)
 
         for coordinator in self._controller.coordinators:
-            if self._is_battery_manual_owned(coordinator):
+            if self._is_outside_power_control(coordinator):
                 continue
             if coordinator not in allocated_batteries:
                 await self._controller._set_battery_power(coordinator, 0, 0)

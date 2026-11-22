@@ -87,7 +87,7 @@ from .energyzero import (
 )
 from ..control.max_soc_charge import MaxSocChargeManager
 from ..control.pack_soc import effective_min_soc, soc_vs_ceiling
-from ..drivers.base import has_solar_production_source
+from ..drivers.base import can_take_setpoint, has_solar_production_source
 from ..tracking.consumption_profile import adjust_remaining_fallback_energy
 from ..energy import effective_round_trip_efficiency
 from . import (
@@ -154,6 +154,19 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _counts_towards_fleet_energy(controller, coordinator) -> bool:
+    """Whether a battery's kilowatt-hours belong in the chronological plan.
+
+    Delegates to the controller so there is one definition of "the fleet this
+    integration plans for". Falls back to the shared capability helper for the
+    test doubles that stand in for the controller here.
+    """
+    helper = getattr(controller, "_counts_towards_fleet_energy", None)
+    if helper is not None:
+        return bool(helper(coordinator))
+    return can_take_setpoint(coordinator)
 
 
 @dataclass(frozen=True)
@@ -876,7 +889,9 @@ class PricingManager:
 
         coordinators_with_data = [
             c for c in self._controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data
+            and not getattr(c, "battery_manual_mode_enabled", False)
+            and _counts_towards_fleet_energy(self._controller, c)
         ]
         if not coordinators_with_data:
             _LOGGER.warning(
@@ -1769,6 +1784,7 @@ class PricingManager:
             getattr(coordinator, "data", None) is None
             or not getattr(coordinator, "is_available", True)
             or getattr(coordinator, "battery_manual_mode_enabled", False)
+            or not can_take_setpoint(coordinator)
             or not getattr(coordinator, "allow_charge", True)
             or getattr(coordinator, "rs485_user_disabled", False)
         ):
@@ -2242,6 +2258,7 @@ class PricingManager:
                 data
                 and coordinator.is_available
                 and not getattr(coordinator, "battery_manual_mode_enabled", False)
+                and _counts_towards_fleet_energy(self._controller, coordinator)
                 and not self._controller._non_responsive.is_excluded(coordinator)
                 and not self._controller._is_backup_function_active(coordinator)
                 and not coordinator.rs485_user_disabled
@@ -3187,7 +3204,9 @@ class PricingManager:
         capacity = getattr(controller, "_dp_eval_projection_capacity_kwh", 0.0) or 0.0
         coords = [
             c for c in controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data
+            and not getattr(c, "battery_manual_mode_enabled", False)
+            and _counts_towards_fleet_energy(controller, c)
         ]
         if ref is None or capacity <= 0 or not coords:
             self._set_curtailment_runtime("planned", "no_projection")
@@ -3717,7 +3736,9 @@ class PricingManager:
         owned = getattr(self._controller, "_is_battery_manual_owned", None)
         return [
             c for c in getattr(self._controller, "coordinators", None) or []
-            if c.data and not (callable(owned) and owned(c))
+            if c.data
+            and not (callable(owned) and owned(c))
+            and _counts_towards_fleet_energy(self._controller, c)
         ]
 
     def _net_scalar_grid_carried_load(
@@ -4320,7 +4341,9 @@ class PricingManager:
 
             eligible = [
                 c for c in self._controller.coordinators
-                if c.data and not self._controller._is_battery_manual_owned(c)
+                if c.data
+                and not self._controller._is_battery_manual_owned(c)
+                and _counts_towards_fleet_energy(self._controller, c)
             ]
             # The batteries hand out at most their discharge power; the grid
             # carries the rest of the house load. Without this cap an 800 W
@@ -6160,6 +6183,8 @@ class PricingManager:
         for coordinator in getattr(self._controller, "coordinators", ()) or ():
             if getattr(coordinator, "battery_manual_mode_enabled", False):
                 continue
+            if not _counts_towards_fleet_energy(self._controller, coordinator):
+                continue
             data = getattr(coordinator, "data", None) or {}
             try:
                 capacity_kwh = float(data.get("battery_total_energy", 0.0) or 0.0)
@@ -6439,7 +6464,9 @@ class PricingManager:
         return sum(
             float(c.data.get("battery_total_energy", 0) or 0)
             for c in self._controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data
+            and not getattr(c, "battery_manual_mode_enabled", False)
+            and _counts_towards_fleet_energy(self._controller, c)
         )
 
     def _store_eval_projection(self, plan: ChronologicalPlan | None) -> None:
@@ -6554,7 +6581,9 @@ class PricingManager:
             return False
         coords = [
             c for c in self._controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data
+            and not getattr(c, "battery_manual_mode_enabled", False)
+            and _counts_towards_fleet_energy(self._controller, c)
         ]
         if not coords:
             return False
@@ -7783,6 +7812,8 @@ class PricingManager:
             for coordinator in getattr(controller, "coordinators", []):
                 if getattr(coordinator, "battery_manual_mode_enabled", False):
                     continue
+                if not can_take_setpoint(coordinator):
+                    continue
                 await controller._set_battery_power(coordinator, 0, 0)
         _LOGGER.info("Dynamic pricing: stopped active slot (%s)", reason)
 
@@ -8378,7 +8409,9 @@ class PricingManager:
                 now = self._now()
                 automatic = [
                     c for c in self._controller.coordinators
-                    if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+                    if c.data
+                    and not getattr(c, "battery_manual_mode_enabled", False)
+                    and _counts_towards_fleet_energy(self._controller, c)
                 ]
                 avg_soc = (
                     sum(c.data.get("battery_soc", 0) or 0 for c in automatic)
@@ -8511,7 +8544,9 @@ class PricingManager:
 
             automatic = [
                 c for c in self._controller.coordinators
-                if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+                if c.data
+                and not getattr(c, "battery_manual_mode_enabled", False)
+                and _counts_towards_fleet_energy(self._controller, c)
             ]
             current_avg_soc = (
                 sum(c.data.get("battery_soc", 0) for c in automatic)
@@ -9054,7 +9089,9 @@ class PricingManager:
             / 100.0
             * float(c.data.get("battery_total_energy", 0) or 0)
             for c in getattr(ctrl, "coordinators", ()) or ()
-            if c.data and not (callable(owned) and owned(c))
+            if c.data
+            and not (callable(owned) and owned(c))
+            and _counts_towards_fleet_energy(ctrl, c)
         )
 
     def apply_time_slot_floor_hold(self) -> None:

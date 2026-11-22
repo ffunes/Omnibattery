@@ -21,6 +21,8 @@ Drivers:
     services (SUN2000 + LUNA2000).
   - ``indevolt``: local HTTP, paced scheduler, realtime RAM tuple only
     (SolidFlex / PowerFlex).
+  - ``generic_ha``: HA-entity based, push, read-only (a battery another
+    integration already reports; never commanded).
 
 See ``docs/plans/driver_abstraction.md`` for the phased extraction plan.
 """
@@ -43,6 +45,7 @@ from .sessy import SessyLocalDriver
 from .hoymiles import HoymilesMqttDriver
 from .huawei import HuaweiSolarDriver
 from .indevolt import IndevoltDriver
+from .generic_ha import GenericHaEntityDriver
 
 __all__ = [
     "DELIVERED_AC_POWER_KEY",
@@ -58,5 +61,6 @@ __all__ = [
     "SessyLocalDriver",
     "HoymilesMqttDriver",
     "HuaweiSolarDriver",
+    "GenericHaEntityDriver",
     "IndevoltDriver",
 ]

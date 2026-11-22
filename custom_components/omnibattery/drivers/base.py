@@ -503,6 +503,41 @@ class DriverCapabilities:
     # baseline: the reading is recorded but not judged and raises no alert.
     balance_baseline: Optional[BalanceBaseline] = DEFAULT_BALANCE_BASELINE
 
+    # False when the device accepts no signed power command at all. Every driver
+    # that owns a transport translates ``apply_setpoint`` into some wire format;
+    # a battery Home Assistant can only *observe* (a foreign inverter's storage,
+    # read through that integration's entities) has nothing to translate it into.
+    #
+    # This is not "the user switched control off" (``rs485_user_disabled``) and
+    # not "the device refuses right now" (Huawei's PV gate). It is a permanent
+    # property of the device, and it is load-bearing in two directions: shared
+    # control must never select, allocate to or write to the battery, and
+    # predictive charging must never count its empty room as grid-fillable
+    # headroom. Its *telemetry* still counts -- that is the whole point of
+    # configuring it. Read it through ``can_take_setpoint`` below, never raw.
+    supports_power_setpoint: bool = True
+
+
+def can_take_setpoint(coordinator) -> bool:
+    """Whether shared code may command this battery's power at all.
+
+    One definition for a question asked from the control loop, the entity
+    platforms, the planner and the aggregates alike. Defaults True so every
+    existing driver, coordinator and test double keeps its behaviour: only a
+    driver that declares otherwise is treated as observe-only.
+    """
+    capabilities = getattr(coordinator, "capabilities", None)
+    return bool(getattr(capabilities, "supports_power_setpoint", True))
+
+
+def is_observed(coordinator) -> bool:
+    """Negation of :func:`can_take_setpoint`, for readability at filter sites.
+
+    ``if is_observed(c): continue`` says what the skip is for; the double
+    negative of the positive form does not.
+    """
+    return not can_take_setpoint(coordinator)
+
 
 def mppt_power_keys(coordinator) -> tuple[str, ...]:
     """The MPPT channel keys this battery's driver publishes (``()`` if none)."""

@@ -47,13 +47,23 @@ import logging
 from homeassistant.util import dt as dt_util
 
 from ..const import SCARCITY_HYSTERESIS_KWH
+from ..drivers.base import can_take_setpoint
 from ..solar_forecast import read_remaining_solar_kwh
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def _is_dc_coupled(coordinator) -> bool:
-    """Whether this battery's photovoltaic input reaches it without an AC stage."""
+    """Whether this battery's PV reaches it without an AC stage, and can be aimed.
+
+    The commandability check is not incidental. ``scarce_solar_day`` asks whether
+    today's sun fits inside the DC-coupled batteries, and answers by measuring
+    their empty room. An observed battery's room is not room this integration can
+    fill -- counting it inflates the measure, calls the day scarce, and parks the
+    AC-coupled battery that could actually have taken the energy.
+    """
+    if not can_take_setpoint(coordinator):
+        return False
     return bool(getattr(getattr(coordinator, "driver", None), "dc_coupled", False))
 
 

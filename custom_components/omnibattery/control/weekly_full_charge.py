@@ -34,7 +34,7 @@ from ..const import (
     NOTIFICATION_ID_PREFIX,
     WEEKDAY_MAP,
 )
-from ..drivers.base import InverterStatus
+from ..drivers.base import InverterStatus, can_take_setpoint
 from ..solar_forecast import read_remaining_solar_kwh
 
 if TYPE_CHECKING:
@@ -153,6 +153,9 @@ class WeeklyFullChargeManager:
             if getattr(c, "battery_manual_mode_enabled", False):
                 # Individual manual mode owns the battery. Freeze its cutoff
                 # evidence so weekly charge cannot classify or reconfigure it.
+                continue
+            if not can_take_setpoint(c):
+                # Same reasoning, permanently: no command, no cutoff evidence.
                 continue
             if not c.data:
                 self._bms_cutoff_counts[c.name] = 0
@@ -281,6 +284,11 @@ class WeeklyFullChargeManager:
         _get_available_batteries() (normal max_soc=100% case).
         """
         if getattr(coordinator, "battery_manual_mode_enabled", False):
+            return False
+        if not can_take_setpoint(coordinator):
+            # Never charged, so never "full": a battery Omnibattery only
+            # observes must not hold the weekly run open waiting for a top of
+            # charge this integration is not driving towards.
             return False
         if not coordinator.data:
             return False
@@ -697,6 +705,8 @@ class WeeklyFullChargeManager:
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
                 continue
+            if not can_take_setpoint(coordinator):
+                continue
             if ctrl._is_backup_function_active(coordinator):
                 continue
             if not coordinator.capabilities.hardware_soc_cutoff:
@@ -783,6 +793,7 @@ class WeeklyFullChargeManager:
             coordinator
             for coordinator in ctrl.coordinators
             if not getattr(coordinator, "battery_manual_mode_enabled", False)
+            and can_take_setpoint(coordinator)
         ]
         if not automatic_batteries:
             # Do not mark a weekly run as active when every battery is owned by
@@ -813,6 +824,7 @@ class WeeklyFullChargeManager:
             coordinator.name
             for coordinator in ctrl.coordinators
             if not getattr(coordinator, "battery_manual_mode_enabled", False)
+            and can_take_setpoint(coordinator)
             and not ctrl._is_backup_function_active(coordinator)
             and coordinator.capabilities.hardware_soc_cutoff
         }
@@ -829,6 +841,8 @@ class WeeklyFullChargeManager:
                 _LOGGER.info("Weekly Full Charge: Activating for compatible batteries")
             for coordinator in ctrl.coordinators:
                 if getattr(coordinator, "battery_manual_mode_enabled", False):
+                    continue
+                if not can_take_setpoint(coordinator):
                     continue
                 if ctrl._is_backup_function_active(coordinator):
                     _LOGGER.debug("%s: Skipping weekly full charge - backup function is active", coordinator.name)
@@ -889,11 +903,16 @@ class WeeklyFullChargeManager:
         # seen latch) or has a hardware/BMS full signal.  The 60-second delta-V
         # measurement in MaxSocChargeManager.handle_measurement continues as a
         # diagnostic but no longer gates completion.
+        # An observed battery is left out of the completion test. The run ends
+        # when every battery Omnibattery *charges* has reached the top; one it
+        # cannot charge would never report full, and the run would stay pending
+        # until the next sunrise cancelled it.
         batteries_with_data = [
             c
             for c in ctrl.coordinators
             if c.data
             and not getattr(c, "battery_manual_mode_enabled", False)
+            and can_take_setpoint(c)
         ]
         all_batteries_full = bool(batteries_with_data) and all(
             self.is_battery_full(c)
@@ -909,6 +928,7 @@ class WeeklyFullChargeManager:
             for c in ctrl.coordinators
             if c.data
             and not getattr(c, "battery_manual_mode_enabled", False)
+            and can_take_setpoint(c)
         }
 
         if all_batteries_full and not ctrl.weekly_full_charge_complete:
@@ -929,6 +949,8 @@ class WeeklyFullChargeManager:
         completion_batteries: dict = {}
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
+                continue
+            if not can_take_setpoint(coordinator):
                 continue
             data = coordinator.data or {}
             soc = data.get("battery_soc")
@@ -1001,6 +1023,8 @@ class WeeklyFullChargeManager:
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
                 continue
+            if not can_take_setpoint(coordinator):
+                continue
             if (
                 measurement_state is not None
                 and measurement_state.get(coordinator) == "pending"
@@ -1036,6 +1060,8 @@ class WeeklyFullChargeManager:
         # Re-enable hysteresis for batteries that have it configured.
         for coordinator in ctrl.coordinators:
             if getattr(coordinator, "battery_manual_mode_enabled", False):
+                continue
+            if not can_take_setpoint(coordinator):
                 continue
             if coordinator.enable_charge_hysteresis:
                 coordinator._hysteresis_active = True

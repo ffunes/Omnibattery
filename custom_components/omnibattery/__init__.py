@@ -242,7 +242,9 @@ from .drivers.base import (
     AC_REGISTER_ONLY,
     DELIVERED_AC_POWER_KEY,
     InverterStatus,
+    can_take_setpoint,
     has_connected_mppt_pv,
+    is_observed,
     mppt_power_keys,
 )
 from .drivers.registry import DEFAULT_BRAND, driver_class
@@ -2857,6 +2859,27 @@ class ChargeDischargeController:
                 )
             self._reset_battery_ownership_state(coordinator)
 
+    @staticmethod
+    def _counts_towards_fleet_energy(coordinator) -> bool:
+        """Whether this battery's stored energy belongs in the fleet's planning.
+
+        Today the answer is the same as commandability, and deliberately so. An
+        observed battery's kilowatt-hours are real and do cover household load,
+        but every caller of this reasons about energy it can *place*: predictive
+        charging turns a deficit into a grid purchase sized by the fleet's
+        headroom and splits it across batteries, and peak shaving reserves room
+        it intends to hold back. Folding in capacity that cannot be filled or
+        released on command makes both plan for a battery that will never carry
+        the share, and the commandable ones come up short.
+
+        Counting the stored half without the headroom half is the better answer
+        and a larger change; it is a separate step, not a default to slide in
+        here. Note this is *planning* energy only -- the system SOC, capacity
+        and stored-energy aggregates count an observed battery, because those
+        describe the installation rather than the plan.
+        """
+        return can_take_setpoint(coordinator)
+
     def _get_automatic_batteries(self) -> list:
         """Return the batteries available to automatic planning and control."""
         return [
@@ -4822,6 +4845,17 @@ class ChargeDischargeController:
                 _LOGGER.debug("%s: Skipping - backup function is active", coordinator.name)
                 continue
 
+            # Skip batteries that take no power command at all. Unlike every
+            # other reason in this loop this one is permanent and comes from the
+            # device, not from a user choice or a transient fault, so it is
+            # checked before the blockers that assume a commandable battery.
+            if is_observed(coordinator):
+                _LOGGER.debug(
+                    "%s: Skipping - this battery accepts no power command",
+                    coordinator.name,
+                )
+                continue
+
             # Skip batteries the user excluded from integration control: RS485 control
             # disabled means the battery is driven by the official app / its own logic.
             if coordinator.rs485_user_disabled:
@@ -5245,7 +5279,9 @@ class ChargeDischargeController:
         delivering nothing. Averaging that stale value in held the fleet
         average above the threshold while the remaining battery drained past
         it (#803), so only batteries that can actually discharge count here,
-        mirroring the pool the control path selects.
+        mirroring the pool the control path selects. A battery that takes no
+        power command at all is out for the same reason: peak shaving cannot
+        call on its charge.
         """
         is_excluded = getattr(
             getattr(self, "_non_responsive", None), "is_excluded", None
@@ -5255,6 +5291,8 @@ class ChargeDischargeController:
             if not coordinator.data:
                 continue
             if ChargeDischargeController._is_battery_manual_owned(coordinator):
+                continue
+            if not ChargeDischargeController._counts_towards_fleet_energy(coordinator):
                 continue
             if not getattr(coordinator, "is_available", True):
                 continue
@@ -5660,7 +5698,9 @@ class ChargeDischargeController:
         # Guard against empty or invalid coordinators
         coordinators_with_data = [
             c for c in self.coordinators
-            if c.data and not ChargeDischargeController._is_battery_manual_owned(c)
+            if c.data
+            and not ChargeDischargeController._is_battery_manual_owned(c)
+            and ChargeDischargeController._counts_towards_fleet_energy(c)
         ]
         if not coordinators_with_data:
             _LOGGER.error("No battery coordinators with valid data for predictive charging evaluation")
@@ -6279,7 +6319,9 @@ class ChargeDischargeController:
 
         coordinators_with_data = [
             c for c in self.coordinators
-            if c.data and not ChargeDischargeController._is_battery_manual_owned(c)
+            if c.data
+            and not ChargeDischargeController._is_battery_manual_owned(c)
+            and ChargeDischargeController._counts_towards_fleet_energy(c)
         ]
         if not coordinators_with_data:
             return None
@@ -7586,6 +7628,17 @@ class ChargeDischargeController:
 
         Returns True if command was acknowledged, False otherwise.
         """
+        # First, and deliberately not conditioned on ``owner``: a battery that
+        # accepts no power command must never be written to by any caller, for
+        # any reason, including an idle 0 W. Every other guard below answers
+        # "not right now"; this one answers "there is nothing to write to".
+        if not can_take_setpoint(coordinator):
+            _LOGGER.debug(
+                "[%s] Skipping power write - this battery accepts no power command",
+                getattr(coordinator, "name", coordinator),
+            )
+            return False
+
         if owner == "automatic" and ChargeDischargeController._is_battery_manual_owned(
             coordinator
         ):
@@ -8536,7 +8589,7 @@ class ChargeDischargeController:
             return 0.0
 
     def _manual_battery_power_for_grid_feedback(self) -> float:
-        """Return manual batteries' signed AC contribution to the grid meter.
+        """Return uncommanded batteries' signed AC contribution to the grid meter.
 
         Prefer measured AC-side power, which excludes DC-coupled solar on drivers
         that expose it; fall back to the manual setpoint only when no delivered-
@@ -8545,21 +8598,37 @@ class ChargeDischargeController:
         so they can reduce their charge to keep the meter at zero; once automatic
         charging is idle, a manual grid charge is excluded so it cannot trigger an
         automatic discharge.
+
+        An *observed* battery counts here for the same reason a manual one does,
+        and the consequence of leaving it out is the sharper of the two: its
+        charging reaches the meter as import, and without this term the regulator
+        reads that import as house load and discharges the batteries it does
+        command straight into it. Battery-to-battery, paid for twice.
+
+        Its power is only ever taken from the measurement. The commanded-power
+        fallback reconstructs a setpoint this integration issued, and for a
+        battery it never commands there is nothing to reconstruct.
         """
         total = 0.0
         for coordinator in self.coordinators:
-            if not ChargeDischargeController._is_battery_manual_owned(coordinator):
+            observed = is_observed(coordinator)
+            if not observed and not ChargeDischargeController._is_battery_manual_owned(
+                coordinator
+            ):
                 continue
             measured = ChargeDischargeController._coordinator_delivered_power(
                 coordinator
             )
-            power = (
-                measured
-                if measured is not None
-                else ChargeDischargeController._manual_battery_commanded_power(
-                    coordinator
+            if observed:
+                power = measured
+            else:
+                power = (
+                    measured
+                    if measured is not None
+                    else ChargeDischargeController._manual_battery_commanded_power(
+                        coordinator
+                    )
                 )
-            )
             try:
                 if power is not None and math.isfinite(float(power)):
                     total += float(power)

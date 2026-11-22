@@ -195,6 +195,30 @@
           "esphome_device": "L'appareil LilyGo T-CAN485 flashé avec le firmware ESPHome Marstek"
         }
       },
+      "battery_connection_generic_ha": {
+        "title": "Configurer la batterie {battery_num} — Entités Home Assistant",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "data": {
+          "name": "Nom",
+          "ha_soc_entity": "Capteur d'état de charge",
+          "ha_power_entity": "Capteur de puissance de la batterie",
+          "ha_power_positive_is": "Convention de signe de la puissance",
+          "ha_charge_energy_entities": "Compteurs d'énergie chargée",
+          "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
+          "ha_target_soc_entity": "État de charge cible",
+          "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+        }
+      },
       "battery_limits": {
         "title": "Configurer la batterie {battery_num} — Limites",
         "description": "Entrez les limites de puissance et de SOC pour la batterie {battery_num}.",
@@ -699,6 +723,30 @@
           "esphome_device": "L'appareil LilyGo T-CAN485 flashé avec le firmware ESPHome Marstek"
         }
       },
+      "reconfigure_battery_generic_ha": {
+        "title": "Reconfigurer la batterie {battery_num} — Home Assistant entities",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "data": {
+          "name": "Nom",
+          "ha_soc_entity": "Capteur d'état de charge",
+          "ha_power_entity": "Capteur de puissance de la batterie",
+          "ha_power_positive_is": "Convention de signe de la puissance",
+          "ha_charge_energy_entities": "Compteurs d'énergie chargée",
+          "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
+          "ha_target_soc_entity": "État de charge cible",
+          "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+        }
+      },
       "restore_backup": {
         "title": "Restaurer la configuration précédente",
         "description": "Une sauvegarde de {count} configuration(s) précédente(s) (connexion, options et réglages) a été trouvée. La restaurer pour tout récupérer sans reconfigurer ? Vos entités et votre historique se reconnecteront automatiquement.",
@@ -778,6 +826,7 @@
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Il manque des entités requises à l'appareil ESPHome sélectionné : {missing}. Vérifiez qu'il exécute le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
+      "generic_ha_entities_missing": "Omnibattery n'a pas pu lire ces entités : {missing}. Choisissez des entités qui existent et qui indiquent actuellement un nombre.",
       "sensor_not_found": "Le capteur de prévision solaire n'existe pas. Vérifiez que le capteur est disponible.",
       "invalid_unit": "Le capteur de prévision solaire doit avoir 'kWh' ou 'Wh' comme unité.",
       "solar_production_sensor_not_found": "Le capteur de production solaire n'existe pas. Vérifiez que le capteur est disponible.",
@@ -968,6 +1017,30 @@
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
           "esphome_device": "L'appareil LilyGo T-CAN485 flashé avec le firmware ESPHome Marstek"
+        }
+      },
+      "battery_connection_generic_ha": {
+        "title": "Configurer la batterie {battery_num} — Entités Home Assistant",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "data": {
+          "name": "Nom",
+          "ha_soc_entity": "Capteur d'état de charge",
+          "ha_power_entity": "Capteur de puissance de la batterie",
+          "ha_power_positive_is": "Convention de signe de la puissance",
+          "ha_charge_energy_entities": "Compteurs d'énergie chargée",
+          "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
+          "ha_target_soc_entity": "État de charge cible",
+          "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
+        },
+        "data_description": {
+          "name": "Nom descriptif pour identifier cette batterie",
+          "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
         }
       },
       "battery_limits": {
@@ -1419,6 +1492,7 @@
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Il manque des entités requises à l'appareil ESPHome sélectionné : {missing}. Vérifiez qu'il exécute le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
+      "generic_ha_entities_missing": "Omnibattery n'a pas pu lire ces entités : {missing}. Choisissez des entités qui existent et qui indiquent actuellement un nombre.",
       "sensor_not_found": "Le capteur de prévision solaire n'existe pas. Vérifiez que le capteur est disponible.",
       "invalid_unit": "Le capteur de prévision solaire doit avoir 'kWh' ou 'Wh' comme unité.",
       "solar_production_sensor_not_found": "Le capteur de production solaire n'existe pas. Vérifiez que le capteur est disponible.",

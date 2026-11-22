@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -50,6 +51,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.omnibattery.drivers.anker import AnkerModbusDriver
 from custom_components.omnibattery.drivers.esphome import EsphomeEntityDriver
+from custom_components.omnibattery.drivers.generic_ha import GenericHaEntityDriver
 from custom_components.omnibattery.drivers.hoymiles import HoymilesMqttDriver
 from custom_components.omnibattery.drivers.huawei import HuaweiSolarDriver
 from custom_components.omnibattery.drivers.indevolt import IndevoltDriver
@@ -65,6 +67,7 @@ UPDATE_ENV = "OMNIBATTERY_UPDATE_SNAPSHOTS"
 
 BRANDS = (
     "marstek", "zendure", "esphome", "anker", "sessy", "indevolt", "huawei", "hoymiles",
+    "generic_ha",
 )
 
 # Global (system) part of the entry. Only here so the flow can be driven from `user`
@@ -272,6 +275,50 @@ CASES: dict[str, BrandCase] = {
             battery_capacity_kwh=2.24,
         ),
     ),
+    "generic_ha": BrandCase(
+        id="generic_ha",
+        brand="generic_ha",
+        connection_step="battery_connection_generic_ha",
+        reconfigure_step="reconfigure_battery_generic_ha",
+        # No host, port or credential anywhere: the whole form is entity ids.
+        add_input={
+            "name": "Observed 1",
+            "ha_soc_entity": "sensor.byd_soc",
+            "ha_power_entity": "sensor.byd_power",
+            "ha_power_positive_is": "charge",
+            "ha_stale_after_s": 600,
+        },
+        options_input={
+            "name": "Observed 1 edited",
+            "ha_soc_entity": "sensor.byd_soc_2",
+            "ha_power_entity": "sensor.byd_power_2",
+            "ha_power_positive_is": "discharge",
+            "ha_charge_energy_entities": ["sensor.byd_charged"],
+            "ha_discharge_energy_entity": "sensor.byd_discharged",
+            "ha_target_soc_entity": "number.byd_min_soc",
+            "ha_stale_after_s": 900,
+        },
+        reconfigure_input={
+            "name": "Observed 1 moved",
+            "ha_soc_entity": "sensor.byd_soc_3",
+            "ha_power_entity": "sensor.byd_power_3",
+            "ha_power_positive_is": "charge",
+            "ha_stale_after_s": 600,
+        },
+        # The battery reports no capacity of its own, so the limits step asks
+        # for one and it has no default to accept.
+        limits_input={"battery_capacity_kwh": 6.0},
+        options_limits_input={"battery_capacity_kwh": 6.0},
+        existing=_stored(
+            brand="generic_ha", name="Observed 1",
+            host="0123456789abcdef0123456789abcdef", port=0,
+            ha_soc_entity="sensor.byd_soc", ha_power_entity="sensor.byd_power",
+            ha_power_positive_is="charge", ha_charge_energy_entities=[],
+            ha_discharge_energy_entity=None, ha_target_soc_entity=None,
+            ha_stale_after_s=600,
+            battery_capacity_kwh=6.0,
+        ),
+    ),
 }
 
 
@@ -292,6 +339,7 @@ class Probes:
     * ``huawei_scan``: ``[(slave_id, model, has_battery), ...]``;
       ``huawei_emma``: slave id or None.
     * ``esphome_missing``: list of missing entity names.
+    * ``generic_ha_missing``: list of logical keys whose entity is unreadable.
     * ``marstek_ok`` / ``marstek_ems_version``.
     * ``calls``: ``[(name, *args)]`` in call order.
     """
@@ -335,6 +383,7 @@ class Probes:
         self.huawei_scan: list[tuple] = [(1, "SUN2000-5KTL-L1", True)]
         self.huawei_emma: int | None = None
         self.esphome_missing: list[str] = []
+        self.generic_ha_missing: list[str] = []
 
     # -- helpers used by the patches --
     def _record(self, *call: Any) -> None:
@@ -396,6 +445,10 @@ class Probes:
             probes._record("esphome.resolve", device_id)
             return {}, list(probes.esphome_missing)
 
+        def generic_ha_resolve(hass, entities):
+            probes.calls.append(("generic_ha_resolve", tuple(sorted(entities.items()))))
+            return list(probes.generic_ha_missing)
+
         # Plain functions set on a class are not bound when read from the class,
         # which is how the flows call them (``Driver.probe(...)``).
         monkeypatch.setattr(MarstekModbusDriver, "probe", marstek_probe)
@@ -409,6 +462,7 @@ class Probes:
         monkeypatch.setattr(HuaweiSolarDriver, "scan_slave_ids", huawei_scan)
         monkeypatch.setattr(HuaweiSolarDriver, "find_emma_slave_id", huawei_emma)
         monkeypatch.setattr(EsphomeEntityDriver, "resolve", esphome_resolve)
+        monkeypatch.setattr(GenericHaEntityDriver, "resolve", generic_ha_resolve)
 
 
 # --------------------------------------------------------------------------- driving
@@ -609,12 +663,37 @@ def flow_env(hass, enable_custom_integrations, monkeypatch, probes):
 def normalize(data: Any) -> Any:
     """JSON-safe, deterministic form of a stored battery dict.
 
-    Today this is only a round trip (tuples -> lists, key order is applied at
-    dump time): nothing in a flow-produced battery is random or time-dependent.
-    If a generated id or a timestamp ever shows up, scrub it HERE (and say why)
-    rather than in the tests, so every snapshot gets the same treatment.
+    Mostly a round trip (tuples -> lists, key order is applied at dump time).
+
+    The one scrub: ``generic_ha`` has no device, host or serial to identify a
+    battery by -- it is a set of entity ids the user may repoint at will -- so
+    its flow mints a uuid4 as the stable ``host``. That id is genuinely random
+    per run, and ``device_key`` and every stored value hang off it, so it is
+    replaced with a fixed placeholder here rather than in the tests, keeping
+    every snapshot on the same treatment.
     """
-    return json.loads(json.dumps(data, sort_keys=True))
+    scrubbed = json.loads(json.dumps(data, sort_keys=True))
+    return _scrub_generated_ids(scrubbed)
+
+
+_GENERATED_HOST = "<generated>"
+
+
+def _scrub_generated_ids(value: Any) -> Any:
+    """Replace ``generic_ha``'s minted host id wherever it appears."""
+    if isinstance(value, list):
+        return [_scrub_generated_ids(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    out = {key: _scrub_generated_ids(item) for key, item in value.items()}
+    host = out.get("host")
+    if (
+        out.get("brand") == "generic_ha"
+        and isinstance(host, str)
+        and re.fullmatch(r"[0-9a-f]{32}", host)
+    ):
+        out["host"] = _GENERATED_HOST
+    return out
 
 
 def snapshot_path(name: str) -> Path:
