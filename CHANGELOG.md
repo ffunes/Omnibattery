@@ -59,6 +59,7 @@
 
 ### Fixed
 
+- **Summary: status rows of a switched-off feature read "Disabled"**: Predictive charging, Smart pre-discharge, Surplus price hold and Peak shaving reserve showed "Not running" whether idle or off; the entities keep their states (PR#930). Thanks to @anorakophobia.
 - **German: Weekly Full Charge and Charge Delay status read "Inaktiv" while idle**, not "Bereit" (PR#929). Thanks to @anorakophobia.
 - **A battery under manual control charging from solar no longer makes the others charge from the grid**: its charging was subtracted from the meter even with no import, and the controller answered to an export that did not exist. The mixed-fleet guards no longer subtract that charging twice, which blocked a discharge the house needed.
 - **Zendure: the charge no longer stops at mid SOC because of one high cell** (#884): with Max SOC at 100 %, a cell at 3.60 V blocked charging until the SOC fell; a Zendure's own BMS decides the top now.
