@@ -556,12 +556,13 @@ class WeeklyFullChargeManager:
                 _LOGGER.debug("Weekly Full Charge: No persisted state found")
                 return
 
-            today_iso = date.today().isoformat()
+            now = local_now()
+            today = now.date()
             stored_date = data.get("date")
             # A run saved on the target day carries on in the night after it.
-            same_run = stored_date == today_iso or (
-                stored_date == (date.today() - timedelta(days=1)).isoformat()
-                and self.in_overnight_extension(local_now())
+            same_run = stored_date == today.isoformat() or (
+                stored_date == (today - timedelta(days=1)).isoformat()
+                and self.in_overnight_extension(now)
             )
 
             # Only restore state if saved on the same calendar date (prevents last week's
@@ -630,7 +631,7 @@ class WeeklyFullChargeManager:
                 "state": ctrl._weekly_charge_status.get("state", "Idle"),
                 "restore_pending": bool(getattr(ctrl, "_weekly_charge_needs_restore", False)),
                 "saved_max_soc": dict(getattr(ctrl, "_weekly_charge_saved_max_soc", {})),
-                "date": date.today().isoformat(),
+                "date": now.date().isoformat(),
                 "timestamp": now.isoformat(),
                 # Delay state (bundled in the same store for legacy reasons)
                 "delay_unlocked": ctrl._charge_delay_unlocked,
