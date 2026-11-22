@@ -204,6 +204,30 @@
           "esphome_device": "El dispositivo LilyGo T-CAN485 flasheado con el firmware ESPHome de Marstek"
         }
       },
+      "battery_connection_generic_ha": {
+        "title": "Configurar la batería {battery_num} — Entidades de Home Assistant",
+        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería pero nunca la gobierna: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
+        "data": {
+          "name": "Nombre",
+          "ha_soc_entity": "Sensor de estado de carga",
+          "ha_power_entity": "Sensor de potencia de la batería",
+          "ha_power_positive_is": "Convenio de signo de la potencia",
+          "ha_charge_energy_entities": "Contadores de energía cargada",
+          "ha_discharge_energy_entity": "Contador de energía descargada",
+          "ha_target_soc_entity": "Estado de carga objetivo",
+          "ha_stale_after_s": "Considerar la telemetría perdida tras"
+        },
+        "data_description": {
+          "name": "Nombre descriptivo para identificar esta batería",
+          "ha_soc_entity": "Un sensor que indica el estado de carga de esta batería en porcentaje",
+          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga en vatios",
+          "ha_power_positive_is": "Si el sensor cuenta como positiva la carga o la descarga. Compruébalo mientras la batería se está cargando: Kostal y otros varios indican la carga en negativo",
+          "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
+          "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
+          "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
+          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
+        }
+      },
       "battery_limits": {
         "title": "Configurar batería {battery_num} — Límites",
         "description": "Introduce los límites de potencia y SOC de la batería {battery_num}.",
@@ -740,6 +764,30 @@
           "esphome_device": "El dispositivo LilyGo T-CAN485 flasheado con el firmware ESPHome de Marstek"
         }
       },
+      "reconfigure_battery_generic_ha": {
+        "title": "Reconfigurar batería {battery_num} — Home Assistant entities",
+        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería pero nunca la gobierna: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
+        "data": {
+          "name": "Nombre",
+          "ha_soc_entity": "Sensor de estado de carga",
+          "ha_power_entity": "Sensor de potencia de la batería",
+          "ha_power_positive_is": "Convenio de signo de la potencia",
+          "ha_charge_energy_entities": "Contadores de energía cargada",
+          "ha_discharge_energy_entity": "Contador de energía descargada",
+          "ha_target_soc_entity": "Estado de carga objetivo",
+          "ha_stale_after_s": "Considerar la telemetría perdida tras"
+        },
+        "data_description": {
+          "name": "Nombre descriptivo para identificar esta batería",
+          "ha_soc_entity": "Un sensor que indica el estado de carga de esta batería en porcentaje",
+          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga en vatios",
+          "ha_power_positive_is": "Si el sensor cuenta como positiva la carga o la descarga. Compruébalo mientras la batería se está cargando: Kostal y otros varios indican la carga en negativo",
+          "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
+          "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
+          "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
+          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
+        }
+      },
       "restore_backup": {
         "title": "Restaurar configuración anterior",
         "description": "Se encontró una copia de seguridad de {count} configuración(es) anterior(es) (conexión, opciones y ajuste). ¿Restaurarla para recuperar todo sin configurarlo de nuevo? Tus entidades e histórico se reconectarán automáticamente.",
@@ -861,6 +909,7 @@
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Al dispositivo ESPHome seleccionado le faltan entidades necesarias: {missing}. Asegúrate de que ejecuta el firmware marstek-lilygo-rs485 con los nombres de entidad originales.",
+      "generic_ha_entities_missing": "Omnibattery no ha podido leer estas entidades: {missing}. Elige entidades que existan y que ahora mismo indiquen un número.",
       "sensor_not_found": "El sensor de predicción solar no existe. Verifica que el sensor esté disponible.",
       "invalid_unit": "El sensor de predicción solar debe tener como unidad 'kWh' o 'Wh'.",
       "solar_production_sensor_not_found": "El sensor de producción solar no existe. Verifica que el sensor esté disponible.",
@@ -1053,6 +1102,30 @@
         "data_description": {
           "name": "Nombre descriptivo para identificar esta batería",
           "esphome_device": "El dispositivo LilyGo T-CAN485 flasheado con el firmware ESPHome de Marstek"
+        }
+      },
+      "battery_connection_generic_ha": {
+        "title": "Configurar la batería {battery_num} — Entidades de Home Assistant",
+        "description": "Indica a Omnibattery las entidades que otra integración ya publica para la batería {battery_num}. Omnibattery lee esta batería pero nunca la gobierna: el estado de carga y la potencia son lo que hace correcto el cálculo del consumo doméstico.",
+        "data": {
+          "name": "Nombre",
+          "ha_soc_entity": "Sensor de estado de carga",
+          "ha_power_entity": "Sensor de potencia de la batería",
+          "ha_power_positive_is": "Convenio de signo de la potencia",
+          "ha_charge_energy_entities": "Contadores de energía cargada",
+          "ha_discharge_energy_entity": "Contador de energía descargada",
+          "ha_target_soc_entity": "Estado de carga objetivo",
+          "ha_stale_after_s": "Considerar la telemetría perdida tras"
+        },
+        "data_description": {
+          "name": "Nombre descriptivo para identificar esta batería",
+          "ha_soc_entity": "Un sensor que indica el estado de carga de esta batería en porcentaje",
+          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga en vatios",
+          "ha_power_positive_is": "Si el sensor cuenta como positiva la carga o la descarga. Compruébalo mientras la batería se está cargando: Kostal y otros varios indican la carga en negativo",
+          "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
+          "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
+          "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
+          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
         }
       },
       "battery_limits": {
@@ -1546,6 +1619,7 @@
       "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Al dispositivo ESPHome seleccionado le faltan entidades necesarias: {missing}. Asegúrate de que ejecuta el firmware marstek-lilygo-rs485 con los nombres de entidad originales.",
+      "generic_ha_entities_missing": "Omnibattery no ha podido leer estas entidades: {missing}. Elige entidades que existan y que ahora mismo indiquen un número.",
       "sensor_not_found": "El sensor de predicción solar no existe. Verifica que el sensor esté disponible.",
       "invalid_unit": "El sensor de predicción solar debe tener como unidad 'kWh' o 'Wh'.",
       "solar_production_sensor_not_found": "El sensor de producción solar no existe. Verifica que el sensor esté disponible.",
@@ -1579,6 +1653,12 @@
     }
   },
   "selector": {
+    "generic_ha_power_sign": {
+      "options": {
+        "charge": "Los valores positivos indican carga",
+        "discharge": "Los valores positivos indican descarga"
+      }
+    },
     "indevolt_request_speed": {
       "options": {
         "maximum": "Máxima: 1s",
