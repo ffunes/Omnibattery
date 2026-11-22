@@ -62,6 +62,7 @@
 
 ### Fixed
 
+- **Daily Operation: a quarter is coloured only when its action moves at least 2.5 Wh** (#853): a minute at 56 W coloured the whole quarter, forecast and tomorrow included (PR#894). Thanks to @Sjoedzj.
 - **Peak Shaving: a "peaks only" threshold (at or above Max SOC) also holds a full battery** (#913): at 100 % it covered the house for a point of SOC before holding again (PR#916). Thanks to @Couponslegrand.
 - **Summary: status rows of a switched-off feature read "Disabled"**: Predictive charging, Smart pre-discharge, Surplus price hold and Peak shaving reserve showed "Not running" whether idle or off; the entities keep their states (PR#930). Thanks to @anorakophobia.
 - **German: Weekly Full Charge and Charge Delay status read "Inaktiv" while idle**, not "Bereit" (PR#929). Thanks to @anorakophobia.

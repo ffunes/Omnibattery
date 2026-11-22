@@ -30,6 +30,7 @@
 
 const FALLBACK_DOMAIN = "omnibattery";
 const FALLBACK_TITLE = "Omnibattery";
+const DAILY_OPERATION_ACTION_MIN_KWH = 0.0025;
 const DAILY_OPERATION_BASE_INTERVALS = 96;
 // The part after midnight follows the plan: the timeline publishes how many
 // quarters it covers (extended_horizon.interval_count), 48 by default and at
@@ -3451,6 +3452,17 @@ class MarstekVenusPanel extends HTMLElement {
       // The tooltip labels this interval as observed, so never merge actions
       // projected for its remaining minutes into the observed mask.
       mask = actualMask || 0;
+    }
+    // Below 2.5 Wh (10 W over the quarter) a flow is noise (#853). The quarter in
+    // progress is still adding up, so it keeps its colours.
+    if (status !== "current") {
+      const flows = status === "forecast"
+        ? [snapshot.solarToBattery, snapshot.gridToBattery, snapshot.batteryToHome]
+        : [snapshot.actualChargeToBattery, snapshot.actualChargeToBattery, snapshot.actualDischargeFromBattery];
+      flows.forEach((array, position) => {
+        const kwh = this._dailyOperationValueAt(array, index);
+        if (kwh != null && kwh < DAILY_OPERATION_ACTION_MIN_KWH) mask &= ~(1 << position);
+      });
     }
     if (snapshot.isSkipped[index]) mask = 0;
     const contextActual = this._dailyOperationMaskAt(snapshot.actualContext, index);
