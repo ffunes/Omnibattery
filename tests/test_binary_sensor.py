@@ -47,12 +47,13 @@ def test_curtailment_signal_is_unknown_without_safe_plan():
 
 
 def test_with_the_plan_deciding_the_windows_and_slots_are_the_plan_s():
-    from datetime import datetime, timedelta
+    from datetime import timedelta
 
+    from custom_components.omnibattery.infra.clock import local_now
     from custom_components.omnibattery.pricing import PriceSlot
     from custom_components.omnibattery.pricing.engine import PlanRoom
 
-    t = datetime.now() + timedelta(hours=1)
+    t = local_now() + timedelta(hours=1)
     order = PriceSlot(t, t + timedelta(minutes=15), 0.30)
     risk = PriceSlot(t + timedelta(hours=2), t + timedelta(hours=2, minutes=15), -0.05)
     module = CurtailmentPlan(status="no_risk", reason="no_negative_injection_window")

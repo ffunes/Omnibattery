@@ -6,7 +6,7 @@ repair issue, which gates load-bearing pricing features.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -23,6 +23,7 @@ from custom_components.omnibattery.config_flow import (
     _price_integration_export_options,
     _validate_export_price_input,
 )
+from custom_components.omnibattery.infra.clock import local_now
 from custom_components.omnibattery.pricing import calculations
 from custom_components.omnibattery.pricing.engine import PricingManager
 
@@ -33,7 +34,7 @@ EXPORT_SENSOR = "sensor.export_price"
 
 def _raw_today(prices: list[float]) -> dict:
     """Build a Nordpool-style attribute payload for today."""
-    start = datetime.now().replace(minute=0, second=0, microsecond=0)
+    start = local_now().replace(minute=0, second=0, microsecond=0)
     return {
         "raw_today": [
             {
@@ -114,7 +115,7 @@ def test_export_curve_falls_back_to_the_import_curve_when_unset():
     states = {IMPORT_SENSOR: SimpleNamespace(state="0.1", attributes=_raw_today([0.1, 0.2]))}
     manager = PricingManager(_hass(states), _controller())
 
-    horizon = datetime.now() + timedelta(hours=12)
+    horizon = local_now() + timedelta(hours=12)
     assert manager.get_future_export_price_slots(horizon) == manager.get_future_price_slots(horizon)
 
 
@@ -125,7 +126,7 @@ def test_export_curve_reads_its_own_sensor():
     }
     manager = PricingManager(_hass(states), _controller(export_price_sensor=EXPORT_SENSOR))
 
-    slots = manager.get_future_export_price_slots(datetime.now() + timedelta(hours=12))
+    slots = manager.get_future_export_price_slots(local_now() + timedelta(hours=12))
 
     assert slots
     assert {slot.price for slot in slots} == {0.10}
@@ -166,7 +167,7 @@ def test_export_curve_uses_the_import_provider_type_when_unset():
     )
     manager = PricingManager(_hass(states), controller)
 
-    slots = manager.get_future_export_price_slots(datetime.now() + timedelta(hours=12))
+    slots = manager.get_future_export_price_slots(local_now() + timedelta(hours=12))
 
     assert {slot.price for slot in slots} == {0.05}
 
@@ -275,7 +276,7 @@ def test_the_export_fallback_leaves_the_import_health_status_alone():
     assert healthy_status.startswith("ok")
 
     # A horizon in the past yields no slots but says nothing about feed health.
-    assert manager.get_future_export_price_slots(datetime.now() - timedelta(days=1)) == []
+    assert manager.get_future_export_price_slots(local_now() - timedelta(days=1)) == []
     assert controller._price_data_status == healthy_status
 
 
@@ -285,5 +286,5 @@ def test_the_export_fallback_still_reports_a_real_import_fault():
     controller = _controller(_price_data_status="ok (24 slots)")
     manager = PricingManager(_hass(states), controller)
 
-    assert manager.get_future_export_price_slots(datetime.now() + timedelta(hours=12)) == []
+    assert manager.get_future_export_price_slots(local_now() + timedelta(hours=12)) == []
     assert controller._price_data_status != "ok (24 slots)"
