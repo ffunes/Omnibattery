@@ -122,7 +122,7 @@ Si el naranja o el rojo persisten tras varias cargas completas, usa el [blueprin
 
     **Recalibración de SOC en Venus E**
 
-    Una batería Venus E puede alcanzar 3,60 V mientras su estado de carga (SOC) comunicado permanece por debajo del 99%. Cuando sucede fuera del ciclo semanal, Omnibattery puede continuar a 200 W hasta que el BMS corte. Si el SOC sigue por debajo del 100%, espera a que la celda se relaje hasta 3,57 V y permite un intento más a 200 W. Esto solo crea las condiciones para recalibrar; el firmware del BMS decide si cambia el SOC mostrado.
+    Una batería Venus E puede alcanzar 3,60 V mientras su estado de carga (SOC) comunicado permanece por debajo del 99%. Cuando sucede fuera del ciclo semanal, Omnibattery puede continuar a 200 W hasta que el BMS corte. Si el SOC sigue por debajo del 100%, espera a que la celda se relaje hasta 3,57 V y permite un intento más a 200 W. Esto solo crea las condiciones para recalibrar; el firmware del BMS decide si cambia el SOC mostrado. Si sigue mal, consulta [La batería está llena y el SOC marca mucho menos](../troubleshooting.md#soc-drift).
 
     **Referencia de sensores y diagnóstico**
 

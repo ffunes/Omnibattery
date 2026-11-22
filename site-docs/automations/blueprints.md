@@ -19,6 +19,8 @@ Blueprints are optional Home Assistant automations that complement Omnibattery. 
 
 Create one automation per battery. **Battery Manual Mode** is the ownership boundary: while a run is active, Omnibattery's automatic controller and other manual automations cannot write competing setpoints to that battery. Turn the request `input_boolean` ON to start or resume after a restart, and OFF to cancel.
 
+The blueprint balances cells; it does not correct a drifted SOC. If a run reaches the top voltage at a mid SOC, see [Battery is full while SOC reads much lower](../troubleshooting.md#soc-drift).
+
 ??? "Advanced details"
     The blueprint validates telemetry, force-mode options, voltage ordering, and number limits before taking control, including the `charging_cutoff_capacity` number used as the maximum-SOC limit. Optional advanced entity-ID overrides remain available for installations where an entity was renamed. The `force_mode` options are named **None**, **Charge**, and **Discharge**; old lowercase ESPHome entities remain supported during migration.
 

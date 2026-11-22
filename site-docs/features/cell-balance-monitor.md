@@ -122,7 +122,7 @@ If orange or red persists across full charges, use the [Marstek active-balance b
 
     **SOC recalibration on Venus E**
 
-    A Venus E battery can reach 3.60 V while its reported state of charge (SOC) remains below 99%. When that happens outside the weekly cycle, Omnibattery can continue at 200 W until the BMS cuts off. If SOC is still below 100%, it waits for the cell to relax to 3.57 V and allows one more 200 W attempt. This only creates the conditions for recalibration; BMS firmware decides whether the displayed SOC changes.
+    A Venus E battery can reach 3.60 V while its reported state of charge (SOC) remains below 99%. When that happens outside the weekly cycle, Omnibattery can continue at 200 W until the BMS cuts off. If SOC is still below 100%, it waits for the cell to relax to 3.57 V and allows one more 200 W attempt. This only creates the conditions for recalibration; BMS firmware decides whether the displayed SOC changes. If it stays wrong, see [Battery is full while SOC reads much lower](../troubleshooting.md#soc-drift).
 
     **Sensor and diagnostic reference**
 

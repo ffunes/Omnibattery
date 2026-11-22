@@ -19,6 +19,8 @@ Los blueprints son automatizaciones opcionales de Home Assistant que complementa
 
 Crea una automatización por batería. **Battery Manual Mode** es el límite de control: mientras una ejecución está activa, el controlador automático de Omnibattery y otras automatizaciones manuales no pueden escribir consignas que compitan en esa batería. Activa el `input_boolean` de solicitud para iniciar o reanudar tras un reinicio, y desactívalo para cancelar.
 
+El blueprint equilibra celdas; no corrige un SOC desviado. Si una ejecución llega a la tensión superior con un SOC medio, consulta [La batería está llena y el SOC marca mucho menos](../troubleshooting.md#soc-drift).
+
 ??? "Detalles avanzados"
     El blueprint valida la telemetría, las opciones de modo forzado, el orden de tensiones y los límites de los números antes de tomar el control, incluido el número `charging_cutoff_capacity` usado como límite máximo de SOC. Las sustituciones opcionales avanzadas de ID de entidad siguen disponibles para instalaciones donde se haya cambiado el nombre de una entidad. Las opciones de `force_mode` se llaman **None**, **Charge** y **Discharge**; las entidades ESPHome antiguas en minúsculas siguen siendo compatibles durante la migración.
 

@@ -28,9 +28,38 @@ La batería puede estar en reposo intencionadamente cuando la red ya está cerca
 | Charge Delay espera al sol | **Charge Delay** y **Charge Delay Status** | Revisa el [retraso de carga solar](features/solar-charge-delay.md) |
 | Una franja horaria bloquea la carga | **Discharge Window**, interruptores de franja horaria y `charge_blockers` | Revisa las [franjas horarias](configuration/time-slots.md) |
 | La carga predictiva no encontró déficit | **Predictive Charging Active**, su motivo, previsión y estimación de consumo | Es lo esperado; revisa la [carga predictiva](configuration/predictive-charging/index.md) |
+| Las celdas ya están llenas pero el SOC marca poco | Tensión máxima de celda al detenerse la carga | Sigue [La batería está llena y el SOC marca mucho menos](#soc-drift) |
 | La temperatura o la protección de batería limitan la carga | **Integration Status**, estado de temperatura, alarma de batería y entidades de fallo | Revisa el [límite de carga por temperatura](features/temperature-charge-limit.md) y el manual de la batería |
 
 **Resultado esperado:** el bloqueador desaparece y la potencia de carga sube cuando el excedente solar, una solicitud manual o un periodo predictivo apto requieren carga.
+
+## La batería está llena y el SOC marca mucho menos {#soc-drift}
+
+En una batería Marstek, el estado de carga (SOC) lo calcula el sistema de gestión de batería (BMS) y puede desviarse de la carga real. Omnibattery solo lo lee, así que no puede corregirlo.
+
+| Señal | Qué comprobar |
+|---|---|
+| La carga se detiene siempre en un SOC parecido, muy por debajo del objetivo | Tensión máxima de celda cerca de `3,5–3,6 V` en ese momento |
+| El SOC sube mucho menos que la energía cargada | Energía diaria cargada frente a SOC × capacidad |
+| El blueprint de balanceo activo cicla a un SOC medio | Tensión máxima de celda y SOC durante la ejecución |
+
+Si la tensión mínima de celda queda muy por debajo de la máxima, puede tratarse de celdas desequilibradas: consulta el [monitor de balance de celdas](features/cell-balance-monitor.md).
+
+Primero deja que una [carga completa semanal](features/weekly-full-charge.md) llegue hasta que el BMS la termine; puede bastar para corregir el SOC. Si no, usa el procedimiento siguiente.
+
+!!! warning "Antes de empezar"
+    - Es un procedimiento de la comunidad (Dr. Straeman, Photovoltaikforum), no de Marstek. Úsalo solo en baterías Marstek.
+    - Vacía la batería muy por debajo de su SOC mínimo y lleva unos dos días. Elige días en los que no necesites la energía almacenada.
+    - La salida de backup debe seguir encendida toda la noche. Si tu firmware la apaga sola, resuélvelo antes.
+
+1. Activa **Manual Battery Control** en la batería. La aplicación Marstek toma el control en cuanto cambias algo en ella.
+2. En la aplicación Marstek, descarga a 2,5 kW (o a la potencia máxima que permita tu instalación) hasta que se detenga sola.
+3. Enciende la salida de backup y deja en ella una carga pequeña, de unos 50 W, durante toda la noche. El inversor debería apagarse a unos 2,96 V por celda. Deja reposar la batería unas horas, pero no la dejes vacía más tiempo.
+4. Carga a 2,5 kW (o a la potencia máxima permitida) hasta que la batería se detenga sola.
+5. Repite los pasos 2 a 4 **una vez más**.
+6. Desactiva y vuelve a activar la integración para que Omnibattery recupere el control, y después desactiva **Manual Battery Control**.
+
+**Resultado esperado:** el SOC marca 100% cuando la batería deja de cargar y sube a la par que la energía cargada.
 
 ## La batería no descarga
 

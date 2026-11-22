@@ -42,9 +42,38 @@ The battery may be idle by design when the grid is already near target. If house
 | Charge Delay is waiting for solar | **Charge Delay** and **Charge Delay Status** | Review [solar charge delay](features/solar-charge-delay.md) |
 | A time slot blocks charging | **Discharge Window**, time-slot switches, and `charge_blockers` | Review [time slots](configuration/time-slots.md) |
 | Predictive charging found no deficit | **Predictive Charging Active**, its reason, forecast, and consumption estimate | This is expected; review [predictive charging](configuration/predictive-charging/index.md) |
+| The cells are already full but SOC reads low | Max cell voltage when charging stops | Follow [Battery is full while SOC reads much lower](#soc-drift) |
 | Temperature or battery protection limits charging | **Integration Status**, temperature status, battery alarm, and fault entities | Review [temperature charge limit](features/temperature-charge-limit.md) and the battery manual |
 
 **Expected result:** the blocker disappears and charge power rises when surplus solar, a manual request, or an eligible predictive period requires charging.
+
+## Battery is full while SOC reads much lower {#soc-drift}
+
+On a Marstek battery, the state of charge (SOC) comes from the battery management system (BMS), and it can drift away from the real charge. Omnibattery only reads it, so it cannot correct it.
+
+| Sign | What to check |
+|---|---|
+| Charging stops at a similar SOC, far below the target | Max cell voltage near `3.5–3.6 V` at that moment |
+| SOC rises much less than the energy charged | Daily charged energy against SOC × capacity |
+| The active-balance blueprint cycles at a mid SOC | Max cell voltage and SOC during the run |
+
+If the minimum cell voltage stays far below the maximum, the cells may be imbalanced instead: see [cell balance monitor](features/cell-balance-monitor.md).
+
+First let a [weekly full charge](features/weekly-full-charge.md) run until the BMS ends it; that may be enough to correct SOC. If it is not, use the procedure below.
+
+!!! warning "Before you start"
+    - This is a community procedure (Dr. Straeman, Photovoltaikforum), not a Marstek one. Use it on Marstek batteries only.
+    - It empties the battery far below its minimum SOC and takes about two days. Choose days when you do not need the stored energy.
+    - The backup outlet must stay on all night. If your firmware switches it off by itself, solve that first.
+
+1. Turn on **Manual Battery Control** for the battery. The Marstek app takes control once you change something in it.
+2. In the Marstek app, discharge at 2.5 kW (or the highest power your installation allows) until it stops by itself.
+3. Turn on the backup outlet and leave a small load on it, about 50 W, overnight. The inverter should shut down at about 2.96 V per cell. Let the battery rest for a few hours, but do not leave it empty for longer.
+4. Charge at 2.5 kW (or the highest power allowed) until the battery stops by itself.
+5. Repeat steps 2 to 4 **once more**.
+6. Disable and re-enable the integration so that Omnibattery takes control again, then turn off **Manual Battery Control**.
+
+**Expected result:** SOC reads 100% when the battery stops charging, and rises in step with the energy charged.
 
 ## Battery does not discharge
 
