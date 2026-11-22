@@ -59,6 +59,8 @@ CASES = [
 ]
 IDS = [f"{b}-{v}" if v else b for b, v in CASES]
 PUBLISHERS = {"marstek", "zendure", "esphome"}
+# Zendure publishes the key but has no voltage taper: its BMS owns the top (#884).
+TOP_VOLTAGE_STOP_BRANDS = {"marstek", "esphome"}
 INERT_BRANDS = {"anker", "sessy", "indevolt", "huawei", "hoymiles"}
 # The coordinator's taper flag after construction (observed on today's code).
 TAPER_FLAG = {
@@ -256,7 +258,7 @@ async def test_top_voltage_arms_charge_hysteresis_in_the_block_refresh(brand, ve
     coord = _hysteresis_coord(brand, version, vmax)
     ctrl = _hysteresis_ctrl(coord)
     ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
-    armed = _applies(brand) and vmax >= PAUSE
+    armed = brand in TOP_VOLTAGE_STOP_BRANDS and vmax >= PAUSE
     assert coord._hysteresis_active is armed
     assert ("charge_hysteresis" in ctrl._blocks.get(coord, set())) is armed
 
@@ -269,9 +271,34 @@ async def test_top_voltage_arms_charge_hysteresis_in_the_availability_check(
     coord = _hysteresis_coord(brand, version, vmax)
     ctrl = _hysteresis_ctrl(coord)
     available = ChargeDischargeController._get_available_batteries(ctrl, True, False)
-    armed = _applies(brand) and vmax >= PAUSE
+    armed = brand in TOP_VOLTAGE_STOP_BRANDS and vmax >= PAUSE
     assert coord._hysteresis_active is armed
     assert (available == []) is armed
+
+
+async def test_zendure_top_cell_does_not_stop_the_charge_at_mid_soc():
+    """Issue #884: one cell at 3.60 V at 61% SOC latched the charge until SOC fell."""
+    coord = _hysteresis_coord("zendure", None, 3.60)
+    coord.data["battery_soc"] = 61
+    coord.charge_hysteresis_percent = 2
+    ctrl = _hysteresis_ctrl(coord)
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+    assert not ctrl._blocks.get(coord)
+    assert ChargeDischargeController._get_available_batteries(ctrl, True, False) == [coord]
+
+    # A full battery still stops.
+    coord.data["battery_soc"] = 100
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+    assert "charge_hysteresis" in ctrl._blocks[coord]
+    assert ChargeDischargeController._get_available_batteries(ctrl, True, False) == []
+
+
+async def test_marstek_top_cell_still_stops_the_charge_with_the_taper_switch_off():
+    coord = _hysteresis_coord("marstek", "v3", 3.60)
+    coord.full_charge_voltage_taper_enabled = False
+    ctrl = _hysteresis_ctrl(coord)
+    ChargeDischargeController._refresh_battery_charge_limit_blocks(ctrl)
+    assert "charge_hysteresis" in ctrl._blocks[coord]
 
 
 @pytest.mark.parametrize(

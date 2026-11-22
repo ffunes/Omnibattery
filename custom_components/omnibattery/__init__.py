@@ -668,6 +668,24 @@ def _charge_hysteresis_latch_is_stale(coordinator) -> bool:
     return coordinator.max_soc > (base if latched_under is None else latched_under)
 
 
+def _top_cell_stops_charge(coordinator, effective_max_soc) -> bool:
+    """Whether the top cell voltage ends a charge to 100%, whatever the SOC.
+
+    Independent of the taper switch, but not of the taper support: a battery
+    without one has a BMS that tapers past this voltage on its own (a Zendure
+    was seen at 3.61 V at 93% SOC and still charging at 98%), and one high cell
+    at 61% would hold it until its SOC fell (issue #884).
+    """
+    if effective_max_soc < 100:
+        return False
+    vmax = control_vmax(coordinator)
+    return (
+        vmax is not None
+        and vmax >= cell_voltage_profile(coordinator).pause_v
+        and coordinator.traits.supports_voltage_taper
+    )
+
+
 def _pricing_clock_now(controller) -> datetime:
     """Local wall-clock time from the pricing manager's injectable clock.
 
@@ -4334,15 +4352,12 @@ class ChargeDischargeController:
 
             if coordinator.enable_charge_hysteresis:
                 # Activate hysteresis when cell voltage hits the BMS cutoff threshold,
-                # regardless of whether the charge tapper feature is enabled.
+                # regardless of whether the charge tapper feature is enabled (but
+                # not on a battery that has no tapper).
                 # Uses effective_max_soc so slot/predictive overrides are respected.
-                taper_at_top_voltage = False
-                if effective_max_soc >= 100:
-                    _vmax = control_vmax(coordinator)
-                    if _vmax is not None:
-                        taper_at_top_voltage = (
-                            _vmax >= cell_voltage_profile(coordinator).pause_v
-                        )
+                taper_at_top_voltage = _top_cell_stops_charge(
+                    coordinator, effective_max_soc
+                )
                 # Clear a stale latch so charge can resume toward the raised
                 # target; a genuine top-of-charge re-arms immediately below.
                 if _charge_hysteresis_latch_is_stale(coordinator):
@@ -4900,13 +4915,9 @@ class ChargeDischargeController:
                         coordinator._hysteresis_base_soc = None
                     else:
                         # Normal hysteresis logic
-                        _vmax_hysteresis = control_vmax(coordinator)
-                        _taper_at_top = False
-                        if effective_max_soc >= 100 and _vmax_hysteresis is not None:
-                            _taper_at_top = (
-                                _vmax_hysteresis
-                                >= cell_voltage_profile(coordinator).pause_v
-                            )
+                        _taper_at_top = _top_cell_stops_charge(
+                            coordinator, effective_max_soc
+                        )
                         # Clear a stale latch so charge resumes toward the
                         # raised target; a genuine top re-arms below.
                         if _charge_hysteresis_latch_is_stale(coordinator):
