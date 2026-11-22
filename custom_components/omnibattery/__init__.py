@@ -720,6 +720,7 @@ POLICY_DISCHARGE_BLOCKERS = ECONOMIC_DISCHARGE_BLOCKERS | frozenset({
     "ev_pause",
     "ev_charging",
     "excluded_device_dynamic_power_control",
+    "nom_telemetry",
 })
 
 
@@ -4606,6 +4607,19 @@ class ChargeDischargeController:
         else:
             self.remove_discharge_block("excluded_device_dynamic_power_control")
 
+    def _refresh_nom_telemetry_block(self) -> None:
+        """No discharge while a NOM battery's power cannot be read."""
+        manager = getattr(self, "_autonomous_mode_mgr", None)
+        blind = manager.blind_batteries() if manager is not None else []
+        if blind:
+            self.set_discharge_block(
+                "nom_telemetry",
+                "autonomous_battery_telemetry_lost",
+                {"batteries": ",".join(c.name for c in blind)},
+            )
+        else:
+            self.remove_discharge_block("nom_telemetry")
+
     def _refresh_operation_blockers(self) -> None:
         """Refresh all runtime operation blockers for the current control cycle."""
         if (
@@ -4637,6 +4651,7 @@ class ChargeDischargeController:
         # EV pause lifted.
         self._refresh_surplus_price_hold_block()
         self._refresh_dynamic_power_control_block()
+        ChargeDischargeController._refresh_nom_telemetry_block(self)
         self._refresh_user_battery_blocks()
         self._refresh_normal_balance_blocks()
         self._refresh_battery_charge_limit_blocks()
@@ -5399,8 +5414,11 @@ class ChargeDischargeController:
         battery_power = (
             measured_power if measured_power is not None else self.previous_power
         )
-        hidden = max(0.0, self._excluded_included_adjustment)
-        # Physical house load: excluded devices are on the meter too.
+        # Physical house load: excluded devices are on the meter too, and so is
+        # the charge of the batteries this controller does not command.
+        hidden = max(0.0, self._excluded_included_adjustment) + max(
+            0.0, getattr(self, "_uncommanded_charge_w", 0.0)
+        )
         estimated_house_load = sensor_actual + hidden - battery_power
         over_cap = configured > 0 and estimated_house_load > cap
         # A battery that may not discharge only because of policy (price, time
@@ -8654,22 +8672,24 @@ class ChargeDischargeController:
         return total
 
     def _without_uncommanded_charge(self, grid_w: float, target_w: float) -> float:
-        """Grid reading with the uncommanded batteries' charging removed.
+        """Grid reading as the automatic batteries must act on it.
 
-        Only to keep the automatic batteries from discharging into it. Removing
-        more than the import plus what they discharge now would read as an
-        export nobody makes (a battery filling from its own PV leaves the meter
-        at zero), and they would charge from the grid to absorb it.
+        Two views of the meter, one per direction: charging is decided on the
+        physical reading, so only the surplus the uncommanded batteries left is
+        taken; discharging on the reading less what those batteries charge, so
+        that charge never becomes a discharge. Where neither asks for its own
+        direction the running command is walked back to 0 W: ``target +
+        previous_power`` is the reading at which the controller lands there.
+        Without that middle value a charge would turn straight into a discharge
+        when the surplus ends, and a battery filling from its own PV, which
+        leaves the meter at zero, would read as an export nobody makes.
         """
-        if self.previous_power > 0:
-            return grid_w
         charging = ChargeDischargeController._manual_battery_power_for_grid_feedback(self)
         if charging <= 0:
             return grid_w
         adjusted = max(grid_w - charging, min(grid_w, target_w + self.previous_power))
         _LOGGER.debug(
-            "Ignoring %.0fW of %.0fW manual or observed battery charging while "
-            "automatic batteries are not charging",
+            "Ignoring %.0fW of %.0fW manual or observed battery charging",
             grid_w - adjusted, charging,
         )
         return adjusted
@@ -10526,18 +10546,7 @@ class ChargeDischargeController:
 
         active_target = self.compute_active_target()
 
-        # Use the real filtered meter reading while automatic batteries are
-        # charging. A manual grid charge must then count as load so the automatic
-        # charge is reduced (for example, 2 kW automatic + 1 kW manual becomes
-        # 1 kW automatic). Once the automatic command is idle or discharging,
-        # remove only the manual charging contribution: otherwise the intentional
-        # manual import would make automatic batteries discharge to compensate it.
-        sensor_actual = ChargeDischargeController._without_uncommanded_charge(
-            self, sensor_filtered, active_target
-        )
-        # The guards below rebuild the meter from every battery's power, so they
-        # get this back: with it removed they would subtract it twice.
-        uncommanded_charge = sensor_filtered - sensor_actual
+        sensor_actual = sensor_filtered
 
         if DEBUG_CONTROL_LOOP_DETAIL:
             _LOGGER.debug("Sensor: raw=%.1fW, filtered=%.1fW", sensor_raw, sensor_filtered)
@@ -10560,6 +10569,18 @@ class ChargeDischargeController:
         if self._hourly_balance_mgr is not None:
             await self._hourly_balance_mgr.async_process()
             active_target = self.compute_active_target()
+
+        # After the excluded-device correction, which belongs to both views: taken
+        # afterwards the two corrections could add up to an export nobody makes.
+        physical = sensor_actual
+        sensor_actual = ChargeDischargeController._without_uncommanded_charge(
+            self, sensor_actual, active_target
+        )
+        # The guards below rebuild the meter from every battery's power, so they
+        # get this back: with it removed they would subtract it twice. The import
+        # cap gets it back too: the meter it protects carries that charge.
+        uncommanded_charge = physical - sensor_actual
+        self._uncommanded_charge_w = uncommanded_charge
 
         # GRID IMPORT CAP + SOC RESERVE (#506): keep the physical import under
         # the cap, and below the reserve threshold discharge only above it. This must run
@@ -10833,6 +10854,10 @@ class ChargeDischargeController:
             new_power = self._compute_pd_new_power(
                 error, sensor_elapsed_s, stale_safety_recalc
             )
+        if uncommanded_charge > 0:
+            # The derivative must not carry the command past what the meter asks
+            # for: beyond it lies the charge of a battery nobody commands.
+            new_power = max(new_power, min(0.0, self.previous_power - error))
         # MIXED-FLEET GUARDS: floor the command at the demand another regulator
         # may already be hiding, refuse a discharge into a surplus, and cap a
         # discharge at what the house actually left uncovered. All three measure

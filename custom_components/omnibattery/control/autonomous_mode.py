@@ -28,6 +28,7 @@ from homeassistant.util import dt as dt_util
 
 from ..const import CONF_AUTONOMOUS_REQUESTED_MODE
 from ..drivers.base import NativeOperatingMode, supports_nom_mode
+from .residual_load import _battery_ac_power_w
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,7 +124,21 @@ class AutonomousBatteryModeManager:
 
     def _battery_causes(self, coordinator) -> dict[str, dict]:
         """Causes that suspend this battery only."""
-        return {}
+        causes: dict[str, dict] = {}
+        if self.requested(coordinator) is NOM and _battery_ac_power_w(coordinator) is None:
+            causes[CAUSE_TELEMETRY] = {}
+        return causes
+
+    def blind_batteries(self) -> list:
+        """Batteries that may be moving power nobody can see.
+
+        Their power cannot be read and the last mode seen was not Manual, so a
+        discharge of the commanded batteries might be feeding them.
+        """
+        return [
+            c for c in self.batteries
+            if _battery_ac_power_w(c) is None and self._state(c).last_known is not MANUAL
+        ]
 
     # --- requests ------------------------------------------------------------
 
