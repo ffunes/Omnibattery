@@ -2703,6 +2703,13 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Betriebsmodus",
+        "state": {
+          "nom": "NOM (null am Zähler)",
+          "manual": "Manuell (keine Aktion)"
+        }
+      },
       "user_work_mode": {
         "name": "Arbeitsmodus",
         "state": {

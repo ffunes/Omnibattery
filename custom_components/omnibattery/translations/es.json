@@ -2703,6 +2703,13 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Modo de operación",
+        "state": {
+          "nom": "NOM (0 en el contador)",
+          "manual": "Manual (sin acción)"
+        }
+      },
       "grid_reverse": {
         "name": "Exportación de energía",
         "state": {

@@ -535,6 +535,7 @@ async def test_a_mode_that_shows_up_late_is_still_confirmed():
     driver, _ = _mode_driver("auto", on_call=_late)
     result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL, read_back=False)
     assert result.ok is True and result.confirmed is False
+    await asyncio.gather(*tasks)
 
 
 @pytest.mark.asyncio

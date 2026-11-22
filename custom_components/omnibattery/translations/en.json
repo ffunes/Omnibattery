@@ -2700,6 +2700,13 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Operating Mode",
+        "state": {
+          "nom": "NOM (zero on the meter)",
+          "manual": "Manual (no action)"
+        }
+      },
       "grid_reverse": {
         "name": "Energy Export",
         "state": {

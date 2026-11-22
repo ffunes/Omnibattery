@@ -2703,6 +2703,13 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Mode d'operació",
+        "state": {
+          "nom": "NOM (0 al comptador)",
+          "manual": "Manual (sense acció)"
+        }
+      },
       "user_work_mode": {
         "name": "Mode de Treball",
         "state": {

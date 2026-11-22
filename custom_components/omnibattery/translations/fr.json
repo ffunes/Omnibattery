@@ -2703,6 +2703,13 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Mode de fonctionnement",
+        "state": {
+          "nom": "NOM (zéro au compteur)",
+          "manual": "Manuel (aucune action)"
+        }
+      },
       "user_work_mode": {
         "name": "Mode de Fonctionnement",
         "state": {

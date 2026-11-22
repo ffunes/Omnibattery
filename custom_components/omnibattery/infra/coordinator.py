@@ -33,6 +33,8 @@ from ..drivers.base import (
     DriverReconciliation,
     ReconcileState,
     SetpointResult,
+    NativeOperatingMode,
+    OperatingModeResult,
     can_take_setpoint,
     canonical_key,
     stored_battery_value,
@@ -474,6 +476,8 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         self._entity_registry = None
         self.rs485_user_disabled = False  # Set by RS485 switch when user explicitly disables
         self._config_entry = None  # Set after creation to allow persisting rs485_user_disabled
+        # Native mode the user asked for (only with ``supports_nom_mode``).
+        self.autonomous_requested_mode = NativeOperatingMode.MANUAL.value
         self.balance_hold = False  # Legacy BalanceMonitor hold flag; kept for persisted-state cleanup
 
         # Hardware I/O goes through a brand-agnostic driver. The driver owns this
@@ -1778,6 +1782,24 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             elif not self._is_shutting_down:
                 _LOGGER.warning("[%s] Failed to write charge cutoff", self.name)
             return ok
+
+    async def apply_operating_mode(
+        self, mode: NativeOperatingMode
+    ) -> OperatingModeResult:
+        """Write the native mode via the driver, holding self.lock. No read back.
+
+        The autonomous mode manager confirms it on later cycles.
+        """
+        async with self.lock:
+            try:
+                return await self.driver.apply_operating_mode(mode, read_back=False)
+            except Exception as e:  # noqa: BLE001 - a failed write, like the others
+                if not self._is_shutting_down:
+                    _LOGGER.error("[%s] Exception writing operating mode: %s", self.name, e)
+                return OperatingModeResult(
+                    ok=False, confirmed=False, requested_mode=mode,
+                    failure_reason="driver_exception",
+                )
 
     async def standby(self) -> bool:
         """Idle the battery for teardown via the driver, holding self.lock.

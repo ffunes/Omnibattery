@@ -143,6 +143,7 @@ from .const import (
     CONF_CAPACITY_PROTECTION_SOC_THRESHOLD,
     DEFAULT_CAPACITY_PROTECTION_SOC,
     CONF_MANUAL_MODE_ENABLED,
+    CONF_AUTONOMOUS_REQUESTED_MODE,
     CONF_BATTERY_MANUAL_MODE_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
     CONF_PREDICTIVE_CHARGING_MODE,
@@ -236,12 +237,14 @@ from .const import (
     DEBUG_CONTROL_LOOP_DETAIL,
 )
 from .infra.lifecycle import is_reload_pending
+from .control.autonomous_mode import AutonomousBatteryModeManager
 from .control.charge_delay import ChargeDelayManager, _plan_owns_delay
 from .control.residual_load import apply_guards, guards_pending
 from .drivers.base import (
     AC_REGISTER_ONLY,
     DELIVERED_AC_POWER_KEY,
     InverterStatus,
+    NativeOperatingMode,
     can_take_setpoint,
     has_connected_mppt_pv,
     is_observed,
@@ -749,6 +752,8 @@ class ChargeDischargeController:
         # Phase protection is deliberately isolated from the global target
         # calculation.  It only constrains automatic battery assignments.
         self._phase_power_limiter = PhasePowerLimiter(hass, config_entry, self)
+        # Native mode of the batteries that regulate on their own (NOM).
+        self._autonomous_mode_mgr = AutonomousBatteryModeManager(hass, config_entry, self)
 
         # Load PD controller parameters from config (with backward-compatible defaults)
         self.deadband = config_entry.data.get(CONF_PD_DEADBAND, DEFAULT_PD_DEADBAND)
@@ -10282,6 +10287,12 @@ class ChargeDischargeController:
         # never be cleared. Self-throttled, so running it every cycle is cheap.
         self._pricing_mgr.maybe_check_price_data_health()
 
+        # === NATIVE MODE OF AUTONOMOUS BATTERIES ===
+        # Ahead of every path that can command power and of every early return.
+        autonomous_mode_mgr = getattr(self, "_autonomous_mode_mgr", None)
+        if autonomous_mode_mgr is not None:
+            await autonomous_mode_mgr.async_reconcile()
+
         # === MANUAL MODE CHECK (highest priority) ===
         # If manual mode is enabled, skip all automatic control logic
         if self.manual_mode_enabled:
@@ -12292,6 +12303,9 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
         coordinator.rs485_user_disabled = battery_config.get("rs485_user_disabled", False)
         coordinator.battery_manual_mode_enabled = bool(
             battery_config.get(CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+        )
+        coordinator.autonomous_requested_mode = battery_config.get(
+            CONF_AUTONOMOUS_REQUESTED_MODE, NativeOperatingMode.MANUAL.value
         )
         coordinator.battery_capacity_kwh = battery_config.get("battery_capacity_kwh", 0.0)
         # Restore the user's configured ceilings into the normalized coordinator

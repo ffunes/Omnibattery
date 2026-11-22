@@ -2703,6 +2703,13 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Bedrijfsmodus",
+        "state": {
+          "nom": "NOM (nul op de meter)",
+          "manual": "Handmatig (geen actie)"
+        }
+      },
       "user_work_mode": {
         "name": "Werkmodus",
         "state": {
