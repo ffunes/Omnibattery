@@ -26,6 +26,10 @@
       "title": "Batterie {battery} liefert keine Leistung",
       "description": "{battery} nimmt seit {minutes} Minuten Lade-/Entladebefehle an, ohne Leistung zu liefern ({reason}). Omnibattery hält sie aus der Verteilung heraus und versucht es alle {cooldown} Minuten erneut, sodass der Rest der Flotte das Haus in der Zwischenzeit versorgt. Die Batterie selbst oder ihre Verbindung braucht Aufmerksamkeit: Prüfe, ob sie nicht unter der Kontrolle ihrer eigenen App im Standby steht und ob die Verbindung nicht überlastet ist. Die manuelle Batteriesteuerung für diese Batterie ein- und wieder auszuschalten stellt sie oft wieder her."
     },
+    "nom_manual_unconfirmed": {
+      "title": "{battery} konnte nicht angehalten werden",
+      "description": "Omnibattery hat {battery} aufgefordert, auf Manuell zu gehen, aber sie zeigt diesen Modus nicht und lädt oder entlädt möglicherweise weiter von selbst. Eine Netzladung der anderen Batterien läuft trotzdem: Im schlimmsten Fall entlädt {battery} in sie hinein. Omnibattery versucht es weiter, und dieser Hinweis verschwindet von selbst, sobald die Batterie Manuell zeigt. Prüfe, ob die Integration, die {battery} liest, funktioniert und ob sich ihre Modus-Entität von Hand ändern lässt."
+    },
     "configured_sensor_missing": {
       "title": "Konfigurierter Sensor existiert nicht mehr",
       "description": "Omnibattery ist mit {sensors} konfiguriert, das in Home Assistant nicht existiert. Alle Funktionen, die ihn lesen, sind inaktiv. Der gespeicherte Verweis wird absichtlich beibehalten, denn die Entitätsauswahl kann eine verschwundene Entität nicht anzeigen und würde Ihre Einstellung stillschweigend löschen: Öffnen Sie Optionen → Sensoren und wählen Sie einen Ersatz, oder leeren Sie das Feld, sobald die Entität zurück ist."

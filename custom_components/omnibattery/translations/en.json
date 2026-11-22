@@ -26,6 +26,10 @@
       "title": "Battery {battery} is not delivering power",
       "description": "{battery} has been accepting charge/discharge commands without delivering power for {minutes} minutes ({reason}). Omnibattery keeps it out of the pool and retries it every {cooldown} minutes, so the rest of the fleet covers the house meanwhile. The battery itself or its connection needs attention: check that it is not sitting in standby under its own app's control, and that the connection is not saturated. Switching Manual Battery Control on and off again for that battery often restores it."
     },
+    "nom_manual_unconfirmed": {
+      "title": "{battery} could not be stopped",
+      "description": "Omnibattery asked {battery} to go to Manual and it does not show that mode, so it may still be charging or discharging on its own. A grid charge of the other batteries goes ahead anyway: the worst case is that {battery} discharges into it. Omnibattery keeps trying and this notice clears by itself once the battery shows Manual. Check that the integration that reads {battery} is working and that its mode entity can be changed by hand."
+    },
     "configured_sensor_missing": {
       "title": "Configured sensor no longer exists",
       "description": "Omnibattery is configured with {sensors}, which does not exist in Home Assistant. Every feature that reads it is inactive. The stored reference is kept on purpose, because the entity picker cannot show an entity that is gone and would otherwise clear your setting silently: open Options → Sensors and pick a replacement, or clear the field once the entity is back."

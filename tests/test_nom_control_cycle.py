@@ -227,3 +227,131 @@ def test_an_observed_battery_without_a_mode_blocks_nothing():
     house.run(60)
     assert house.command == pytest.approx(-1000, abs=60)
     assert house.controller._global_discharge_blockers == {}
+
+
+# ------------------------------------------------------------- grid charge
+
+def test_a_grid_charge_does_not_start_before_nom_rests():
+    """It would cover the charge from its own cells."""
+    house = House(house=400, nom=regulate(1200)).run(20)
+    assert house.battery.driver.mode == "nom"
+    house.start_grid_charge()
+    house.history.clear()
+    house.run(120)
+    assert house.command > 2000
+    fed = [(command, nom) for _, command, nom in house.history if command > 50 and nom < -50]
+    assert fed == [], "NOM discharged while the other battery charged"
+    assert house.battery.driver.mode == "manual"
+    assert house.issues == set()
+
+
+def test_when_manual_fails_the_charge_starts_after_sixty_seconds_with_a_warning():
+    """Waits, starts anyway, keeps trying, and the warning clears itself."""
+    house = House(house=400, nom=regulate(1200)).run(20)
+    house.battery.driver.obeys = False
+    house.start_grid_charge()
+    house.commands.clear()
+    house.run(56)
+    assert max(house.commands, default=0) <= 0, "started before the wait was over"
+    assert house.controller.grid_charging_active, "the charge is not called off"
+    house.run(40)
+    assert house.command > 1000
+    assert house.issues == {"nom_manual_unconfirmed"}
+    assert house.manager.status(house.battery) == "degraded"
+    assert house.manager.snapshot(house.battery)["effective_mode"] == "nom"
+
+    tries = len(house.battery.driver.writes)
+    house.run(90)
+    assert len(house.battery.driver.writes) > tries
+    assert house.command > 1000
+    house.battery.driver.obeys = True
+    house.run(70)
+    assert house.battery.driver.mode == "manual"
+    assert house.issues == set()
+    assert house.manager.status(house.battery) == "nom_suspended_grid_charge"
+    assert house.command > 1000
+
+
+def test_normal_control_runs_while_the_charge_waits():
+    """The command is not left running blind for a minute."""
+    house = House(house=3000, nom=-1200.0)
+    house.battery.driver.obeys = False
+    house.run(40)
+    house.start_grid_charge()
+    house.house = 2000
+    house.run(40)
+    assert house.command == pytest.approx(-800, abs=80)
+
+
+def test_nom_comes_back_after_the_charge():
+    house = House(house=400, nom=regulate(1200)).run(20)
+    house.start_grid_charge()
+    house.run(60)
+    house.stop_grid_charge()
+    house.run(80)
+    assert house.battery.driver.mode == "nom"
+    assert abs(house.grid) < 80
+
+
+def test_a_battery_without_a_mode_delays_no_charge():
+    """Phase 1: its risk is documented, the charge starts at once."""
+    house = House(house=400, nom=0.0, has_mode=False).run(10)
+    house.start_grid_charge()
+    house.run(6)
+    assert house.command > 2000
+
+
+def test_solar_surplus_charging_does_not_suspend_nom():
+    house = House(solar=2500, nom=800.0).run(120)
+    assert house.command == pytest.approx(1700, abs=80)
+    assert house.battery.driver.mode == "nom" and house.battery.driver.writes == []
+
+
+def test_a_running_excluded_device_stops_nom_and_the_other_battery_goes_on():
+    """House 300 W plus a 2000 W device the batteries must not feed."""
+    house = House(house=300, nom=regulate(1200))
+    loads = house.controller._external_loads
+    loads.calculate_adjustment = lambda: 0.0
+    devices = [{"entity": "sensor.car", "active": False, "power_w": 0.0}]
+    loads.autonomous_discharge_interlocks = lambda: devices
+    house.run(60)
+    house.house = 2300
+    devices[0].update(active=True, power_w=2000.0)
+    loads.calculate_adjustment = lambda: 2000.0
+    house.run(4)
+    house.history.clear()
+    house.run(120)
+    assert all(nom == 0 for _, _, nom in house.history)
+    assert house.command == pytest.approx(-300, abs=60)
+    house.house = 300
+    devices[0].update(active=False, power_w=0.0)
+    loads.calculate_adjustment = lambda: 0.0
+    house.run(60)
+    assert house.battery.driver.mode == "nom"
+    assert house.battery.driver.writes == ["manual", "nom"]
+
+
+def test_a_manual_charge_slot_waits_too():
+    """It commands its battery directly, past the predictive handler."""
+    house = House(house=400, nom=regulate(1200))
+    c = house.controller
+    applied = []
+
+    async def _apply(net):
+        applied.append((net, house.battery.driver.mode))
+        house.marstek.data["ac_power"] = -net
+        return type("R", (), {"ok": True, "failure_reason": None})()
+
+    house.marstek.apply_power = _apply
+    slot = {"mode": "manual", "power_override_enabled": True, "allow_charge": True}
+    c.__dict__.update(
+        _get_active_slot=lambda *_a: slot,
+        _slot_battery_limits=lambda *_a: {"max_charge_power_w": 1500},
+        _is_backup_function_active=lambda _c: False,
+        get_charge_blockers=lambda _c: {}, get_discharge_blockers=lambda _c: {},
+    )
+    for name in ("_try_apply_manual_slot", "_slot_manual_direction_for"):
+        setattr(c, name, getattr(Controller, name).__get__(c, Controller))
+    house.run(10)
+    assert applied and all(mode == "manual" for _, mode in applied), applied
+    assert applied[0][0] == 1500

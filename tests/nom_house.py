@@ -21,7 +21,7 @@ from custom_components.omnibattery.control.autonomous_mode import (
     AutonomousBatteryModeManager,
 )
 from custom_components.omnibattery.drivers.base import NativeOperatingMode
-from tests.test_autonomous_nom_mode import Battery
+from tests.test_autonomous_nom_mode import Battery, record_issues
 from tests.test_control_sample_scheduling import _main_controller, _state
 
 NOM = NativeOperatingMode.NOM
@@ -119,6 +119,39 @@ class House:
             c.hass, c.config_entry, c
         )
         self.manager._clock = lambda: self.now
+        self.issues = record_issues(self.manager)
+
+    def start_grid_charge(self, ceiling_w=3000.0):
+        """Open a predictive slot: the real handler, called as every mode calls it."""
+        c = self.controller
+        c.max_contracted_power = ceiling_w
+        c.predictive_charging_enabled = True
+        c.predictive_charging_mode = "time_slot"
+        c.grid_charging_active = True
+        c.__dict__.update(
+            _grid_charging_initialized=False, _predictive_charge_target_soc={},
+            _compute_predictive_target_soc=lambda **_k: {},
+            _release_grid_import_cap=lambda: None, _cap_overrides_policy=False,
+        )
+        for name in (
+            "_handle_predictive_grid_charging", "_predictive_charge_ceiling",
+            "_predictive_min_charge_power", "_predictive_hard_limit_confirmed",
+            "_predictive_demand_settle_window_s", "_discharge_held_by_policy",
+        ):
+            setattr(c, name, getattr(Controller, name).__get__(c, Controller))
+
+        async def _slot():
+            if c.grid_charging_active:
+                await c._handle_predictive_grid_charging()
+
+        c._handle_time_slot_predictive_charging = _slot
+
+    def stop_grid_charge(self):
+        c = self.controller
+        c.grid_charging_active = False
+        c._grid_charging_initialized = False
+        c.first_execution = False
+        c.previous_power = self.command
 
     @property
     def command(self) -> float:

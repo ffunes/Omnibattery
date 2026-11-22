@@ -24,9 +24,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 
-from ..const import CONF_AUTONOMOUS_REQUESTED_MODE
+from ..const import CONF_AUTONOMOUS_REQUESTED_MODE, DOMAIN
 from ..drivers.base import NativeOperatingMode, supports_nom_mode
 from .residual_load import _battery_ac_power_w
 
@@ -45,6 +46,9 @@ CONFIRM_S = 10.0
 RETRY_BACKOFF_S = (5.0, 10.0, 20.0, 40.0, 60.0)
 # Longer than this in a mode that is not the wanted one is a visible failure.
 UNCONFIRMED_AFTER_S = 60.0
+# A grid charge waits this long, once, for Manual to be confirmed; then it goes
+# ahead with a visible warning. Charging is never called off.
+GRID_CHARGE_WAIT_S = 60.0
 # A cause asserted by a control step lasts until that step stops repeating it.
 CAUSE_TTL_S = 10.0
 
@@ -74,6 +78,21 @@ class _BatteryState:
     task: asyncio.Task | None = None
 
 
+@dataclass
+class _GridCharge:
+    """One grid charge, from its first request until 30 s without one.
+
+    Outliving short gaps is what makes the wait count once per charge: the
+    flags behind a charge drop and come back within one cheap period.
+    """
+
+    last_seen: float
+    wait_since: float | None = None
+    started: bool = False
+    # Started without Manual being confirmed.
+    forced: bool = False
+
+
 class AutonomousBatteryModeManager:
     """Owner of the native mode of every battery that ``supports_nom_mode``."""
 
@@ -85,6 +104,12 @@ class AutonomousBatteryModeManager:
         self._states: dict[Any, _BatteryState] = {}
         # source -> (last asserted at, details); see ``assert_cause``.
         self._asserted: dict[str, tuple[float, dict]] = {}
+        self._charges: dict[str, _GridCharge] = {}
+        # Excluded device -> was it running when it was last readable.
+        self._device_running: dict[str, bool] = {}
+        # issue id -> raised. Unknown means this run has not looked yet, and an
+        # earlier one may have left it behind.
+        self._issues: dict[str, bool] = {}
 
     # --- what there is -------------------------------------------------------
 
@@ -116,11 +141,99 @@ class AutonomousBatteryModeManager:
     def _system_causes(self) -> dict[str, dict]:
         """Causes that suspend every battery, from live state."""
         now = self._clock()
-        return {
+        causes = {
             source: details
             for source, (at, details) in self._asserted.items()
             if now - at <= CAUSE_TTL_S
         }
+        if getattr(self._controller, "manual_mode_enabled", False):
+            causes[CAUSE_GLOBAL_MANUAL] = {}
+        for coordinator in self._controller.coordinators:
+            if (
+                getattr(coordinator, "battery_manual_mode_enabled", False)
+                and getattr(coordinator, "manual_force_mode", None) == "Charge"
+                and (getattr(coordinator, "manual_set_charge_power", 0) or 0) > 0
+            ):
+                causes[f"{CAUSE_GRID_CHARGE}:manual_battery"] = {
+                    "battery": coordinator.name
+                }
+        causes.update(self._excluded_causes())
+        return causes
+
+    def _excluded_causes(self) -> dict[str, dict]:
+        """Excluded devices that are running, or not known not to be."""
+        read = getattr(
+            getattr(self._controller, "_external_loads", None),
+            "autonomous_discharge_interlocks", None,
+        )
+        devices = read() if callable(read) else []
+        causes = {}
+        running: dict[str, bool] = {}
+        for device in devices:
+            entity_id, active = device["entity"], device["active"]
+            last = self._device_running.get(entity_id)
+            if active is None:
+                # Never read since the start: nothing shows it is off. Lost
+                # while running: it still is, until it is read again.
+                hold = last is not False
+                if last is not None:
+                    running[entity_id] = last
+                details = {"reading": "unavailable"}
+            else:
+                hold = running[entity_id] = active
+                details = {"power_w": device["power_w"]}
+            if hold:
+                causes[f"{CAUSE_EXCLUDED}:{entity_id}"] = details
+        self._device_running = running
+        return causes
+
+    # --- grid charging -------------------------------------------------------
+
+    def grid_charge_ready(self, source: str) -> bool:
+        """Whether a grid charge of the commanded batteries may run now.
+
+        Call it on every cycle of the charge, before its first setpoint: the
+        call itself is what holds the autonomous batteries in Manual. Waits for
+        them to be confirmed there, at most ``GRID_CHARGE_WAIT_S`` once per
+        charge; a charge that has started is never stopped again by this.
+        """
+        batteries = self.batteries
+        if not batteries:
+            return True
+        now = self._clock()
+        self.assert_cause(f"{CAUSE_GRID_CHARGE}:{source}")
+        charge = self._charges.get(source)
+        if charge is None or now - charge.last_seen > RESTORE_STABLE_S:
+            charge = self._charges[source] = _GridCharge(last_seen=now)
+        charge.last_seen = now
+        if charge.started:
+            return True
+        unconfirmed = [c.name for c in batteries if self.effective(c) is not MANUAL]
+        if not unconfirmed:
+            charge.started = True
+            return True
+        if charge.wait_since is None:
+            charge.wait_since = now
+            # Do not lose a cycle: the switch to Manual starts here.
+            system = self._system_causes()
+            for coordinator in batteries:
+                self._reconcile_one(coordinator, system)
+        if now - charge.wait_since >= GRID_CHARGE_WAIT_S:
+            _LOGGER.warning(
+                "Grid charge (%s) starts without %s being confirmed in Manual: "
+                "it may discharge into the charge", source, ", ".join(unconfirmed),
+            )
+            charge.started = charge.forced = True
+            return True
+        return False
+
+    def _forced_charge(self) -> bool:
+        """Whether a grid charge is running that did not get its confirmation."""
+        now = self._clock()
+        return any(
+            charge.forced and now - charge.last_seen <= CAUSE_TTL_S
+            for charge in self._charges.values()
+        )
 
     def _battery_causes(self, coordinator) -> dict[str, dict]:
         """Causes that suspend this battery only."""
@@ -163,6 +276,7 @@ class AutonomousBatteryModeManager:
         system = self._system_causes()
         for coordinator in batteries:
             self._reconcile_one(coordinator, system)
+            self._update_issues(coordinator)
 
     def _reconcile_one(self, coordinator, system: dict[str, dict]) -> None:
         now = self._clock()
@@ -238,13 +352,51 @@ class AutonomousBatteryModeManager:
 
     # --- what is shown -------------------------------------------------------
 
+    def _unconfirmed(self, coordinator) -> bool:
+        """Whether the battery has been out of the wanted mode for too long."""
+        state = self._state(coordinator)
+        if state.unconfirmed_since is None:
+            return False
+        return (
+            self._clock() - state.unconfirmed_since >= UNCONFIRMED_AFTER_S
+            or (state.want is MANUAL and self._forced_charge())
+        )
+
     def degraded(self, coordinator) -> bool:
         """Whether the battery is not known to be in the mode it should be in."""
-        state = self._state(coordinator)
-        return CAUSE_TELEMETRY in state.causes or (
-            state.unconfirmed_since is not None
-            and self._clock() - state.unconfirmed_since >= UNCONFIRMED_AFTER_S
+        return CAUSE_TELEMETRY in self._state(coordinator).causes or self._unconfirmed(
+            coordinator
         )
+
+    def _update_issues(self, coordinator) -> None:
+        """Raise and clear this battery's repairs."""
+        state = self._state(coordinator)
+        self._set_issue(
+            coordinator, "nom_manual_unconfirmed",
+            state.want is MANUAL and self._unconfirmed(coordinator),
+        )
+
+    def _set_issue(self, coordinator, key: str, wanted: bool) -> None:
+        issue_id = f"{key}_{self._entry.entry_id}_{coordinator.device_key}"
+        if self._issues.get(issue_id) is wanted:
+            return
+        self._issues[issue_id] = wanted
+        if wanted:
+            self._create_issue(issue_id, key, coordinator)
+        else:
+            self._delete_issue(issue_id)
+
+    def _create_issue(self, issue_id: str, key: str, coordinator) -> None:
+        ir.async_create_issue(
+            self._hass, DOMAIN, issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=key,
+            translation_placeholders={"battery": coordinator.name},
+        )
+
+    def _delete_issue(self, issue_id: str) -> None:
+        ir.async_delete_issue(self._hass, DOMAIN, issue_id)
 
     def status(self, coordinator) -> str:
         """One word for the battery's situation (translated by the select)."""

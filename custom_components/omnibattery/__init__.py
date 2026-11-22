@@ -3188,6 +3188,14 @@ class ChargeDischargeController:
                 )
                 continue
 
+            if direction == "charge" and not ChargeDischargeController._grid_charge_ready(
+                self, "manual_slot"
+            ):
+                _LOGGER.debug(
+                    "[%s] Manual slot charge waits for the autonomous batteries", coord.name
+                )
+                continue
+
             net = power if direction == "charge" else -power
             result = await coord.apply_power(net)
 
@@ -7054,6 +7062,11 @@ class ChargeDischargeController:
             self.first_execution = True
             _LOGGER.info("Predictive: stable headroom recovered; resuming charge")
 
+    def _grid_charge_ready(self, source: str) -> bool:
+        """Whether the autonomous batteries let a grid charge run (see the manager)."""
+        manager = getattr(self, "_autonomous_mode_mgr", None)
+        return manager is None or bool(manager.grid_charge_ready(source))
+
     async def _handle_predictive_grid_charging(self):
         """
         Handle predictive grid charging mode.
@@ -7062,6 +7075,12 @@ class ChargeDischargeController:
         the battery in a positive charging state. A confirmed hard overload still
         hands control to demand protection.
         """
+        if not ChargeDischargeController._grid_charge_ready(self, "predictive"):
+            # Before the meter sample is consumed: normal control runs on it.
+            self._grid_charge_waiting = True
+            self._grid_charging_initialized = False
+            return
+
         consumption_state = self.hass.states.get(self.consumption_sensor)
         sensor_raw = self._apply_meter_transform(consumption_state)
         if sensor_raw is None:
@@ -9132,7 +9151,7 @@ class ChargeDischargeController:
         state, so a phase-safety replay must preserve that convention or the
         next predictive cycle interprets an active charge as a discharge.
         """
-        if self.grid_charging_active:
+        if self.grid_charging_active and not getattr(self, "_grid_charge_waiting", False):
             if charging_power > 0:
                 return -charging_power
             return -discharging_power
@@ -10309,6 +10328,7 @@ class ChargeDischargeController:
 
         # === NATIVE MODE OF AUTONOMOUS BATTERIES ===
         # Ahead of every path that can command power and of every early return.
+        self._grid_charge_waiting = False
         autonomous_mode_mgr = getattr(self, "_autonomous_mode_mgr", None)
         if autonomous_mode_mgr is not None:
             await autonomous_mode_mgr.async_reconcile()
@@ -10415,7 +10435,9 @@ class ChargeDischargeController:
                 self._handle_predictive_dispatch_error()
             else:
                 self._predictive_dispatch_errors = 0
-            if self.grid_charging_active:
+            # A charge that waits for an autonomous battery to rest has not
+            # started: the command is still normal control's.
+            if self.grid_charging_active and not self._grid_charge_waiting:
                 ChargeDischargeController._release_grid_import_cap(self)
                 return
 

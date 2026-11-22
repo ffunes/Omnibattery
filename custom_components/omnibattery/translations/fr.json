@@ -26,6 +26,10 @@
       "title": "La batterie {battery} ne délivre pas de puissance",
       "description": "{battery} accepte des ordres de charge/décharge depuis {minutes} minutes sans délivrer de puissance ({reason}). Omnibattery la garde hors de la répartition et la réessaie toutes les {cooldown} minutes, le reste du parc couvre donc la maison entre-temps. La batterie elle-même ou sa connexion demande une vérification : contrôlez qu'elle n'est pas en veille sous le contrôle de sa propre application et que la connexion n'est pas saturée. Activer puis désactiver le contrôle manuel de cette batterie la rétablit souvent."
     },
+    "nom_manual_unconfirmed": {
+      "title": "{battery} n'a pas pu être arrêtée",
+      "description": "Omnibattery a demandé à {battery} de passer en Manuel et elle n'affiche pas ce mode : elle peut donc encore se charger ou se décharger d'elle-même. La charge réseau des autres batteries a lieu malgré tout : au pire, {battery} s'y décharge. Omnibattery continue d'essayer et cet avis disparaît de lui-même dès que la batterie affiche Manuel. Vérifiez que l'intégration qui lit {battery} fonctionne et que son entité de mode peut être changée à la main."
+    },
     "configured_sensor_missing": {
       "title": "Un capteur configuré n'existe plus",
       "description": "Omnibattery est configuré avec {sensors}, qui n'existe pas dans Home Assistant. Toutes les fonctions qui le lisent sont inactives. La référence enregistrée est conservée volontairement, car le sélecteur d'entités ne peut pas afficher une entité disparue et effacerait votre réglage en silence : ouvrez Options → Capteurs et choisissez un remplaçant, ou videz le champ une fois l'entité revenue."

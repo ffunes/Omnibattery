@@ -81,6 +81,16 @@ class Battery:
         return await self.driver.apply_operating_mode(mode, read_back=False)
 
 
+def record_issues(manager) -> set[str]:
+    """Keep the manager's repairs in a set of their translation keys."""
+    raised: set[str] = set()
+    manager._create_issue = lambda issue_id, key, coordinator: raised.add(key)
+    manager._delete_issue = lambda issue_id: raised.discard(
+        next((key for key in raised if issue_id.startswith(key)), None)
+    )
+    return raised
+
+
 class Rig:
     """A manager, its batteries and a clock."""
 
@@ -97,6 +107,7 @@ class Rig:
         )
         self.now = 1000.0
         self.manager._clock = lambda: self.now
+        self.issues = record_issues(self.manager)
         self.causes: dict[str, dict] = {}
 
     async def cycle(self, seconds=2.0):
@@ -354,6 +365,249 @@ async def test_a_hanging_service_does_not_hold_the_cycle():
     release.set()
     await rig.manager._state(battery).task
     assert battery.driver.writes == [MANUAL]
+
+
+@pytest.mark.asyncio
+async def test_the_repair_of_an_unconfirmed_manual_clears_itself():
+    battery = nom_battery()
+    battery.driver.obeys = False
+    rig = Rig(battery)
+    rig.causes["global_manual_mode"] = {}
+    await rig.run(50)
+    assert rig.issues == set(), "a slow device is not a failure yet"
+    await rig.run(20)
+    assert rig.issues == {"nom_manual_unconfirmed"}
+    battery.driver.mode = MANUAL
+    await rig.cycle()
+    assert rig.issues == set()
+
+
+@pytest.mark.asyncio
+async def test_a_repair_left_by_an_earlier_run_is_cleared_on_the_first_look():
+    rig = Rig(Battery())
+    deleted = []
+    rig.manager._delete_issue = deleted.append
+    await rig.run(10)
+    assert "nom_manual_unconfirmed_e1_nom_0" in deleted
+    assert len(deleted) == len(set(deleted)), "once, not on every cycle"
+
+
+# ------------------------------------------------------------- global manual
+
+@pytest.mark.asyncio
+async def test_global_manual_suspends_and_gives_back():
+    battery = nom_battery()
+    rig = Rig(battery)
+    await rig.cycle()
+    rig.controller.manual_mode_enabled = True
+    await rig.cycle()
+    assert battery.driver.mode is MANUAL
+    assert rig.manager.status(battery) == "nom_suspended_global_manual"
+    rig.controller.manual_mode_enabled = False
+    await rig.run(40)
+    assert battery.driver.mode is NOM
+    assert battery.persisted == {}
+
+
+@pytest.mark.asyncio
+async def test_a_manual_charge_of_another_battery_suspends_nom():
+    battery = nom_battery()
+    other = SimpleNamespace(
+        name="Marstek", battery_manual_mode_enabled=True,
+        manual_force_mode="Charge", manual_set_charge_power=1500,
+    )
+    rig = Rig(battery, other)
+    await rig.cycle()
+    assert battery.driver.mode is MANUAL
+    other.manual_force_mode = "None"
+    await rig.run(40)
+    assert battery.driver.mode is NOM
+
+
+# ------------------------------------------------------------- excluded devices
+
+def excluded(*devices, states=None, status=None):
+    """The real ``ExternalLoads`` over a table of entity states."""
+    from custom_components.omnibattery.infra.external_loads import ExternalLoads
+
+    table = states if states is not None else {}
+    loads = ExternalLoads(
+        SimpleNamespace(states=SimpleNamespace(get=table.get)),
+        SimpleNamespace(data={"excluded_devices": list(devices)}),
+        SimpleNamespace(),
+    )
+    if status is not None:
+        loads.dynamic_power_control_status = status
+    return loads
+
+
+def reading(value):
+    return SimpleNamespace(state=str(value), attributes={"unit_of_measurement": "W"})
+
+
+WASHER = {"power_sensor": "sensor.washer", "included_in_consumption": True}
+CAR = {"power_sensor": "sensor.car_state", "ev_charger_no_telemetry": True}
+
+
+async def _suspended(device, states, status=None) -> bool:
+    battery = nom_battery()
+    rig = Rig(battery, _external_loads=excluded(device, states=states, status=status))
+    await rig.run(6)
+    return battery.driver.mode is MANUAL
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra", [
+    {}, {"exclusion_pct": 30}, {"allow_solar_surplus": True},
+    {"allow_solar_surplus": True, "cover_home_when_active": True},
+])
+async def test_a_running_excluded_device_suspends_nom(extra):
+    assert await _suspended({**WASHER, **extra}, {"sensor.washer": reading(800)})
+    assert not await _suspended({**WASHER, **extra}, {"sensor.washer": reading(2)})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra", [
+    {"included_in_consumption": False}, {"exclusion_pct": 0}, {"enabled": False},
+])
+async def test_a_device_the_batteries_do_cover_does_not(extra):
+    assert not await _suspended({**WASHER, **extra}, {"sensor.washer": reading(800)})
+
+
+@pytest.mark.asyncio
+async def test_an_ev_without_telemetry_suspends_while_it_charges():
+    assert await _suspended(CAR, {"sensor.car_state": reading("charging")})
+    assert not await _suspended(CAR, {"sensor.car_state": reading("idle")})
+
+
+@pytest.mark.asyncio
+async def test_an_activity_sensor_suspends_before_there_is_any_power():
+    device = {**WASHER, "activity_sensor": "binary_sensor.washer"}
+    states = {"sensor.washer": reading(0), "binary_sensor.washer": reading("on")}
+    assert await _suspended(device, states)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["waiting_for_load", "yielding", "restart_hold"])
+async def test_dynamic_power_control_suspends_in_every_phase(phase):
+    device = {**WASHER, "allow_solar_surplus": True, "dynamic_power_control": True}
+    status = {"devices": ["sensor.washer"], "phases": {"sensor.washer": phase}}
+    assert await _suspended(device, {"sensor.washer": reading(0)}, status)
+
+
+@pytest.mark.asyncio
+async def test_nom_comes_back_once_after_the_device_stops():
+    battery = nom_battery()
+    states = {"sensor.washer": reading(800)}
+    rig = Rig(battery, _external_loads=excluded(WASHER, states=states))
+    await rig.run(60)
+    assert rig.manager.status(battery) == "nom_suspended_excluded_load"
+    states["sensor.washer"] = reading(0)
+    await rig.run(28)
+    assert battery.driver.mode is MANUAL
+    await rig.run(120)
+    assert battery.driver.writes == [MANUAL, NOM]
+
+
+@pytest.mark.asyncio
+async def test_a_running_device_that_goes_unavailable_still_counts():
+    battery = nom_battery()
+    states = {"sensor.washer": reading(800)}
+    rig = Rig(battery, _external_loads=excluded(WASHER, states=states))
+    await rig.run(10)
+    states["sensor.washer"] = reading("unavailable")
+    await rig.run(300)
+    assert battery.driver.mode is MANUAL
+    states["sensor.washer"] = reading(0)
+    await rig.run(40)
+    assert battery.driver.mode is NOM
+    # One that was off when it was lost does not suspend.
+    states["sensor.washer"] = reading("unavailable")
+    await rig.run(60)
+    assert battery.driver.mode is NOM
+
+
+@pytest.mark.asyncio
+async def test_at_startup_nom_waits_for_every_excluded_device_to_be_readable():
+    battery = Battery(requested="nom")
+    states = {"sensor.washer": reading("unknown")}
+    rig = Rig(battery, _external_loads=excluded(WASHER, states=states))
+    await rig.run(120)
+    assert battery.driver.writes == []
+    states["sensor.washer"] = reading(0)
+    await rig.run(40)
+    assert battery.driver.mode is NOM
+
+
+# ------------------------------------------------------------- grid charge
+
+@pytest.mark.asyncio
+async def test_a_grid_charge_waits_for_manual_and_holds_it():
+    battery = nom_battery()
+    rig = Rig(battery)
+    await rig.cycle()
+    assert rig.manager.grid_charge_ready("predictive") is False
+    for state in rig.manager._states.values():
+        await state.task                    # the switch started in that call
+    assert battery.driver.mode is MANUAL
+    assert rig.manager.grid_charge_ready("predictive") is True
+    for _ in range(100):
+        await rig.cycle()
+        assert rig.manager.grid_charge_ready("predictive") is True
+    assert battery.driver.writes == [MANUAL]
+    await rig.run(60)                       # nobody asks any more
+    assert battery.driver.mode is NOM
+
+
+@pytest.mark.asyncio
+async def test_without_autonomous_batteries_a_grid_charge_never_waits():
+    rig = Rig(Battery(nom=False, mode=NOM))
+    assert rig.manager.grid_charge_ready("predictive") is True
+    assert rig.manager._asserted == {} and rig.manager._charges == {}
+
+
+async def _charge(rig, seconds):
+    """Ask on every cycle; returns the answers."""
+    answers = []
+    for _ in range(int(seconds / 2)):
+        await rig.cycle()
+        answers.append(rig.manager.grid_charge_ready("predictive"))
+    return answers
+
+
+@pytest.mark.asyncio
+async def test_the_wait_is_sixty_seconds_once_per_charge():
+    battery = nom_battery()
+    battery.driver.obeys = False
+    rig = Rig(battery)
+    answers = await _charge(rig, 80)
+    assert answers.index(True) * 2 == pytest.approx(mod.GRID_CHARGE_WAIT_S, abs=2)
+    assert all(answers[answers.index(True):])
+    await rig.cycle()
+    assert rig.issues == {"nom_manual_unconfirmed"}
+    assert rig.manager.status(battery) == "degraded"
+    tries = len(battery.driver.writes)
+    # The flag behind the charge drops and comes back: no second wait.
+    await rig.run(20)
+    assert all(await _charge(rig, 60))
+    assert len(battery.driver.writes) > tries, "keeps trying during the charge"
+    battery.driver.mode = MANUAL
+    assert all(await _charge(rig, 4))
+    assert rig.issues == set() and rig.manager.status(battery) == "nom_suspended_grid_charge"
+    # A later charge is another charge.
+    await rig.run(120)
+    battery.driver.mode = NOM
+    assert (await _charge(rig, 4))[0] is False
+
+
+@pytest.mark.asyncio
+async def test_a_charge_that_started_is_not_stopped_by_the_battery_waking_up():
+    battery = nom_battery()
+    rig = Rig(battery)
+    await _charge(rig, 10)
+    battery.driver.mode = NOM               # the vendor app
+    assert all(await _charge(rig, 10))
+    assert battery.driver.mode is MANUAL
 
 
 # ------------------------------------------------------------- entity
