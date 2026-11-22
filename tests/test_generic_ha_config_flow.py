@@ -335,6 +335,28 @@ def test_the_limits_it_does_not_ask_for_are_still_stored():
     assert {key: merged[key] for key in kept} == kept
 
 
+def test_its_stored_limits_are_not_watts_of_the_fleet():
+    from custom_components.omnibattery.const.integration_const import (
+        default_high_price_discharge_max_power,
+        total_battery_power,
+    )
+
+    watts = {"max_charge_power": 2500, "max_discharge_power": 2500}
+    data = {"batteries": [{"brand": "marstek", **watts}, {"brand": "generic_ha", **watts}]}
+    assert total_battery_power(data) == (2500, 2500)
+    assert default_high_price_discharge_max_power(data) == 2500
+
+
+def test_the_target_soc_has_a_name_in_every_language():
+    import json
+    from pathlib import Path
+
+    base = Path("custom_components/omnibattery")
+    for path in [base / "strings.json", *sorted((base / "translations").glob("*.json"))]:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["entity"]["number"]["target_soc"]["name"], path
+
+
 def test_no_text_says_the_sources_must_be_in_watts_or_kwh():
     """They are converted from whatever unit they carry."""
     import json

@@ -2935,6 +2935,9 @@
       "soc_set": {
         "name": "SOC Cible"
       },
+      "target_soc": {
+        "name": "SOC Cible"
+      },
       "min_soc": {
         "name": "SOC Minimum"
       },

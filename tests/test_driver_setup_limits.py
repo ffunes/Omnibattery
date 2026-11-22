@@ -389,6 +389,91 @@ async def test_options_flow_limits_use_the_hooks(flow_env, limits_brand):
     assert "dc_pv_connected" in stored  # kept from the stored battery, not rewritten
 
 
+def _loaded(flow_env, entry, driver_cls, **values):
+    """Put a live coordinator behind battery 0 of ``entry``."""
+    coordinator = MagicMock(**values)
+    coordinator.driver = MagicMock(spec=driver_cls)
+    coordinator.traits = driver_cls.TRAITS
+    flow_env.hass.data.setdefault("omnibattery", {})[entry.entry_id] = {
+        "coordinators": [coordinator]
+    }
+
+
+async def _limits_form(flow_env, case, entry):
+    """The limits form's defaults, as the options flow opens it."""
+    manager = flow_env.hass.config_entries.options
+    result = await manager.async_init(entry.entry_id)
+    form, _ = await drive(flow_env.hass, manager, result, {
+        "init": "batteries", "battery_count": {"num_batteries": 1},
+        "battery_brand": {"brand": case.brand}, case.connection_step: case.options_input,
+        **case.extra_add_steps,
+    }, stop_at="battery_limits")
+    return {
+        str(field.schema): field.default()
+        for field in form["data_schema"].schema
+        if not isinstance(field.default, vol.Undefined)
+    }
+
+
+@pytest.mark.parametrize("brand", ["zendure", "marstek"])
+async def test_options_flow_shows_and_saves_the_slider_limit(flow_env, brand):
+    """The sliders store user_max_*; the form must neither show nor leave an old one."""
+    case = CASES[brand]
+    stored = {**case.existing, "user_max_charge_power": 2000, "user_max_discharge_power": 900}
+    form = await _limits_form(flow_env, case, flow_env.make_entry([dict(stored)]))
+    assert (form["max_charge_power"], form["max_discharge_power"]) == (2000, 900)
+
+    untouched = await flow_env.edit_via_options_flow(case, flow_env.make_entry([dict(stored)]))
+    assert untouched.batteries[0]["user_max_charge_power"] == 2000
+    assert untouched.batteries[0]["user_max_discharge_power"] == 900
+
+    edited = await flow_env.edit_via_options_flow(
+        case, flow_env.make_entry([dict(stored)]), limits_input={
+            **case.options_limits_input, "max_charge_power": 1200, "max_discharge_power": 1300,
+        },
+    )
+    assert edited.batteries[0]["user_max_charge_power"] == 1200
+    assert edited.batteries[0]["user_max_discharge_power"] == 1300
+
+
+async def test_options_flow_shows_what_the_loaded_battery_works_with(flow_env):
+    case = CASES["zendure"]
+    entry = flow_env.make_entry([dict(case.existing)])
+    _loaded(
+        flow_env, entry, registry.driver_class("zendure"), configured_max_charge_power=2300,
+        configured_max_discharge_power=60, max_soc=100, min_soc=10,
+    )
+    form = await _limits_form(flow_env, case, entry)
+    assert (form["max_charge_power"], form["max_discharge_power"]) == (2300, 60)
+    assert (form["max_soc"], form["min_soc"]) == (100, 10)
+    # A limit under the form's usual 100 W passes through it unchanged.
+    run = await flow_env.edit_via_options_flow(case, entry)
+    assert run.batteries[0]["max_discharge_power"] == 60
+
+
+async def test_options_flow_keeps_the_stored_soc_where_it_may_be_raised_for_a_while(flow_env):
+    """A weekly full charge puts 100 in the loaded one; the user's is the stored."""
+    case = CASES["marstek"]
+    entry = flow_env.make_entry([dict(case.existing)])
+    _loaded(
+        flow_env, entry, registry.driver_class("marstek"), configured_max_charge_power=1500,
+        configured_max_discharge_power=1500, max_soc=100, min_soc=15,
+    )
+    form = await _limits_form(flow_env, case, entry)
+    assert (form["max_soc"], form["min_soc"]) == (95, 15)
+
+
+async def test_options_flow_ignores_the_loaded_battery_of_another_brand(flow_env):
+    case = CASES["marstek"]
+    entry = flow_env.make_entry([dict(case.existing)])
+    _loaded(
+        flow_env, entry, registry.driver_class("zendure"), configured_max_charge_power=700,
+        configured_max_discharge_power=700, max_soc=80, min_soc=40,
+    )
+    form = await _limits_form(flow_env, case, entry)
+    assert form["max_charge_power"] == 1500
+
+
 async def test_options_flow_hook_can_force_the_power_limits(flow_env, limits_brand):
     BEHAVIOUR["remove_power"] = True
     run = await flow_env.edit_via_options_flow(LIMITS_CASE)

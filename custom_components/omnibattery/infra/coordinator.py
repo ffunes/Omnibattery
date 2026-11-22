@@ -1128,7 +1128,7 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
         # === CONNECTION HEALTH CHECK ===
         # If connection is suspended (too many failures), wait for cooldown
         if self._suspension_reset_time is not None:
-            if now >= self._suspension_reset_time:
+            if now >= self._suspension_reset_time or self.driver.telemetry_is_back():
                 _LOGGER.info("[%s] Connection suspension expired - attempting fresh reconnection", self.name)
                 self._suspension_reset_time = None
                 # Do NOT clear _consecutive_failures here: async_reconnect_fresh()

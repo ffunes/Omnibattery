@@ -2935,6 +2935,9 @@
       "soc_set": {
         "name": "Doel-SOC"
       },
+      "target_soc": {
+        "name": "Doel-SOC"
+      },
       "min_soc": {
         "name": "Minimale SOC"
       },

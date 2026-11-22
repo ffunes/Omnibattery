@@ -161,6 +161,7 @@ class GenericHaEntityDriver(BatteryDriver):
     MANUFACTURER = "Home Assistant"
     DEFAULT_MODEL = "Observed battery"
     TRAITS = DriverTraits(
+        takes_power_setpoint=False,
         # Nothing is written at setup: every limit belongs to the vendor's own
         # regulator, which Omnibattery does not reach.
         device_owns_initial_config=True,
@@ -456,17 +457,37 @@ class GenericHaEntityDriver(BatteryDriver):
             return None
         return (dt_util.utcnow() - newest).total_seconds()
 
+    def _is_stalled(self, power: float, age: Optional[float]) -> bool:
+        """Whether the source has been silent too long for a battery doing ``power``."""
+        return (
+            age is not None and age > self._stale_after_s and abs(power) > RESTING_POWER_W
+        )
+
+    def telemetry_is_back(self) -> bool:
+        """Whether a read would answer now: these are lookups in hass.states."""
+        power = self._read_one("battery_power", self._power_entity)
+        return (
+            power is not None
+            and self._read_one("battery_soc", self._soc_entity) is not None
+            and not self._is_stalled(power, self._stall_age_s())
+        )
+
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
         """Return the configured entities' states as a snapshot.
 
         Unavailable, unknown or unparseable states are omitted rather than
         zeroed: zero is a valid battery power, and a fabricated one would be
-        indistinguishable from a resting battery.
+        indistinguishable from a resting battery. Without both required readings
+        the snapshot is empty.
         """
-        age = self._stall_age_s()
         power = self._read_one("battery_power", self._power_entity)
-        resting = power is not None and abs(power) <= RESTING_POWER_W
-        if age is not None and age > self._stale_after_s and not resting:
+        if power is None or self._read_one("battery_soc", self._soc_entity) is None:
+            # Half a battery is a lost battery: another entity still answering
+            # (the target SOC may live elsewhere) must not keep it looking alive
+            # on its last power.
+            return {}
+        age = self._stall_age_s()
+        if self._is_stalled(power, age):
             if not self._stalled:
                 self._stalled = True
                 _LOGGER.warning(
@@ -554,7 +575,7 @@ class GenericHaEntityDriver(BatteryDriver):
         target = self._clamp_target_soc(value)
         try:
             await self.hass.services.async_call(
-                "number", "set_value",
+                self._target_soc_entity.split(".")[0], "set_value",
                 {"entity_id": self._target_soc_entity, "value": target},
                 blocking=True,
             )

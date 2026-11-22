@@ -308,6 +308,44 @@ def _coordinator(monkeypatch, **stored):
     return coordinator, hass
 
 
+@pytest.mark.parametrize("target", [None, "number.scb_battery_min_soc"])
+def test_a_short_outage_ends_when_the_source_is_back(monkeypatch, caplog, target):
+    """The two-minute suspension spares a device; there is none behind hass.states."""
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+
+    from homeassistant.util import dt as dt_util
+
+    coordinator, hass = _coordinator(monkeypatch, ha_target_soc_entity=target)
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = {"s": 0}
+    monkeypatch.setattr(dt_util, "utcnow", lambda: start + timedelta(seconds=now["s"]))
+    registry = MagicMock()
+    registry.async_get_entity_id.return_value = None
+    coordinator._entity_registry = registry
+    coordinator.data = {}
+    read = hass.states.get
+    hass.states.get = lambda entity_id: (
+        None if 10 <= now["s"] < 70 and entity_id.startswith("sensor.") else read(entity_id)
+    )
+
+    async def _run():
+        assert await coordinator.driver.connect()
+        coordinator._is_connected = True
+        available = []
+        for second in range(80):
+            now["s"] = second
+            coordinator.data = await coordinator._async_update_data_impl()
+            available.append(coordinator.is_available)
+        return available
+
+    available = asyncio.run(_run())
+    assert available[9] and not any(available[10:70])
+    assert all(available[71:])
+    # Five failed polls, then silence until the source is back: no 1 Hz flood.
+    assert len([r for r in caplog.records if r.levelname in ("WARNING", "ERROR")]) < 40
+
+
 def test_the_brand_selects_the_observing_driver(monkeypatch):
     from custom_components.omnibattery.drivers.generic_ha import GenericHaEntityDriver
 

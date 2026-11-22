@@ -184,9 +184,27 @@ async def test_a_blinking_counter_drops_the_whole_sum():
 async def test_unreadable_values_are_omitted_never_zeroed(raw):
     """Zero is a valid battery power; inventing one hides a dead sensor."""
     driver = _driver(_hass(_table(**{POWER: _State(raw)})))
-    snapshot = await driver.read_telemetry()
-    assert "battery_power" not in snapshot
-    assert snapshot["battery_soc"] == 34
+    assert await driver.read_telemetry() == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("lost", [SOC, POWER])
+async def test_half_a_battery_is_a_lost_battery(lost):
+    """The target SOC may live in another integration and keep answering."""
+    table = _table(**{lost: _State("unavailable")})
+    driver = _driver(_hass(table))
+    assert await driver.read_telemetry() == {}
+    assert driver.telemetry_is_back() is False
+    table[lost] = _State("34")
+    assert driver.telemetry_is_back() is True
+
+
+def test_a_stalled_source_is_not_back():
+    old = dt_util.utcnow() - timedelta(seconds=DEFAULT_STALE_AFTER_S + 1)
+    driver = _driver(_hass(_table(**{
+        SOC: _State("34", last_reported=old), POWER: _State("-403", last_reported=old),
+    })))
+    assert driver.telemetry_is_back() is False
 
 
 @pytest.mark.asyncio
@@ -320,6 +338,19 @@ async def test_target_soc_is_written_to_the_configured_number():
     assert await driver.write_control("target_soc", 60) is True
     hass.services.async_call.assert_awaited_once_with(
         "number", "set_value", {"entity_id": TARGET, "value": 60}, blocking=True
+    )
+
+
+@pytest.mark.asyncio
+async def test_target_soc_is_written_to_an_input_number_too():
+    """``number.set_value`` on an input_number writes nothing and raises nothing."""
+    target = "input_number.my_target"
+    hass = _hass(_table(**{target: _State("60", attributes={"min": 0, "max": 100, "step": 1})}))
+    driver = _driver(hass, target_soc_entity=target)
+    await driver.connect()
+    assert await driver.write_control("target_soc", 55) is True
+    hass.services.async_call.assert_awaited_once_with(
+        "input_number", "set_value", {"entity_id": target, "value": 55}, blocking=True
     )
 
 

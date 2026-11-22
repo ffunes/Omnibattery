@@ -60,6 +60,7 @@
 
 ### Fixed
 
+- **The options form keeps the limits set with the sliders**: the battery limits step opened with old charge and discharge power (Zendure: old SOC limits too). Saving it lowered a Zendure to the old charge power, and on a Marstek v2/v3 a change made in the form was ignored.
 - **The charge of an observed or manually controlled battery is no longer fed by the others** when the sun goes or an excluded device runs, and Maximum Grid Import counts it.
 - **A battery under manual control charging from solar no longer makes the others charge from the grid**: its charging was subtracted from the meter even with no import, and the controller answered to an export that did not exist. The mixed-fleet guards no longer subtract that charging twice, which blocked a discharge the house needed.
 - **Zendure: the charge no longer stops at mid SOC because of one high cell** (#884): with Max SOC at 100 %, a cell at 3.60 V blocked charging until the SOC fell; a Zendure's own BMS decides the top now.

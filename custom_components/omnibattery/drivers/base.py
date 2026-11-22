@@ -308,6 +308,9 @@ class DriverTraits:
     fixed_power_envelope: bool = False
     # The battery has a DC PV input that can be left unconnected (Marstek vA/vD).
     optional_dc_pv_input: bool = False
+    # False for a battery that is only read: its stored power limits are not
+    # watts the fleet can be told to move.
+    takes_power_setpoint: bool = True
     # Initial SOC/power config is not written at setup: the device holds it.
     device_owns_initial_config: bool = False
     # Addressed by IP, so its address can drift.
@@ -1114,6 +1117,15 @@ class BatteryDriver(ABC):
     def operating_mode_from_data(self, data: dict) -> Optional[NativeOperatingMode]:
         """The native mode the device is in now, or None when it is not known."""
         return None
+
+    def telemetry_is_back(self) -> bool:
+        """Whether a suspended battery is known to answer again, without asking it.
+
+        Polling a battery that failed repeatedly is suspended for two minutes to
+        spare it. A driver that can tell for free that the readings are back
+        returns True and the suspension ends at once.
+        """
+        return False
 
     def power_sample_time(self) -> Any:
         """Identity of the power reading in use, when the source stamps it.

@@ -783,8 +783,13 @@ def effective_battery_power_limits(battery) -> tuple[int, int]:
 
 def total_battery_power(data) -> tuple[int, int]:
     """Return summed static effective (charge_w, discharge_w) limits."""
-    batteries = data.get("batteries") or []
-    limits = [effective_battery_power_limits(battery) for battery in batteries]
+    from ..drivers.registry import traits_for_brand  # the drivers import this package
+
+    limits = [
+        effective_battery_power_limits(battery)
+        for battery in data.get("batteries") or []
+        if traits_for_brand(battery.get("brand"), battery).takes_power_setpoint
+    ]
     return (
         sum(charge_w for charge_w, _ in limits),
         sum(discharge_w for _, discharge_w in limits),
