@@ -665,6 +665,11 @@ async def test_nom_comes_back_once_after_the_device_stops():
     rig = Rig(battery, _external_loads=excluded(WASHER, states=states))
     await rig.run(60)
     assert rig.manager.status(battery) == "nom_suspended_excluded_load"
+    before = rig.manager.snapshot(battery)
+    states["sensor.washer"] = reading(812)
+    await rig.run(10)
+    assert rig.manager.snapshot(battery) == before, "attributes must not churn"
+    assert rig.manager.diagnostics()["excluded_devices"][0]["power_w"] == 812
     states["sensor.washer"] = reading(0)
     await rig.run(28)
     assert battery.driver.mode is MANUAL
@@ -911,7 +916,7 @@ async def test_the_pools_are_told_apart_in_sensors_and_diagnostics():
     assert battery["requested_mode"] == "nom" and battery["effective_mode"] == "manual"
     assert battery["power_w"] is None and battery["last_write_age_s"] is not None
     assert report["batteries"]["running"]["mode_read_age_s"] == 0
-    assert "last_cross_flow" in report and "excluded_devices_running" in report
+    assert "last_cross_flow" in report and "excluded_devices" in report
 
 
 def test_without_a_nom_battery_the_sensors_show_nothing_new():

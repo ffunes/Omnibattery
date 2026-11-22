@@ -196,16 +196,19 @@ class AutonomousBatteryModeManager:
         causes.update(self._excluded_causes())
         return causes
 
-    def _excluded_causes(self) -> dict[str, dict]:
-        """Excluded devices that are running, or not known not to be."""
+    def _excluded_devices(self) -> list[dict]:
+        """The excluded devices as ``ExternalLoads`` reads them now."""
         read = getattr(
             getattr(self._controller, "_external_loads", None),
             "autonomous_discharge_interlocks", None,
         )
-        devices = read() if callable(read) else []
+        return read() if callable(read) else []
+
+    def _excluded_causes(self) -> dict[str, dict]:
+        """Excluded devices that are running, or not known not to be."""
         causes = {}
         running: dict[str, bool] = {}
-        for device in devices:
+        for device in self._excluded_devices():
             entity_id, active = device["entity"], device["active"]
             last = self._device_running.get(entity_id)
             if active is None:
@@ -217,7 +220,9 @@ class AutonomousBatteryModeManager:
                 details = {"reading": "unavailable"}
             else:
                 hold = running[entity_id] = active
-                details = {"power_w": device["power_w"]}
+                # No power in here: the causes are an attribute, and a figure
+                # that moves on every cycle would be recorded on every cycle.
+                details = {}
             if hold:
                 causes[f"{CAUSE_EXCLUDED}:{entity_id}"] = details
         self._device_running = running
@@ -321,8 +326,9 @@ class AutonomousBatteryModeManager:
             state.cross_token = token
         if state.cross_samples < 2:
             return
-        details = {"charging": charging, "discharging_w": round(delivered)}
-        if now >= state.latched.get(CAUSE_CROSS_CHARGE, (float("-inf"),))[0]:
+        until, details = state.latched.get(CAUSE_CROSS_CHARGE, (float("-inf"), {}))
+        if now >= until:
+            details = {"charging": charging, "discharging_w": round(delivered)}
             # A new episode, not more of the one in course.
             self._cross_episodes.setdefault(coordinator, deque(maxlen=10)).append(now)
             self.last_cross_flow = {
@@ -348,9 +354,11 @@ class AutonomousBatteryModeManager:
         )
         cap = controller._grid_import_cap_w()
         if grid is not None and grid > cap:
-            state.latched[CAUSE_IMPORT_CAP] = (
-                self._clock() + LATCH_S, {"charging_w": round(-delivered)}
-            )
+            now = self._clock()
+            until, details = state.latched.get(CAUSE_IMPORT_CAP, (float("-inf"), {}))
+            if now >= until:
+                details = {"charging_w": round(-delivered)}
+            state.latched[CAUSE_IMPORT_CAP] = (now + LATCH_S, details)
 
     def blind_batteries(self) -> list:
         """Batteries that may be moving power nobody can see.
@@ -635,6 +643,6 @@ class AutonomousBatteryModeManager:
             **self.pool_attributes(),
             "batteries": {c.name: _battery(c) for c in self.batteries},
             "last_cross_flow": self.last_cross_flow,
-            "excluded_devices_running": dict(self._device_running),
+            "excluded_devices": self._excluded_devices(),
             "repairs": sorted(issue for issue, raised in self._issues.items() if raised),
         }
