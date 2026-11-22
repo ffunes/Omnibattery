@@ -30,7 +30,7 @@ Choose the behavior that matches your goal:
 
 1. Add the device through **Settings → Devices & services → Omnibattery → Configure → Excluded devices** using the [configuration checklist](../configuration/excluded-devices.md#how-to-enable-it).
 2. Open the Omnibattery system device or dashboard and turn on **Device – Enabled**.
-3. Set **Device – Exclusion %** to the share the battery should ignore.
+3. For an excluded device (one the main meter already includes), set **Device – Exclusion %** to the share the battery should ignore.
 4. Turn on only the live behavior controls that match your goal: **Solar Surplus**, **Dynamic Power Control**, or **Cover Home**.
 5. Start the device and watch grid flow, battery power, and the device's power or activity entity.
 

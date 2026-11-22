@@ -1650,7 +1650,7 @@
         "name": "Temperatuurbegrenzing ontladen"
       },
       "weekly_full_charge_delay": {
-        "name": "Wekelijkse Volledige Lading Vertragen"
+        "name": "Wekelijkse volledige lading: wachten op laadvertraging"
       },
       "capacity_protection": {
         "name": "Piekbegrenzing"
@@ -2835,13 +2835,13 @@
         "name": "Veiligheidsmarge Zonneprognose"
       },
       "negative_injection_threshold": {
-        "name": "Drempelwaarde negatieve teruglevering"
+        "name": "Drempel negatieve terugleverprijs"
       },
       "predischarge_reserve_soc": {
-        "name": "SOC-reserve voor voorontladen"
+        "name": "Laagste SOC bij voorontladen"
       },
       "predictive_min_soc_floor": {
-        "name": "Gegarandeerde minimale SOC"
+        "name": "Niveau gegarandeerde minimale SOC"
       },
       "battery_capacity": {
         "name": "Batterijcapaciteit"
@@ -2868,7 +2868,7 @@
         "name": "Max. Omvormervermogen"
       },
       "max_price_threshold": {
-        "name": "Maximale prijs (laden)"
+        "name": "Laadprijsplafond"
       },
       "discharge_price_threshold": {
         "name": "Ontlaad-prijsondergrens"

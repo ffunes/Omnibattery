@@ -128,11 +128,11 @@ Optional controls in the **Control** tab solve different problems:
 
     ### Smart Pre-discharge / Anti-curtailment
 
-    This opt-in feature does not control a solar inverter. It finds periods where the **export** price is at or below **Negative Injection Threshold** (the import price when no export price sensor is configured) and forecast solar surplus exceeds household consumption. Before the first risk period, it selects the most valuable eligible periods for pre-discharge until enough battery space exists, subject to SOC floors, reserves, power limits, and blockers.
+    This opt-in feature does not control a solar inverter. It finds periods where the **export** price is at or below **Negative Feed-in Price Threshold** (the import price when no export price sensor is configured) and forecast solar surplus exceeds household consumption. Before the first risk period, it selects the most valuable eligible periods for pre-discharge until enough battery space exists, subject to SOC floors, reserves, power limits, and blockers.
 
     With an export price sensor, the Dynamic Pricing plan decides the pre-discharge itself, in the same plan as the grid charge and the other decisions: when to discharge and how much, up to tomorrow's sun when its prices are out. It makes only the space the risk's sun needs, counting what the home will use before the risk, never below the reserve, never inside a risk period and never at a battery export price at or below the threshold; it does not buy energy before a risk only to discharge it. In those periods the battery may also stop charging and let the solar surplus go to the grid, to keep that space free. The plan's notification lists these periods ("Making room for the sun"), and `curtailment_status` shows the plan's risk periods and discharge periods with `decided_by: plan`. Without an export price sensor the pre-discharge works as described below.
 
-    The default negative-injection threshold is 0 currency/kWh. **Pre-discharge Reserve SOC** adds a floor; its default is 20%, while a value of 0 uses the batteries’ existing floors. Risk periods are grouped into approximately one-hour blocks to reduce repeated switching.
+    The default negative-injection threshold is 0 currency/kWh. **Pre-discharge Lowest SOC** adds a floor; its default is 20%, while a value of 0 uses the batteries’ existing floors. Risk periods are grouped into approximately one-hour blocks to reduce repeated switching.
 
     Export is automatic: the battery may export up to the fleet's discharge power, only to create the calculated space.
 
@@ -160,7 +160,7 @@ Optional controls in the **Control** tab solve different problems:
 
     **Price-Based Discharge** checks the current price every control cycle. If the price is above its threshold, normal PD discharge is allowed; at or below the threshold, discharge is blocked and controller state is frozen.
 
-    Dynamic Pricing uses **Max Price Threshold** when configured; otherwise it uses the daily average calculated over the current planning horizon. If neither exists, this blocker does not act. The maximum threshold also prevents grid charging at prices above it.
+    Dynamic Pricing uses **Charge Price Ceiling** when configured; otherwise it uses the daily average calculated over the current planning horizon. If neither exists, this blocker does not act. The maximum threshold also prevents grid charging at prices above it.
 
     **Discharge Price Threshold** can open an idle price band. It must be at or above the charging ceiling:
 
@@ -188,7 +188,7 @@ Optional controls in the **Control** tab solve different problems:
     expected_discharge_price × round_trip_efficiency − charge_price ≥ margin
     ```
 
-    Empty or 0 means no profit on top of the losses: the round-trip efficiency alone decides. It applies in addition to **Max Price Threshold**, and the stricter ceiling wins. It gates the 00:05 plan and every later rebuild, including the late-day assessment. Energy needed for **Guaranteed Minimum SOC** is the exception: only **Max Price Threshold** limits it.
+    Empty or 0 means no profit on top of the losses: the round-trip efficiency alone decides. It applies in addition to **Charge Price Ceiling**, and the stricter ceiling wins. It gates the 00:05 plan and every later rebuild, including the late-day assessment. Energy needed for **Guaranteed Minimum SOC** is the exception: only **Charge Price Ceiling** limits it.
 
     `expected_discharge_price` is set per stored kWh, not for the whole deficit. The cheapest charge periods take the most expensive later periods, and each later period counts once. So the first kWh is compared with the evening peak, and the last with whatever cheaper hour it would replace. Energy the home needs at a given time is compared with the import price at that time. When importing then costs less than charging earlier with the round-trip losses, that energy is left to the grid and reported as `cheaper_to_import_kwh` instead of a shortfall. If no period qualifies, `chronological_plan_reason` is `price_threshold` and `cheapest_rejected_slot` shows the cheapest period with the ceiling it missed.
 

@@ -28,6 +28,8 @@
 
 ### Changed
 
+- **Entity names follow the panel's labels**: Weekly Full Charge: Wait for Charge Delay (was Delay Weekly Full Charge), Guaranteed Minimum SOC Level, Charge Price Ceiling (was Max Price Threshold (Charge)), Negative Feed-in Price Threshold (was Negative Injection Threshold) and Pre-discharge Lowest SOC (was Pre-discharge Reserve SOC); entity IDs do not change (PR#925). Thanks to @anorakophobia.
+- **Panel: clearer tooltips** for Surplus Hold Minimum Saving, Weekly Full Charge Day and the No-PD switch (PR#925). Thanks to @anorakophobia.
 - ⚠️ **Solar safety margin is now a % of the forecast sun** (#828): 0–50 %, default 10 %; `number.omnibattery_predictive_safety_margin_kwh` becomes `…_pct`; a stored 0 stays 0 %, any other kWh value resets to 10 %.
 - **Anti-curtailment and High-Price Sale follow the % margin**: room for that share of each negative-price slot's sun; the sale's separate kWh cushion is gone (the margin is already off its solar).
 - ⚠️ **Dynamic Pricing now holds the battery when using it later is cheaper** (#888): a normal decision of the plan, for everyone, whenever the whole plan costs less (each new hold costs the planner 1 c, so it does not flip between holding and covering). The Discharge Reserve switch and its minimum saving are gone; Discharge Reserve Status now shows the plan's hold. When the previous planner makes the plan, nothing is held.

@@ -11,7 +11,7 @@ Real-Time Price mode checks the price in effect now and grid-charges when that p
 ## Before you start
 
 - Prepare a Home Assistant sensor for the current electricity price.
-- Choose either a fixed **Max Price Threshold** or an optional daily-average price sensor. The average sensor takes priority when it has a valid value.
+- Choose either a fixed **Charge Price Ceiling** or an optional daily-average price sensor. The average sensor takes priority when it has a valid value.
 - A solar forecast is optional. Without one, Omnibattery evaluates conservatively with no future solar.
 - Configure the common requirements described in [Which mode should I choose?](index.md).
 
@@ -20,7 +20,7 @@ Real-Time Price mode checks the price in effect now and grid-charges when that p
 1. Open **Settings → Devices & services → Omnibattery → Configure** and choose **Real-Time Price** as the predictive charging mode.
 2. Select **Electricity price sensor** and, if available, **Daily average price sensor**.
 3. Select an optional solar forecast sensor and finish the form.
-4. In the Omnibattery **Control** tab, set **Max Price Threshold** if you did not provide an average sensor, then confirm **Predictive Charging** is on.
+4. In the Omnibattery **Control** tab, set **Charge Price Ceiling** if you did not provide an average sensor, then confirm **Predictive Charging** is on.
 
 ![Configure the current-price source](../../assets/screenshots/configuration/predictive-charging/real-time-price-form.png){ width="650" style="display: block; margin: 0 auto;" }
 
@@ -36,7 +36,7 @@ Turn on **Price-Based Discharge** if you also want to preserve the battery while
 
 | Symptom | Likely cause | What to check |
 |---|---|---|
-| Charging never starts at a cheap price | No valid threshold exists or no energy deficit remains | Current-price sensor, average sensor, **Max Price Threshold**, and **Predictive Charging Active** |
+| Charging never starts at a cheap price | No valid threshold exists or no energy deficit remains | Current-price sensor, average sensor, **Charge Price Ceiling**, and **Predictive Charging Active** |
 | Charging stops immediately | The current price rose, an operating time slot ended, or a safety/control rule intervened | Live price, charge permissions, SOC target, and **Integration Status** |
 | A cheaper period later is ignored | This mode has no future price calendar | Switch to [Dynamic Pricing](dynamic-pricing.md) if future prices are available |
 | The battery will not discharge | **Price-Based Discharge** or an operating time slot blocks discharge | Active threshold, live price, and [operating time slots](../time-slots.md) |
@@ -59,7 +59,7 @@ Turn on **Price-Based Discharge** if you also want to preserve the battery while
     The active threshold is resolved in this order:
 
     1. A valid **Daily average price sensor**, when configured.
-    2. **Max Price Threshold**, the live number entity.
+    2. **Charge Price Ceiling**, the live number entity.
 
     If neither produces a value, Real-Time Price takes no charging action. If the live price becomes unavailable during a charge, charging stops and undelivered energy is recorded as a shortfall.
 
@@ -90,5 +90,5 @@ Turn on **Price-Based Discharge** if you also want to preserve the battery while
     | Period choice | Cheapest eligible future periods before each deadline | The period in effect now |
     | Energy shortfall handling | Can move quota to eligible future periods | Records undelivered energy; no future calendar exists |
     | Re-evaluation button | Rebuilds the remaining calendar | Not present; every cycle decides again |
-    | Price-Based Discharge threshold | Fixed maximum threshold or calculated daily average | Daily-average sensor, then fixed maximum threshold |
+    | Price-Based Discharge threshold | Discharge price floor, charge price ceiling, or calculated daily average | Daily-average sensor, then charge price ceiling |
     | Dynamic-only policies | Negative-price scheduling, anti-curtailment, surplus hold, holding the battery for later, arbitrage margin, high-price export | Not available |

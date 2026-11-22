@@ -128,11 +128,11 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     ### Predescarga inteligente / Antilimitación de producción
 
-    Esta función opcional no controla un inversor solar. Encuentra periodos donde el precio de **exportación** es igual o inferior a **Umbral de inyección negativa** (el de importación si no hay sensor de precio de exportación) y el excedente solar previsto supera el consumo de la vivienda. Antes del primer periodo de riesgo, selecciona los periodos elegibles de mayor valor para predescargar hasta que exista suficiente espacio de batería, sujeto a suelos de SOC, reservas, límites de potencia y bloqueos.
+    Esta función opcional no controla un inversor solar. Encuentra periodos donde el precio de **exportación** es igual o inferior a **Umbral de precio de inyección negativo** (el de importación si no hay sensor de precio de exportación) y el excedente solar previsto supera el consumo de la vivienda. Antes del primer periodo de riesgo, selecciona los periodos elegibles de mayor valor para predescargar hasta que exista suficiente espacio de batería, sujeto a suelos de SOC, reservas, límites de potencia y bloqueos.
 
     Con sensor de precio de exportación, la predescarga la decide el propio plan de Precio Dinámico, junto con la carga de red y las demás decisiones: cuándo descargar y cuánto, hasta el sol de mañana cuando sus precios están publicados. Solo hace el hueco que necesita el sol del riesgo, contando lo que la casa gastará antes del riesgo, nunca por debajo de la reserva, nunca dentro de un periodo de riesgo y nunca con un precio de exportación de la batería igual o inferior al umbral; no compra energía antes de un riesgo solo para descargarla. En esos periodos la batería también puede dejar de cargar y exportar el excedente solar, para mantener libre ese espacio. La notificación del plan lista esos periodos («Making room for the sun») y `curtailment_status` muestra los periodos de riesgo y de descarga del plan con `decided_by: plan`. Sin sensor de precio de exportación, la predescarga funciona como se describe a continuación.
 
-    El umbral de inyección negativa predeterminado es 0 moneda/kWh. **SOC de reserva de predescarga** añade un suelo; su valor predeterminado es 20%, mientras que un valor de 0 usa los suelos existentes de las baterías. Los periodos de riesgo se agrupan en bloques de aproximadamente una hora para reducir cambios repetidos.
+    El umbral de inyección negativa predeterminado es 0 moneda/kWh. **SOC más bajo de predescarga** añade un suelo; su valor predeterminado es 20%, mientras que un valor de 0 usa los suelos existentes de las baterías. Los periodos de riesgo se agrupan en bloques de aproximadamente una hora para reducir cambios repetidos.
 
     La exportación es automática: la batería puede exportar hasta la potencia de descarga de la flota, solo para crear el espacio calculado.
 
@@ -160,7 +160,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     **Descarga basada en precio** comprueba el precio actual en cada ciclo de control. Si está por encima de su umbral, se permite la descarga PD normal; en o por debajo del umbral, la descarga se bloquea y se congela el estado del controlador.
 
-    Precio dinámico usa **Umbral máximo de precio** cuando está configurado; de lo contrario usa la media diaria calculada sobre el horizonte de planificación actual. Si no existe ninguno, este bloqueo no actúa. El umbral máximo también impide la carga desde red a precios superiores.
+    Precio dinámico usa **Techo de precio de carga** cuando está configurado; de lo contrario usa la media diaria calculada sobre el horizonte de planificación actual. Si no existe ninguno, este bloqueo no actúa. El umbral máximo también impide la carga desde red a precios superiores.
 
     **Umbral de precio de descarga** puede abrir una banda de precio inactiva. Debe estar en o por encima del techo de carga:
 
@@ -188,7 +188,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
     expected_discharge_price × round_trip_efficiency − charge_price ≥ margin
     ```
 
-    Vacío o 0 significa ningún beneficio sobre las pérdidas: decide solo la eficiencia de ida y vuelta. Se aplica además de **Umbral máximo de precio**, y prevalece el techo más estricto. Filtra el plan de las 00:05 y cada reconstrucción posterior, incluida la evaluación de final del día. La energía necesaria para **SOC mínimo garantizado** es la excepción: solo la limita **Umbral máximo de precio**.
+    Vacío o 0 significa ningún beneficio sobre las pérdidas: decide solo la eficiencia de ida y vuelta. Se aplica además de **Techo de precio de carga**, y prevalece el techo más estricto. Filtra el plan de las 00:05 y cada reconstrucción posterior, incluida la evaluación de final del día. La energía necesaria para **SOC mínimo garantizado** es la excepción: solo la limita **Techo de precio de carga**.
 
     `expected_discharge_price` se calcula por kWh almacenado, no para todo el déficit. Los periodos de carga más baratos se emparejan con los periodos posteriores más caros, y cada periodo posterior cuenta una sola vez. Así, el primer kWh se compara con el pico de la tarde y el último con la hora más barata que sustituiría. La energía que la vivienda necesita en un momento dado se compara con el precio de importación en ese momento. Si importar entonces cuesta menos que cargar antes con las pérdidas del ciclo, esa energía se deja a la red y aparece como `cheaper_to_import_kwh` en lugar de como déficit. Si ningún periodo cumple, `chronological_plan_reason` vale `price_threshold` y `cheapest_rejected_slot` muestra el periodo más barato con el techo que no alcanzó.
 

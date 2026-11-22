@@ -1635,7 +1635,7 @@
         "name": "SOC Mínimo Garantizado"
       },
       "max_price_threshold_enabled": {
-        "name": "Precio máximo de carga manual"
+        "name": "Techo de precio de carga manual"
       },
       "discharge_price_threshold_enabled": {
         "name": "Precio mínimo de descarga manual"
@@ -1665,7 +1665,7 @@
         "name": "Límite de descarga por temperatura"
       },
       "weekly_full_charge_delay": {
-        "name": "Retrasar Carga Semanal Completa"
+        "name": "Carga semanal completa: esperar al retardo de carga"
       },
       "capacity_protection": {
         "name": "Reducción de Picos"
@@ -2838,13 +2838,13 @@
         "name": "Margen de Seguridad Previsión Solar"
       },
       "negative_injection_threshold": {
-        "name": "Umbral de inyección negativa"
+        "name": "Umbral de precio de inyección negativo"
       },
       "predischarge_reserve_soc": {
-        "name": "Reserva de SOC de predescarga"
+        "name": "SOC más bajo de predescarga"
       },
       "predictive_min_soc_floor": {
-        "name": "SOC mínimo garantizado"
+        "name": "Nivel de SOC mínimo garantizado"
       },
       "hourly_balance_target_net_wh": {
         "name": "Objetivo de balance horario"
@@ -2868,7 +2868,7 @@
         "name": "Potencia Máx. del Inversor"
       },
       "max_price_threshold": {
-        "name": "Precio máximo (carga)"
+        "name": "Techo de precio de carga"
       },
       "discharge_price_threshold": {
         "name": "Precio mínimo de descarga"

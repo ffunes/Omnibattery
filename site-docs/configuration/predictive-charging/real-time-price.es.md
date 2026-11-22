@@ -11,7 +11,7 @@ El modo Precio en tiempo real comprueba el precio vigente y carga desde la red c
 ## Antes de empezar
 
 - Prepara un sensor de Home Assistant para el precio actual de electricidad.
-- Elige un **Umbral máximo de precio** fijo o un sensor opcional de precio medio diario. El sensor medio tiene prioridad cuando tiene un valor válido.
+- Elige un **Techo de precio de carga** fijo o un sensor opcional de precio medio diario. El sensor medio tiene prioridad cuando tiene un valor válido.
 - La previsión solar es opcional. Sin una, Omnibattery evalúa de forma conservadora sin solar futura.
 - Configura los requisitos comunes descritos en [¿Qué modo debo elegir?](index.md).
 
@@ -20,7 +20,7 @@ El modo Precio en tiempo real comprueba el precio vigente y carga desde la red c
 1. Abre **Ajustes → Dispositivos y servicios → Omnibattery → Configurar** y elige **Precio en tiempo real** como modo de carga predictiva.
 2. Selecciona **Sensor de precio de electricidad** y, si está disponible, **Sensor de precio medio diario**.
 3. Selecciona un sensor opcional de previsión solar y termina el formulario.
-4. En la pestaña **Control** de Omnibattery, establece **Umbral máximo de precio** si no proporcionaste un sensor medio y confirma que **Carga predictiva** está activada.
+4. En la pestaña **Control** de Omnibattery, establece **Techo de precio de carga** si no proporcionaste un sensor medio y confirma que **Carga predictiva** está activada.
 
 ![Configura la fuente de precio actual](../../assets/screenshots/configuration/predictive-charging/real-time-price-form.png){ width="650" style="display: block; margin: 0 auto;" }
 
@@ -36,7 +36,7 @@ Activa **Descarga basada en precio** si también quieres conservar la batería m
 
 | Síntoma | Causa probable | Qué comprobar |
 |---|---|---|
-| La carga nunca empieza con un precio barato | No existe un umbral válido o ya no queda déficit energético | Sensor de precio actual, sensor medio, **Umbral máximo de precio** y **Carga predictiva activa** |
+| La carga nunca empieza con un precio barato | No existe un umbral válido o ya no queda déficit energético | Sensor de precio actual, sensor medio, **Techo de precio de carga** y **Carga predictiva activa** |
 | La carga se detiene inmediatamente | El precio actual ha subido, ha terminado una franja de funcionamiento o ha intervenido una regla de seguridad/control | Precio en vivo, permisos de carga, objetivo de SOC y **Estado de integración** |
 | Se ignora un periodo más barato posterior | Este modo no tiene un calendario de precios futuros | Cambia a [Precio dinámico](dynamic-pricing.md) si hay precios futuros disponibles |
 | La batería no descarga | **Descarga basada en precio** o una franja de funcionamiento bloquea la descarga | Umbral activo, precio en vivo y [franjas horarias de funcionamiento](../time-slots.md) |
@@ -59,7 +59,7 @@ Activa **Descarga basada en precio** si también quieres conservar la batería m
     El umbral activo se resuelve en este orden:
 
     1. Un **Sensor de precio medio diario** válido, cuando está configurado.
-    2. **Umbral máximo de precio**, la entidad numérica en vivo.
+    2. **Techo de precio de carga**, la entidad numérica en vivo.
 
     Si ninguno proporciona un valor, Precio en tiempo real no realiza ninguna acción de carga. Si el precio en vivo deja de estar disponible durante una carga, la carga se detiene y la energía no entregada se registra como déficit no cubierto.
 
@@ -90,5 +90,5 @@ Activa **Descarga basada en precio** si también quieres conservar la batería m
     | Elección de periodo | Periodos futuros elegibles más baratos antes de cada plazo | El periodo vigente ahora |
     | Gestión del déficit no cubierto | Puede mover la cuota a futuros periodos elegibles | Registra energía no entregada; no existe calendario futuro |
     | Botón de reevaluación | Reconstruye el calendario restante | No está presente; cada ciclo decide de nuevo |
-    | Umbral de descarga basada en precio | Umbral máximo fijo o media diaria calculada | Sensor medio diario y después umbral máximo fijo |
+    | Umbral de descarga basada en precio | Suelo de precio de descarga, techo de precio de carga o media diaria calculada | Sensor medio diario y después techo de precio de carga |
     | Políticas solo dinámicas | Programación con precio negativo, anti-limitación de producción, retención de excedente, retener la batería para más tarde, margen de arbitraje, exportación con precio alto | No disponibles |
