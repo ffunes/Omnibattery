@@ -357,6 +357,20 @@ def test_the_target_soc_has_a_name_in_every_language():
         assert data["entity"]["number"]["target_soc"]["name"], path
 
 
+def test_the_panel_offers_the_target_soc_in_six_languages():
+    """It is the one control of an observed battery without a mode."""
+    from pathlib import Path
+
+    panel = Path("custom_components/omnibattery/frontend/marstek-panel.js").read_text(
+        encoding="utf-8"
+    )
+    start = panel.index("const BAT_CONTROLS = [")
+    assert '{ key: "target_soc", domain: "number", lk: "bcTargetSoc"' in (
+        panel[start:panel.index("];", start)]
+    )
+    assert panel.count("bcTargetSoc: ") == 6
+
+
 def test_no_text_says_the_sources_must_be_in_watts_or_kwh():
     """They are converted from whatever unit they carry."""
     import json
