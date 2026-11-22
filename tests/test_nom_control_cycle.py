@@ -76,6 +76,26 @@ def test_when_the_surplus_ends_the_charge_stops_without_becoming_a_discharge(
     assert abs(house.command) < 50
 
 
+@pytest.mark.parametrize("no_pd", [False, True])
+def test_a_smaller_surplus_is_not_overshot_into_a_discharge(no_pd, monkeypatch):
+    """900 W of sun left, NOM takes 800 W: 100 W to charge, nothing to discharge.
+
+    The derivative (or, in No-PD, a battery still ramping up) must not carry the
+    command past zero, where the only load is NOM's own charge.
+    """
+    monkeypatch.setattr(integration, "apply_guards", lambda _c, power, _grid: power)
+    monkeypatch.setattr(integration, "guards_pending", lambda _c, _grid: False)
+    house = House(solar=2000, nom=800.0).run(60)
+    house.controller.kd = 3.0
+    house.controller.no_pd_mode_enabled = no_pd
+    if no_pd:
+        house.controller._measured_battery_power = lambda: house.command - 600
+    house.solar = 900.0
+    house.commands.clear()
+    house.run(2)
+    assert house.commands and min(house.commands) >= 0, house.commands
+
+
 def test_when_the_surplus_ends_the_house_is_still_covered():
     house = House(solar=2000, nom=800.0).run(60)
     house.solar, house.house = 0.0, 600.0
@@ -355,6 +375,17 @@ def test_a_manual_charge_slot_waits_too():
     house.run(10)
     assert applied and all(mode == "manual" for _, mode in applied), applied
     assert applied[0][0] == 1500
+
+
+def test_changing_the_mode_disturbs_neither_the_other_battery_nor_the_controller():
+    house = House(house=1000, nom=0.0).run(60)
+    before, power = house.command, house.controller.previous_power
+    house.commands.clear()
+    house.battery.autonomous_requested_mode = "manual"
+    house.run(6)
+    assert house.battery.driver.mode == "manual"
+    assert house.controller.previous_power == pytest.approx(power, abs=5)
+    assert all(c == pytest.approx(before, abs=5) for c in house.commands), house.commands
 
 
 def test_a_fixed_discharge_into_a_charge_we_did_not_foresee_is_stopped():

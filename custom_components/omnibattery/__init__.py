@@ -10608,12 +10608,19 @@ class ChargeDischargeController:
         # cap gets it back too: the meter it protects carries that charge.
         uncommanded_charge = physical - sensor_actual
         self._uncommanded_charge_w = uncommanded_charge
+        # What is left of that charge in the reading; none once the import cap
+        # asks for it to be covered.
+        charging = ChargeDischargeController._manual_battery_power_for_grid_feedback(self)
+        uncommanded_left = max(0.0, charging - uncommanded_charge)
 
         # GRID IMPORT CAP + SOC RESERVE (#506): keep the physical import under
         # the cap, and below the reserve threshold discharge only above it. This must run
         # before deadband and first-execution handling, otherwise a previous
         # hourly-balance discharge can be kept alive by an early return.
+        before_cap = sensor_actual
         active_target, sensor_actual = self._apply_capacity_protection(sensor_actual, active_target)
+        if sensor_actual > before_cap:
+            uncommanded_left = 0.0
 
         if self._capacity_protection_force_idle:
             self._capacity_protection_force_idle = False
@@ -10881,10 +10888,13 @@ class ChargeDischargeController:
             new_power = self._compute_pd_new_power(
                 error, sensor_elapsed_s, stale_safety_recalc
             )
-        if uncommanded_charge > 0:
-            # The derivative must not carry the command past what the meter asks
-            # for: beyond it lies the charge of a battery nobody commands.
-            new_power = max(new_power, min(0.0, self.previous_power - error))
+        if charging > 0:
+            # Neither the derivative nor a battery still ramping may carry the
+            # command past what the meter asks to discharge: beyond it lies the
+            # charge of a battery nobody commands.
+            new_power = max(
+                new_power, min(0.0, self.previous_power - error + uncommanded_left)
+            )
         # MIXED-FLEET GUARDS: floor the command at the demand another regulator
         # may already be hiding, refuse a discharge into a surplus, and cap a
         # discharge at what the house actually left uncovered. All three measure
