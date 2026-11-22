@@ -5375,7 +5375,7 @@ class ChargeDischargeController:
                 # No battery can respond: assume full so the reserve stays idle
                 # rather than acting on SOC it cannot influence.
                 avg_soc = 100
-            reserve_holding = avg_soc < self.capacity_protection_soc_threshold
+            reserve_holding = self._is_capacity_protection_soc_limited()
         # Decide on the target without this feature's own override, or a
         # previous cycle's hold would read as the normal target.
         active_target = self.compute_active_target_excluding("capacity_protection")
@@ -5450,7 +5450,7 @@ class ChargeDischargeController:
             if self.previous_power != 0:
                 self._capacity_protection_force_idle = True
             _LOGGER.info(
-                "Capacity Protection ACTIVE: SOC=%.1f%% < %d%%, house_load=%.0fW <= cap=%.0fW -> idle (target=%.0fW)",
+                "Capacity Protection ACTIVE: SOC=%.1f%%, threshold=%d%%, house_load=%.0fW <= cap=%.0fW -> idle (target=%.0fW)",
                 avg_soc, self.capacity_protection_soc_threshold,
                 estimated_house_load, cap, active_target,
             )
@@ -5596,7 +5596,14 @@ class ChargeDischargeController:
             sum(c.data.get("battery_soc", 0) for c in coordinators_with_data)
             / len(coordinators_with_data)
         )
-        return avg_soc < self.capacity_protection_soc_threshold
+        # A threshold no SOC can rise above is a "peaks only" switch (#843): it
+        # holds a full battery too, instead of releasing it at equality (#913).
+        avg_max_soc = (
+            sum(float(c.max_soc) for c in coordinators_with_data)
+            / len(coordinators_with_data)
+        )
+        threshold = self.capacity_protection_soc_threshold
+        return avg_soc < threshold or threshold >= avg_max_soc
 
     def _planning_floor_soc(self, coordinator) -> float:
         """Lowest SOC that may cover normal load in an energy plan (#627).
