@@ -2914,6 +2914,10 @@
           "description": "Letzter lokaler Tag, der ausgeschlossen wird. Ohne Angabe wird nur der Starttag ausgeschlossen."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Gemessenen Round-Trip-Wirkungsgrad verwenden",
+      "description": "Entfernt einen festen Round-Trip-Wirkungsgrad: der Planer nutzt wieder den an deinen Batterien gemessenen Wirkungsgrad (0,85, bis eine Batterie genug Historie hat). Der Wert-Editor des Dashboards ruft die Aktion über „Gemessenen verwenden“ auf."
     }
   }
 }

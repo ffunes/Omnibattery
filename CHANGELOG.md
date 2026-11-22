@@ -7,7 +7,7 @@
 > - **Peak Shaving Limit is gone** (#506): **Max contracted power** is now **Maximum Grid Import** (same entity), always on (500 W minimum) and it also caps grid charging. On upgrade it takes the lower of the two values if Peak Shaving was on: **check it**. A "peaks only" setup (limit below the contracted power) must now set the cap itself to that value. **Re-import the Peak Shaving Limit Sync blueprint.**
 > - **Removed entities, update automations, scripts and dashboards that use them**: Peak Shaving Limit, Discharge Reserve (switch) and Discharge Reserve Minimum Saving (#888), Backup Offgrid Threshold (#660). `number.omnibattery_predictive_safety_margin_kwh` is now `number.omnibattery_predictive_safety_margin_pct` (#828); any value other than 0 resets to 10 %.
 > - **Backup port** (#660, #540): a load on it no longer takes the battery out of automatic control. To run the whole house from the backup port, turn on the battery's **Manual Control**.
-> - **No way back to 1.6.x without a backup**: the configuration is migrated (version 16 → 20) and 1.6.x cannot load it. Make a Home Assistant backup first.
+> - **No way back to 1.6.x without a backup**: the configuration is migrated (version 16 → 21) and 1.6.x cannot load it. Make a Home Assistant backup first.
 
 > [!IMPORTANT]
 > **The battery will behave differently**
@@ -28,6 +28,7 @@
 
 ### Changed
 
+- **Round-Trip Efficiency shows the measured value in use**, tagged "measured", until you set one; any value you set is used as is, 0.85 included. To go back, tap the value and choose "Use measured" or call `omnibattery.use_measured_round_trip_efficiency`. A stored 0.85 keeps using the measured value (PR#926). Thanks to @anorakophobia.
 - **Entity names follow the panel's labels**: Weekly Full Charge: Wait for Charge Delay (was Delay Weekly Full Charge), Guaranteed Minimum SOC Level, Charge Price Ceiling (was Max Price Threshold (Charge)), Negative Feed-in Price Threshold (was Negative Injection Threshold) and Pre-discharge Lowest SOC (was Pre-discharge Reserve SOC); entity IDs do not change (PR#925). Thanks to @anorakophobia.
 - **Panel: clearer tooltips** for Surplus Hold Minimum Saving, Weekly Full Charge Day and the No-PD switch (PR#925). Thanks to @anorakophobia.
 - ⚠️ **Solar safety margin is now a % of the forecast sun** (#828): 0–50 %, default 10 %; `number.omnibattery_predictive_safety_margin_kwh` becomes `…_pct`; a stored 0 stays 0 %, any other kWh value resets to 10 %.

@@ -2914,6 +2914,10 @@
           "description": "Darrer dia local que s'exclou. Si s'omet, només s'exclou el dia d'inici."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Fer servir l'eficiència de cicle complet mesurada",
+      "description": "Elimina el valor fix de l'eficiència de cicle complet: el planificador torna a fer servir l'eficiència mesurada a les teves bateries (0,85 fins que una bateria tingui prou historial). L'editor de valor del panell la crida des de «Fer servir la mesurada»."
     }
   }
 }

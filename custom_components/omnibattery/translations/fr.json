@@ -2914,6 +2914,10 @@
           "description": "Dernier jour local exclu. Par défaut, seul le jour de début est exclu."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Utiliser le rendement aller-retour mesuré",
+      "description": "Supprime la valeur fixe du rendement aller-retour : le planificateur utilise de nouveau le rendement mesuré sur vos batteries (0,85 tant qu'aucune batterie n'a assez d'historique). L'éditeur de valeur du tableau de bord l'appelle depuis « Utiliser la mesure »."
     }
   }
 }

@@ -148,9 +148,14 @@ def measured_battery_efficiency(coordinator) -> float | None:
 
 
 def effective_round_trip_efficiency(controller) -> tuple[float, str]:
-    """Return (efficiency, source): configured, measured fleet average, or default."""
-    configured = getattr(controller, "round_trip_efficiency", DEFAULT_ROUND_TRIP_EFFICIENCY)
-    if configured != DEFAULT_ROUND_TRIP_EFFICIENCY:
+    """Return (efficiency, source): configured, measured fleet average, or default.
+
+    A stored value is used as given, 0.85 included. Without one the batteries'
+    measured efficiency is used, and the default only while no battery has
+    enough history.
+    """
+    configured = getattr(controller, "round_trip_efficiency", None)
+    if configured is not None:
         return configured, "configured"
     weighted = total = 0.0
     for coordinator in getattr(controller, "coordinators", None) or []:
