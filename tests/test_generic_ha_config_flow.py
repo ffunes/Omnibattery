@@ -10,20 +10,34 @@ Home Assistant runtime.
 """
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+
+import pytest
 import voluptuous as vol
 
-from custom_components.omnibattery.drivers.generic_ha_flow import _schema, _store
+from custom_components.omnibattery.drivers.generic_ha import GenericHaEntityDriver
+from custom_components.omnibattery.drivers.generic_ha_flow import (
+    _connection,
+    _mode,
+    _reconfigure,
+    _schema,
+    _store,
+)
+from custom_components.omnibattery.drivers.setup import FlowKind, SetupContext
 
 SOC = "sensor.scb_battery_soc"
 POWER = "sensor.scb_battery_power"
 CHARGED = "sensor.scb_battery_charge_total"
 DISCHARGED = "sensor.scb_battery_discharge_total"
 TARGET = "number.scb_battery_min_soc"
+MODE = "select.scb_battery_mode"
 
 OPTIONAL_KEYS = (
     "ha_charge_energy_entities",
     "ha_discharge_energy_entity",
     "ha_target_soc_entity",
+    "ha_mode_entity",
 )
 
 
@@ -43,6 +57,7 @@ def _saved() -> dict:
             "ha_charge_energy_entities": [CHARGED],
             "ha_discharge_energy_entity": DISCHARGED,
             "ha_target_soc_entity": TARGET,
+            "ha_mode_entity": MODE,
             "ha_stale_after_s": 600,
         }
     )
@@ -114,9 +129,13 @@ def test_clicking_through_the_options_flow_does_not_erase_optional_settings():
         "ha_charge_energy_entities": saved["ha_charge_energy_entities"],
         "ha_discharge_energy_entity": saved["ha_discharge_energy_entity"],
         "ha_target_soc_entity": saved["ha_target_soc_entity"],
+        "ha_mode_entity": saved["ha_mode_entity"],
         "ha_stale_after_s": saved["ha_stale_after_s"],
     }
     again = _store(resubmitted, saved)
+    assert again["ha_mode_entity"] == MODE
+    # Editing is not a new battery: the running preference is not touched.
+    assert "autonomous_requested_mode" not in again
     assert again["ha_charge_energy_entities"] == [CHARGED]
     assert again["ha_discharge_energy_entity"] == DISCHARGED
     assert again["ha_target_soc_entity"] == TARGET
@@ -138,6 +157,8 @@ def test_an_explicitly_cleared_field_is_still_cleared():
     assert cleared["ha_charge_energy_entities"] == []
     assert cleared["ha_discharge_energy_entity"] is None
     assert cleared["ha_target_soc_entity"] is None
+    # Laid over the stored battery: None, not missing, is what removes it.
+    assert cleared["ha_mode_entity"] is None
 
 
 def test_the_identity_survives_the_source_entities_changing():
@@ -186,3 +207,97 @@ def test_the_stored_config_names_the_brand_and_a_zero_port():
     assert stored["brand"] == "generic_ha"
     assert stored["port"] == 0
     assert stored["host"]
+
+
+# --------------------------------------------------------------------------- mode
+
+def test_a_battery_that_gains_a_mode_starts_in_manual():
+    assert _saved()["autonomous_requested_mode"] == "manual"
+    without = _store({"name": "Observed", "ha_soc_entity": SOC, "ha_power_entity": POWER})
+    assert "ha_mode_entity" not in without
+    assert "autonomous_requested_mode" not in without
+
+
+_FORM = {
+    "name": "Observed", "ha_soc_entity": SOC, "ha_power_entity": POWER,
+    "ha_power_positive_is": "charge", "ha_stale_after_s": 600,
+}
+
+
+@pytest.fixture
+def mode_flow(monkeypatch):
+    """``make(kind, battery, **states) -> (flow, ctx)`` around the real handlers."""
+    monkeypatch.setattr(GenericHaEntityDriver, "resolve", lambda *a: [])
+
+    def make(kind=FlowKind.CONFIG, battery=None, states=None):
+        table = {
+            MODE: SimpleNamespace(state="auto", attributes={"options": ["auto", "hold", "backup"]}),
+            "switch.nom": SimpleNamespace(state="on", attributes={}),
+            **(states or {}),
+        }
+        ctx = SetupContext(kind=kind, battery=battery, entry=None, coordinator=None)
+        flow = SimpleNamespace(
+            hass=SimpleNamespace(states=SimpleNamespace(get=table.get)),
+            battery_index=0,
+            async_show_form=lambda **kwargs: kwargs,
+        )
+
+        async def _step(user_input=None):
+            return await _mode(flow, user_input, ctx)
+
+        flow.async_step_battery_mode_generic_ha = _step
+        return flow, ctx
+
+    return make
+
+
+@pytest.mark.parametrize("handler", [_connection, _reconfigure])
+def test_picking_a_mode_entity_asks_for_its_two_states(mode_flow, handler):
+    """The options are only known once the entity is picked: a second step."""
+    flow, ctx = mode_flow()
+    form = asyncio.run(handler(flow, {**_FORM, "ha_mode_entity": MODE}, ctx))
+    assert form["step_id"] == "battery_mode_generic_ha"
+    selector = next(iter(form["data_schema"].schema.values()))
+    assert selector.config["options"] == ["auto", "hold", "backup"]
+
+    stored = asyncio.run(
+        _mode(flow, {"ha_mode_nom_option": "auto", "ha_mode_manual_option": "hold"}, ctx)
+    )
+    assert stored["ha_mode_entity"] == MODE
+    assert (stored["ha_mode_nom_option"], stored["ha_mode_manual_option"]) == ("auto", "hold")
+    assert stored["autonomous_requested_mode"] == "manual"
+
+
+def test_a_switch_offers_on_and_off(mode_flow):
+    flow, ctx = mode_flow()
+    form = asyncio.run(_connection(flow, {**_FORM, "ha_mode_entity": "switch.nom"}, ctx))
+    selector = next(iter(form["data_schema"].schema.values()))
+    assert selector.config["options"] == ["on", "off"]
+
+
+def test_without_a_mode_entity_there_is_no_second_step(mode_flow):
+    flow, ctx = mode_flow()
+    stored = asyncio.run(_connection(flow, dict(_FORM), ctx))
+    assert stored["brand"] == "generic_ha"
+
+
+def test_the_two_modes_cannot_be_the_same_state(mode_flow):
+    flow, ctx = mode_flow()
+    ctx.work["pending"] = {"ha_mode_entity": MODE}
+    form = asyncio.run(
+        _mode(flow, {"ha_mode_nom_option": "auto", "ha_mode_manual_option": "auto"}, ctx)
+    )
+    assert form["errors"] == {"base": "generic_ha_mode_same"}
+
+
+def test_an_unreadable_mode_entity_stays_on_the_form(mode_flow):
+    flow, ctx = mode_flow()
+    form = asyncio.run(_connection(flow, {**_FORM, "ha_mode_entity": "select.gone"}, ctx))
+    assert form["errors"] == {"ha_mode_entity": "generic_ha_mode_unreadable"}
+
+
+def test_editing_while_the_mode_entity_is_offline_keeps_the_saved_pair(mode_flow):
+    saved = {**_saved(), "ha_mode_nom_option": "auto", "ha_mode_manual_option": "hold"}
+    flow, ctx = mode_flow(FlowKind.RECONFIGURE, saved, {MODE: None})
+    form = asyncio.run(_reconfigure(flow, {**_FORM, "ha_mode_entity": MODE}, ctx))
+    assert [marker.default() for marker in form["data_schema"].schema] == ["auto", "hold"]

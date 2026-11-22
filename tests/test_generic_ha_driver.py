@@ -6,6 +6,7 @@ absence: no command, no fabricated zero, no allocation.
 """
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -13,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from homeassistant.util import dt as dt_util
 
+from custom_components.omnibattery.drivers.base import NativeOperatingMode
 from custom_components.omnibattery.drivers.generic_ha import (
     DEFAULT_STALE_AFTER_S,
     GenericHaEntityDriver,
@@ -429,3 +431,149 @@ def test_from_config_builds_the_driver_from_stored_entity_ids():
     assert driver._charge_energy_entities == (CHARGE_PV,)
     assert driver._stale_after_s == 1200.0
     assert driver.capabilities.supports_power_setpoint is False
+
+
+# --------------------------------------------------------------------------- native mode
+
+MODE = "select.scb_mode"
+
+
+def _mode_driver(state="auto", entity=MODE, nom="auto", manual="hold", on_call=None):
+    table = _table(**{entity: _State(state)})
+    hass = _hass(table)
+
+    async def _call(domain, service, data, blocking):
+        if on_call is not None:
+            await on_call(table, entity)
+        elif service == "select_option":
+            table[entity] = _State(data["option"])
+        else:
+            table[entity] = _State(service.removeprefix("turn_"))
+
+    hass.services.async_call = AsyncMock(side_effect=_call)
+    return _driver(
+        hass, mode_entity=entity, mode_nom_option=nom, mode_manual_option=manual
+    ), hass
+
+
+async def _ignored(table, entity):
+    """A device that accepts the write and never changes mode."""
+
+
+def test_nom_mode_is_only_declared_with_a_complete_mapping():
+    assert _mode_driver()[0].capabilities.supports_nom_mode is True
+    assert _driver(_hass(_table())).capabilities.supports_nom_mode is False
+    assert _mode_driver(manual="auto")[0].capabilities.supports_nom_mode is False
+    assert _mode_driver(manual=None)[0].capabilities.supports_nom_mode is False
+
+
+def test_no_other_driver_declares_it():
+    """Characterises the defaults: nothing changes for a battery we command."""
+    from custom_components.omnibattery.drivers.base import DriverCapabilities
+
+    fields = DriverCapabilities.__dataclass_fields__
+    assert fields["supports_nom_mode"].default is False
+    assert fields["supports_power_setpoint"].default is True
+
+
+@pytest.mark.parametrize("state,expected", [
+    ("auto", "nom"), ("hold", "manual"), ("backup", None),
+    ("unavailable", None), ("unknown", None),
+])
+def test_the_mode_is_read_from_the_mapped_entity(state, expected):
+    driver, _ = _mode_driver(state)
+    assert driver.operating_mode_from_data({}) == expected
+
+
+@pytest.mark.asyncio
+async def test_a_select_is_written_and_confirmed():
+    driver, hass = _mode_driver("auto")
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    hass.services.async_call.assert_awaited_once_with(
+        "select", "select_option", {"entity_id": MODE, "option": "hold"}, blocking=True
+    )
+    assert result.ok and result.confirmed
+    assert result.effective_mode is NativeOperatingMode.MANUAL
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entity", ["switch.nom", "input_boolean.nom"])
+async def test_a_switch_is_turned_on_or_off(entity):
+    driver, hass = _mode_driver("on", entity=entity, nom="on", manual="off")
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    hass.services.async_call.assert_awaited_once_with(
+        entity.split(".")[0], "turn_off", {"entity_id": entity}, blocking=True
+    )
+    assert result.confirmed
+
+
+@pytest.mark.asyncio
+async def test_an_accepted_write_the_device_never_shows_is_not_confirmed(monkeypatch):
+    import custom_components.omnibattery.drivers.generic_ha as mod
+
+    monkeypatch.setattr(mod, "MODE_CONFIRM_TIMEOUT_S", 0.3)
+    driver, _ = _mode_driver("auto", on_call=_ignored)
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    assert result.ok is True and result.confirmed is False
+    assert result.effective_mode is NativeOperatingMode.NOM
+
+
+@pytest.mark.asyncio
+async def test_a_mode_that_shows_up_late_is_still_confirmed():
+    tasks = []
+
+    async def _late(table, entity):
+        async def _apply():
+            await asyncio.sleep(0.3)
+            table[entity] = _State("hold")
+
+        tasks.append(asyncio.create_task(_apply()))
+
+    driver, _ = _mode_driver("auto", on_call=_late)
+    assert (await driver.apply_operating_mode(NativeOperatingMode.MANUAL)).confirmed
+    # The manager does not wait: it confirms on a later cycle.
+    driver, _ = _mode_driver("auto", on_call=_late)
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL, read_back=False)
+    assert result.ok is True and result.confirmed is False
+
+
+@pytest.mark.asyncio
+async def test_a_service_that_hangs_or_fails_is_a_failed_write(monkeypatch):
+    import custom_components.omnibattery.drivers.generic_ha as mod
+
+    monkeypatch.setattr(mod, "MODE_WRITE_TIMEOUT_S", 0.05)
+
+    async def _hang(table, entity):
+        await asyncio.sleep(5)
+
+    async def _boom(table, entity):
+        raise RuntimeError("cloud down")
+
+    driver, _ = _mode_driver("auto", on_call=_hang)
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    assert (result.ok, result.failure_reason) == (False, "timeout")
+    driver, _ = _mode_driver("auto", on_call=_boom)
+    result = await driver.apply_operating_mode(NativeOperatingMode.MANUAL)
+    assert (result.ok, result.failure_reason) == (False, "cloud down")
+
+
+@pytest.mark.asyncio
+async def test_standby_selects_manual_and_reports_an_unconfirmed_one(monkeypatch):
+    import custom_components.omnibattery.drivers.generic_ha as mod
+
+    driver, _ = _mode_driver("auto")
+    assert await driver.standby() is True
+    assert driver.operating_mode_from_data({}) is NativeOperatingMode.MANUAL
+
+    monkeypatch.setattr(mod, "MODE_CONFIRM_TIMEOUT_S", 0.0)
+    driver, _ = _mode_driver("auto", on_call=_ignored)
+    assert await driver.standby() is False
+
+
+@pytest.mark.asyncio
+async def test_connecting_and_closing_never_touch_the_mode():
+    driver, hass = _mode_driver("hold")
+    await driver.connect()
+    await driver.close()
+    await driver.connect()
+    hass.services.async_call.assert_not_awaited()

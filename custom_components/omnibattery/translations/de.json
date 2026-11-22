@@ -206,6 +206,7 @@
           "ha_charge_energy_entities": "Zähler geladener Energie",
           "ha_discharge_energy_entity": "Zähler entladener Energie",
           "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_mode_entity": "Betriebsmodus-Entität",
           "ha_stale_after_s": "Telemetrie gilt als verloren nach"
         },
         "data_description": {
@@ -216,7 +217,20 @@
           "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
           "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
+          "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
           "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterie {battery_num} — Betriebsmodus",
+        "description": "Welcher Zustand von {entity} bedeutet, dass die Batterie selbst regelt, und welcher, dass sie ruht? Batterie {battery_num} startet in Manuell; später änderst du das über ihre Auswahl Betriebsmodus.",
+        "data": {
+          "ha_mode_nom_option": "NOM (null am Zähler)",
+          "ha_mode_manual_option": "Manuell (die Batterie ruht)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "Die Batterie lädt und entlädt selbst, um ihren Zähler auf 0 W zu halten",
+          "ha_mode_manual_option": "Die Batterie lädt und entlädt nicht"
         }
       },
       "battery_limits": {
@@ -734,6 +748,7 @@
           "ha_charge_energy_entities": "Zähler geladener Energie",
           "ha_discharge_energy_entity": "Zähler entladener Energie",
           "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_mode_entity": "Betriebsmodus-Entität",
           "ha_stale_after_s": "Telemetrie gilt als verloren nach"
         },
         "data_description": {
@@ -744,6 +759,7 @@
           "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
           "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
+          "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
           "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
         }
       },
@@ -827,6 +843,8 @@
       "huawei_device_mismatch": "Das gewählte Batteriegerät gehört zu einem anderen Wechselrichter als die angegebene Modbus-Adresse. Bei kaskadierten Wechselrichtern kämen die Messwerte dann von dem einen und die Befehle beim anderen an. Prüfe Gerät und Slave-ID.",
       "esphome_entities_missing": "Dem ausgewählten ESPHome-Gerät fehlen erforderliche Entitäten: {missing}. Stelle sicher, dass es die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführt.",
       "generic_ha_entities_missing": "Omnibattery konnte diese Entitäten nicht lesen: {missing}. Wähle Entitäten, die existieren und gerade eine Zahl melden.",
+      "generic_ha_mode_same": "NOM und Manuell müssen zwei verschiedene Zustände sein.",
+      "generic_ha_mode_unreadable": "Omnibattery konnte die Optionen dieser Entität nicht lesen. Wähle ein Auswahlfeld oder einen Schalter, der gerade verfügbar ist.",
       "sensor_not_found": "Solarprognose-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
       "invalid_unit": "Solarprognose-Sensor muss 'kWh' oder 'Wh' als Einheit haben.",
       "solar_production_sensor_not_found": "Solarproduktions-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
@@ -1030,6 +1048,7 @@
           "ha_charge_energy_entities": "Zähler geladener Energie",
           "ha_discharge_energy_entity": "Zähler entladener Energie",
           "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_mode_entity": "Betriebsmodus-Entität",
           "ha_stale_after_s": "Telemetrie gilt als verloren nach"
         },
         "data_description": {
@@ -1040,7 +1059,20 @@
           "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
           "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
+          "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
           "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterie {battery_num} — Betriebsmodus",
+        "description": "Welcher Zustand von {entity} bedeutet, dass die Batterie selbst regelt, und welcher, dass sie ruht? Batterie {battery_num} startet in Manuell; später änderst du das über ihre Auswahl Betriebsmodus.",
+        "data": {
+          "ha_mode_nom_option": "NOM (null am Zähler)",
+          "ha_mode_manual_option": "Manuell (die Batterie ruht)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "Die Batterie lädt und entlädt selbst, um ihren Zähler auf 0 W zu halten",
+          "ha_mode_manual_option": "Die Batterie lädt und entlädt nicht"
         }
       },
       "battery_limits": {
@@ -1493,6 +1525,8 @@
       "huawei_device_mismatch": "Das gewählte Batteriegerät gehört zu einem anderen Wechselrichter als die angegebene Modbus-Adresse. Bei kaskadierten Wechselrichtern kämen die Messwerte dann von dem einen und die Befehle beim anderen an. Prüfe Gerät und Slave-ID.",
       "esphome_entities_missing": "Dem ausgewählten ESPHome-Gerät fehlen erforderliche Entitäten: {missing}. Stelle sicher, dass es die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführt.",
       "generic_ha_entities_missing": "Omnibattery konnte diese Entitäten nicht lesen: {missing}. Wähle Entitäten, die existieren und gerade eine Zahl melden.",
+      "generic_ha_mode_same": "NOM und Manuell müssen zwei verschiedene Zustände sein.",
+      "generic_ha_mode_unreadable": "Omnibattery konnte die Optionen dieser Entität nicht lesen. Wähle ein Auswahlfeld oder einen Schalter, der gerade verfügbar ist.",
       "sensor_not_found": "Solarprognose-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
       "invalid_unit": "Solarprognose-Sensor muss 'kWh' oder 'Wh' als Einheit haben.",
       "solar_production_sensor_not_found": "Solarproduktions-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",

@@ -249,6 +249,10 @@ FLOOR_HYSTERESIS_PCT = 5
 CONF_ENABLE_WEEKLY_FULL_CHARGE = "enable_weekly_full_charge"
 CONF_MANUAL_MODE_ENABLED = "manual_mode_enabled"
 CONF_BATTERY_MANUAL_MODE_ENABLED = "battery_manual_mode_enabled"
+# Native mode the user asked of a battery that regulates on its own ("nom" or
+# "manual"). Unrelated to the manual ownership above: that one hands a battery
+# that does take setpoints to the user.
+CONF_AUTONOMOUS_REQUESTED_MODE = "autonomous_requested_mode"
 CONF_PREDICTIVE_CHARGING_OVERRIDDEN = "predictive_charging_overridden"
 CONF_WEEKLY_FULL_CHARGE_DAY = "weekly_full_charge_day"
 CONF_ENABLE_WEEKLY_FULL_CHARGE_DELAY = "enable_weekly_full_charge_delay"

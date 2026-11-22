@@ -517,6 +517,40 @@ class DriverCapabilities:
     # configuring it. Read it through ``can_take_setpoint`` below, never raw.
     supports_power_setpoint: bool = True
 
+    # True when the device cannot be given watts but can be switched between its
+    # own zero-on-the-meter regulation (NOM) and standing still (Manual). Only
+    # meaningful with ``supports_power_setpoint=False``. Read it through
+    # ``supports_nom_mode`` below.
+    supports_nom_mode: bool = False
+
+
+class NativeOperatingMode(enum.StrEnum):
+    """The two native modes of a battery that regulates on its own."""
+
+    NOM = "nom"        # keeps its own meter at 0 W
+    MANUAL = "manual"  # regulation off, the battery rests
+
+
+@dataclass(frozen=True)
+class OperatingModeResult:
+    """Outcome of one native mode change.
+
+    ``ok``: the device accepted the write. ``confirmed``: it was also seen in the
+    requested mode; False is normal right after the write on a slow device.
+    """
+
+    ok: bool
+    confirmed: bool
+    requested_mode: NativeOperatingMode
+    effective_mode: Optional[NativeOperatingMode] = None
+    failure_reason: Optional[str] = None
+
+
+def supports_nom_mode(coordinator) -> bool:
+    """Whether this battery can be switched between NOM and Manual."""
+    capabilities = getattr(coordinator, "capabilities", None)
+    return getattr(capabilities, "supports_nom_mode", False) is True
+
 
 def can_take_setpoint(coordinator) -> bool:
     """Whether shared code may command this battery's power at all.
@@ -1061,6 +1095,25 @@ class BatteryDriver(ABC):
     # Entities of this brand were once keyed on host or name instead of
     # device_key, so obsolete ones are looked up under those prefixes too.
     OBSOLETE_ENTITY_LEGACY_PREFIXES: bool = False
+
+    # --- native operating mode (only with ``supports_nom_mode``) ------------
+
+    async def apply_operating_mode(
+        self, mode: NativeOperatingMode, *, read_back: bool = True
+    ) -> OperatingModeResult:
+        """Switch the device's native mode.
+
+        ``read_back`` waits a few seconds for the device to show the mode. The
+        autonomous mode manager passes False and confirms on later cycles.
+        """
+        return OperatingModeResult(
+            ok=False, confirmed=False, requested_mode=mode,
+            failure_reason="unsupported_operating_mode",
+        )
+
+    def operating_mode_from_data(self, data: dict) -> Optional[NativeOperatingMode]:
+        """The native mode the device is in now, or None when it is not known."""
+        return None
 
     # --- entity definitions (read by the coordinator and the platforms) ----
 

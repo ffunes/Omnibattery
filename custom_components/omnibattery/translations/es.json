@@ -206,6 +206,7 @@
           "ha_charge_energy_entities": "Contadores de energía cargada",
           "ha_discharge_energy_entity": "Contador de energía descargada",
           "ha_target_soc_entity": "Estado de carga objetivo",
+          "ha_mode_entity": "Entidad de modo de operación",
           "ha_stale_after_s": "Considerar la telemetría perdida tras"
         },
         "data_description": {
@@ -216,7 +217,20 @@
           "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
           "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
           "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
+          "ha_mode_entity": "Select o interruptor opcional de la integración de origen que elige si la batería regula su propio contador a cero (NOM) o se queda en reposo. Con él, Omnibattery puede parar la batería durante una carga de red o mientras funciona un dispositivo excluido. Nunca fija su potencia",
           "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batería {battery_num} — modo de operación",
+        "description": "¿Qué estado de {entity} significa que la batería regula por su cuenta y cuál que se queda en reposo? La batería {battery_num} empieza en Manual; después lo cambias con su selector Modo de operación.",
+        "data": {
+          "ha_mode_nom_option": "NOM (cero en el contador)",
+          "ha_mode_manual_option": "Manual (la batería reposa)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "La batería carga y descarga por su cuenta para mantener su contador a 0 W",
+          "ha_mode_manual_option": "La batería ni carga ni descarga"
         }
       },
       "battery_limits": {
@@ -734,6 +748,7 @@
           "ha_charge_energy_entities": "Contadores de energía cargada",
           "ha_discharge_energy_entity": "Contador de energía descargada",
           "ha_target_soc_entity": "Estado de carga objetivo",
+          "ha_mode_entity": "Entidad de modo de operación",
           "ha_stale_after_s": "Considerar la telemetría perdida tras"
         },
         "data_description": {
@@ -744,6 +759,7 @@
           "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
           "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
           "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
+          "ha_mode_entity": "Select o interruptor opcional de la integración de origen que elige si la batería regula su propio contador a cero (NOM) o se queda en reposo. Con él, Omnibattery puede parar la batería durante una carga de red o mientras funciona un dispositivo excluido. Nunca fija su potencia",
           "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
         }
       },
@@ -827,6 +843,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Al dispositivo ESPHome seleccionado le faltan entidades necesarias: {missing}. Asegúrate de que ejecuta el firmware marstek-lilygo-rs485 con los nombres de entidad originales.",
       "generic_ha_entities_missing": "Omnibattery no ha podido leer estas entidades: {missing}. Elige entidades que existan y que ahora mismo indiquen un número.",
+      "generic_ha_mode_same": "NOM y Manual deben ser dos estados distintos.",
+      "generic_ha_mode_unreadable": "Omnibattery no ha podido leer las opciones de esta entidad. Elige un select o un interruptor que ahora esté disponible.",
       "sensor_not_found": "El sensor de predicción solar no existe. Verifica que el sensor esté disponible.",
       "invalid_unit": "El sensor de predicción solar debe tener como unidad 'kWh' o 'Wh'.",
       "solar_production_sensor_not_found": "El sensor de producción solar no existe. Verifica que el sensor esté disponible.",
@@ -1030,6 +1048,7 @@
           "ha_charge_energy_entities": "Contadores de energía cargada",
           "ha_discharge_energy_entity": "Contador de energía descargada",
           "ha_target_soc_entity": "Estado de carga objetivo",
+          "ha_mode_entity": "Entidad de modo de operación",
           "ha_stale_after_s": "Considerar la telemetría perdida tras"
         },
         "data_description": {
@@ -1040,7 +1059,20 @@
           "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
           "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
           "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
+          "ha_mode_entity": "Select o interruptor opcional de la integración de origen que elige si la batería regula su propio contador a cero (NOM) o se queda en reposo. Con él, Omnibattery puede parar la batería durante una carga de red o mientras funciona un dispositivo excluido. Nunca fija su potencia",
           "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batería {battery_num} — modo de operación",
+        "description": "¿Qué estado de {entity} significa que la batería regula por su cuenta y cuál que se queda en reposo? La batería {battery_num} empieza en Manual; después lo cambias con su selector Modo de operación.",
+        "data": {
+          "ha_mode_nom_option": "NOM (cero en el contador)",
+          "ha_mode_manual_option": "Manual (la batería reposa)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "La batería carga y descarga por su cuenta para mantener su contador a 0 W",
+          "ha_mode_manual_option": "La batería ni carga ni descarga"
         }
       },
       "battery_limits": {
@@ -1493,6 +1525,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Al dispositivo ESPHome seleccionado le faltan entidades necesarias: {missing}. Asegúrate de que ejecuta el firmware marstek-lilygo-rs485 con los nombres de entidad originales.",
       "generic_ha_entities_missing": "Omnibattery no ha podido leer estas entidades: {missing}. Elige entidades que existan y que ahora mismo indiquen un número.",
+      "generic_ha_mode_same": "NOM y Manual deben ser dos estados distintos.",
+      "generic_ha_mode_unreadable": "Omnibattery no ha podido leer las opciones de esta entidad. Elige un select o un interruptor que ahora esté disponible.",
       "sensor_not_found": "El sensor de predicción solar no existe. Verifica que el sensor esté disponible.",
       "invalid_unit": "El sensor de predicción solar debe tener como unidad 'kWh' o 'Wh'.",
       "solar_production_sensor_not_found": "El sensor de producción solar no existe. Verifica que el sensor esté disponible.",

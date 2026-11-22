@@ -206,6 +206,7 @@
           "ha_charge_energy_entities": "Compteurs d'énergie chargée",
           "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
           "ha_target_soc_entity": "État de charge cible",
+          "ha_mode_entity": "Entité du mode de fonctionnement",
           "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
         },
         "data_description": {
@@ -216,7 +217,20 @@
           "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
           "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
+          "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
           "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterie {battery_num} — mode de fonctionnement",
+        "description": "Quel état de {entity} signifie que la batterie régule d'elle-même, et lequel qu'elle reste au repos ? La batterie {battery_num} démarre en Manuel ; vous le changez ensuite avec son sélecteur Mode de fonctionnement.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zéro au compteur)",
+          "ha_mode_manual_option": "Manuel (la batterie est au repos)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "La batterie se charge et se décharge d'elle-même pour garder son compteur à 0 W",
+          "ha_mode_manual_option": "La batterie ne se charge ni ne se décharge"
         }
       },
       "battery_limits": {
@@ -734,6 +748,7 @@
           "ha_charge_energy_entities": "Compteurs d'énergie chargée",
           "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
           "ha_target_soc_entity": "État de charge cible",
+          "ha_mode_entity": "Entité du mode de fonctionnement",
           "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
         },
         "data_description": {
@@ -744,6 +759,7 @@
           "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
           "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
+          "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
           "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
         }
       },
@@ -827,6 +843,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Il manque des entités requises à l'appareil ESPHome sélectionné : {missing}. Vérifiez qu'il exécute le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
       "generic_ha_entities_missing": "Omnibattery n'a pas pu lire ces entités : {missing}. Choisissez des entités qui existent et qui indiquent actuellement un nombre.",
+      "generic_ha_mode_same": "NOM et Manuel doivent être deux états différents.",
+      "generic_ha_mode_unreadable": "Omnibattery n'a pas pu lire les options de cette entité. Choisissez un sélecteur ou un interrupteur disponible en ce moment.",
       "sensor_not_found": "Le capteur de prévision solaire n'existe pas. Vérifiez que le capteur est disponible.",
       "invalid_unit": "Le capteur de prévision solaire doit avoir 'kWh' ou 'Wh' comme unité.",
       "solar_production_sensor_not_found": "Le capteur de production solaire n'existe pas. Vérifiez que le capteur est disponible.",
@@ -1030,6 +1048,7 @@
           "ha_charge_energy_entities": "Compteurs d'énergie chargée",
           "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
           "ha_target_soc_entity": "État de charge cible",
+          "ha_mode_entity": "Entité du mode de fonctionnement",
           "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
         },
         "data_description": {
@@ -1040,7 +1059,20 @@
           "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
           "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
+          "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
           "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterie {battery_num} — mode de fonctionnement",
+        "description": "Quel état de {entity} signifie que la batterie régule d'elle-même, et lequel qu'elle reste au repos ? La batterie {battery_num} démarre en Manuel ; vous le changez ensuite avec son sélecteur Mode de fonctionnement.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zéro au compteur)",
+          "ha_mode_manual_option": "Manuel (la batterie est au repos)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "La batterie se charge et se décharge d'elle-même pour garder son compteur à 0 W",
+          "ha_mode_manual_option": "La batterie ne se charge ni ne se décharge"
         }
       },
       "battery_limits": {
@@ -1493,6 +1525,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Il manque des entités requises à l'appareil ESPHome sélectionné : {missing}. Vérifiez qu'il exécute le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
       "generic_ha_entities_missing": "Omnibattery n'a pas pu lire ces entités : {missing}. Choisissez des entités qui existent et qui indiquent actuellement un nombre.",
+      "generic_ha_mode_same": "NOM et Manuel doivent être deux états différents.",
+      "generic_ha_mode_unreadable": "Omnibattery n'a pas pu lire les options de cette entité. Choisissez un sélecteur ou un interrupteur disponible en ce moment.",
       "sensor_not_found": "Le capteur de prévision solaire n'existe pas. Vérifiez que le capteur est disponible.",
       "invalid_unit": "Le capteur de prévision solaire doit avoir 'kWh' ou 'Wh' comme unité.",
       "solar_production_sensor_not_found": "Le capteur de production solaire n'existe pas. Vérifiez que le capteur est disponible.",

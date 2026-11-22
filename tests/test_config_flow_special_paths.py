@@ -858,3 +858,55 @@ async def test_options_flow_host_change_never_migrates_the_registry(flow_env, ca
         "registry": registry,
         "device_key_of_stored_battery": device_key(stored),
     })
+
+
+# --------------------------------------------------------------------------- observed battery: mode entity
+
+
+async def test_generic_ha_mode_entity_through_the_three_flows(flow_env):
+    """Add with a mode entity, edit it keeping the preference, then clear it."""
+    case = CASES["generic_ha"]
+    flow_env.hass.states.async_set(
+        "select.byd_mode", "auto", {"options": ["auto", "hold", "backup"]}
+    )
+    mode_step = {
+        "battery_mode_generic_ha": {
+            "ha_mode_nom_option": "auto", "ha_mode_manual_option": "hold",
+        }
+    }
+    added = await flow_env.add_via_config_flow(
+        case,
+        connection_input={**case.add_input, "ha_mode_entity": "select.byd_mode"},
+        extra_inputs=mode_step,
+    )
+    battery = added.batteries[0]
+    assert "battery_mode_generic_ha" in added.steps
+    assert battery["ha_mode_entity"] == "select.byd_mode"
+    assert (battery["ha_mode_nom_option"], battery["ha_mode_manual_option"]) == ("auto", "hold")
+    assert battery["autonomous_requested_mode"] == "manual"
+
+    # The user has since picked NOM with the battery's select.
+    battery = {**battery, "autonomous_requested_mode": "nom"}
+    edited = await flow_env.edit_via_options_flow(
+        case,
+        flow_env.make_entry([battery]),
+        connection_input={**case.options_input, "ha_mode_entity": "select.byd_mode"},
+        extra_inputs=mode_step,
+    )
+    assert edited.batteries[0]["autonomous_requested_mode"] == "nom"
+    assert edited.batteries[0]["ha_mode_nom_option"] == "auto"
+
+    moved = await flow_env.reconfigure(
+        case,
+        flow_env.make_entry([battery]),
+        extra_inputs={
+            case.reconfigure_step: {**case.reconfigure_input, "ha_mode_entity": "select.byd_mode"},
+            **mode_step,
+        },
+    )
+    assert "battery_mode_generic_ha" in moved.steps
+    assert moved.batteries[0]["autonomous_requested_mode"] == "nom"
+
+    cleared = await flow_env.edit_via_options_flow(case, flow_env.make_entry([battery]))
+    assert "battery_mode_generic_ha" not in cleared.steps
+    assert cleared.batteries[0]["ha_mode_entity"] is None
