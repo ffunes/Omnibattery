@@ -11,7 +11,7 @@ No hardware, no running Home Assistant: ``PricingManager`` only stores its
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -24,6 +24,7 @@ from custom_components.omnibattery.const import (
     PRICE_HEALTH_CHECK_INTERVAL_S,
     PRICE_INTEGRATION_EPEX,
 )
+from custom_components.omnibattery.infra.clock import local_now
 from custom_components.omnibattery.pricing import engine as pricing_engine
 from custom_components.omnibattery.pricing.engine import PricingManager
 
@@ -52,7 +53,7 @@ def issues(monkeypatch):
 
 def _epex_entries():
     """Two hourly EPEX entries spanning now, as ISO strings."""
-    start = datetime.now().replace(minute=0, second=0, microsecond=0)
+    start = local_now().replace(minute=0, second=0, microsecond=0)
     return [
         {
             "start_time": (start + timedelta(hours=i)).isoformat(),
@@ -171,7 +172,7 @@ def test_healthy_prices_clear_a_stale_issue_once(monkeypatch, issues):
 
 
 def test_slots_that_all_lie_in_the_past_are_not_ok(monkeypatch):
-    start = datetime.now().replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
+    start = local_now().replace(minute=0, second=0, microsecond=0) - timedelta(days=1)
     stale = [
         {
             "start_time": start.isoformat(),

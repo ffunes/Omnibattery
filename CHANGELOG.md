@@ -129,6 +129,7 @@
 - The inputs of the chronological charge planner (consumption shape, solar timeline, idle intervals, Time Slot windows, fleet state, weekly reservation, guaranteed floor) are pure functions in `pricing/plan_inputs.py`.
 - An invariant sweep holds the Dynamic Pricing planner to rules over a grid of generic nights (more load never books less, the published charge matches the slots, a re-evaluation keeps the plan, nothing is booked without room): `pytest -m sweep -n auto`, run by the `.githooks/pre-merge-commit` hook when a merge touches the predictive code (`git config core.hooksPath .githooks`). Known findings, with their reason, live in `tests/sweep_known.json`.
 - Tests: a hung test fails after 5 minutes (`timeout = 300`), and the pre-merge hook runs one sweep case in eleven (`OMNI_SWEEP_SAMPLE=11`, under a minute); `pytest -m sweep -n auto` still runs them all.
+- Tests: the price fixtures in `test_export_price_curve.py`, `test_price_data_health.py` and `test_binary_sensor.py` read the Home Assistant clock like the code they test (#898), so six tests no longer fail on a machine whose time zone is not UTC.
 
 ## [1.6.1b2] - 2026-11-11
 
