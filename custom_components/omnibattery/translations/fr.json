@@ -1700,7 +1700,7 @@
         "name": "Limite de décharge par température"
       },
       "weekly_full_charge_delay": {
-        "name": "Retarder la Charge Complète Hebdomadaire"
+        "name": "Charge complète hebdomadaire : attendre le délai de charge"
       },
       "capacity_protection": {
         "name": "Écrêtement de Pointe"
@@ -2909,13 +2909,13 @@
         "name": "Marge de Sécurité Prévision Solaire"
       },
       "negative_injection_threshold": {
-        "name": "Seuil d'injection négative"
+        "name": "Seuil de prix d'injection négatif"
       },
       "predischarge_reserve_soc": {
-        "name": "Réserve de SOC de pré-décharge"
+        "name": "SOC le plus bas de pré-décharge"
       },
       "predictive_min_soc_floor": {
-        "name": "SOC minimum garanti"
+        "name": "Niveau de SOC minimum garanti"
       },
       "battery_capacity": {
         "name": "Capacité de la Batterie"
@@ -2945,7 +2945,7 @@
         "name": "Puissance Max. de l'Onduleur"
       },
       "max_price_threshold": {
-        "name": "Prix maximum (charge)"
+        "name": "Plafond de prix de charge"
       },
       "discharge_price_threshold": {
         "name": "Prix plancher de décharge"
@@ -2991,6 +2991,10 @@
           "description": "Dernier jour local exclu. Par défaut, seul le jour de début est exclu."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Utiliser le rendement aller-retour mesuré",
+      "description": "Supprime la valeur fixe du rendement aller-retour : le planificateur utilise de nouveau le rendement mesuré sur vos batteries (0,85 tant qu'aucune batterie n'a assez d'historique). L'éditeur de valeur du tableau de bord l'appelle depuis « Utiliser la mesure »."
     }
   }
 }

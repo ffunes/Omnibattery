@@ -103,7 +103,7 @@ Durante hasta 65 segundos después de la última lectura, el valor bloqueado sig
 |---|---|---|
 | No se previó déficit de energía | Motivo de **Predictive Charging Active** y energía objetivo | No hace falta actuar si la energía almacenada y la previsión solar cubren la demanda |
 | Faltan datos de precio o previsión | `price_data_status`, previsión solar y disponibilidad de entidad fuente | Restaura la fuente descrita por tu [modo predictivo](configuration/predictive-charging/index.md) |
-| No hay periodo apto antes de la demanda | `chronological_plan_reason`, plazos, franjas seleccionadas e interruptores de franja | Ajusta el horario o el techo de precio |
+| No hay periodo apto antes de la demanda | `chronological_plan_reason`, plazos, franjas seleccionadas e interruptores de franja | Ajusta el horario o el techo de precio de carga |
 | La potencia de carga o capacidad libre es insuficiente | `deadline_shortfall_kwh`, SOC de batería, límite de carga y SOC objetivo | Aumenta un límite intencionado o acepta el déficit informado |
 | Otra función poseía la carga | `charge_blockers`, modo manual, retraso de carga o estado de franja horaria | Elimina la regla en conflicto |
 

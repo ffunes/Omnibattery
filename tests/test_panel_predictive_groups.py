@@ -166,7 +166,7 @@ def test_per_kwh_sliders_have_a_draggable_range(key, lo, hi):
     card = panel[start : panel.index('tk: "diagChargeDelay"', start)]
     row = re.search(rf'\{{ key: "{key}",[^}}]*\}}', card).group(0)
     assert f"range: [{lo}, {hi}, 0.01]" in row
-    assert "store[sk] = { type: \"number\", el: range, val: valEl, step, unit, range: item.range };" in panel
+    assert "store[sk] = { type: \"number\", el: range, val: valEl, def: defEl, step, unit, range: item.range };" in panel
     assert "const [lo, hi, sliderStep] = w.range;" in panel
 
 

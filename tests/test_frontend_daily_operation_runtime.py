@@ -354,3 +354,36 @@ def test_a_held_battery_cell_is_hatched_and_named():
     assert "var(--daily-op-hold)" in held["background"]
     assert "Battery held in reserve" in held["aria"]
     assert current["background"] == "none"
+
+
+def _colours(status_arrays, index, **extra):
+    result = _run({**status_arrays, **extra}, indexes=[index])
+    return result["items"][0]["actions"]
+
+
+@pytest.mark.parametrize("kwh,shown", [(0.000944, False), (0.0024, False), (0.0025, True), (0.01, True)])
+def test_a_past_quarter_of_noise_has_no_colour(kwh, shown):
+    # Issue #853: 60 s at 56 W coloured the whole quarter.
+    charge = {"actual_action_mask": _series(**{"7": 2}), "actual_charge_to_battery_kwh": _series(**{"7": kwh})}
+    discharge = {"actual_action_mask": _series(**{"7": 4}), "actual_discharge_from_battery_kwh": _series(**{"7": kwh})}
+    assert _colours(charge, 7) == (["grid"] if shown else [])
+    assert _colours(discharge, 7) == (["discharge"] if shown else [])
+
+
+def test_a_past_quarter_without_energy_data_keeps_its_colour():
+    assert _colours({"actual_action_mask": _series(**{"7": 4})}, 7) == ["discharge"]
+
+
+def test_the_quarter_in_progress_keeps_its_colour_while_it_adds_up():
+    arrays = {"actual_action_mask": _series(**{"8": 4}), "actual_discharge_from_battery_kwh": _series(**{"8": 0.001})}
+    assert _colours(arrays, 8) == ["discharge"]
+
+
+@pytest.mark.parametrize("kwh,shown", [(0.001, False), (0.2, True)])
+def test_a_forecast_quarter_of_noise_has_no_colour_today_nor_after_midnight(kwh, shown):
+    for mask, name, key in ((1, "solar", "solar_to_battery_kwh"), (2, "grid", "grid_to_battery_kwh"), (4, "discharge", "battery_to_home_kwh")):
+        expected = [name] if shown else []
+        today = {"planned_action_mask": _series(**{"20": mask}), key: _series(**{"20": kwh})}
+        assert _colours(today, 20) == expected
+        tomorrow = {"extended_projection": [{"extension_index": 0, "action_mask": mask, key: kwh}]}
+        assert _colours(tomorrow, 96) == expected

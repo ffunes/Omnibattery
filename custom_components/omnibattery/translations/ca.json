@@ -1670,7 +1670,7 @@
         "name": "SOC Mínim Garantit"
       },
       "max_price_threshold_enabled": {
-        "name": "Preu màxim de càrrega manual"
+        "name": "Sostre de preu de càrrega manual"
       },
       "discharge_price_threshold_enabled": {
         "name": "Preu mínim de descàrrega manual"
@@ -1700,7 +1700,7 @@
         "name": "Límit de descàrrega per temperatura"
       },
       "weekly_full_charge_delay": {
-        "name": "Retardar Càrrega Setmanal Completa"
+        "name": "Càrrega setmanal completa: esperar el retard de càrrega"
       },
       "capacity_protection": {
         "name": "Reducció de Pics"
@@ -2909,13 +2909,13 @@
         "name": "Marge de Seguretat Previsió Solar"
       },
       "negative_injection_threshold": {
-        "name": "Llindar d'injecció negativa"
+        "name": "Llindar de preu d'injecció negatiu"
       },
       "predischarge_reserve_soc": {
-        "name": "Reserva de SOC de predescàrrega"
+        "name": "SOC més baix de predescàrrega"
       },
       "predictive_min_soc_floor": {
-        "name": "SOC mínim garantit"
+        "name": "Nivell de SOC mínim garantit"
       },
       "battery_capacity": {
         "name": "Capacitat de la Bateria"
@@ -2945,7 +2945,7 @@
         "name": "Potència Màx. de l'Inversor"
       },
       "max_price_threshold": {
-        "name": "Preu màxim (càrrega)"
+        "name": "Sostre de preu de càrrega"
       },
       "discharge_price_threshold": {
         "name": "Preu mínim de descàrrega"
@@ -2991,6 +2991,10 @@
           "description": "Darrer dia local que s'exclou. Si s'omet, només s'exclou el dia d'inici."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Fer servir l'eficiència de cicle complet mesurada",
+      "description": "Elimina el valor fix de l'eficiència de cicle complet: el planificador torna a fer servir l'eficiència mesurada a les teves bateries (0,85 fins que una bateria tingui prou historial). L'editor de valor del panell la crida des de «Fer servir la mesurada»."
     }
   }
 }

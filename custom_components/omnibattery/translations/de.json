@@ -1700,7 +1700,7 @@
         "name": "Temperatur-Entladegrenze"
       },
       "weekly_full_charge_delay": {
-        "name": "Wöchentliche Vollladung verzögern"
+        "name": "Wöchentliche Vollladung: auf Ladeverzögerung warten"
       },
       "capacity_protection": {
         "name": "Spitzenlastkappung"
@@ -1885,7 +1885,7 @@
       "weekly_full_charge": {
         "name": "Wöchentliche Vollladung",
         "state": {
-          "idle": "Bereit",
+          "idle": "Inaktiv",
           "disabled": "Deaktiviert",
           "charging": "Lädt auf 100%",
           "complete": "Abgeschlossen"
@@ -1894,7 +1894,7 @@
       "charge_delay_status": {
         "name": "Ladeverzögerung",
         "state": {
-          "idle": "Bereit",
+          "idle": "Inaktiv",
           "disabled": "Deaktiviert",
           "waiting_for_solar": "Warte auf Solar",
           "delayed": "Verzögert",
@@ -2909,13 +2909,13 @@
         "name": "Sicherheitspuffer Solarprognose"
       },
       "negative_injection_threshold": {
-        "name": "Schwellenwert für negative Einspeisung"
+        "name": "Schwelle negativer Einspeisepreis"
       },
       "predischarge_reserve_soc": {
-        "name": "SOC-Reserve für Vorentladung"
+        "name": "Niedrigster SOC der Vorentladung"
       },
       "predictive_min_soc_floor": {
-        "name": "Garantierter Mindest-SOC"
+        "name": "Garantierter Mindest-SOC (Wert)"
       },
       "battery_capacity": {
         "name": "Batteriekapazität"
@@ -2945,7 +2945,7 @@
         "name": "Max. Wechselrichterleistung"
       },
       "max_price_threshold": {
-        "name": "Maximaler Preis (Laden)"
+        "name": "Lade-Preisobergrenze"
       },
       "discharge_price_threshold": {
         "name": "Entlade-Preisuntergrenze"
@@ -2991,6 +2991,10 @@
           "description": "Letzter lokaler Tag, der ausgeschlossen wird. Ohne Angabe wird nur der Starttag ausgeschlossen."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Gemessenen Round-Trip-Wirkungsgrad verwenden",
+      "description": "Entfernt einen festen Round-Trip-Wirkungsgrad: der Planer nutzt wieder den an deinen Batterien gemessenen Wirkungsgrad (0,85, bis eine Batterie genug Historie hat). Der Wert-Editor des Dashboards ruft die Aktion über „Gemessenen verwenden“ auf."
     }
   }
 }

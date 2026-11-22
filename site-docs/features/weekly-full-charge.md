@@ -20,27 +20,29 @@ A weekly full charge gives a lithium iron phosphate (LFP) battery regular time a
 1. Open the Omnibattery sidebar dashboard and select **Control**.
 2. In **Weekly Full Charge**, turn on **Weekly Full Charge**.
 3. Choose **Weekly Full Charge Day**.
-4. If you use **Charge Delay**, turn on **Delay Weekly Full Charge** to wait for solar; leave it off to start the weekly cycle without that delay. The switch shows on the card only while **Charge Delay** is on, because it has no effect otherwise.
+4. If you use **Charge Delay**, turn on **Weekly Full Charge: Wait for Charge Delay** to wait for solar; leave it off to start the weekly cycle without that delay. The switch shows on the card only while **Charge Delay** is on, because it has no effect otherwise.
 
-![Configure the weekly full charge day and solar delay](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="650" style="display: block; margin: 0 auto;"}
+With predictive charging, changing the day or turning the feature on or off re-plans on the next control cycle; no **Re-evaluate** is needed.
+
+![The Weekly Full Charge card: switch, day and status](../assets/screenshots/configuration/advanced-weekly-full-charge-config.png){ width="485" style="display: block; margin: 0 auto;"}
 
 ## What you will see
 
-**Weekly Full Charge** reports `idle`, `charging`, or `complete`. On the selected day, Omnibattery temporarily raises the charge target to 100% for batteries under automatic control. It marks the cycle complete only after every participating battery is considered full, then restores each configured limit.
+**Weekly Full Charge** reports `idle`, `charging`, `complete`, or `disabled` (feature off); the card shows it as the group's status row. On the selected day, Omnibattery temporarily raises the charge target to 100% for batteries under automatic control. It marks the cycle complete only after every participating battery is considered full, then restores each configured limit.
 
 With [predictive charging](../configuration/predictive-charging/index.md), the remaining energy needed for the weekly target enters the plan. Omnibattery can buy that energy during the configured charging period when forecast solar will not cover it. Without predictive charging, the cycle relies on available solar and may not complete on a cloudy day.
 
 The sensor's `batteries` attribute shows the live SOC and completion evidence for each battery. On compatible batteries, **Cell Delta**, **Balance Status**, and **Last Balance Read** update after the top-of-charge measurement. See [Is my battery healthy?](cell-balance-monitor.md) to interpret the result.
 
 !!! important "Solar delay behavior"
-    **Delay Weekly Full Charge** is off by default. The weekly cycle therefore bypasses **Charge Delay** and can start on its selected day. Turn the switch on if you prefer it to wait for the solar delay to release charging.
+    **Weekly Full Charge: Wait for Charge Delay** is off by default. The weekly cycle therefore bypasses **Charge Delay** and can start on its selected day. Turn the switch on if you prefer it to wait for the solar delay to release charging.
 
 ## If it does not work
 
 | Symptom | Likely cause | What to check |
 |---|---|---|
 | The status stays `idle` | Today is not the selected day, or the feature is off | **Weekly Full Charge** and **Weekly Full Charge Day** |
-| The cycle is waiting instead of charging | The weekly cycle is respecting the solar delay | **Delay Weekly Full Charge** and **Charge Delay** |
+| The cycle is waiting instead of charging | The weekly cycle is respecting the solar delay | **Weekly Full Charge: Wait for Charge Delay** and **Charge Delay** |
 | One battery does not participate | Per-battery manual control owns it, or its data is unavailable | **Manual Battery Control** and the battery's availability |
 | The cycle remains `charging` near full | The battery management system (BMS) has not confirmed that every participating battery is full | The per-battery details in **Weekly Full Charge**; allow the top-of-charge process to finish |
 | The cycle completes but no balance result appears | The battery does not expose both cell-voltage extremes, or the diagnostic rest measurement could not finish | Whether **Cell Delta** exists and **Last Balance Read** changed |

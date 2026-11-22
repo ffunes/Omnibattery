@@ -7,7 +7,7 @@
 > - **Peak Shaving Limit is gone** (#506): **Max contracted power** is now **Maximum Grid Import** (same entity), always on (500 W minimum) and it also caps grid charging. On upgrade it takes the lower of the two values if Peak Shaving was on: **check it**. A "peaks only" setup (limit below the contracted power) must now set the cap itself to that value. **Re-import the Peak Shaving Limit Sync blueprint.**
 > - **Removed entities, update automations, scripts and dashboards that use them**: Peak Shaving Limit, Discharge Reserve (switch) and Discharge Reserve Minimum Saving (#888), Backup Offgrid Threshold (#660). `number.omnibattery_predictive_safety_margin_kwh` is now `number.omnibattery_predictive_safety_margin_pct` (#828); any value other than 0 resets to 10 %.
 > - **Backup port** (#660, #540): a load on it no longer takes the battery out of automatic control. To run the whole house from the backup port, turn on the battery's **Manual Control**.
-> - **No way back to 1.6.x without a backup**: the configuration is migrated (version 16 → 20) and 1.6.x cannot load it. Make a Home Assistant backup first.
+> - **No way back to 1.6.x without a backup**: the configuration is migrated (version 16 → 21) and 1.6.x cannot load it. Make a Home Assistant backup first.
 
 > [!IMPORTANT]
 > **The battery will behave differently**
@@ -29,6 +29,9 @@
 
 ### Changed
 
+- **Round-Trip Efficiency shows the measured value in use**, tagged "measured", until you set one; any value you set is used as is, 0.85 included. To go back, tap the value and choose "Use measured" or call `omnibattery.use_measured_round_trip_efficiency`. A stored 0.85 keeps using the measured value (PR#926). Thanks to @anorakophobia.
+- **Entity names follow the panel's labels**: Weekly Full Charge: Wait for Charge Delay (was Delay Weekly Full Charge), Guaranteed Minimum SOC Level, Charge Price Ceiling (was Max Price Threshold (Charge)), Negative Feed-in Price Threshold (was Negative Injection Threshold) and Pre-discharge Lowest SOC (was Pre-discharge Reserve SOC); entity IDs do not change (PR#925). Thanks to @anorakophobia.
+- **Panel: clearer tooltips** for Surplus Hold Minimum Saving, Weekly Full Charge Day and the No-PD switch (PR#925). Thanks to @anorakophobia.
 - ⚠️ **Solar safety margin is now a % of the forecast sun** (#828): 0–50 %, default 10 %; `number.omnibattery_predictive_safety_margin_kwh` becomes `…_pct`; a stored 0 stays 0 %, any other kWh value resets to 10 %.
 - **Anti-curtailment and High-Price Sale follow the % margin**: room for that share of each negative-price slot's sun; the sale's separate kWh cushion is gone (the margin is already off its solar).
 - ⚠️ **Dynamic Pricing now holds the battery when using it later is cheaper** (#888): a normal decision of the plan, for everyone, whenever the whole plan costs less (each new hold costs the planner 1 c, so it does not flip between holding and covering). The Discharge Reserve switch and its minimum saving are gone; Discharge Reserve Status now shows the plan's hold. When the previous planner makes the plan, nothing is held.
@@ -62,6 +65,10 @@
 
 - **The options form keeps the limits set with the sliders**: the battery limits step opened with old charge and discharge power (Zendure: old SOC limits too). Saving it lowered a Zendure to the old charge power, and on a Marstek v2/v3 a change made in the form was ignored.
 - **The charge of an observed or manually controlled battery is no longer fed by the others** when the sun goes or an excluded device runs, and Maximum Grid Import counts it.
+- **Daily Operation: a quarter is coloured only when its action moves at least 2.5 Wh** (#853): a minute at 56 W coloured the whole quarter, forecast and tomorrow included (PR#894). Thanks to @Sjoedzj.
+- **Peak Shaving: a "peaks only" threshold (at or above Max SOC) also holds a full battery** (#913): at 100 % it covered the house for a point of SOC before holding again (PR#916). Thanks to @Couponslegrand.
+- **Summary: status rows of a switched-off feature read "Disabled"**: Predictive charging, Smart pre-discharge, Surplus price hold and Peak shaving reserve showed "Not running" whether idle or off; the entities keep their states (PR#930). Thanks to @anorakophobia.
+- **German: Weekly Full Charge and Charge Delay status read "Inaktiv" while idle**, not "Bereit" (PR#929). Thanks to @anorakophobia.
 - **A battery under manual control charging from solar no longer makes the others charge from the grid**: its charging was subtracted from the meter even with no import, and the controller answered to an export that did not exist. The mixed-fleet guards no longer subtract that charging twice, which blocked a discharge the house needed.
 - **Zendure: the charge no longer stops at mid SOC because of one high cell** (#884): with Max SOC at 100 %, a cell at 3.60 V blocked charging until the SOC fell; a Zendure's own BMS decides the top now.
 - **Weekly Full Charge plans for a battery under the Temperature Charge Limit**: the run was sized at rated charge power, so a battery the limit slowed down could miss its window. The plan now uses the power the limit allows and aims to be full a quarter of the run's time before the window closes (at least half an hour). Thanks to @anorakophobia

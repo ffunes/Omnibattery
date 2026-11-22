@@ -117,7 +117,7 @@ For up to 65 seconds after the last reading, the frozen value is still treated a
 |---|---|---|
 | No energy deficit was forecast | **Predictive Charging Active** reason and target energy | No action is needed if stored energy and forecast solar cover demand |
 | Price or forecast data is missing | `price_data_status`, solar forecast, and source entity availability | Restore the source described by your [predictive mode](configuration/predictive-charging/index.md) |
-| No eligible period exists before demand | `chronological_plan_reason`, deadlines, selected slots, and time-slot switches | Adjust the schedule or price ceiling |
+| No eligible period exists before demand | `chronological_plan_reason`, deadlines, selected slots, and time-slot switches | Adjust the schedule or the charge price ceiling |
 | Charge power or free capacity is insufficient | `deadline_shortfall_kwh`, battery SOC, charge limit, and target SOC | Increase an intentional limit or accept the reported shortfall |
 | Another feature owned charging | `charge_blockers`, manual mode, charge delay, or time-slot state | Remove the conflicting rule |
 

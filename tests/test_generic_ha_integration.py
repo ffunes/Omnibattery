@@ -458,7 +458,7 @@ def test_the_arbitrage_gate_is_not_diluted_by_the_observed_battery():
     marstek = battery(1000.0, 800.0, 5.12, commandable=True)
     byd = battery(8994.2, 8214.2, 6.0, commandable=False)
 
-    controller = SimpleNamespace(round_trip_efficiency=0.85, coordinators=[marstek])
+    controller = SimpleNamespace(round_trip_efficiency=None, coordinators=[marstek])
     alone = effective_round_trip_efficiency(controller)
 
     controller.coordinators = [marstek, byd]
