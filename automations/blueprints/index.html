@@ -29,7 +29,7 @@
       
       
       <link rel="icon" href="../../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -3078,6 +3078,7 @@
 <li><strong>Does not do:</strong> run more than one battery per automation, or keep control after it exits — every exit attempts to write 0 W in both directions, restore the normal SOC maximum, and release Battery Manual Mode.</li>
 </ul>
 <p>Create one automation per battery. <strong>Battery Manual Mode</strong> is the ownership boundary: while a run is active, Omnibattery's automatic controller and other manual automations cannot write competing setpoints to that battery. Turn the request <code>input_boolean</code> ON to start or resume after a restart, and OFF to cancel.</p>
+<p>The blueprint balances cells; it does not correct a drifted SOC. If a run reaches the top voltage at a mid SOC, see <a href="../../troubleshooting/#soc-drift">Battery is full while SOC reads much lower</a>.</p>
 <details>
 <summary>Advanced details</summary>
 <p>The blueprint validates telemetry, force-mode options, voltage ordering, and number limits before taking control, including the <code>charging_cutoff_capacity</code> number used as the maximum-SOC limit. Optional advanced entity-ID overrides remain available for installations where an entity was renamed. The <code>force_mode</code> options are named <strong>None</strong>, <strong>Charge</strong>, and <strong>Discharge</strong>; old lowercase ESPHome entities remain supported during migration.</p>

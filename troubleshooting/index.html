@@ -29,7 +29,7 @@
       
       
       <link rel="icon" href="../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -2456,6 +2456,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#soc-drift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Battery is full while SOC reads much lower
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#battery-does-not-discharge" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2993,6 +3004,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#soc-drift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Battery is full while SOC reads much lower
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#battery-does-not-discharge" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3218,6 +3240,11 @@
 <td>This is expected; review <a href="../configuration/predictive-charging/">predictive charging</a></td>
 </tr>
 <tr>
+<td>The cells are already full but SOC reads low</td>
+<td>Max cell voltage when charging stops</td>
+<td>Follow <a href="#soc-drift">Battery is full while SOC reads much lower</a></td>
+</tr>
+<tr>
 <td>Temperature or battery protection limits charging</td>
 <td><strong>Integration Status</strong>, temperature status, battery alarm, and fault entities</td>
 <td>Review <a href="../features/temperature-charge-limit/">temperature charge limit</a> and the battery manual</td>
@@ -3225,6 +3252,49 @@
 </tbody>
 </table>
 <p><strong>Expected result:</strong> the blocker disappears and charge power rises when surplus solar, a manual request, or an eligible predictive period requires charging.</p>
+<h2 id="soc-drift">Battery is full while SOC reads much lower<a class="headerlink" href="#soc-drift" title="Permanent link">&para;</a></h2>
+<p>On a Marstek battery, the state of charge (SOC) comes from the battery management system (BMS), and it can drift away from the real charge. Omnibattery only reads it, so it cannot correct it.</p>
+<table>
+<thead>
+<tr>
+<th>Sign</th>
+<th>What to check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Charging stops at a similar SOC, far below the target</td>
+<td>Max cell voltage near <code>3.5–3.6 V</code> at that moment</td>
+</tr>
+<tr>
+<td>SOC rises much less than the energy charged</td>
+<td>Daily charged energy against SOC × capacity</td>
+</tr>
+<tr>
+<td>The active-balance blueprint cycles at a mid SOC</td>
+<td>Max cell voltage and SOC during the run</td>
+</tr>
+</tbody>
+</table>
+<p>If the minimum cell voltage stays far below the maximum, the cells may be imbalanced instead: see <a href="../features/cell-balance-monitor/">cell balance monitor</a>.</p>
+<p>First let a <a href="../features/weekly-full-charge/">weekly full charge</a> run until the BMS ends it; that may be enough to correct SOC. If it is not, use the procedure below.</p>
+<div class="admonition warning">
+<p class="admonition-title">Before you start</p>
+<ul>
+<li>This is a community procedure (Dr. Straeman, Photovoltaikforum), not a Marstek one. Use it on Marstek batteries only.</li>
+<li>It empties the battery far below its minimum SOC and takes about two days. Choose days when you do not need the stored energy.</li>
+<li>The backup outlet must stay on all night. If your firmware switches it off by itself, solve that first.</li>
+</ul>
+</div>
+<ol>
+<li>Turn on <strong>Manual Battery Control</strong> for the battery. The Marstek app takes control once you change something in it.</li>
+<li>In the Marstek app, discharge at 2.5 kW (or the highest power your installation allows) until it stops by itself.</li>
+<li>Turn on the backup outlet and leave a small load on it, about 50 W, overnight. The inverter should shut down at about 2.96 V per cell. Let the battery rest for a few hours, but do not leave it empty for longer.</li>
+<li>Charge at 2.5 kW (or the highest power allowed) until the battery stops by itself.</li>
+<li>Repeat steps 2 to 4 <strong>once more</strong>.</li>
+<li>Disable and re-enable the integration so that Omnibattery takes control again, then turn off <strong>Manual Battery Control</strong>.</li>
+</ol>
+<p><strong>Expected result:</strong> SOC reads 100% when the battery stops charging, and rises in step with the energy charged.</p>
 <h2 id="battery-does-not-discharge">Battery does not discharge<a class="headerlink" href="#battery-does-not-discharge" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

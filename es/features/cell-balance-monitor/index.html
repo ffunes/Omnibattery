@@ -29,7 +29,7 @@
       
       
       <link rel="icon" href="../../../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -3211,7 +3211,7 @@
 <p>El equilibrio activo de celdas es lento por dos motivos. La corriente de equilibrio pasivo es baja: un BMS LFP típico descarga ligeramente la celda más alta a través de una resistencia de equilibrio con una corriente de entre aproximadamente 30 mA y 150 mA, y los packs Marstek Venus se observan normalmente en el extremo bajo de ese intervalo, alrededor de 50 mA para una celda de 100 Ah, lo que elimina solo cerca del 0,05% de SOC por hora de la celda alta. Son estimaciones observadas en campo, no especificaciones fijas. La ventana de equilibrio también es estrecha: el BMS solo puede descargar mientras el pack está por encima de aproximadamente 3,45 V y la celda más alta es detectable frente al resto, de modo que una carga que alcanza el extremo superior y vuelve enseguida a descargar pasa allí solo unos minutos.</p>
 <p>Las observaciones de campo en packs reales son coherentes con esa aritmética: reducir la diferencia de celdas cerca del final de carga aproximadamente 5 mV suele requerir unas 24 horas acumuladas en el extremo superior de la ventana de equilibrio. Los desequilibrios mayores (50 mV o más) pueden necesitar varios días de sesiones repetidas de equilibrio en el extremo superior, y un pack que ha permanecido desequilibrado durante meses puede tardar una semana o más en recuperarse. Si ejecutas el blueprint de equilibrio activo para recuperar un pack visiblemente desequilibrado, déjalo funcionando durante la noche (o más tiempo) antes de comprobar el resultado: observar la diferencia en tiempo real no mostrará cambios en minutos.</p>
 <p><strong>Recalibración de SOC en Venus E</strong></p>
-<p>Una batería Venus E puede alcanzar 3,60 V mientras su estado de carga (SOC) comunicado permanece por debajo del 99%. Cuando sucede fuera del ciclo semanal, Omnibattery puede continuar a 200 W hasta que el BMS corte. Si el SOC sigue por debajo del 100%, espera a que la celda se relaje hasta 3,57 V y permite un intento más a 200 W. Esto solo crea las condiciones para recalibrar; el firmware del BMS decide si cambia el SOC mostrado.</p>
+<p>Una batería Venus E puede alcanzar 3,60 V mientras su estado de carga (SOC) comunicado permanece por debajo del 99%. Cuando sucede fuera del ciclo semanal, Omnibattery puede continuar a 200 W hasta que el BMS corte. Si el SOC sigue por debajo del 100%, espera a que la celda se relaje hasta 3,57 V y permite un intento más a 200 W. Esto solo crea las condiciones para recalibrar; el firmware del BMS decide si cambia el SOC mostrado. Si sigue mal, consulta <a href="../../troubleshooting/#soc-drift">La batería está llena y el SOC marca mucho menos</a>.</p>
 <p><strong>Referencia de sensores y diagnóstico</strong></p>
 <p>Se crean cinco entidades de diagnóstico solo cuando el controlador declara ambas lecturas de tensión de celda:</p>
 <table>

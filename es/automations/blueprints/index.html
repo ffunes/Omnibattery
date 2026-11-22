@@ -29,7 +29,7 @@
       
       
       <link rel="icon" href="../../../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -3078,6 +3078,7 @@
 <li><strong>No hace:</strong> ejecutar más de una batería por automatización ni mantener el control al salir; cada salida intenta escribir 0 W en ambas direcciones, restaurar el máximo de SOC normal y liberar Battery Manual Mode.</li>
 </ul>
 <p>Crea una automatización por batería. <strong>Battery Manual Mode</strong> es el límite de control: mientras una ejecución está activa, el controlador automático de Omnibattery y otras automatizaciones manuales no pueden escribir consignas que compitan en esa batería. Activa el <code>input_boolean</code> de solicitud para iniciar o reanudar tras un reinicio, y desactívalo para cancelar.</p>
+<p>El blueprint equilibra celdas; no corrige un SOC desviado. Si una ejecución llega a la tensión superior con un SOC medio, consulta <a href="../../troubleshooting/#soc-drift">La batería está llena y el SOC marca mucho menos</a>.</p>
 <details>
 <summary>Detalles avanzados</summary>
 <p>El blueprint valida la telemetría, las opciones de modo forzado, el orden de tensiones y los límites de los números antes de tomar el control, incluido el número <code>charging_cutoff_capacity</code> usado como límite máximo de SOC. Las sustituciones opcionales avanzadas de ID de entidad siguen disponibles para instalaciones donde se haya cambiado el nombre de una entidad. Las opciones de <code>force_mode</code> se llaman <strong>None</strong>, <strong>Charge</strong> y <strong>Discharge</strong>; las entidades ESPHome antiguas en minúsculas siguen siendo compatibles durante la migración.</p>

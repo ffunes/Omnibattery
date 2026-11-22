@@ -29,7 +29,7 @@
       
       
       <link rel="icon" href="../../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -3211,7 +3211,7 @@
 <p>Active cell balancing is slow, for two reasons. Passive balancing current is small: a typical LFP BMS bleeds the highest cell through a balance resistor at somewhere between roughly 30 mA and 150 mA, and Marstek Venus packs are typically observed at the low end of that range — around 50 mA for a 100 Ah cell, which removes only about 0.05% SOC per hour from the high cell. These are field-observed estimates, not fixed specifications. The balance window is also narrow: the BMS can only bleed while the pack is above roughly 3.45 V and the highest cell is detectably above the rest, so a charge that reaches the top and immediately returns to discharge spends only minutes there.</p>
 <p>Field observations on real packs are consistent with that arithmetic: reducing the top-of-charge cell delta by roughly 5 mV typically takes around 24 hours of cumulative time at the top of the balance window. Larger imbalances (50 mV or more) can take multiple days of repeated top-balance sessions, and a pack left unbalanced for months may take a week or more to recover. If you run the active-balance blueprint to recover a noticeably imbalanced pack, leave it running overnight (or longer) before checking the result — watching the delta in real time will not show movement within minutes.</p>
 <p><strong>SOC recalibration on Venus E</strong></p>
-<p>A Venus E battery can reach 3.60 V while its reported state of charge (SOC) remains below 99%. When that happens outside the weekly cycle, Omnibattery can continue at 200 W until the BMS cuts off. If SOC is still below 100%, it waits for the cell to relax to 3.57 V and allows one more 200 W attempt. This only creates the conditions for recalibration; BMS firmware decides whether the displayed SOC changes.</p>
+<p>A Venus E battery can reach 3.60 V while its reported state of charge (SOC) remains below 99%. When that happens outside the weekly cycle, Omnibattery can continue at 200 W until the BMS cuts off. If SOC is still below 100%, it waits for the cell to relax to 3.57 V and allows one more 200 W attempt. This only creates the conditions for recalibration; BMS firmware decides whether the displayed SOC changes. If it stays wrong, see <a href="../../troubleshooting/#soc-drift">Battery is full while SOC reads much lower</a>.</p>
 <p><strong>Sensor and diagnostic reference</strong></p>
 <p>Five diagnostic entities are created only when the driver declares both cell-voltage readings:</p>
 <table>

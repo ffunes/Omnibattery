@@ -29,7 +29,7 @@
       
       
       <link rel="icon" href="../../assets/logo.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
     
     
       
@@ -2445,6 +2445,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#soc-drift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        La batería está llena y el SOC marca mucho menos
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#la-bateria-no-descarga" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2971,6 +2982,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#soc-drift" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        La batería está llena y el SOC marca mucho menos
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#la-bateria-no-descarga" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3186,6 +3208,11 @@
 <td>Es lo esperado; revisa la <a href="../configuration/predictive-charging/">carga predictiva</a></td>
 </tr>
 <tr>
+<td>Las celdas ya están llenas pero el SOC marca poco</td>
+<td>Tensión máxima de celda al detenerse la carga</td>
+<td>Sigue <a href="#soc-drift">La batería está llena y el SOC marca mucho menos</a></td>
+</tr>
+<tr>
 <td>La temperatura o la protección de batería limitan la carga</td>
 <td><strong>Integration Status</strong>, estado de temperatura, alarma de batería y entidades de fallo</td>
 <td>Revisa el <a href="../features/temperature-charge-limit/">límite de carga por temperatura</a> y el manual de la batería</td>
@@ -3193,6 +3220,49 @@
 </tbody>
 </table>
 <p><strong>Resultado esperado:</strong> el bloqueador desaparece y la potencia de carga sube cuando el excedente solar, una solicitud manual o un periodo predictivo apto requieren carga.</p>
+<h2 id="soc-drift">La batería está llena y el SOC marca mucho menos<a class="headerlink" href="#soc-drift" title="Permanent link">&para;</a></h2>
+<p>En una batería Marstek, el estado de carga (SOC) lo calcula el sistema de gestión de batería (BMS) y puede desviarse de la carga real. Omnibattery solo lo lee, así que no puede corregirlo.</p>
+<table>
+<thead>
+<tr>
+<th>Señal</th>
+<th>Qué comprobar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>La carga se detiene siempre en un SOC parecido, muy por debajo del objetivo</td>
+<td>Tensión máxima de celda cerca de <code>3,5–3,6 V</code> en ese momento</td>
+</tr>
+<tr>
+<td>El SOC sube mucho menos que la energía cargada</td>
+<td>Energía diaria cargada frente a SOC × capacidad</td>
+</tr>
+<tr>
+<td>El blueprint de balanceo activo cicla a un SOC medio</td>
+<td>Tensión máxima de celda y SOC durante la ejecución</td>
+</tr>
+</tbody>
+</table>
+<p>Si la tensión mínima de celda queda muy por debajo de la máxima, puede tratarse de celdas desequilibradas: consulta el <a href="../features/cell-balance-monitor/">monitor de balance de celdas</a>.</p>
+<p>Primero deja que una <a href="../features/weekly-full-charge/">carga completa semanal</a> llegue hasta que el BMS la termine; puede bastar para corregir el SOC. Si no, usa el procedimiento siguiente.</p>
+<div class="admonition warning">
+<p class="admonition-title">Antes de empezar</p>
+<ul>
+<li>Es un procedimiento de la comunidad (Dr. Straeman, Photovoltaikforum), no de Marstek. Úsalo solo en baterías Marstek.</li>
+<li>Vacía la batería muy por debajo de su SOC mínimo y lleva unos dos días. Elige días en los que no necesites la energía almacenada.</li>
+<li>La salida de backup debe seguir encendida toda la noche. Si tu firmware la apaga sola, resuélvelo antes.</li>
+</ul>
+</div>
+<ol>
+<li>Activa <strong>Manual Battery Control</strong> en la batería. La aplicación Marstek toma el control en cuanto cambias algo en ella.</li>
+<li>En la aplicación Marstek, descarga a 2,5 kW (o a la potencia máxima que permita tu instalación) hasta que se detenga sola.</li>
+<li>Enciende la salida de backup y deja en ella una carga pequeña, de unos 50 W, durante toda la noche. El inversor debería apagarse a unos 2,96 V por celda. Deja reposar la batería unas horas, pero no la dejes vacía más tiempo.</li>
+<li>Carga a 2,5 kW (o a la potencia máxima permitida) hasta que la batería se detenga sola.</li>
+<li>Repite los pasos 2 a 4 <strong>una vez más</strong>.</li>
+<li>Desactiva y vuelve a activar la integración para que Omnibattery recupere el control, y después desactiva <strong>Manual Battery Control</strong>.</li>
+</ol>
+<p><strong>Resultado esperado:</strong> el SOC marca 100% cuando la batería deja de cargar y sube a la par que la energía cargada.</p>
 <h2 id="la-bateria-no-descarga">La batería no descarga<a class="headerlink" href="#la-bateria-no-descarga" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
