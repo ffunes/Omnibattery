@@ -228,13 +228,13 @@
         "data_description": {
           "name": "Nombre descriptivo para identificar esta batería",
           "ha_soc_entity": "Un sensor que indica el estado de carga de esta batería en porcentaje",
-          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga en vatios",
+          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga, en W o kW",
           "ha_power_positive_is": "Si el sensor cuenta como positiva la carga o la descarga. Compruébalo mientras la batería se está cargando: Kostal y otros varios indican la carga en negativo",
-          "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
-          "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
+          "ha_charge_energy_entities": "Contadores totales opcionales, en Wh, kWh o MWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
+          "ha_discharge_energy_entity": "Energía total descargada opcional, en Wh, kWh o MWh. Sin ella, la energía se deduce de la potencia medida",
           "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
           "ha_mode_entity": "Select o interruptor opcional de la integración de origen que elige si la batería regula su propio contador a cero (NOM) o se queda en reposo. Con él, Omnibattery puede parar la batería durante una carga de red o mientras funciona un dispositivo excluido. Nunca fija su potencia",
-          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
+          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio. El silencio con la batería en reposo no cuenta"
         }
       },
       "battery_mode_generic_ha": {
@@ -770,13 +770,13 @@
         "data_description": {
           "name": "Nombre descriptivo para identificar esta batería",
           "ha_soc_entity": "Un sensor que indica el estado de carga de esta batería en porcentaje",
-          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga en vatios",
+          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga, en W o kW",
           "ha_power_positive_is": "Si el sensor cuenta como positiva la carga o la descarga. Compruébalo mientras la batería se está cargando: Kostal y otros varios indican la carga en negativo",
-          "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
-          "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
+          "ha_charge_energy_entities": "Contadores totales opcionales, en Wh, kWh o MWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
+          "ha_discharge_energy_entity": "Energía total descargada opcional, en Wh, kWh o MWh. Sin ella, la energía se deduce de la potencia medida",
           "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
           "ha_mode_entity": "Select o interruptor opcional de la integración de origen que elige si la batería regula su propio contador a cero (NOM) o se queda en reposo. Con él, Omnibattery puede parar la batería durante una carga de red o mientras funciona un dispositivo excluido. Nunca fija su potencia",
-          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
+          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio. El silencio con la batería en reposo no cuenta"
         }
       },
       "restore_backup": {
@@ -1070,13 +1070,13 @@
         "data_description": {
           "name": "Nombre descriptivo para identificar esta batería",
           "ha_soc_entity": "Un sensor que indica el estado de carga de esta batería en porcentaje",
-          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga en vatios",
+          "ha_power_entity": "Un sensor que indica la potencia de carga y descarga, en W o kW",
           "ha_power_positive_is": "Si el sensor cuenta como positiva la carga o la descarga. Compruébalo mientras la batería se está cargando: Kostal y otros varios indican la carga en negativo",
-          "ha_charge_energy_entities": "Contadores totales opcionales en kWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
-          "ha_discharge_energy_entity": "Energía total descargada opcional en kWh. Sin ella, la energía se deduce de la potencia medida",
+          "ha_charge_energy_entities": "Contadores totales opcionales, en Wh, kWh o MWh. Elige varios si la fuente los separa, por ejemplo carga desde el sol y desde la red; se suman",
+          "ha_discharge_energy_entity": "Energía total descargada opcional, en Wh, kWh o MWh. Sin ella, la energía se deduce de la potencia medida",
           "ha_target_soc_entity": "Estado de carga objetivo o mínimo, opcional y escribible. Aparece como un número que puedes ajustar tú mismo; Omnibattery nunca lo escribe por su cuenta",
           "ha_mode_entity": "Select o interruptor opcional de la integración de origen que elige si la batería regula su propio contador a cero (NOM) o se queda en reposo. Con él, Omnibattery puede parar la batería durante una carga de red o mientras funciona un dispositivo excluido. Nunca fija su potencia",
-          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio"
+          "ha_stale_after_s": "Cuánto tiempo puede callar la integración de origen antes de considerar esta batería inalcanzable. Auméntalo si consulta despacio. El silencio con la batería en reposo no cuenta"
         }
       },
       "battery_mode_generic_ha": {

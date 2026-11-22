@@ -35,7 +35,7 @@ Omnibattery puede tener en cuenta una batería que no puede controlar, siempre q
 | **Contador de energía descargada** | Contador total (Wh, kWh o MWh), opcional |
 | **Estado de carga objetivo** | Número escribible, opcional, p. ej. `number.scb_battery_min_soc` |
 | **Entidad de modo de operación** | Select o interruptor, opcional, que elige si la batería regula por su cuenta. Véase [más abajo](#modo-de-operacion-nom-y-manual) |
-| **Considerar la telemetría perdida tras** | Cuánto puede callar la integración de origen. Auméntalo si consulta lentamente |
+| **Considerar la telemetría perdida tras** | Cuánto puede callar la integración de origen. Auméntalo si consulta lentamente. El silencio con la batería en reposo (hasta 50 W) no cuenta: muchas fuentes solo publican cambios |
 
 4. Si has elegido una entidad de modo, indica cuál de sus estados es **NOM** y cuál **Manual**.
 5. En el paso siguiente, introduce la **capacidad nominal** en kWh. Es el único límite que pide el formulario.

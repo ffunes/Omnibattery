@@ -35,7 +35,7 @@ Use this for a vendor inverter with its own Home Assistant integration — a BYD
 | **Discharged energy counter** | Optional lifetime counter (Wh, kWh or MWh) |
 | **Target state of charge** | Optional writable number, e.g. `number.scb_battery_min_soc` |
 | **Operating mode entity** | Optional select or switch that chooses whether the battery regulates on its own. See [below](#operating-mode-nom-and-manual) |
-| **Treat telemetry as lost after** | How long the source integration may stay silent. Raise it for a slow poller |
+| **Treat telemetry as lost after** | How long the source integration may stay silent. Raise it for a slow poller. Silence while the battery rests (up to 50 W) does not count: many sources only report changes |
 
 4. If you picked a mode entity, say which of its states is **NOM** and which is **Manual**.
 5. On the next step, enter the **nominal capacity** in kWh. It is the only limit the form asks for.

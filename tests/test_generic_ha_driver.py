@@ -433,6 +433,19 @@ def test_from_config_builds_the_driver_from_stored_entity_ids():
     assert driver.capabilities.supports_power_setpoint is False
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("power,expected", [("0", True), ("-12", True), ("-403", False)])
+async def test_a_source_that_only_reports_changes_is_not_lost_while_at_rest(power, expected):
+    """Nothing changes all night in a battery at rest; a frozen 403 W is a dead feed."""
+    old = dt_util.utcnow() - timedelta(hours=5)
+    table = {
+        entity: _State(state.state, last_reported=old, attributes=state.attributes)
+        for entity, state in _table(**{POWER: _State(power)}).items()
+    }
+    snapshot = await _driver(_hass(table)).read_telemetry()
+    assert bool(snapshot) is expected
+
+
 # --------------------------------------------------------------------------- native mode
 
 MODE = "select.scb_mode"

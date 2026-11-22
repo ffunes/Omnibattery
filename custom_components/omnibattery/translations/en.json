@@ -230,13 +230,13 @@
         "data_description": {
           "name": "Descriptive name to identify this battery",
           "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
-          "ha_power_entity": "A sensor reporting charge and discharge power in watts",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
-          "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
-          "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
           "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
           "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
-          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
         }
       },
       "battery_mode_generic_ha": {
@@ -766,13 +766,13 @@
         "data_description": {
           "name": "Descriptive name to identify this battery",
           "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
-          "ha_power_entity": "A sensor reporting charge and discharge power in watts",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
-          "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
-          "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
           "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
           "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
-          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
         }
       },
       "restore_backup": {
@@ -1068,13 +1068,13 @@
         "data_description": {
           "name": "Descriptive name to identify this battery",
           "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
-          "ha_power_entity": "A sensor reporting charge and discharge power in watts",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
           "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
-          "ha_charge_energy_entities": "Optional lifetime counters in kWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
-          "ha_discharge_energy_entity": "Optional lifetime discharged energy in kWh. Without it, energy is derived from the measured power",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
           "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
           "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
-          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller"
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
         }
       },
       "battery_mode_generic_ha": {

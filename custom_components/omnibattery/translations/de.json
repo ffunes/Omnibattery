@@ -228,13 +228,13 @@
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
           "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
-          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in W oder kW meldet",
           "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
-          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
-          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in Wh, kWh oder MWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in Wh, kWh oder MWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
           "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
-          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen. Stille bei ruhender Batterie zählt nicht"
         }
       },
       "battery_mode_generic_ha": {
@@ -770,13 +770,13 @@
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
           "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
-          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in W oder kW meldet",
           "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
-          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
-          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in Wh, kWh oder MWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in Wh, kWh oder MWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
           "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
-          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen. Stille bei ruhender Batterie zählt nicht"
         }
       },
       "restore_backup": {
@@ -1070,13 +1070,13 @@
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
           "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
-          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in W oder kW meldet",
           "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
-          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
-          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in Wh, kWh oder MWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in Wh, kWh oder MWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
           "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
-          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen. Stille bei ruhender Batterie zählt nicht"
         }
       },
       "battery_mode_generic_ha": {

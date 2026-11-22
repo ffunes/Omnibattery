@@ -84,6 +84,13 @@ _LOGGER = logging.getLogger(__name__)
 # design — too tight and a healthy slow poller flaps the battery offline.
 DEFAULT_STALE_AFTER_S = 600.0
 
+# A source that only reports changes says nothing about a battery at rest, all
+# night long. Silence is only a loss of telemetry while the last power says the
+# battery was doing something: a real measurement of that keeps moving.
+# ponytail: a source that dies without its entities going unavailable while the
+# battery rests is taken for a resting battery.
+RESTING_POWER_W = 50.0
+
 # Without these two the driver has no reason to exist: SOC without power fixes
 # none of the measurement errors above, and power without SOC tells planning
 # nothing about the battery's state.
@@ -457,7 +464,9 @@ class GenericHaEntityDriver(BatteryDriver):
         indistinguishable from a resting battery.
         """
         age = self._stall_age_s()
-        if age is not None and age > self._stale_after_s:
+        power = self._read_one("battery_power", self._power_entity)
+        resting = power is not None and abs(power) <= RESTING_POWER_W
+        if age is not None and age > self._stale_after_s and not resting:
             if not self._stalled:
                 self._stalled = True
                 _LOGGER.warning(

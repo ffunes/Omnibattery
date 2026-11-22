@@ -1471,12 +1471,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 user_input = None
             else:
                 merged = dict(self._current_battery_data)
-                # The form may not offer the power fields (the brand's hook sets them).
-                for key in ("max_charge_power", "max_discharge_power"):
+                # The form may not offer some of them (the brand's hook sets them).
+                for key in ("max_charge_power", "max_discharge_power", "max_soc", "min_soc"):
                     if key in user_input:
                         merged[key] = int(user_input[key])
-                merged["max_soc"] = int(user_input["max_soc"])
-                merged["min_soc"] = int(user_input["min_soc"])
                 if self.config_data.get(CONF_THREE_PHASE_ENABLED):
                     merged[CONF_BATTERY_PHASE] = normalize_battery_phase(phase)
                 limits.finalize_limits(merged, user_input, self._current_battery_data, ctx)
@@ -1484,7 +1482,10 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                 merged["enable_charge_hysteresis"] = True
                 merged["charge_hysteresis_percent"] = max(
                     MIN_CHARGE_HYSTERESIS_PERCENT,
-                    int(user_input.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
+                    int(user_input.get(
+                        "charge_hysteresis_percent",
+                        merged.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT),
+                    )),
                 )
                 _apply_mac_tracking(user_input, merged)
                 self.battery_configs.append(merged)
@@ -2750,12 +2751,10 @@ class OptionsFlowHandler(OptionsFlow):
                     merged.update(self._current_battery_data)
                 else:
                     merged = dict(self._current_battery_data)
-                # The form may not offer the power fields (the brand's hook sets them).
-                for key in ("max_charge_power", "max_discharge_power"):
+                # The form may not offer some of them (the brand's hook sets them).
+                for key in ("max_charge_power", "max_discharge_power", "max_soc", "min_soc"):
                     if key in user_input:
                         merged[key] = int(user_input[key])
-                merged["max_soc"] = int(user_input["max_soc"])
-                merged["min_soc"] = int(user_input["min_soc"])
                 if self.config_entry.data.get(
                     CONF_THREE_PHASE_ENABLED,
                     self.config_data.get(CONF_THREE_PHASE_ENABLED, DEFAULT_THREE_PHASE_ENABLED),
@@ -2766,7 +2765,10 @@ class OptionsFlowHandler(OptionsFlow):
                 merged["enable_charge_hysteresis"] = True
                 merged["charge_hysteresis_percent"] = max(
                     MIN_CHARGE_HYSTERESIS_PERCENT,
-                    int(user_input.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT)),
+                    int(user_input.get(
+                        "charge_hysteresis_percent",
+                        merged.get("charge_hysteresis_percent", DEFAULT_CHARGE_HYSTERESIS_PERCENT),
+                    )),
                 )
                 _apply_mac_tracking(user_input, merged)
                 self.battery_configs.append(merged)

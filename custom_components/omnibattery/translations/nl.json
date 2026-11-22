@@ -228,13 +228,13 @@
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te herkennen",
           "ha_soc_entity": "Een sensor die de laadtoestand van deze batterij in procenten meldt",
-          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in watt meldt",
+          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in W of kW meldt",
           "ha_power_positive_is": "Of de sensor laden of ontladen als positief telt. Controleer het terwijl de batterij laadt: Kostal en enkele andere melden laden als negatief",
-          "ha_charge_energy_entities": "Optionele totaaltellers in kWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
-          "ha_discharge_energy_entity": "Optionele totaal ontladen energie in kWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
+          "ha_charge_energy_entities": "Optionele totaaltellers, in Wh, kWh of MWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
+          "ha_discharge_energy_entity": "Optionele totaal ontladen energie, in Wh, kWh of MWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
           "ha_target_soc_entity": "Optionele schrijfbare gewenste of minimale laadtoestand. Verschijnt als een getal dat je zelf instelt; Omnibattery schrijft het nooit uit zichzelf",
           "ha_mode_entity": "Optionele select of schakelaar van de bronintegratie die bepaalt of de batterij haar eigen meter op nul regelt (NOM) of rust. Daarmee kan Omnibattery de batterij stilzetten tijdens laden van het net of zolang een uitgesloten apparaat draait. Het vermogen wordt nooit ingesteld",
-          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller"
+          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller. Stilte terwijl de batterij rust telt niet mee"
         }
       },
       "battery_mode_generic_ha": {
@@ -770,13 +770,13 @@
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te herkennen",
           "ha_soc_entity": "Een sensor die de laadtoestand van deze batterij in procenten meldt",
-          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in watt meldt",
+          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in W of kW meldt",
           "ha_power_positive_is": "Of de sensor laden of ontladen als positief telt. Controleer het terwijl de batterij laadt: Kostal en enkele andere melden laden als negatief",
-          "ha_charge_energy_entities": "Optionele totaaltellers in kWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
-          "ha_discharge_energy_entity": "Optionele totaal ontladen energie in kWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
+          "ha_charge_energy_entities": "Optionele totaaltellers, in Wh, kWh of MWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
+          "ha_discharge_energy_entity": "Optionele totaal ontladen energie, in Wh, kWh of MWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
           "ha_target_soc_entity": "Optionele schrijfbare gewenste of minimale laadtoestand. Verschijnt als een getal dat je zelf instelt; Omnibattery schrijft het nooit uit zichzelf",
           "ha_mode_entity": "Optionele select of schakelaar van de bronintegratie die bepaalt of de batterij haar eigen meter op nul regelt (NOM) of rust. Daarmee kan Omnibattery de batterij stilzetten tijdens laden van het net of zolang een uitgesloten apparaat draait. Het vermogen wordt nooit ingesteld",
-          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller"
+          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller. Stilte terwijl de batterij rust telt niet mee"
         }
       },
       "restore_backup": {
@@ -1070,13 +1070,13 @@
         "data_description": {
           "name": "Beschrijvende naam om deze batterij te herkennen",
           "ha_soc_entity": "Een sensor die de laadtoestand van deze batterij in procenten meldt",
-          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in watt meldt",
+          "ha_power_entity": "Een sensor die laad- en ontlaadvermogen in W of kW meldt",
           "ha_power_positive_is": "Of de sensor laden of ontladen als positief telt. Controleer het terwijl de batterij laadt: Kostal en enkele andere melden laden als negatief",
-          "ha_charge_energy_entities": "Optionele totaaltellers in kWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
-          "ha_discharge_energy_entity": "Optionele totaal ontladen energie in kWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
+          "ha_charge_energy_entities": "Optionele totaaltellers, in Wh, kWh of MWh. Kies er meerdere als de bron ze splitst, bijvoorbeeld laden uit zon en uit het net; ze worden opgeteld",
+          "ha_discharge_energy_entity": "Optionele totaal ontladen energie, in Wh, kWh of MWh. Zonder deze wordt de energie afgeleid uit het gemeten vermogen",
           "ha_target_soc_entity": "Optionele schrijfbare gewenste of minimale laadtoestand. Verschijnt als een getal dat je zelf instelt; Omnibattery schrijft het nooit uit zichzelf",
           "ha_mode_entity": "Optionele select of schakelaar van de bronintegratie die bepaalt of de batterij haar eigen meter op nul regelt (NOM) of rust. Daarmee kan Omnibattery de batterij stilzetten tijdens laden van het net of zolang een uitgesloten apparaat draait. Het vermogen wordt nooit ingesteld",
-          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller"
+          "ha_stale_after_s": "Hoe lang de bronintegratie mag zwijgen voordat deze batterij als onbereikbaar geldt. Verhoog het bij een trage poller. Stilte terwijl de batterij rust telt niet mee"
         }
       },
       "battery_mode_generic_ha": {

@@ -285,17 +285,11 @@ async def _reconfigure(flow, user_input: dict[str, Any] | None, ctx: SetupContex
 
 
 class _GenericHaSetup(DriverSetup):
-    def power_ceilings(self, battery_data: dict) -> tuple[int, int]:
-        """Nothing is ever commanded, so the ceilings are a formality.
-
-        Kept at the shared default rather than 0 so the limits form renders a
-        usable widget on the brands' common path; the driver reports a 0 W
-        envelope in its capabilities, which is what control actually reads.
-        """
-        return super().power_ceilings(battery_data)
-
     def limits_schema(self, battery_data: dict, base_fields: dict, ctx: SetupContext) -> dict:
-        """Base fields plus a required capacity (an observed battery reports none).
+        """Only a required capacity (an observed battery reports none).
+
+        No power, SOC or hysteresis limit can be applied to a battery that takes
+        no power command, so none is asked for.
 
         The capacity is what the system aggregates need: this battery publishes
         no nominal-capacity reading of its own, and without a figure here its
@@ -304,7 +298,7 @@ class _GenericHaSetup(DriverSetup):
 
         Options flow: the default is the capacity already stored for this slot.
         """
-        fields = dict(base_fields)
+        fields: dict = {}
         saved = 0.0
         if ctx.kind is FlowKind.OPTIONS and ctx.battery is not None:
             saved = float((ctx.battery | battery_data).get("battery_capacity_kwh", 0.0))
@@ -325,6 +319,12 @@ class _GenericHaSetup(DriverSetup):
         merged["battery_capacity_kwh"] = round(
             float(user_input.get("battery_capacity_kwh", 0.0)), 2
         )
+        # Not asked for, but the shared code expects every battery to have them.
+        for key, value in (
+            ("max_charge_power", 2500), ("max_discharge_power", 2500),
+            ("max_soc", 100), ("min_soc", 12),
+        ):
+            merged.setdefault(key, value)
         # No voltage taper on a battery whose charge this integration never
         # shapes; the trait says so too, this keeps the stored value honest.
         merged[CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED] = False

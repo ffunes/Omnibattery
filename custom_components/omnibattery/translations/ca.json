@@ -228,13 +228,13 @@
         "data_description": {
           "name": "Nom descriptiu per identificar aquesta bateria",
           "ha_soc_entity": "Un sensor que indica l'estat de càrrega d'aquesta bateria en percentatge",
-          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega en watts",
+          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega, en W o kW",
           "ha_power_positive_is": "Si el sensor compta com a positiva la càrrega o la descàrrega. Comprova-ho mentre la bateria es carrega: Kostal i uns quants més indiquen la càrrega en negatiu",
-          "ha_charge_energy_entities": "Comptadors totals opcionals en kWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
-          "ha_discharge_energy_entity": "Energia total descarregada opcional en kWh. Sense ella, l'energia es dedueix de la potència mesurada",
+          "ha_charge_energy_entities": "Comptadors totals opcionals, en Wh, kWh o MWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
+          "ha_discharge_energy_entity": "Energia total descarregada opcional, en Wh, kWh o MWh. Sense ella, l'energia es dedueix de la potència mesurada",
           "ha_target_soc_entity": "Estat de càrrega objectiu o mínim, opcional i escrivible. Apareix com un número que pots ajustar tu mateix; Omnibattery mai no l'escriu pel seu compte",
           "ha_mode_entity": "Select o interruptor opcional de la integració d'origen que tria si la bateria regula el seu propi comptador a zero (NOM) o es queda en repòs. Amb ell, Omnibattery pot aturar la bateria durant una càrrega de xarxa o mentre funciona un dispositiu exclòs. Mai no en fixa la potència",
-          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc"
+          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc. El silenci amb la bateria en repòs no compta"
         }
       },
       "battery_mode_generic_ha": {
@@ -770,13 +770,13 @@
         "data_description": {
           "name": "Nom descriptiu per identificar aquesta bateria",
           "ha_soc_entity": "Un sensor que indica l'estat de càrrega d'aquesta bateria en percentatge",
-          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega en watts",
+          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega, en W o kW",
           "ha_power_positive_is": "Si el sensor compta com a positiva la càrrega o la descàrrega. Comprova-ho mentre la bateria es carrega: Kostal i uns quants més indiquen la càrrega en negatiu",
-          "ha_charge_energy_entities": "Comptadors totals opcionals en kWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
-          "ha_discharge_energy_entity": "Energia total descarregada opcional en kWh. Sense ella, l'energia es dedueix de la potència mesurada",
+          "ha_charge_energy_entities": "Comptadors totals opcionals, en Wh, kWh o MWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
+          "ha_discharge_energy_entity": "Energia total descarregada opcional, en Wh, kWh o MWh. Sense ella, l'energia es dedueix de la potència mesurada",
           "ha_target_soc_entity": "Estat de càrrega objectiu o mínim, opcional i escrivible. Apareix com un número que pots ajustar tu mateix; Omnibattery mai no l'escriu pel seu compte",
           "ha_mode_entity": "Select o interruptor opcional de la integració d'origen que tria si la bateria regula el seu propi comptador a zero (NOM) o es queda en repòs. Amb ell, Omnibattery pot aturar la bateria durant una càrrega de xarxa o mentre funciona un dispositiu exclòs. Mai no en fixa la potència",
-          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc"
+          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc. El silenci amb la bateria en repòs no compta"
         }
       },
       "restore_backup": {
@@ -1070,13 +1070,13 @@
         "data_description": {
           "name": "Nom descriptiu per identificar aquesta bateria",
           "ha_soc_entity": "Un sensor que indica l'estat de càrrega d'aquesta bateria en percentatge",
-          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega en watts",
+          "ha_power_entity": "Un sensor que indica la potència de càrrega i descàrrega, en W o kW",
           "ha_power_positive_is": "Si el sensor compta com a positiva la càrrega o la descàrrega. Comprova-ho mentre la bateria es carrega: Kostal i uns quants més indiquen la càrrega en negatiu",
-          "ha_charge_energy_entities": "Comptadors totals opcionals en kWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
-          "ha_discharge_energy_entity": "Energia total descarregada opcional en kWh. Sense ella, l'energia es dedueix de la potència mesurada",
+          "ha_charge_energy_entities": "Comptadors totals opcionals, en Wh, kWh o MWh. Tria'n diversos si la font els separa, per exemple càrrega des del sol i des de la xarxa; se sumen",
+          "ha_discharge_energy_entity": "Energia total descarregada opcional, en Wh, kWh o MWh. Sense ella, l'energia es dedueix de la potència mesurada",
           "ha_target_soc_entity": "Estat de càrrega objectiu o mínim, opcional i escrivible. Apareix com un número que pots ajustar tu mateix; Omnibattery mai no l'escriu pel seu compte",
           "ha_mode_entity": "Select o interruptor opcional de la integració d'origen que tria si la bateria regula el seu propi comptador a zero (NOM) o es queda en repòs. Amb ell, Omnibattery pot aturar la bateria durant una càrrega de xarxa o mentre funciona un dispositiu exclòs. Mai no en fixa la potència",
-          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc"
+          "ha_stale_after_s": "Quant de temps pot callar la integració d'origen abans de considerar aquesta bateria inabastable. Augmenta'l si consulta a poc a poc. El silenci amb la bateria en repòs no compta"
         }
       },
       "battery_mode_generic_ha": {

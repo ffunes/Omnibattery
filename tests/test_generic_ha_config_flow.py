@@ -301,3 +301,54 @@ def test_editing_while_the_mode_entity_is_offline_keeps_the_saved_pair(mode_flow
     flow, ctx = mode_flow(FlowKind.RECONFIGURE, saved, {MODE: None})
     form = asyncio.run(_reconfigure(flow, {**_FORM, "ha_mode_entity": MODE}, ctx))
     assert [marker.default() for marker in form["data_schema"].schema] == ["auto", "hold"]
+
+
+# --------------------------------------------------------------------------- limits
+
+def _limits(kind, battery, base=("max_charge_power", "max_discharge_power", "max_soc",
+                                 "min_soc", "charge_hysteresis_percent")):
+    ctx = SetupContext(kind=kind, battery=battery, entry=None, coordinator=None)
+    fields = GenericHaEntityDriver.SETUP.limits_schema(
+        dict(battery or {}), {vol.Required(key): int for key in base}, ctx
+    )
+    return [str(marker) for marker in fields]
+
+
+@pytest.mark.parametrize("kind", [FlowKind.CONFIG, FlowKind.OPTIONS])
+def test_the_limits_form_asks_only_for_the_capacity(kind):
+    """Every other limit shapes a command this battery never receives."""
+    assert _limits(kind, {"battery_capacity_kwh": 6.0}) == ["battery_capacity_kwh"]
+
+
+def test_the_limits_it_does_not_ask_for_are_still_stored():
+    """The coordinator of every battery is built from them."""
+    merged: dict = {}
+    GenericHaEntityDriver.SETUP.finalize_limits(
+        merged, {"battery_capacity_kwh": 6.0}, {}, None
+    )
+    assert {"max_charge_power", "max_discharge_power", "max_soc", "min_soc"} <= set(merged)
+    kept = {"max_charge_power": 1500, "max_discharge_power": 1500, "max_soc": 95, "min_soc": 15}
+    merged = dict(kept)
+    GenericHaEntityDriver.SETUP.finalize_limits(
+        merged, {"battery_capacity_kwh": 6.0}, {}, None
+    )
+    assert {key: merged[key] for key in kept} == kept
+
+
+def test_no_text_says_the_sources_must_be_in_watts_or_kwh():
+    """They are converted from whatever unit they carry."""
+    import json
+    from pathlib import Path
+
+    base = Path("custom_components/omnibattery")
+    for path in [base / "strings.json", *sorted((base / "translations").glob("*.json"))]:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for flow, step in (
+            ("config", "battery_connection_generic_ha"),
+            ("config", "reconfigure_battery_generic_ha"),
+            ("options", "battery_connection_generic_ha"),
+        ):
+            texts = data[flow]["step"][step]["data_description"]
+            assert "kW" in texts["ha_power_entity"], path
+            for key in ("ha_charge_energy_entities", "ha_discharge_energy_entity"):
+                assert "MWh" in texts[key], path

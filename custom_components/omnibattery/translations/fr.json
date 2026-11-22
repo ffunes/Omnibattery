@@ -228,13 +228,13 @@
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
           "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
-          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge, en W ou kW",
           "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
-          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
-          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs, en Wh, kWh ou MWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en Wh, kWh ou MWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
           "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
-          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente. Le silence d'une batterie au repos ne compte pas"
         }
       },
       "battery_mode_generic_ha": {
@@ -770,13 +770,13 @@
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
           "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
-          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge, en W ou kW",
           "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
-          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
-          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs, en Wh, kWh ou MWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en Wh, kWh ou MWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
           "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
-          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente. Le silence d'une batterie au repos ne compte pas"
         }
       },
       "restore_backup": {
@@ -1070,13 +1070,13 @@
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
           "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
-          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge, en W ou kW",
           "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
-          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
-          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs, en Wh, kWh ou MWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en Wh, kWh ou MWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
           "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
-          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente. Le silence d'une batterie au repos ne compte pas"
         }
       },
       "battery_mode_generic_ha": {
