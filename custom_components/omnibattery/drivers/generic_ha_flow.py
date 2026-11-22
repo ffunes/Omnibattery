@@ -65,10 +65,8 @@ def _schema(defaults: dict) -> dict:
         "ha_power_positive_is",
         default=defaults.get("ha_power_positive_is", "charge"),
     )] = SelectSelector(SelectSelectorConfig(
-        options=[
-            {"value": "charge", "label": "Positive values mean charging"},
-            {"value": "discharge", "label": "Positive values mean discharging"},
-        ],
+        options=["charge", "discharge"],
+        translation_key="generic_ha_power_sign",
         mode=SelectSelectorMode.LIST,
     ))
 

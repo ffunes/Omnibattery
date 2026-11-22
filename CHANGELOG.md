@@ -59,6 +59,7 @@
 
 ### Fixed
 
+- **A battery under manual control charging from solar no longer makes the others charge from the grid**: its charging was subtracted from the meter even with no import, and the controller answered to an export that did not exist.
 - **Zendure: the charge no longer stops at mid SOC because of one high cell** (#884): with Max SOC at 100 %, a cell at 3.60 V blocked charging until the SOC fell; a Zendure's own BMS decides the top now.
 - **Weekly Full Charge plans for a battery under the Temperature Charge Limit**: the run was sized at rated charge power, so a battery the limit slowed down could miss its window. The plan now uses the power the limit allows and aims to be full a quarter of the run's time before the window closes (at least half an hour). Thanks to @anorakophobia
 - **Dynamic Pricing re-plans when the battery is above its plan too**: with more stored energy than planned, the plan and the Daily Operation chart kept the old, earlier depletion until the next evaluation. 3 points above the line now re-plan (at most hourly, never during a charge slot).

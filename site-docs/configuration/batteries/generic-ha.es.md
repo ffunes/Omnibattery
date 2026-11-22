@@ -14,7 +14,7 @@ Omnibattery puede tener en cuenta una batería que no puede controlar, siempre q
 
 ## Antes de empezar
 
-- Instala y configura la integración que lee la batería, y comprueba que publica **estado de carga en porcentaje** y **potencia de batería en vatios**. Ambos son obligatorios.
+- Instala y configura la integración que lee la batería, y comprueba que publica **estado de carga en porcentaje** y **potencia de batería** (W o kW). Ambos son obligatorios.
 - Fíjate en el signo del sensor de potencia. Compruébalo mientras la batería carga: varias integraciones, Kostal entre ellas, indican la carga con valores negativos.
 - Averigua la capacidad útil de la batería en kWh. Nada la publica, así que la escribirás a mano.
 - Revisa qué sensor configuraste como **sensor de producción solar** de Omnibattery. En un inversor híbrido debe medir el lado de **continua (DC)**. Consulta el aviso más abajo.
@@ -29,19 +29,18 @@ Omnibattery puede tener en cuenta una batería que no puede controlar, siempre q
 |---|---|
 | **Nombre** | Un nombre descriptivo, por ejemplo `BYD` |
 | **Sensor de estado de carga** | El sensor en porcentaje, p. ej. `sensor.scb_battery_soc` |
-| **Sensor de potencia de la batería** | El sensor en vatios, p. ej. `sensor.scb_battery_power` |
+| **Sensor de potencia de la batería** | El sensor de potencia (W o kW), p. ej. `sensor.scb_battery_power` |
 | **Convención de signo de la potencia** | Si el sensor cuenta como positiva la carga o la descarga |
-| **Contadores de energía cargada** | Contadores totales en kWh, opcionales. Elige varios si la fuente los separa —Kostal publica por separado la carga desde solar y desde la red— y se suman |
-| **Contador de energía descargada** | Contador total en kWh, opcional |
+| **Contadores de energía cargada** | Contadores totales (Wh, kWh o MWh), opcionales. Elige varios si la fuente los separa —Kostal publica por separado la carga desde solar y desde la red— y se suman |
+| **Contador de energía descargada** | Contador total (Wh, kWh o MWh), opcional |
 | **Estado de carga objetivo** | Número escribible, opcional, p. ej. `number.scb_battery_min_soc` |
-| **La batería comparte inversor con paneles solares** | Actívalo en un inversor híbrido |
 | **Considerar la telemetría perdida tras** | Cuánto puede callar la integración de origen. Auméntalo si consulta lentamente |
 
 4. En el paso siguiente, introduce la **capacidad nominal** en kWh. Es el único límite que pide el formulario.
 
 ## Qué verás
 
-Un dispositivo con un sensor de estado de carga, un sensor de potencia y los contadores de energía que hayas configurado. Si has indicado un estado de carga objetivo escribible, aparece además un número **Target SOC**; Omnibattery se limita a leerlo mientras no actives el objetivo automático.
+Un dispositivo con un sensor de estado de carga, un sensor de potencia y los contadores de energía que hayas configurado. Si has indicado un estado de carga objetivo escribible, aparece además un número **Target SOC**; lo fijas tú, Omnibattery nunca lo escribe por su cuenta.
 
 No verás permitir carga, permitir descarga, control manual, modo forzado, límites de estado de carga por software ni topes de potencia. Todos ellos dan forma a órdenes que esta batería nunca recibe, así que se omiten deliberadamente.
 

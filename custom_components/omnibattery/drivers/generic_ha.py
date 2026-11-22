@@ -48,9 +48,12 @@ import logging
 import math
 from typing import Optional, Sequence
 
+from homeassistant.const import UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
+from homeassistant.util.unit_conversion import EnergyConverter, PowerConverter
 
 from .base import (
     BatteryDriver,
@@ -77,6 +80,13 @@ DEFAULT_STALE_AFTER_S = 600.0
 # none of the measurement errors above, and power without SOC tells planning
 # nothing about the battery's state.
 _REQUIRED_KEYS: frozenset[str] = frozenset({"battery_soc", "battery_power"})
+
+# The unit each key is published in; a source in kW or Wh is converted.
+_UNITS = {
+    "battery_power": (PowerConverter, UnitOfPower.WATT),
+    "total_charging_energy": (EnergyConverter, UnitOfEnergy.KILO_WATT_HOUR),
+    "total_discharging_energy": (EnergyConverter, UnitOfEnergy.KILO_WATT_HOUR),
+}
 
 POWER_POSITIVE_CHARGE = "charge"
 POWER_POSITIVE_DISCHARGE = "discharge"
@@ -316,11 +326,7 @@ class GenericHaEntityDriver(BatteryDriver):
             if not entity_id:
                 missing.append(key)
                 continue
-            state = hass.states.get(entity_id)
-            if state is None or state.state in ("unavailable", "unknown"):
-                missing.append(key)
-                continue
-            if _to_float(state.state) is None:
+            if _read_state(hass, entity_id, key) is None:
                 missing.append(key)
         return missing
 
@@ -428,9 +434,9 @@ class GenericHaEntityDriver(BatteryDriver):
         snapshot: TelemetrySnapshot = {}
         for key in wanted:
             if key == "total_charging_energy":
-                value = self._read_sum(self._charge_energy_entities)
+                value = self._read_sum(key, self._charge_energy_entities)
             else:
-                value = self._read_one(self._entity_for(key))
+                value = self._read_one(key, self._entity_for(key))
             if value is None:
                 continue
             if key == "battery_power":
@@ -440,15 +446,10 @@ class GenericHaEntityDriver(BatteryDriver):
             snapshot[key] = value
         return snapshot
 
-    def _read_one(self, entity_id: Optional[str]) -> Optional[float]:
-        if not entity_id:
-            return None
-        state = self.hass.states.get(entity_id)
-        if state is None or state.state in ("unavailable", "unknown"):
-            return None
-        return _to_float(state.state)
+    def _read_one(self, key: str, entity_id: Optional[str]) -> Optional[float]:
+        return _read_state(self.hass, entity_id, key) if entity_id else None
 
-    def _read_sum(self, entity_ids: Sequence[str]) -> Optional[float]:
+    def _read_sum(self, key: str, entity_ids: Sequence[str]) -> Optional[float]:
         """Sum several counters into one logical total; None unless all read.
 
         A partial sum would step backwards whenever one source blinks, and the
@@ -459,7 +460,7 @@ class GenericHaEntityDriver(BatteryDriver):
             return None
         total = 0.0
         for entity_id in entity_ids:
-            value = self._read_one(entity_id)
+            value = self._read_one(key, entity_id)
             if value is None:
                 return None
             total += value
@@ -577,6 +578,26 @@ class GenericHaEntityDriver(BatteryDriver):
     async def standby(self) -> bool:
         """Already idle from Omnibattery's point of view; nothing to release."""
         return True
+
+
+def _read_state(hass: HomeAssistant, entity_id: str, key: str) -> Optional[float]:
+    """Read an entity as ``key``'s number in its published unit, or None.
+
+    An entity without a unit is taken at face value; one whose unit does not
+    measure the same thing (a percentage picked as power) is unreadable.
+    """
+    state = hass.states.get(entity_id)
+    if state is None or state.state in ("unavailable", "unknown"):
+        return None
+    value = _to_float(state.state)
+    if value is None or key not in _UNITS:
+        return value
+    converter, target = _UNITS[key]
+    unit = (getattr(state, "attributes", None) or {}).get("unit_of_measurement") or target
+    try:
+        return converter.convert(value, unit, target)
+    except HomeAssistantError:
+        return None
 
 
 def _to_float(raw) -> Optional[float]:

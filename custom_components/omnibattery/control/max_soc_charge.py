@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.util import dt as dt_util
 
 from .pack_soc import cell_voltage_profile, control_vmax
-from ..drivers.base import InverterStatus
+from ..drivers.base import InverterStatus, can_take_setpoint
 from ..const import (
     CONF_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
     DEFAULT_FULL_CHARGE_VOLTAGE_TAPER_ENABLED,
@@ -596,7 +596,9 @@ class MaxSocChargeManager:
         self.reset_if_new_day()
 
         for coordinator in c.coordinators:
-            if getattr(coordinator, "battery_manual_mode_enabled", False):
+            if getattr(
+                coordinator, "battery_manual_mode_enabled", False
+            ) or not can_take_setpoint(coordinator):
                 # Preserve normal top-of-charge state while the user owns the
                 # battery; it is reevaluated after returning to automatic mode.
                 c.remove_charge_block("max_soc", coordinator=coordinator)

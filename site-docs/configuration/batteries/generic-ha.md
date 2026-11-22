@@ -14,7 +14,7 @@ Use this for a vendor inverter with its own Home Assistant integration — a BYD
 
 ## Before you start
 
-- Install and configure the integration that reads the battery, and confirm it reports **state of charge in percent** and **battery power in watts**. Both are required.
+- Install and configure the integration that reads the battery, and confirm it reports **state of charge in percent** and **battery power** (W or kW). Both are required.
 - Note how its power sensor is signed. Check it while the battery is charging: several integrations, Kostal among them, report charging as a negative number.
 - Find the battery's usable capacity in kWh. Nothing reports it, so you will type it in.
 - Check which sensor you configured as Omnibattery's **solar production sensor**. On a hybrid inverter it must measure the **DC** side. See the warning below.
@@ -29,19 +29,18 @@ Use this for a vendor inverter with its own Home Assistant integration — a BYD
 |---|---|
 | **Name** | A descriptive name, for example `BYD` |
 | **State of charge sensor** | The percentage sensor, e.g. `sensor.scb_battery_soc` |
-| **Battery power sensor** | The watts sensor, e.g. `sensor.scb_battery_power` |
+| **Battery power sensor** | The power sensor (W or kW), e.g. `sensor.scb_battery_power` |
 | **Power sign convention** | Whether the sensor counts charging or discharging as positive |
-| **Charged energy counters** | Optional lifetime kWh counters. Pick several if the source splits them — Kostal reports charging from solar and from the grid separately — and they are added together |
-| **Discharged energy counter** | Optional lifetime kWh counter |
+| **Charged energy counters** | Optional lifetime counters (Wh, kWh or MWh). Pick several if the source splits them — Kostal reports charging from solar and from the grid separately — and they are added together |
+| **Discharged energy counter** | Optional lifetime counter (Wh, kWh or MWh) |
 | **Target state of charge** | Optional writable number, e.g. `number.scb_battery_min_soc` |
-| **The battery shares an inverter with solar panels** | On for a hybrid inverter |
 | **Treat telemetry as lost after** | How long the source integration may stay silent. Raise it for a slow poller |
 
 4. On the next step, enter the **nominal capacity** in kWh. It is the only limit the form asks for.
 
 ## What you will see
 
-A device with a state-of-charge sensor, a battery power sensor, and the energy counters you configured. If you pointed at a writable target state of charge, a **Target SOC** number appears as well; Omnibattery only reads it back until you turn on automatic target SOC.
+A device with a state-of-charge sensor, a battery power sensor, and the energy counters you configured. If you pointed at a writable target state of charge, a **Target SOC** number appears as well; you set it yourself, Omnibattery never writes it on its own.
 
 You will not see allow-charge, allow-discharge, manual control, force mode, software SOC limits or power ceilings. Those shape commands this battery never receives, so they are deliberately absent.
 

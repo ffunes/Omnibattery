@@ -1526,6 +1526,12 @@
     }
   },
   "selector": {
+    "generic_ha_power_sign": {
+      "options": {
+        "charge": "Les valeurs positives indiquent la charge",
+        "discharge": "Les valeurs positives indiquent la décharge"
+      }
+    },
     "indevolt_request_speed": {
       "options": {
         "maximum": "Maximum : 1s",

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from ..drivers.base import can_take_setpoint
 from ..infra.clock import local_now
 from ..const import (
     DOMAIN,
@@ -537,9 +538,10 @@ class HourlyBalanceManager:
                 return "time_slot"
             if "ev_pause" in charge_blockers:
                 return "ev_pause"
-            if any(getattr(c, "_hysteresis_active", False) for c in ctrl.coordinators):
+            batteries = [c for c in ctrl.coordinators if can_take_setpoint(c)]
+            if any(getattr(c, "_hysteresis_active", False) for c in batteries):
                 return "hysteresis"
-            with_data = [c for c in ctrl.coordinators if c.data]
+            with_data = [c for c in batteries if c.data]
             if with_data and all(
                 c.data.get("battery_soc", 0) >= c.max_soc for c in with_data
             ):

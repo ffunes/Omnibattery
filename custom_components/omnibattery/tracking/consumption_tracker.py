@@ -33,7 +33,12 @@ from homeassistant.util import dt as dt_util
 from ..infra.clock import local_now
 from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN, MISSING_DAY_FLEET_SHARE
 from ..infra.entity_naming import is_omnibattery_solar_entity
-from ..drivers.base import AC_PORT_FIRST, has_connected_mppt_pv, mppt_power_keys
+from ..drivers.base import (
+    AC_PORT_FIRST,
+    can_take_setpoint,
+    has_connected_mppt_pv,
+    mppt_power_keys,
+)
 from .backfill import BackfillToken, RecorderBackfillCoordinator, local_day_bounds
 from .consumption_profile import (
     ConsumptionForecast,
@@ -2036,8 +2041,9 @@ class ConsumptionTracker:
         if ctrl._weekly_charge_mgr.is_active():
             return 100
 
-        if ctrl.coordinators:
-            return round(sum(c.max_soc for c in ctrl.coordinators) / len(ctrl.coordinators))
+        batteries = [c for c in ctrl.coordinators if can_take_setpoint(c)]
+        if batteries:
+            return round(sum(c.max_soc for c in batteries) / len(batteries))
         return 100
 
     # ------------------------------------------------------------------

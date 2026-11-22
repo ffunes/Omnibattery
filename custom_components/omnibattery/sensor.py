@@ -45,6 +45,7 @@ from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .drivers.base import (
     KEY_BATTERY_SOC,
     KEY_TOTAL_DISCHARGING_ENERGY,
+    can_take_setpoint,
     has_connected_mppt_pv,
 )
 from .energy import (
@@ -581,6 +582,7 @@ class ActiveBatteriesSensor(SensorEntity):
         automatic = [
             c.name for c in self._coordinators
             if not getattr(c, "battery_manual_mode_enabled", False)
+            and can_take_setpoint(c)
         ]
 
         attrs = {
@@ -923,6 +925,7 @@ class IntegrationStatusSensor(SensorEntity):
             for coordinator in c.coordinators
             if getattr(coordinator, "is_available", True)
             and not getattr(coordinator, "battery_manual_mode_enabled", False)
+            and can_take_setpoint(coordinator)
         ]
         if not coordinators:
             return False
@@ -1101,6 +1104,7 @@ class IntegrationStatusSensor(SensorEntity):
             "automatic_batteries": [
                 coordinator.name for coordinator in c.coordinators
                 if not getattr(coordinator, "battery_manual_mode_enabled", False)
+                and can_take_setpoint(coordinator)
             ],
             "grid_charging_active": c.grid_charging_active,
             "price_based_discharge_blocked": c._price_based_discharge_blocked,

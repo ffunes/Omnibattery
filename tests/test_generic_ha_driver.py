@@ -71,6 +71,27 @@ def _driver(hass, **kwargs):
     return GenericHaEntityDriver(hass, **kwargs)
 
 
+@pytest.mark.asyncio
+async def test_a_source_in_other_units_is_converted():
+    """A kW power sensor read as watts would hide the battery from the balance."""
+    hass = _hass(_table(**{
+        POWER: _State("-0.403", attributes={"unit_of_measurement": "kW"}),
+        CHARGE_PV: _State("8884600", attributes={"unit_of_measurement": "Wh"}),
+        DISCHARGE: _State("8.2135", attributes={"unit_of_measurement": "MWh"}),
+    }))
+    data = await _driver(hass).read_telemetry()
+    assert data["battery_power"] == pytest.approx(403)
+    assert data["total_charging_energy"] == pytest.approx(8993.6)
+    assert data["total_discharging_energy"] == pytest.approx(8213.5)
+
+
+def test_an_entity_that_measures_something_else_is_rejected_by_the_form():
+    hass = _hass(_table(**{POWER: _State("34", attributes={"unit_of_measurement": "%"})}))
+    assert GenericHaEntityDriver.resolve(
+        hass, {"battery_soc": SOC, "battery_power": POWER}
+    ) == ["battery_power"]
+
+
 # ---------------------------------------------------------------------------
 # capabilities
 # ---------------------------------------------------------------------------

@@ -2824,12 +2824,15 @@ class ChargeDischargeController:
         A Zendure running its SOC calibration (#799) ignores setpoints and
         charges on its own, so it is treated like a manual battery: out of the
         pool, out of non-delivery tracking, and its charge handled by the
-        manual grid-feedback policy (never fed by the other batteries).
+        manual grid-feedback policy (never fed by the other batteries). A
+        battery that takes no setpoint at all (observed) is outside for good.
         """
-        return bool(
-            getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
-        ) or coordinator.driver.is_self_managed(
-            getattr(coordinator, "data", None) or {}
+        return (
+            bool(getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False))
+            or is_observed(coordinator)
+            or coordinator.driver.is_self_managed(
+                getattr(coordinator, "data", None) or {}
+            )
         )
 
     def _sync_calibration_ownership(self) -> None:
@@ -4693,7 +4696,9 @@ class ChargeDischargeController:
         projected = projected() if callable(projected) else None
         coords = [
             c for c in self.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data
+            and not getattr(c, "battery_manual_mode_enabled", False)
+            and ChargeDischargeController._counts_towards_fleet_energy(c)
         ]
         if projected is None or not coords:
             return False
@@ -6507,6 +6512,9 @@ class ChargeDischargeController:
             data = getattr(coordinator, "data", None)
             if not data:
                 continue
+            if not can_take_setpoint(coordinator):
+                # Its own charging delivers nothing of the slot's quota.
+                continue
             try:
                 soc = float(data.get("battery_soc"))
                 capacity = float(data.get("battery_total_energy") or 0.0)
@@ -7108,6 +7116,7 @@ class ChargeDischargeController:
                 c.name
                 for c in self.coordinators
                 if not getattr(c, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+                and can_take_setpoint(c)
                 and not c.rs485_user_disabled
                 and (
                     c.data is None
@@ -8635,6 +8644,27 @@ class ChargeDischargeController:
             except (TypeError, ValueError):
                 continue
         return total
+
+    def _without_uncommanded_charge(self, grid_w: float, target_w: float) -> float:
+        """Grid reading with the uncommanded batteries' charging removed.
+
+        Only to keep the automatic batteries from discharging into it. Removing
+        more than the import plus what they discharge now would read as an
+        export nobody makes (a battery filling from its own PV leaves the meter
+        at zero), and they would charge from the grid to absorb it.
+        """
+        if self.previous_power > 0:
+            return grid_w
+        charging = ChargeDischargeController._manual_battery_power_for_grid_feedback(self)
+        if charging <= 0:
+            return grid_w
+        adjusted = max(grid_w - charging, min(grid_w, target_w + self.previous_power))
+        _LOGGER.debug(
+            "Ignoring %.0fW of %.0fW manual or observed battery charging while "
+            "automatic batteries are not charging",
+            grid_w - adjusted, charging,
+        )
+        return adjusted
 
     def _measured_battery_power(self):
         """Aggregate measured automatic-battery power in controller convention.
@@ -10488,16 +10518,12 @@ class ChargeDischargeController:
         # 1 kW automatic). Once the automatic command is idle or discharging,
         # remove only the manual charging contribution: otherwise the intentional
         # manual import would make automatic batteries discharge to compensate it.
-        sensor_actual = sensor_filtered
-        manual_grid_power = ChargeDischargeController._manual_battery_power_for_grid_feedback(
-            self
+        sensor_actual = ChargeDischargeController._without_uncommanded_charge(
+            self, sensor_filtered, active_target
         )
-        if manual_grid_power > 0 and self.previous_power <= 0:
-            sensor_actual -= manual_grid_power
-            _LOGGER.debug(
-                "Ignoring %.0fW manual-battery charging power while automatic batteries are not charging",
-                manual_grid_power,
-            )
+        # The guards below rebuild the meter from every battery's power, so they
+        # get this back: with it removed they would subtract it twice.
+        uncommanded_charge = sensor_filtered - sensor_actual
 
         if DEBUG_CONTROL_LOOP_DETAIL:
             _LOGGER.debug("Sensor: raw=%.1fW, filtered=%.1fW", sensor_raw, sensor_filtered)
@@ -10553,7 +10579,7 @@ class ChargeDischargeController:
             and not blocked_active_changed
             and not self._phase_safety_pending
             and abs(sensor_actual - active_target) < self.deadband
-            and not guards_pending(self, sensor_actual)
+            and not guards_pending(self, sensor_actual + uncommanded_charge)
         ):
             if DEBUG_CONTROL_LOOP_DETAIL:
                 _LOGGER.debug(
@@ -10801,7 +10827,7 @@ class ChargeDischargeController:
         # demand they serve rather than one they cancel. Applied here, before
         # every downstream blocker, so time slots, price and capacity limits keep
         # the last word over them.
-        guarded = apply_guards(self, new_power, sensor_actual)
+        guarded = apply_guards(self, new_power, sensor_actual + uncommanded_charge)
         if guarded != new_power:
             # One line per acting cycle. The guards themselves log their reasoning
             # at debug: they are also run over the standing command by
@@ -10974,7 +11000,9 @@ class ChargeDischargeController:
             is_charging=False,
             include_operation_blocks=False,
         )
-        has_reachable = any(c.is_available for c in self.coordinators)
+        has_reachable = any(
+            c.is_available for c in self.coordinators if can_take_setpoint(c)
+        )
         all_at_min_soc = (len(discharge_available) == 0) and has_reachable
         if all_at_min_soc and not self.grid_charging_active and sensor_actual > 0:
             if self._is_grid_at_min_soc_discharge_window():

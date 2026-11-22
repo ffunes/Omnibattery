@@ -41,6 +41,7 @@ from homeassistant.util import dt as dt_util
 from ..infra.clock import local_now
 from ..energy import effective_round_trip_efficiency
 from ..const import PREDICTIVE_MODE_DYNAMIC_PRICING
+from ..drivers.base import can_take_setpoint
 from ..pricing import PriceSlot
 from ..pricing.calculations import solar_safety_margin_kwh
 from ..pricing.curtailment import distribute_solar_forecast
@@ -268,7 +269,9 @@ class HighPriceDischargeManager:
         stop_soc = None if None in ends else math.floor(min(ends) + 1e-9)
         coords = [
             c for c in controller.coordinators
-            if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+            if c.data
+            and not getattr(c, "battery_manual_mode_enabled", False)
+            and can_take_setpoint(c)
         ]
         current = (
             sum(float(c.data.get("battery_soc", 0) or 0) for c in coords) / len(coords)

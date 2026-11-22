@@ -574,7 +574,12 @@ def test_the_fleet_capacity_counts_only_what_the_plan_can_fill():
     assert manager._fleet_capacity_kwh() == pytest.approx(10.0)
 
 
-@pytest.mark.parametrize("module_name", ["pricing.engine", "control.weekly_full_charge"])
+@pytest.mark.parametrize("module_name", [
+    "pricing.engine",
+    "control.weekly_full_charge",
+    "control.charge_delay",
+    "control.high_price_discharge",
+])
 def test_every_fleet_list_uses_the_same_definition(module_name):
     """No fleet list may filter on manual mode alone.
 
@@ -683,3 +688,121 @@ async def test_the_weekly_run_does_not_wait_for_the_observed_battery():
     assert controller.weekly_full_charge_complete is True
     # And the observed battery is not even reported as a participant.
     assert list(controller._weekly_charge_status.get("batteries", {})) == ["Marstek"]
+
+
+# ---------------------------------------------------------------------------
+# the control loop
+# ---------------------------------------------------------------------------
+
+def test_its_power_is_not_the_delivery_of_the_commanded_batteries():
+    """The PD re-anchors its command to this figure.
+
+    With the Kostal's 2 kW in it, the no-PD law and the load-step feedforward
+    read 2 kW as already delivered and command the Marstek to charge it from the
+    grid.
+    """
+    marstek = _battery("Marstek", ac_power=0)
+    observed = _battery("BYD", battery_power=2000, commandable=False)
+    controller = SimpleNamespace(
+        coordinators=[marstek, observed],
+        _coordinator_delivered_power=ChargeDischargeController._coordinator_delivered_power,
+    )
+    assert ChargeDischargeController._measured_battery_power(controller) == 0
+
+
+def test_a_slot_is_not_credited_with_what_the_observed_battery_charged():
+    """Its own solar charging would cut the grid charge the plan bought short."""
+    marstek = _battery("Marstek", soc=50)
+    observed = _battery("BYD", soc=40, commandable=False)
+    controller = SimpleNamespace(
+        coordinators=[marstek, observed], _dynamic_pricing_schedule=None
+    )
+    slot = SimpleNamespace(start=0, end=1)
+    assert ChargeDischargeController._charged_in_slot(controller, slot) == 0.0
+    marstek.data["battery_soc"] = 55
+    observed.data["battery_soc"] = 90
+    assert ChargeDischargeController._charged_in_slot(controller, slot) == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(
+    ("grid", "charging", "command", "expected"),
+    [
+        (1500, 1000, 0, 500),        # importing for both: the house's share is left
+        (0, 1000, 0, 0),             # filled from its own PV: no phantom export
+        (-300, 1000, 0, -300),       # a real export stays one
+        (0, 1000, -500, -500),       # a discharge into it is unwound ...
+        (0, 1000, -1500, -1000),     # ... by no more than goes into it
+        (400, 1000, 600, 400),       # while charging, the meter is left alone
+    ],
+)
+def test_removing_its_charging_never_invents_an_export(grid, charging, command, expected):
+    controller = SimpleNamespace(
+        coordinators=[_battery("BYD", battery_power=charging, commandable=False)],
+        previous_power=command,
+    )
+    assert ChargeDischargeController._without_uncommanded_charge(
+        controller, grid, 0
+    ) == pytest.approx(expected)
+
+
+def _run_cycles(monkeypatch, grid_w, observed_w, cycles=6):
+    """Run the real control cycle; return the charge commands and guard inputs."""
+    import asyncio
+    from datetime import datetime, timedelta, timezone
+
+    import custom_components.omnibattery as integration
+    from tests.test_control_sample_scheduling import _main_controller, _state
+
+    t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    holder = {"state": _state(grid_w, t0)}
+    controller = _main_controller(holder, [])
+    marstek = controller.coordinators[0]
+    observed = _battery("BYD", battery_power=observed_w, commandable=False)
+    observed._is_shutting_down = False
+    controller._power_distribution._rebalance_expired_load_sharing_hold = AsyncMock(
+        return_value=False
+    )
+    controller.coordinators.append(observed)
+    commands, guard_grids = [], []
+
+    async def _record(coordinator, charge, discharge, **_kwargs):
+        commands.append((charge, discharge))
+
+    def _guards(_controller, power, grid):
+        guard_grids.append(grid)
+        return power
+
+    monkeypatch.setattr(integration, "apply_guards", _guards)
+    controller.__dict__.update(
+        previous_power=0.0, last_output_sign=0, kp=0.75, kd=0.0, ki=0, dt=1.0,
+        derivative_tau=3.0, max_power_change_per_cycle=2000, direction_hysteresis=0,
+        _measured_battery_power=lambda: None,
+        _should_log_rate_limiter=lambda _change: False,
+        _clear_rate_limiter_state=lambda: None,
+        _get_available_batteries=lambda is_charging, include_operation_blocks=True: (
+            [marstek] if is_charging else []
+        ),
+        _set_battery_power=_record,
+        _is_grid_at_min_soc_discharge_window=lambda: False,
+        min_charge_power=0, min_discharge_power=0,
+    )
+    for name in ("_compute_pd_new_power", "_apply_min_power"):
+        setattr(controller, name, getattr(ChargeDischargeController, name).__get__(
+            controller, ChargeDischargeController
+        ))
+    for i in range(1, cycles):
+        ts = t0 + timedelta(seconds=i)
+        holder["state"] = _state(grid_w + i % 2, ts)
+        asyncio.run(controller._run_control_cycle(now=ts))
+    return commands, guard_grids
+
+
+def test_an_observed_battery_filling_from_its_own_sun_starts_no_grid_charge(monkeypatch):
+    commands, _ = _run_cycles(monkeypatch, grid_w=0, observed_w=2000)
+    assert all(charge == 0 for charge, _ in commands), commands
+
+
+def test_the_guards_see_the_meter_with_its_charging_still_in_it(monkeypatch):
+    """They rebuild the house from every battery's power; once is enough."""
+    _, guard_grids = _run_cycles(monkeypatch, grid_w=1500, observed_w=1000)
+    assert guard_grids and all(abs(grid - 1500) < 5 for grid in guard_grids), guard_grids

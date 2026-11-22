@@ -36,6 +36,7 @@ from ..const import (
     T_START_FALLBACK_HOUR,
 )
 from .pack_soc import effective_min_soc
+from ..drivers.base import can_take_setpoint
 from ..solar_forecast import (
     get_configured_solar_forecast_sensor,
     read_remaining_solar_kwh,
@@ -378,7 +379,9 @@ class ChargeDelayManager:
                 (
                     c.data.get("battery_soc", 100)
                     for c in ctrl.coordinators
-                    if c.data and not getattr(c, "battery_manual_mode_enabled", False)
+                    if c.data
+                    and not getattr(c, "battery_manual_mode_enabled", False)
+                    and can_take_setpoint(c)
                 ),
                 default=100,
             )
@@ -446,7 +449,9 @@ class ChargeDelayManager:
             and not _plan_owns_delay(ctrl)
         )
         for coordinator in ctrl.coordinators:
-            if getattr(coordinator, "battery_manual_mode_enabled", False):
+            if getattr(
+                coordinator, "battery_manual_mode_enabled", False
+            ) or not can_take_setpoint(coordinator):
                 ctrl.remove_charge_block(
                     "charge_delay_setpoint", coordinator=coordinator
                 )
@@ -541,6 +546,7 @@ class ChargeDelayManager:
         automatic_batteries = [
             coordinator for coordinator in ctrl.coordinators
             if not getattr(coordinator, "battery_manual_mode_enabled", False)
+            and can_take_setpoint(coordinator)
         ]
 
         now = _decision_now()
