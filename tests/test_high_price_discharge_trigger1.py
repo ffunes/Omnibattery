@@ -15,7 +15,9 @@ from custom_components.omnibattery.pricing.high_price_discharge import (
     REASON_NO_SURPLUS,
     REASON_PLANNED,
     STATUS_NO_OPPORTUNITY,
+    REFILL_SEARCH_STEP_KWH,
     STATUS_PLANNED,
+    _solar_refill_price,
     plan_high_price_discharge,
 )
 
@@ -103,14 +105,79 @@ def test_refill_uses_highest_positive_slot_price_only_until_full():
     assert plan.status == STATUS_PLANNED
 
 
-@pytest.mark.parametrize("fill", [
-    [_slot(2, price=0.1, solar=3)],
-    [_slot(2, consumption=1), _slot(3, price=0.1, solar=20)],
+@pytest.mark.parametrize("fill, budget", [
+    ([_slot(2, price=0.1, solar=3)], 1.0),
+    ([_slot(2, consumption=1), _slot(3, price=0.1, solar=20)], 5.0),
 ])
-def test_insufficient_solar_or_morning_dry_spell_blocks_refill(fill):
+def test_insufficient_solar_or_morning_dry_spell_sells_the_refillable_part(fill, budget):
+    plan = _plan([_slot(0, price=0.5), _slot(1)], trigger_1_enabled=True, fill=fill)
+    assert plan.trigger_1_reason == REASON_PLANNED
+    assert plan.refill_price == pytest.approx(0.1)
+    assert plan.trigger_1_budget_kwh == pytest.approx(budget)
+    assert sum(a.surplus_kwh for a in plan.allocations) == pytest.approx(budget)
+
+
+@pytest.mark.parametrize("fill", [
+    [_slot(2, price=0.1, solar=1.5)],
+    [_slot(2, consumption=7), _slot(3, price=0.1, solar=20)],
+])
+def test_refill_short_even_keeping_the_whole_surplus_blocks_trigger_1(fill):
     plan = _plan([_slot(0, price=0.5), _slot(1)], trigger_1_enabled=True, fill=fill)
     assert plan.refill_price is None
     assert plan.trigger_1_reason == REASON_NO_REFILL_PRICE
+    assert plan.trigger_1_budget_kwh == pytest.approx(6)
+    assert plan.allocations == ()
+
+
+def test_943_morning_standby_before_sun_sells_a_partial_budget():
+    # Reporter's numbers: usable 7.22, protected 4.19, surplus 3.03, 10.82 kWh sun.
+    battery = _battery(soc=12 + 722 / 10.24, capacity=10.24, floor=12.0)
+    slots = [_slot(0, price=0.5), _slot(1, buy=0.3, consumption=4.19)]
+    fill = [_slot(2, consumption=0.2), _slot(3, consumption=0.2),
+            _slot(4, price=0.05, solar=2, consumption=0.3),
+            _slot(5, price=0.05, solar=4, consumption=0.4),
+            _slot(6, price=0.05, solar=4.82, consumption=0.4)]
+    plan = _plan(slots, trigger_1_enabled=True, batteries=[battery], fill=fill)
+    assert plan.trigger_1_reason == REASON_PLANNED
+    assert 0 < plan.trigger_1_budget_kwh < 3.03
+    full = (100 - 12) / 100 * 10.24
+    kept = 3.03 - plan.trigger_1_budget_kwh
+    assert _solar_refill_price(fill, DAY + timedelta(hours=2), kept, full, 1.0) is not None
+    assert _solar_refill_price(fill, DAY + timedelta(hours=2),
+                               kept - REFILL_SEARCH_STEP_KWH, full, 1.0) is None
+
+
+def test_smaller_sale_with_cheaper_refill_beats_no_sale():
+    # Selling all 6 kWh fills only in the 0.30 slot (> 0.25 export); keeping 5
+    # fills in the 0.10 slot, so 1 kWh sells.
+    fill = [_slot(2, price=0.1, solar=3), _slot(3, price=0.30, solar=10)]
+    plan = _plan([_slot(0, price=0.25), _slot(1)], trigger_1_enabled=True, fill=fill)
+    assert plan.trigger_1_reason == REASON_PLANNED
+    assert plan.refill_price == pytest.approx(0.1)
+    assert plan.trigger_1_budget_kwh == pytest.approx(1)
+
+
+@pytest.mark.parametrize("chronological", [True, False])
+def test_partial_sale_keeps_trigger_2_off_the_refill_start(chronological):
+    # Surplus 5, the sun refills only when 4 are kept: Trigger 1 sells 1 and
+    # Trigger 2 must not sell the protected demand on top of it.
+    slots = [_slot(0, price=0.5), _slot(1, buy=0.1, consumption=1)]
+    plan = _plan(slots, enabled=True, trigger_1_enabled=True,
+                 chronological_coverage=chronological,
+                 fill=[_slot(2, price=0.1, solar=4)])
+    assert plan.trigger_1_budget_kwh == pytest.approx(1)
+    assert plan.total_allocated_kwh <= plan.trigger_1_budget_kwh + 1e-6
+
+
+def test_partial_sale_never_sells_less_than_all_or_nothing():
+    # Partial Trigger 1 would sell 1 kWh and keep 2, blocking Trigger 2's
+    # 3 kWh demand sale: the all-or-nothing plan sells more, so it wins.
+    slots = [_slot(0, price=0.5), _slot(1, buy=0.1, consumption=3)]
+    plan = _plan(slots, enabled=True, trigger_1_enabled=True,
+                 fill=[_slot(2, price=0.1, solar=6)])
+    assert plan.trigger_1_reason == REASON_NO_REFILL_PRICE
+    assert plan.total_allocated_kwh == pytest.approx(3)
+    assert plan.allocations == _plan(slots, enabled=True).allocations
 
 
 def test_negative_solar_export_prices_floor_refill_cost_at_zero():

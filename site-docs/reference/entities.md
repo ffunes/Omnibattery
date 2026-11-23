@@ -180,7 +180,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
 
     | Attribute | Meaning |
     |---|---|
-    | `trigger_1_budget_kwh` | Battery energy that **High-Price Sale** (*Surplus only* or above) may sell after preserving the forecast need before sunrise (solar counted less the safety margin) |
+    | `trigger_1_budget_kwh` | Battery energy that **High-Price Sale** (*Surplus only* or above) may sell after preserving the forecast need before sunrise (solar counted less the safety margin), reduced to the part tomorrow’s solar can refill |
     | `refill_price` | Export-price reference for solar refilling the battery tomorrow |
     | `trigger_1_reason` | Why surplus export is active or inactive |
     | `surplus_export_enabled` | Whether **High-Price Sale** is set to *Surplus only* or above |
