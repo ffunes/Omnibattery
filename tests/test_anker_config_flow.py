@@ -131,15 +131,15 @@ async def test_matching_marstek_coordinator_is_not_reused_for_anker(monkeypatch)
     probe.assert_awaited_once_with("192.0.2.10", 502, 1)
 
 
-def test_flow_ceiling_accepts_7000_and_rejects_above():
-    """Combined units read 7000 W (#646); nothing above is offered."""
+def test_flow_ceiling_accepts_combined_units_and_rejects_above():
+    """Combined units report their total (#646); nothing above four units is offered."""
     assert _anker_power_ceilings(
-        {"device_max_charge_power": 7000, "device_max_discharge_power": 7000}
-    ) == (7000, 7000)
+        {"device_max_charge_power": 10500, "device_max_discharge_power": 10500}
+    ) == (10500, 10500)
     assert _anker_power_ceilings(
-        {"device_max_charge_power": 9000, "device_max_discharge_power": 9000}
-    ) == (7000, 7000)
-    assert _anker_power_ceilings({}) == (7000, 7000)
+        {"device_max_charge_power": 20000, "device_max_discharge_power": 20000}
+    ) == (14000, 14000)
+    assert _anker_power_ceilings({}) == (14000, 14000)
 
 
 def _stored_limits(kind, battery_data):

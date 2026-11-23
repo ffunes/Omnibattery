@@ -36,7 +36,7 @@ from .base import (
     SetpointResult,
     TelemetrySnapshot,
 )
-from .anker_flow import ANKER_SETUP
+from .anker_flow import ANKER_SETUP, _ANKER_MAX_POWER_W
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,11 +56,9 @@ _DEVICE_MODEL_REG_COUNT = 5
 _ADDR_DEVICE_SN = 10100
 _DEVICE_SN_REG_COUNT = 12
 
-# Hardware ceiling: two combined Max AC units report 7000 W in 10036/10038 (#646).
-# Live caps come from those registers; this is only an upper clamp. The EFFECTIVE
-# limit is min(register, user-configured max), and the configured value defaults
-# to 3500 W (anker_flow), so a lone unit's 7000 W peak reading never raises it.
-_HW_MAX_POWER_W = 7000
+# Upper clamp on 10036/10038 (see anker_flow). The EFFECTIVE limit is
+# min(register, user-configured max), and the configured value defaults to 3500 W.
+_HW_MAX_POWER_W = _ANKER_MAX_POWER_W
 # A setpoint at least this large counts as "latched" for the 0 W glitch filter.
 # Not a hardware floor: 10071 accepts any value from 0 W (#734).
 _GLITCH_LATCH_MIN_W = 100
@@ -324,6 +322,8 @@ class AnkerModbusDriver(BatteryDriver):
             battery_config.get("slave_id", 1),
             max_charge_power_w=context.max_charge_power_w,
             max_discharge_power_w=context.max_discharge_power_w,
+            rated_charge_w=int(battery_config.get("device_max_charge_power") or 0),
+            rated_discharge_w=int(battery_config.get("device_max_discharge_power") or 0),
         )
 
     def __init__(
@@ -335,6 +335,8 @@ class AnkerModbusDriver(BatteryDriver):
         client: Optional[AnkerModbusClient] = None,
         max_charge_power_w: int = _HW_MAX_POWER_W,
         max_discharge_power_w: int = _HW_MAX_POWER_W,
+        rated_charge_w: int = 0,
+        rated_discharge_w: int = 0,
     ) -> None:
         self._host = host
         self._port = port
@@ -346,6 +348,10 @@ class AnkerModbusDriver(BatteryDriver):
         self._product_code: Optional[str] = None
         self._dynamic_max_charge_w = _HW_MAX_POWER_W
         self._dynamic_max_discharge_w = _HW_MAX_POWER_W
+        # Highest 10036/10038 seen, seeded from the persisted device cap so a
+        # restart does not drop the ceiling to the first (possibly derated) read.
+        self._rated_charge_w = min(_HW_MAX_POWER_W, max(0, rated_charge_w))
+        self._rated_discharge_w = min(_HW_MAX_POWER_W, max(0, rated_discharge_w))
         # User limits are enforced upstream; capability envelope is hardware max.
         _ = (max_charge_power_w, max_discharge_power_w)
 
@@ -622,16 +628,10 @@ class AnkerModbusDriver(BatteryDriver):
                     product_code = _extract_product_code(value)
                     if product_code:
                         self._set_product_code(product_code)
-                if field["key"] == "max_charge_power" and isinstance(value, (int, float)):
-                    # Cap at the hardware ceiling; the user-configured max (default
-                    # 3500 W) still bounds the effective limit upstream.
-                    capped = max(0, min(_HW_MAX_POWER_W, int(value)))
-                    snapshot[field["key"]] = capped or _HW_MAX_POWER_W
-                    self._dynamic_max_charge_w = snapshot[field["key"]]
-                if field["key"] == "max_discharge_power" and isinstance(value, (int, float)):
-                    capped = max(0, min(_HW_MAX_POWER_W, int(value)))
-                    snapshot[field["key"]] = capped or _HW_MAX_POWER_W
-                    self._dynamic_max_discharge_w = snapshot[field["key"]]
+                if field["key"] in ("max_charge_power", "max_discharge_power") and isinstance(
+                    value, (int, float)
+                ):
+                    snapshot[field["key"]] = self._track_power_cap(field["key"], int(value))
 
         # Register 10015 is shared across Solarbank SKUs but only field-verified on
         # DMWH. Units that do not implement SoH may answer 0 instead of omitting the
@@ -740,6 +740,34 @@ class AnkerModbusDriver(BatteryDriver):
         return await self._client.async_write_register(
             _ADDR_OPERATING_MODE, _OPERATING_MODE_THIRD_PARTY
         )
+
+    def _track_power_cap(self, key: str, value: int) -> int:
+        """Clamp setpoints to the live reading; publish the highest one seen.
+
+        10036/10038 move with the system's state: three combined units read
+        5138/3608 W, not 10500 (#646). Publishing each read would drag the Max
+        power sliders and the planner's ceiling with it and rewrite the config
+        entry on every change, so the published ceiling is the highest reading.
+        A 0 is a missing answer: the last live clamp stands.
+        """
+        live = max(0, min(_HW_MAX_POWER_W, value))
+        if key == "max_charge_power":
+            if live:
+                self._dynamic_max_charge_w = live
+            self._rated_charge_w = max(self._rated_charge_w, live)
+            return self._rated_charge_w or _HW_MAX_POWER_W
+        if live:
+            self._dynamic_max_discharge_w = live
+        self._rated_discharge_w = max(self._rated_discharge_w, live)
+        return self._rated_discharge_w or _HW_MAX_POWER_W
+
+    def dynamic_charge_limit_w(self, data: dict) -> Optional[int]:
+        """The live 10036 reading, so the controller never allocates past the clamp."""
+        return self._dynamic_max_charge_w
+
+    def dynamic_discharge_limit_w(self, data: dict) -> Optional[int]:
+        """The live 10038 reading, so the controller never allocates past the clamp."""
+        return self._dynamic_max_discharge_w
 
     def _clamp_net_power(self, net_power_w: int) -> int:
         """Clamp to the live hardware envelope."""
