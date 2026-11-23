@@ -64,6 +64,7 @@
 ### Fixed
 
 - **A switched-off Venus A or D no longer reloads the whole entry every ~50 s** (#934): its empty pack probes counted as an answer, so the other batteries were torn down on every cycle. Thanks to @vdiele and @anorakophobia.
+- **Zendure 3000/4000 Mix AC+: PV on the PV-IN AC port counts as solar** (#529): it was read as grid charging or house load. With `pvacSwitch` on, `gridOffPower2` is the battery's Solar Power and enters the system solar. If your Solar Production sensor already includes that inverter, take it out or it counts twice.
 - **"Today" is Home Assistant's date, not the host's** (#898): on a host in another time zone (Docker or Core without `TZ`), PVPC prices, the daily totals and the stored Weekly Full Charge and Charge Delay state turned over at the host's midnight (PR#932). Thanks to @anorakophobia.
 - **The options form keeps the limits set with the sliders**: the battery limits step opened with old charge and discharge power (Zendure: old SOC limits too). Saving it lowered a Zendure to the old charge power, and on a Marstek v2/v3 a change made in the form was ignored.
 - **The charge of an observed or manually controlled battery is no longer fed by the others** when the sun goes or an excluded device runs, and Maximum Grid Import counts it.

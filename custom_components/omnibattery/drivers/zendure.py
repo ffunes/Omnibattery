@@ -130,6 +130,25 @@ _AGGREGATE_PV_MODELS: frozenset[str] = frozenset({
     # SolarFlow 2400 Pro has DC PV inputs reported as solarInputPower (#630).
     ZENDURE_MODEL_2400AC_PRO,
 })
+# AC-coupled models with a PV-IN AC port (#529): an AC PV inverter feeds the
+# unit, reported as negative gridOffPower2 while pvacSwitch=1. Same flow as the
+# 800's DC PV: into the pack first, the rest out of the AC port.
+_PV_IN_AC_MODELS: frozenset[str] = frozenset({
+    ZENDURE_MODEL_3000MIX_AC_PLUS,
+    ZENDURE_MODEL_4000MIX_AC_PLUS,
+})
+
+
+def _has_solar(model: str, pv_in: bool) -> bool:
+    return model in _AGGREGATE_PV_MODELS or (pv_in and model in _PV_IN_AC_MODELS)
+
+
+def _excluded_sensor_keys(model: str, pv_in: bool) -> frozenset[str]:
+    if model not in _AC_COUPLED_MODELS:
+        return frozenset()
+    if pv_in and model in _PV_IN_AC_MODELS:
+        return frozenset(_MPPT_POWER_KEYS)
+    return _SOLAR_MPPT_KEYS
 
 # Zendure API property name → logical coordinator key.
 _PROP_TO_KEY: dict[str, str] = {
@@ -523,6 +542,8 @@ class ZendureLocalDriver(BatteryDriver):
         self._shutting_down = False
         # gridOffMode normal (0) or economy (1); refreshed on every poll (#882).
         self._offgrid_port_on = False
+        # PV-IN AC switched on (pvacSwitch=1, #529); refreshed on every report.
+        self._pv_in = False
         self._sn: Optional[str] = None  # populated from first GET response
         self._product: Optional[str] = None  # device model from the report root
         self._model = model
@@ -544,7 +565,7 @@ class ZendureLocalDriver(BatteryDriver):
             mppt_power_keys=(
                 () if model in _AC_COUPLED_MODELS else _MPPT_POWER_KEYS
             ),
-            has_solar_telemetry=model in _AGGREGATE_PV_MODELS,
+            has_solar_telemetry=_has_solar(model, self._pv_in),
             has_alarm_registers=True,    # faultLevel + is_error
             has_rs485_control=False,
             has_energy_counters=False,   # no kWh / capacity in the report; synthesised
@@ -556,7 +577,7 @@ class ZendureLocalDriver(BatteryDriver):
             cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE,  # publishes max_cell_voltage
         )
 
-        _excluded = _SOLAR_MPPT_KEYS if model in _AC_COUPLED_MODELS else frozenset()
+        _excluded = _excluded_sensor_keys(model, self._pv_in)
         _sensor_defs = [d for d in SENSOR_DEFINITIONS if d["key"] not in _excluded]
         _number_defs = _number_definitions_for_model(model)
 
@@ -662,6 +683,7 @@ class ZendureLocalDriver(BatteryDriver):
         self._sn = data.get("sn")
         self._product = data.get("product")
         self._update_model_from_product(self._product)
+        self._update_pv_in(data.get("properties", {}))
         self._connected = True
         _LOGGER.info("Connected to Zendure device at %s (sn=%s)", self._base_url, self._sn)
         return True
@@ -700,6 +722,7 @@ class ZendureLocalDriver(BatteryDriver):
         if self._product is None:
             self._product = data.get("product")
         self._update_model_from_product(self._product)
+        self._update_pv_in(data.get("properties", {}))
 
         snapshot = self._snapshot_from_report(data)
 
@@ -738,6 +761,16 @@ class ZendureLocalDriver(BatteryDriver):
         for key in _DECIPERCENT_KEYS:
             if snapshot.get(key) is not None:
                 snapshot[key] = snapshot[key] / 10
+
+        # PV-IN AC (#529): the inverter on that port is gridOffPower2, negative
+        # while it delivers. solarInputPower is the DC input, always 0 here.
+        if self._pv_in and self._model in _PV_IN_AC_MODELS:
+            pv_in_w = props.get("gridOffPower2")
+            snapshot["solar_power"] = (
+                max(0, -pv_in_w)
+                if isinstance(pv_in_w, (int, float)) and not isinstance(pv_in_w, bool)
+                else None
+            )
 
         # hyperTmp is deci-Kelvin (zenSDK); the offset can't ride the entity
         # scale, so convert here (entity scale is 1).
@@ -856,16 +889,38 @@ class ZendureLocalDriver(BatteryDriver):
             mppt_power_keys=(
                 () if detected in _AC_COUPLED_MODELS else _MPPT_POWER_KEYS
             ),
-            has_solar_telemetry=detected in _AGGREGATE_PV_MODELS,
+            has_solar_telemetry=_has_solar(detected, self._pv_in),
         )
 
         # The AC+ profile omits DC MPPT entities; the Pro profile exposes them.
         # Rebuild the definitions/read group so promotion remains correct if an
         # entry was instantiated with the old generic profile.
-        excluded = _SOLAR_MPPT_KEYS if detected in _AC_COUPLED_MODELS else frozenset()
+        self._rebuild_definitions()
+
+    def _update_pv_in(self, props: dict) -> None:
+        """Follow pvacSwitch: PV-IN AC counts as solar only while it is on (#529).
+
+        A Mix AC+ with nothing on PV-IN must not become a permanent 0 W solar
+        source. Entities are created at setup (connect() runs first), so a later
+        switch change shows its solar entity after a reload.
+        """
+        if "pvacSwitch" not in props:
+            return
+        pv_in = props["pvacSwitch"] == 1
+        if pv_in == self._pv_in:
+            return
+        self._pv_in = pv_in
+        self._capabilities = replace(
+            self._capabilities,
+            has_solar_telemetry=_has_solar(self._model, pv_in),
+        )
+        self._rebuild_definitions()
+
+    def _rebuild_definitions(self) -> None:
+        excluded = _excluded_sensor_keys(self._model, self._pv_in)
         sensor_defs = [d for d in SENSOR_DEFINITIONS if d["key"] not in excluded]
         self._definitions["sensor"] = sensor_defs
-        number_defs = _number_definitions_for_model(detected)
+        number_defs = _number_definitions_for_model(self._model)
         self._definitions["number"] = number_defs
         self._definitions["all"] = (
             sensor_defs
