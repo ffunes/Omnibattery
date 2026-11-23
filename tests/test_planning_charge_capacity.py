@@ -53,6 +53,19 @@ def test_planning_capacity_keeps_the_system_cap():
     assert controller._effective_system_capacity(_FLEET, True, planning=True) == 3000
 
 
+def test_planning_capacity_leaves_out_an_observed_battery():
+    observed = SimpleNamespace(
+        name="observed", battery_manual_mode_enabled=False,
+        effective_max_charge_power=3000, max_charge_power=3000,
+        capabilities=SimpleNamespace(supports_power_setpoint=False),
+    )
+    controller = _controller({"zendure": 0, "venus": 0, "observed": 0})
+
+    assert controller._effective_system_capacity(
+        [*_FLEET, observed], True, planning=True
+    ) == 4900
+
+
 def test_engine_reads_planning_capacity_with_live_fallback():
     engine = PricingManager.__new__(PricingManager)
     engine._controller = SimpleNamespace(

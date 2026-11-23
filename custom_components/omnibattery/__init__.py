@@ -2823,11 +2823,13 @@ class ChargeDischargeController:
         ``planning`` sums each battery's configured ceiling instead of this
         cycle's limit: temperature derate, top-of-charge taper, driver
         telemetry and the active slot's ceiling describe now, not the slot a
-        planner books for later.
+        planner books for later. A battery that takes no setpoint (observed)
+        cannot carry a booked charge, so it is left out.
         """
         batteries = [
             coordinator for coordinator in batteries
             if not getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+            and not (planning and is_observed(coordinator))
         ]
         total_capacity = sum(
             getattr(c, "effective_max_charge_power", c.max_charge_power)

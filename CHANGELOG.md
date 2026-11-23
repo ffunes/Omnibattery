@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.0b2] - Unreleased
+
+### Fixed
+
+- **Predictive charging plans at the batteries' full charge power**: a battery that was warm or near full when the plan was made no longer lowers the charge power planned for later slots.
+
 ## [2.0.0b1] - 2026-11-23
 
 > [!WARNING]
@@ -63,7 +69,6 @@
 
 ### Fixed
 
-- **Predictive charging plans at the batteries' full charge power**: a battery that was warm or near full when the plan was made lowered the planned charge power for the whole night (1614 W instead of 4900 W), and a driver reporting 0 W planned no charge at all. The temperature limit and the near-full slowdown still apply while charging.
 - **A switched-off Venus A or D no longer reloads the whole entry every ~50 s** (#934): its empty pack probes counted as an answer, so the other batteries were torn down on every cycle. Thanks to @vdiele and @anorakophobia.
 - **Zendure 3000/4000 Mix AC+: PV on the PV-IN AC port counts as solar** (#529): it was read as grid charging or house load. With `pvacSwitch` on, `gridOffPower2` is the battery's Solar Power and enters the system solar. If your Solar Production sensor already includes that inverter, take it out or it counts twice.
 - **"Today" is Home Assistant's date, not the host's** (#898): on a host in another time zone (Docker or Core without `TZ`), PVPC prices, the daily totals and the stored Weekly Full Charge and Charge Delay state turned over at the host's midnight (PR#932). Thanks to @anorakophobia.
