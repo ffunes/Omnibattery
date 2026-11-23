@@ -8549,6 +8549,11 @@ class PricingManager:
         """
         if day_rolled:
             await self._run_time_slot_decision()
+        elif getattr(self._controller, "_time_slot_floor_kwh", None) is None:
+            # Hold what is stored until the plan sets the floor (#938):
+            # without it the wait (up to 300 s) discharged energy the
+            # window then bought back.
+            self._controller._time_slot_floor_kwh = self._fleet_stored_kwh()
 
     async def handle_time_slot_predictive_charging(self) -> None:
         """Handle predictive charging in time slot mode (extracted from main loop)."""
@@ -9141,6 +9146,8 @@ class PricingManager:
             != PREDICTIVE_MODE_TIME_SLOT
             or not (callable(in_slot) and in_slot())
             or (callable(weekly_fn) and weekly_fn())
+            # 50 Wh fixed, not one SOC point: the charge stops up to a point
+            # above the floor, so at most one point is let out (#938).
             or stored > floor + ENERGY_TOLERANCE_KWH
         ):
             ctrl.remove_discharge_block("time_slot_floor_hold")
@@ -9148,7 +9155,11 @@ class PricingManager:
         ctrl.set_discharge_block(
             "time_slot_floor_hold",
             "time_slot_floor",
-            {"floor_kwh": round(floor, 2), "stored_kwh": round(stored, 2)},
+            {
+                "floor_kwh": round(floor, 2),
+                "stored_kwh": round(stored, 2),
+                "release_above_kwh": round(floor + ENERGY_TOLERANCE_KWH, 2),
+            },
         )
 
     def _weekly_plan_holds(self) -> frozenset | None:

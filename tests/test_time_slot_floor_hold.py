@@ -10,6 +10,7 @@ The plan therefore buys only what is needed after the window.
 """
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
@@ -32,33 +33,36 @@ WINDOW_LOAD = 7.5 * LOAD_KW
 AFTER_WINDOW_LOAD = DAY_LOAD - WINDOW_LOAD  # 4.8
 
 
-def _forecast(start, end):
-    shape = [LOAD_KW / 4] * INTERVAL_COUNT
+def _forecast(start, end, load_kw=LOAD_KW):
+    shape = [load_kw / 4] * INTERVAL_COUNT
     hours = (end - start).total_seconds() / 3600.0
     return ConsumptionForecast(
-        LOAD_KW * hours, list(shape), "profile", True,
+        load_kw * hours, list(shape), "profile", True,
         intervals_by_date={start.date(): list(shape)},
     )
 
 
-def _manager(soc, *, windows=(WINDOW,), weekly=False):
+def _manager(
+    soc, *, windows=(WINDOW,), weekly=False, capacity=10.0, min_soc=10,
+    load_kw=LOAD_KW, max_charge=3000, sunrise_h=None,
+):
     blocks = {}
     coordinator = SimpleNamespace(
-        data={"battery_soc": soc, "battery_total_energy": 10.0},
-        min_soc=10,
+        data={"battery_soc": soc, "battery_total_energy": capacity},
+        min_soc=min_soc,
         max_soc=100,
     )
     controller = SimpleNamespace(
         _consumption_tracker=SimpleNamespace(
             consumption_profile=SimpleNamespace(),
-            forecast_consumption_between=lambda s, e, **_kw: _forecast(s, e),
+            forecast_consumption_between=lambda s, e, **_kw: _forecast(s, e, load_kw),
         ),
         coordinators=[coordinator],
         _is_battery_manual_owned=lambda _c: False,
         solar_profile_mode="active",
         _predictive_safety_margin_pct=0.0,
         max_contracted_power=3000,
-        max_charge_capacity=3000,
+        max_charge_capacity=max_charge,
         max_price_threshold=None,
         predictive_charging_mode=PREDICTIVE_MODE_TIME_SLOT,
         dp_price_discharge_control=False,
@@ -75,6 +79,8 @@ def _manager(soc, *, windows=(WINDOW,), weekly=False):
         SimpleNamespace(config=SimpleNamespace(time_zone="UTC")), controller
     )
     manager._read_remaining_solar_input = lambda **_kw: None
+    if sunrise_h is not None:
+        controller._consumption_tracker.calculate_sunrise = lambda _d: sunrise_h
     return manager, coordinator, blocks
 
 
@@ -138,6 +144,8 @@ def test_the_hold_blocks_discharge_at_the_floor(soc, blocked):
     manager._controller._time_slot_floor_kwh = 9.0
     manager.apply_time_slot_floor_hold()
     assert ("time_slot_floor_hold" in blocks) is blocked
+    if blocked:
+        assert blocks["time_slot_floor_hold"]["release_above_kwh"] == 9.05
 
 
 @pytest.mark.parametrize(
@@ -155,6 +163,99 @@ def test_the_hold_releases_outside_its_case(change):
     blocks["time_slot_floor_hold"] = {}
     for key, value in change.items():
         setattr(manager._controller, key, value)
+    manager.apply_time_slot_floor_hold()
+    assert "time_slot_floor_hold" not in blocks
+
+
+# ----------------------------------------------------------------------
+# #938: the reporter's windows, whole-percent SOC and the slot-entry wait
+# ----------------------------------------------------------------------
+
+# 8.16 kWh, min SOC 5 %, 0.8 kW house, no sun; 22:00-07:00 every day and
+# 07:00-22:00 at the weekend. 2026-11-22 is a Sunday.
+WINDOWS_938 = (
+    {"start_time": "22:00:00", "end_time": "07:00:00", "days": ALL_DAYS},
+    {"start_time": "07:00:00", "end_time": "22:00:00", "days": ["sat", "sun"]},
+)
+
+
+def _manager_938(soc):
+    return _manager(
+        soc, windows=WINDOWS_938, capacity=8.16, min_soc=5, load_kw=0.8,
+        max_charge=2400, sunrise_h=8.2,
+    )
+
+
+def _no_charge():
+    return {"avg_consumption_kwh": 1.0, "planned_grid_charge_kwh": 0.0, "should_charge": False}
+
+
+def test_contiguous_windows_do_not_hold_before_the_next_window():
+    # Sunday 16:57: the plan reaches only 22:00, when the night window
+    # opens, so the floor is the minimum SOC and nothing is held.
+    manager, _, blocks = _manager_938(15.0)
+    manager._apply_time_slot_chronological_plan(_no_charge(), now=datetime(2026, 11, 22, 16, 57))
+    manager.apply_time_slot_floor_hold()
+    assert manager._controller._time_slot_floor_kwh == pytest.approx(0.408, abs=1e-3)
+    assert "time_slot_floor_hold" not in blocks
+
+
+@pytest.mark.parametrize(("soc", "blocked"), [(17.0, True), (40.0, False)])
+def test_the_night_window_keeps_the_morning_need(soc, blocked):
+    # 22:30: the plan reaches Monday's sunrise; the morning needs 1.368 kWh.
+    manager, _, blocks = _manager_938(soc)
+    manager._apply_time_slot_chronological_plan(_no_charge(), now=datetime(2026, 11, 22, 22, 30))
+    manager.apply_time_slot_floor_hold()
+    assert manager._controller._time_slot_floor_kwh == pytest.approx(1.368, abs=1e-3)
+    assert ("time_slot_floor_hold" in blocks) is blocked
+
+
+@pytest.mark.parametrize("load_kw", [0.300, 0.302, 0.304, 0.306, 0.308, 0.310, 0.312])
+def test_whole_percent_soc_holds_within_one_step_of_the_floor(load_kw):
+    """The 50 Wh release margin lets out at most one SOC point (100 Wh here)
+    after the charge; a re-evaluation buys back only what fell below the floor."""
+    day_load = 23.5 * load_kw
+    manager, coordinator, blocks = _manager(30.0, load_kw=load_kw)
+
+    def decision(usable):
+        return {
+            "avg_consumption_kwh": day_load,
+            "planned_grid_charge_kwh": max(0.0, day_load - usable),
+            "should_charge": day_load > usable,
+        }
+
+    quota = manager._apply_time_slot_chronological_plan(decision(2.0), now=NOW)[
+        "active_slot_energy_target_kwh"
+    ]
+    floor = manager._controller._time_slot_floor_kwh
+    # The charge stops at the first whole percent at or above the target.
+    coordinator.data["battery_soc"] = float(math.ceil(30.0 + quota * 10 - 1e-9))
+    steps = 0
+    while True:
+        manager.apply_time_slot_floor_hold()
+        if "time_slot_floor_hold" in blocks:
+            break
+        coordinator.data["battery_soc"] -= 1
+        steps += 1
+    assert steps <= 1
+    assert coordinator.data["battery_soc"] / 10 >= floor - (0.1 - 0.05) - 1e-9
+    usable = coordinator.data["battery_soc"] / 10 - 1.0
+    again = manager._apply_time_slot_chronological_plan(decision(usable), now=NOW)
+    end = coordinator.data["battery_soc"] / 10
+    assert again["active_slot_energy_target_kwh"] == pytest.approx(
+        max(0.0, floor - end), abs=1e-3
+    )
+
+
+async def test_the_forecast_grace_holds_instead_of_discharging():
+    # Slot entry with the forecast not published yet: no plan, no floor.
+    manager, _, blocks = _manager(95.0)
+    await manager._retry_time_slot_evaluation(day_rolled=False)
+    manager.apply_time_slot_floor_hold()
+    assert manager._controller._time_slot_floor_kwh == pytest.approx(9.5)
+    assert "time_slot_floor_hold" in blocks
+    # The evaluation then finds spare energy and lets it out.
+    manager._apply_time_slot_chronological_plan(_decision(8.5), now=NOW)
     manager.apply_time_slot_floor_hold()
     assert "time_slot_floor_hold" not in blocks
 

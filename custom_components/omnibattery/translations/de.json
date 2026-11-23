@@ -1866,6 +1866,7 @@
           "capacity_conserving": "Kapazität Schonen",
           "capacity_protection_charging": "Kapazitätsschutz - Laden",
           "price_discharge_blocked": "Entladung durch Preis blockiert",
+          "time_slot_floor_hold": "Energie für nach dem günstigen Zeitfenster halten",
           "hourly_balance_import": "Stundensaldo - Import",
           "hourly_balance_export": "Stundensaldo - Export",
           "hourly_balance_capped": "Stundensaldo - Begrenzt",

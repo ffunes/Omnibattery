@@ -1866,6 +1866,7 @@
           "capacity_conserving": "Capaciteit Behouden",
           "capacity_protection_charging": "Capaciteitsbescherming - Laden",
           "price_discharge_blocked": "Ontladen Geblokkeerd door Prijs",
+          "time_slot_floor_hold": "Energie Vasthouden voor na het Goedkope Tijdslot",
           "hourly_balance_import": "Uurbalans - Importeren",
           "hourly_balance_export": "Uurbalans - Exporteren",
           "hourly_balance_capped": "Uurbalans - Begrensd",
