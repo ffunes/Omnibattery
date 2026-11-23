@@ -208,7 +208,8 @@ _AC_MODE_DISCHARGE = 2
 
 # #633: holding a 0 W setpoint keeps the inverter awake (~19 W). After this long
 # held idle, write the Gielz1986 zenSDK "full standby" (smartMode=0, both limits
-# 0); the next setpoint wakes it, since it carries smartMode=1.
+# 0); the next setpoint wakes it, since it carries smartMode=1. Measured on a
+# 2400 AC+: state held, bundled 200 W discharge echoed in ~1 s, power at ~7 s.
 # ponytail: fixed delay, no option; add one if someone needs another value.
 _DEEP_STANDBY_AFTER_S = 15 * 60
 _DEEP_STANDBY_PAYLOAD = {"smartMode": 0, "outputLimit": 0, "inputLimit": 0}
