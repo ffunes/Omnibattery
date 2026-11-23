@@ -354,6 +354,25 @@ def test_the_status_sensor_is_on_while_the_plan_holds():
     assert sensor.extra_state_attributes["release_reason"] == "manual_control"
 
 
+def test_the_status_sensor_lists_the_holds_still_ahead():
+    """The old reserve showed its future slots; the plan's holds do too: each
+    run of held slots not yet over, contiguous slots merged, past ones gone."""
+    from custom_components.omnibattery.binary_sensor import DischargeReserveSensor
+
+    a, b, c, d, e = _slots(_at(11, 0), [0.15, 0.30, 0.15, 0.16, 0.30])
+    ctrl, _battery, _writes = _hold_controller({a, c, d}, b.start)
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    sensor = DischargeReserveSensor(None, None, ctrl)
+    assert not sensor.is_on
+    assert sensor.extra_state_attributes["upcoming_holds"] == [
+        {"start": c.start.isoformat(), "end": d.end.isoformat()}
+    ]
+    # Outside Dynamic Pricing nothing is planned.
+    ctrl, _battery, _writes = _hold_controller({c}, b.start, dynamic_pricing=False)
+    ChargeDischargeController._refresh_price_reserve_blocks(ctrl)
+    assert ctrl._plan_hold_status["upcoming_holds"] == []
+
+
 def test_a_fallback_plan_publishes_no_holds(monkeypatch):
     """#888 D2: when the previous allocator plans, nothing is held."""
     from custom_components.omnibattery.pricing import engine as pricing_engine
