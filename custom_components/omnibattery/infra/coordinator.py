@@ -1298,7 +1298,11 @@ class MarstekVenusDataUpdateCoordinator(DataUpdateCoordinator):
             if critical_keys_requested.intersection(snapshot):
                 critical_groups_succeeded.add(group.keys)
 
-            sensors_succeeded += 1
+            # A snapshot of only None is stored (it clears stale values) but is
+            # not an answer: Marstek purges the pack slots its probe wrote off
+            # that way even when the battery read nothing at all (#934).
+            if any(value is not None for value in snapshot.values()):
+                sensors_succeeded += 1
             stored = 0
             for key, value in snapshot.items():
                 sensor = self._def_by_key.get(key, {})
