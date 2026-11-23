@@ -4498,6 +4498,13 @@ class PricingManager:
             # planner's floor requirement beyond ordinary pre-sunrise depletion.
             premium_kwh = 0.0
             floor_until = None
+            # A battery under the guaranteed floor keeps it also when the
+            # ordinary deficit is the larger one (#834): the optimizer buys
+            # only what pays, so the larger deficit alone does not reach it.
+            if not diagnostic_only and float(
+                decision_data.get("floor_deficit_kwh", 0.0) or 0.0
+            ) > 0:
+                decision_data["floor_active"] = True
             if decision_data.get("floor_active", False):
                 premium_kwh = max(
                     0.0,
