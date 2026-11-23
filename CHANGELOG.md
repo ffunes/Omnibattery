@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.0.0b2] - Unreleased
+
+### Fixed
+
+- **Predictive charging plans at the batteries' full charge power**: a battery that was warm or near full when the plan was made no longer lowers the charge power planned for later slots.
+
 ## [2.0.0b1] - 2026-11-23
 
 > [!WARNING]

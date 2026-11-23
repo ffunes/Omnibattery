@@ -2138,7 +2138,7 @@ class PricingManager:
         if keep:
             effective_power_kw = min(
                 self._contracted_charge_ceiling(),
-                float(getattr(self._controller, "max_charge_capacity", 0.0)),
+                self._planning_charge_capacity(),
             ) / 1000.0
             (
                 schedule.average_price,
@@ -2887,7 +2887,7 @@ class PricingManager:
                     getattr(self._controller, "_predictive_safety_margin_pct", 0.0)
                     or 0.0
                 ),
-                charge_power_w=float(getattr(self._controller, "max_charge_capacity", 0.0) or 0.0),
+                charge_power_w=self._planning_charge_capacity(),
                 max_export_power_w=export_limit_w,
                 export_mode=export_mode,
                 solar_fraction_fn=solar_model,
@@ -4581,7 +4581,7 @@ class PricingManager:
                         floor_until += timedelta(days=1)
             power_kw = min(
                 self._contracted_charge_ceiling(),
-                max(0.0, float(self._controller.max_charge_capacity)),
+                self._planning_charge_capacity(),
             ) / 1000.0
             # Value deadline energy against the import it displaces (#662)
             # in Dynamic Pricing (zero margin means round-trip losses only),
@@ -5522,13 +5522,13 @@ class PricingManager:
             deficit_hours_needed = calculations.calculate_charging_hours_needed(
                 planned_charge_kwh,
                 self._contracted_charge_ceiling(),
-                self._controller.max_charge_capacity,
+                self._planning_charge_capacity(),
             )
         else:
             # No deficit — use daily consumption as reference so the number of
             # selected hours is meaningful (same basis the algorithm uses to decide)
             deficit_hours_needed = calculations.calculate_charging_hours_needed(
-                decision_data["avg_consumption_kwh"], self._contracted_charge_ceiling(), self._controller.max_charge_capacity
+                decision_data["avg_consumption_kwh"], self._contracted_charge_ceiling(), self._planning_charge_capacity()
             )
         # One instant, one computation. `ceiling` (static) and `slot_ceilings`
         # (per-slot arbitrage, #649) are what actually filter; `arb_ceiling`
@@ -5555,7 +5555,7 @@ class PricingManager:
         negative_price_hours_needed = calculations.calculate_exact_charging_hours_needed(
             negative_price_energy_kwh,
             self._contracted_charge_ceiling(),
-            self._controller.max_charge_capacity,
+            self._planning_charge_capacity(),
         )
         negative_price_selected = calculations.select_cheapest_slots_by_duration(
             [slot for slot in slots if math.isfinite(slot.price) and slot.price < 0.0],
@@ -5623,7 +5623,7 @@ class PricingManager:
             deficit_hours_needed = calculations.calculate_exact_charging_hours_needed(
                 chronological_plan.total_required_kwh,
                 self._contracted_charge_ceiling(),
-                self._controller.max_charge_capacity,
+                self._planning_charge_capacity(),
             )
         weekly_pending = getattr(self._controller, "_weekly_full_charge_pending", None)
         if (
@@ -5648,7 +5648,7 @@ class PricingManager:
                 netted_kwh,
                 min(
                     self._contracted_charge_ceiling(),
-                    max(0.0, float(self._controller.max_charge_capacity)),
+                    self._planning_charge_capacity(),
                 ) / 1000.0,
                 # Only the drain the battery would have covered is avoided.
                 night_load_kw
@@ -5659,7 +5659,7 @@ class PricingManager:
             deficit_hours_needed = calculations.calculate_charging_hours_needed(
                 planned,
                 self._contracted_charge_ceiling(),
-                self._controller.max_charge_capacity,
+                self._planning_charge_capacity(),
             )
         if chronological_plan is not None:
             deficit_selected = [allocation.slot for allocation in chronological_plan.allocations]
@@ -5909,7 +5909,7 @@ class PricingManager:
             self._build_curtailment_plan(slots, selected, now=now)
 
         # Step 4: Build schedule
-        effective_power_kw = min(self._contracted_charge_ceiling(), self._controller.max_charge_capacity) / 1000.0
+        effective_power_kw = min(self._contracted_charge_ceiling(), self._planning_charge_capacity()) / 1000.0
         selected_hours = sum(
             max(0.0, (slot.end - slot.start).total_seconds() / 3600.0)
             for slot in selected
@@ -6075,7 +6075,7 @@ class PricingManager:
             discharge_price_threshold=self._controller.discharge_price_threshold,
             arbitrage_ceiling=self._controller._dp_arbitrage_ceiling,
             max_contracted_power=self._controller.max_contracted_power,
-            max_charge_capacity=self._controller.max_charge_capacity,
+            max_charge_capacity=self._planning_charge_capacity(),
             plan_orders=orders,
             arbitrage_margin=getattr(controller, "min_arbitrage_margin", None),
         )
@@ -6143,6 +6143,27 @@ class PricingManager:
             0.0, float(getattr(self._controller, "max_contracted_power", 0.0) or 0.0)
         )
 
+    def _planning_charge_capacity(self) -> float:
+        """The fleet's configured charge power, for slots booked ahead.
+
+        Not ``max_charge_capacity``: that is this cycle's limit, cut by the
+        temperature derate and the top-of-charge taper of right now (a 2 x
+        2.5 kW fleet planned the night at 1.6 kW), or 0 W from a driver's
+        live telemetry, which booked no charge at all.
+        """
+        controller = self._controller
+        return max(
+            0.0,
+            float(
+                getattr(
+                    controller,
+                    "planning_charge_capacity",
+                    getattr(controller, "max_charge_capacity", 0.0),
+                )
+                or 0.0
+            ),
+        )
+
     def _weekly_charge_hours_needed(self, energy_kwh: float) -> float:
         """Hours to book for the weekly gap, with room to reach 100 % for sure.
 
@@ -6157,7 +6178,7 @@ class PricingManager:
         """
         contracted = self._contracted_charge_ceiling()
         hours = calculations.calculate_exact_charging_hours_needed(
-            energy_kwh, contracted, self._controller.max_charge_capacity
+            energy_kwh, contracted, self._planning_charge_capacity()
         )
         for gap_kwh, tail_kwh, power_w, tail_power_w in self._weekly_tails():
             hours = max(
@@ -6168,7 +6189,7 @@ class PricingManager:
         if hours <= 0.0:
             # No power figure at all: keep the planner's one-hour fallback.
             return calculations.calculate_charging_hours_needed(
-                energy_kwh, contracted, self._controller.max_charge_capacity
+                energy_kwh, contracted, self._planning_charge_capacity()
             )
         hours += max(WEEKLY_CHARGE_MARGIN_MIN_H, hours * WEEKLY_CHARGE_MARGIN_RATIO)
         return math.ceil(hours * 2) / 2
@@ -7745,7 +7766,7 @@ class PricingManager:
             if remaining > 0.01:
                 power_kw = min(
                     self._contracted_charge_ceiling(),
-                    max(0.0, float(controller.max_charge_capacity)),
+                    self._planning_charge_capacity(),
                 ) / 1000.0
                 for slot in sorted(schedule.selected_slots, key=lambda item: item.start):
                     if (
@@ -8860,7 +8881,7 @@ class PricingManager:
             decision_data,
             is_daily_evaluation,
             max_contracted_power=self._controller.max_contracted_power,
-            max_charge_capacity=self._controller.max_charge_capacity,
+            max_charge_capacity=self._planning_charge_capacity(),
             charging_time_slot=self._controller._active_charging_slot(),
         )
 

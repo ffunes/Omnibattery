@@ -967,6 +967,9 @@ class ChargeDischargeController:
         # Calculate dynamic anti-windup limits based on total system capacity
         self.max_charge_capacity = self._effective_system_capacity(coordinators, is_charging=True)
         self.max_discharge_capacity = self._effective_system_capacity(coordinators, is_charging=False)
+        self.planning_charge_capacity = self._effective_system_capacity(
+            coordinators, is_charging=True, planning=True
+        )
 
         # Load sharing state: track which batteries were active last cycle.
         # Active-battery lists stay here (sensor.py/switch.py and the control loop
@@ -2248,7 +2251,12 @@ class ChargeDischargeController:
                                 getattr(self, "max_contracted_power", 0.0), 0.0
                             ),
                             self._daily_operation_float(
-                                getattr(self, "max_charge_capacity", 0.0), 0.0
+                                getattr(
+                                    self,
+                                    "planning_charge_capacity",
+                                    getattr(self, "max_charge_capacity", 0.0),
+                                ),
+                                0.0,
                             ),
                         )
                         / 1000.0
@@ -2807,14 +2815,26 @@ class ChargeDischargeController:
             limit = 0
         return max(0, limit)
 
-    def _effective_system_capacity(self, batteries: list, is_charging: bool) -> int:
-        """Return available capacity after applying the optional global cap."""
+    def _effective_system_capacity(
+        self, batteries: list, is_charging: bool, *, planning: bool = False
+    ) -> int:
+        """Return available capacity after applying the optional global cap.
+
+        ``planning`` sums each battery's configured ceiling instead of this
+        cycle's limit: temperature derate, top-of-charge taper, driver
+        telemetry and the active slot's ceiling describe now, not the slot a
+        planner books for later. A battery that takes no setpoint (observed)
+        cannot carry a booked charge, so it is left out.
+        """
         batteries = [
             coordinator for coordinator in batteries
             if not getattr(coordinator, CONF_BATTERY_MANUAL_MODE_ENABLED, False)
+            and not (planning and is_observed(coordinator))
         ]
         total_capacity = sum(
-            self._battery_power_limit(c, is_charging)
+            getattr(c, "effective_max_charge_power", c.max_charge_power)
+            if planning
+            else self._battery_power_limit(c, is_charging)
             for c in batteries
         )
         system_limit = self._configured_system_limit(is_charging)
@@ -3080,6 +3100,11 @@ class ChargeDischargeController:
         self.max_discharge_capacity = self._effective_system_capacity(
             self.coordinators,
             is_charging=False,
+        )
+        self.planning_charge_capacity = self._effective_system_capacity(
+            self.coordinators,
+            is_charging=True,
+            planning=True,
         )
 
     def _clamp_to_system_capacity(self, power: float, batteries: list, is_charging: bool) -> float:
