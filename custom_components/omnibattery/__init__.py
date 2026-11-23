@@ -4553,11 +4553,12 @@ class ChargeDischargeController:
         guard = getattr(manager, "_release_guard", None)
         released = guard() if callable(guard) else None
         # No holds (the previous allocator planned, D2) or another mode: none.
-        slot = (
-            next((s for s in holds if s.start <= now < s.end), None)
+        planned = (
+            holds
             if holds is not None and manager is not None and manager.dynamic_pricing_active()
-            else None
+            else ()
         )
+        slot = next((s for s in planned if s.start <= now < s.end), None)
         held = slot is not None and released is None
         slot_owned = getattr(self, "_is_manual_slot_owned", None)
         blocked = []
@@ -4583,11 +4584,24 @@ class ChargeDischargeController:
         starts = {s.start: s for s in holds or ()}
         while until in starts:
             until = starts[until].end
+        # Every run of held slots not yet over, as the daily chart draws them
+        # (the old reserve's reserved_slots showed the future too).
+        runs = []
+        for s in sorted(planned, key=lambda s: s.start):
+            if s.end <= now:
+                continue
+            if runs and runs[-1][1] == s.start:
+                runs[-1][1] = s.end
+            else:
+                runs.append([s.start, s.end])
         self._plan_hold_status = {
             "held_batteries": blocked,
             "held_slot": slot.start.isoformat() if slot is not None else None,
             "held_until": until.isoformat() if until is not None else None,
             "release_reason": released if slot is not None else None,
+            "upcoming_holds": [
+                {"start": start.isoformat(), "end": end.isoformat()} for start, end in runs
+            ],
         }
 
     def _refresh_ev_blocks(self) -> None:

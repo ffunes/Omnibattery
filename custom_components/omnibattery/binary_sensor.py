@@ -320,8 +320,10 @@ class DischargeReserveSensor(BinarySensorEntity):
     ``on`` while the Dynamic Pricing plan holds a battery in this slot, so the
     grid carries the house and the stored energy is kept for a dearer hour.
     The attributes give the held slot, where the run of held slots ends, and
-    the guard that released a hold, if any.
+    the guard that released a hold, if any, and the runs still ahead.
     """
+
+    _unrecorded_attributes = frozenset({"upcoming_holds"})
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
         self.hass = hass
