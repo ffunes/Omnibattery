@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.0b1] - 2026-11-23
 
 > [!WARNING]
 > **Read before upgrading: you may have to change things**
