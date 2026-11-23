@@ -5,9 +5,9 @@
 ### Fixed
 
 - **Predictive charging plans at the batteries' full charge power**: a battery that was warm or near full when the plan was made no longer lowers the charge power planned for later slots.
-- **Guaranteed Minimum SOC kept on days with high forecast consumption** (#834): a battery below it no longer loses it in the evening plan when the forecast deficit is larger; it holds and charges back to the minimum overnight, as it already did on low-consumption days.
-- **Time Slot keeps the energy for after the window from the moment it opens** (#938): while the first evaluation waits for the solar forecast (up to 5 minutes) the battery no longer discharges energy the window then buys back. **Integration Status** now shows *Holding Energy for After the Cheap Slot* instead of *Balanced* while it holds.
-- **Daily operation chart: a past quarter with no measurement no longer shows the plan** (#853): its power, grid-charge decision and delay stay empty instead of looking like history (e.g. while Home Assistant was down). Thanks to @Sjoedzj.
+- **Guaranteed Minimum SOC is kept on high-consumption days** (#834): a battery below it no longer loses it in the evening plan.
+- **Time Slot holds the energy for after the window from the moment it opens** (#938); **Integration Status** shows *Holding Energy for After the Cheap Slot* instead of *Balanced*.
+- **Daily operation chart: a past quarter with no measurement no longer shows the plan** (#853). Thanks to @Sjoedzj.
 
 ## [2.0.0b1] - 2026-11-23
 
