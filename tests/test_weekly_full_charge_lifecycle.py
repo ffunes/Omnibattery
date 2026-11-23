@@ -46,10 +46,12 @@ def test_exiting_weekly_day_marks_unfinished_run_for_restore():
 
     # Tuesday immediately after a Monday weekly run.
     with (
-        patch("custom_components.omnibattery.control.weekly_full_charge.datetime") as clock,
+        patch(
+            "custom_components.omnibattery.control.weekly_full_charge.local_now",
+            return_value=datetime(2026, 8, 18),
+        ),
         patch("custom_components.omnibattery.control.weekly_full_charge.asyncio.create_task"),
     ):
-        clock.now.return_value = datetime(2026, 8, 18)
         assert manager.is_active() is False
 
     assert controller._weekly_charge_needs_restore is True
