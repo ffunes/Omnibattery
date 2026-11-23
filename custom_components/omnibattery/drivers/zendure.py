@@ -755,12 +755,16 @@ class ZendureLocalDriver(BatteryDriver):
         """Full standby once the device has held a 0 W setpoint for 15 min (#633).
 
         Judged on the fresh report, so it also arms after a restart. Only the
-        plain idle hold qualifies: no pack or solar power, off-grid port off
+        plain idle hold of an AC-only unit qualifies: no pack or solar power, off-grid port off
         (#882 loads), not calibrating. Once written the report shows smartMode=0,
         which ends the stretch, so it fires once per idle period.
         """
         held_idle = (
             not self._shutting_down
+            # ponytail: AC-only units, as in Gielz's package; whether PV keeps
+            # charging in full standby is untested, extend once someone checks.
+            and self._model in _AC_COUPLED_MODELS
+            and not self._pv_in
             and props.get("acMode") == _AC_MODE_DISCHARGE
             and props.get("outputLimit") == 0
             and props.get("smartMode") == 1

@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **Zendure goes to full standby after 15 minutes idle** (#633): saves the ~19 W the inverter draws while holding 0 W; the next charge or discharge wakes it. Thanks to @kastanjepoffer.
+- **Zendure AC models go to full standby after 15 minutes idle** (#633), as the Gielz zenSDK package does to cut the inverter's idle draw; the next charge or discharge wakes it. Thanks to @kastanjepoffer.
 
 ### Fixed
 

@@ -1241,14 +1241,17 @@ def _standby_posts(session):
     ({"gridOffMode": 1}, False),          # off-grid port on (#882)
     ({"socStatus": 1}, False),            # calibrating
     ({"smartMode": 0, "inputLimit": 0}, False),  # already in full standby
+    ({"model": "2400ac_pro"}, False),     # PV model: untested in standby
 ])
 async def test_full_standby_after_15_min_idle(monkeypatch, props, fires):
+    model = props.pop("model", "2400ac_plus")
     clock = [1000.0]
     monkeypatch.setattr(
         "custom_components.omnibattery.drivers.zendure.time.monotonic", lambda: clock[0]
     )
     session = _session(get_data=_idle_report(**props))
     drv = _driver(session=session)
+    drv._model = model
 
     await drv.read_telemetry()          # starts the idle count
     clock[0] += 14 * 60
@@ -1267,6 +1270,7 @@ async def test_new_setpoint_restarts_idle_count(monkeypatch):
     )
     session = _session(get_data=_idle_report())
     drv = _driver(session=session)
+    drv._model = "2400ac_plus"
 
     await drv.read_telemetry()
     clock[0] += 14 * 60
