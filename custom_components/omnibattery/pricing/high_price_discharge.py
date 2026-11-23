@@ -361,6 +361,7 @@ def plan_high_price_discharge(
     discharge_efficiency: float = 1.0,
     fill_slots: Sequence[HorizonSlot] = (),
     chronological_coverage: bool = True,
+    _partial_refill: bool = True,
 ) -> HighPriceDischargePlan:
     """Build a discharge plan from a horizon of atomic slots.
 
@@ -505,10 +506,12 @@ def plan_high_price_discharge(
             )
             surplus = budget
             first = chosen = None
-            if _solar_refill_price(fill_slots, horizon_end, surplus,
-                                   full_level, efficiency) is not None:
+            cheapest = _solar_refill_price(fill_slots, horizon_end, surplus,
+                                           full_level, efficiency)
+            if cheapest is not None:
                 step = 0
-                while (start_level := step * REFILL_SEARCH_STEP_KWH) < surplus - EPSILON:
+                while ((start_level := step * REFILL_SEARCH_STEP_KWH) < surplus - EPSILON
+                       and (_partial_refill or step == 0)):
                     step += 1
                     price = _solar_refill_price(
                         fill_slots, horizon_end, start_level, full_level, efficiency
@@ -519,6 +522,8 @@ def plan_high_price_discharge(
                     if price / efficiency + additional_cost < best_export:
                         chosen = (start_level, price)
                         break
+                    if not cheapest / efficiency + additional_cost < best_export:
+                        break  # not even the smallest sale refills cheaply enough
             if chosen or first:
                 start_level, refill_price = chosen or first
                 budget = surplus - start_level
@@ -695,6 +700,23 @@ def plan_high_price_discharge(
                 )
             )
         remaining_usable_kwh -= assigned_kwh
+
+    if refill_hold_kwh > EPSILON and enabled:
+        # The kept part blocks demand sales, so never sell less than the
+        # all-or-nothing plan would. ponytail: compares energy, not profit;
+        # compare summed export income if the two plans' prices diverge.
+        all_or_nothing = plan_high_price_discharge(
+            slots, batteries, now=now, horizon_end=horizon_end, enabled=enabled,
+            trigger_1_enabled=trigger_1_enabled,
+            additional_cost_per_kwh=additional_cost_per_kwh,
+            max_export_power_w=max_export_power_w,
+            discharge_efficiency=discharge_efficiency, fill_slots=fill_slots,
+            chronological_coverage=chronological_coverage, _partial_refill=False,
+        )
+        if all_or_nothing.total_allocated_kwh > sum(
+            allocation.energy_kwh for allocation in allocations
+        ) + EPSILON:
+            return all_or_nothing
 
     if allocations:
         status, reason = STATUS_PLANNED, REASON_PLANNED

@@ -169,6 +169,17 @@ def test_partial_sale_keeps_trigger_2_off_the_refill_start(chronological):
     assert plan.total_allocated_kwh <= plan.trigger_1_budget_kwh + 1e-6
 
 
+def test_partial_sale_never_sells_less_than_all_or_nothing():
+    # Partial Trigger 1 would sell 1 kWh and keep 2, blocking Trigger 2's
+    # 3 kWh demand sale: the all-or-nothing plan sells more, so it wins.
+    slots = [_slot(0, price=0.5), _slot(1, buy=0.1, consumption=3)]
+    plan = _plan(slots, enabled=True, trigger_1_enabled=True,
+                 fill=[_slot(2, price=0.1, solar=6)])
+    assert plan.trigger_1_reason == REASON_NO_REFILL_PRICE
+    assert plan.total_allocated_kwh == pytest.approx(3)
+    assert plan.allocations == _plan(slots, enabled=True).allocations
+
+
 def test_negative_solar_export_prices_floor_refill_cost_at_zero():
     plan = _plan([_slot(0, price=0.01), _slot(1)], trigger_1_enabled=True,
                  fill=[_slot(2, price=-0.2, solar=10)])
