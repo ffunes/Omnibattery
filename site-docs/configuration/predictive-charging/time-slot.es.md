@@ -47,7 +47,7 @@ El plan se adapta dentro de una ventana activa cuando el SOC cambia de forma imp
 | Una previsión modificada no inicia carga a mediodía | No hay ninguna ventana de carga configurada abierta | Espera a la siguiente ventana o añade una ventana válida para tu tarifa |
 | La primera ventana se detiene antes de alcanzar el objetivo diario completo | Se ha asignado energía a una ventana posterior | Cuota por ventana y ventanas seleccionadas restantes |
 | El plan informa de un déficit no cubierto | Las ventanas configuradas o la potencia física de carga no pueden entregar suficiente energía antes de su plazo | Duración de ventana, límites de carga, capacidad de batería y bloqueos activos |
-| La batería deja de descargar durante una ventana | Ha llegado a la energía que necesita después de la ventana; la red cubre la casa hasta que termina | `time_slot_floor_kwh` en **Carga predictiva activa** y el bloqueo de descarga `time_slot_floor_hold` |
+| La batería deja de descargar durante una ventana | Ha llegado a la energía que necesita después de la ventana; la red cubre la casa hasta que termina | **Estado de integración** `time_slot_floor_hold`, `time_slot_floor_kwh` en **Carga predictiva activa** y el bloqueo de descarga `time_slot_floor_hold` |
 | Pulsar reevaluar no hace nada | El botón se pulsó fuera de una ventana activa | Púlsalo durante una ventana configurada; fuera de ella prepara la siguiente entrada |
 
 ??? "Detalles avanzados"
@@ -61,7 +61,7 @@ El plan se adapta dentro de una ventana activa cuando el SOC cambia de forma imp
 
     ### Suelo de la ventana
 
-    El planificador trata cada ventana configurada como un periodo con la batería parada: el consumo de la casa dentro de ella queda a cargo de la red y no forma parte de ninguna cuota. En cada evaluación la ventana recibe un suelo, la energía almacenada con la que debe terminar. Si la ventana carga, el suelo es la energía actual más la cuota. Si no, es la energía actual menos el punto más bajo de la proyección sin carga de red, es decir, la energía que sobra hasta la siguiente ventana. Mientras la energía almacenada esté en el suelo o por debajo, el bloqueo de descarga `time_slot_floor_hold` mantiene la batería parada. La protección de capacidad puede seguir descargando. El suelo se borra al terminar la ventana y no se usa durante una carga completa semanal.
+    El planificador trata cada ventana configurada como un periodo con la batería parada: el consumo de la casa dentro de ella queda a cargo de la red y no forma parte de ninguna cuota. En cada evaluación la ventana recibe un suelo, la energía almacenada con la que debe terminar. Si la ventana carga, el suelo es la energía actual más la cuota. Si no, es la energía actual menos el punto más bajo de la proyección sin carga de red, es decir, la energía que sobra hasta la siguiente ventana. Mientras la energía almacenada esté en el suelo o por debajo, el bloqueo de descarga `time_slot_floor_hold` mantiene la batería parada. Hasta la primera evaluación de la ventana (espera hasta 5 minutos a la previsión solar), el suelo es la energía almacenada en ese momento. La protección de capacidad puede seguir descargando. El suelo se borra al terminar la ventana y no se usa durante una carga completa semanal.
 
     ### Disparadores de reevaluación
 

@@ -1866,6 +1866,7 @@
           "capacity_conserving": "Conservando Capacidad",
           "capacity_protection_charging": "Protección de Capacidad - Cargando",
           "price_discharge_blocked": "Descarga Bloqueada por Precio",
+          "time_slot_floor_hold": "Guardando Energía para Después de la Franja Barata",
           "hourly_balance_import": "Balance Horario - Importando",
           "hourly_balance_export": "Balance Horario - Exportando",
           "hourly_balance_capped": "Balance Horario - Limitado",

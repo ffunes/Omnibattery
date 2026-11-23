@@ -1866,6 +1866,7 @@
           "capacity_conserving": "Conservant Capacitat",
           "capacity_protection_charging": "Protecció de Capacitat - Carregant",
           "price_discharge_blocked": "Descàrrega Bloquejada per Preu",
+          "time_slot_floor_hold": "Guardant Energia per a Després de la Franja Barata",
           "hourly_balance_import": "Balanç Horari - Important",
           "hourly_balance_export": "Balanç Horari - Exportant",
           "hourly_balance_capped": "Balanç Horari - Limitat",

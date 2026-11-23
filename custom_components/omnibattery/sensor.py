@@ -1058,6 +1058,8 @@ class IntegrationStatusSensor(SensorEntity):
         discharge_blockers = c.get_discharge_blockers()
         if "price_discharge" in discharge_blockers:
             return "price_discharge_blocked"
+        if "time_slot_floor_hold" in discharge_blockers:
+            return "time_slot_floor_hold"
 
         # Per-battery, so it is not in the global registry above.
         if self._price_reserve_batteries():

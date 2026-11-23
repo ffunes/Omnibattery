@@ -1424,3 +1424,33 @@ def test_batched_routine_change_keeps_an_earlier_immediate_notification():
     manager.end_update_batch()
 
     assert seen == [True, False]
+
+
+def test_a_past_quarter_without_measurement_does_not_show_the_plan():
+    # #853 point 7: HA was down during 10:15-10:30; the quarter is history
+    # now, so its power, decision and delay are unknown, not the plan's.
+    clock = MutableClock(datetime(2026, 8, 23, 10, 7, tzinfo=MADRID))
+    manager = _manager(clock)
+    manager.rebuild_future_projection(
+        [
+            {
+                "index": 41,
+                "action_mask": ACTION_GRID_CHARGE,
+                "grid_charge_decision": GRID_CHARGE_SCHEDULED,
+                "charge_power_w": 1200.0,
+                "discharge_power_w": 300.0,
+                "delay_until": datetime(2026, 8, 23, 11, 0, tzinfo=MADRID),
+            }
+        ],
+        mode="dynamic_pricing",
+    )
+    ops = manager.build_public_snapshot()["operations"]
+    assert ops["charge_power_w"][41] == pytest.approx(1200)  # still future
+
+    clock.value = datetime(2026, 8, 23, 10, 31, tzinfo=MADRID)
+    manager.refresh_actual_partial(consumption_kwh=0.1, solar_kwh=0.0, coverage_s=60)
+    ops = manager.build_public_snapshot()["operations"]
+    assert ops["charge_power_w"][41] is None
+    assert ops["discharge_power_w"][41] is None
+    assert ops["delay_until"][41] is None
+    assert ops["grid_charge_decision"][41] != GRID_CHARGE_SCHEDULED

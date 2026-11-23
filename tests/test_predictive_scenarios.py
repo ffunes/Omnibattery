@@ -876,3 +876,20 @@ def test_use_value_replay_flags_a_charge_used_at_its_own_price():
     assert len(use_value_violations(outcome(0), prices, 0.85)) == 1
     # Hour 1 at 0.60 -> 0.40 <= 0.51.
     assert use_value_violations(outcome(1), prices, 0.85) == []
+
+
+def test_more_consumption_never_drops_the_guaranteed_floor(tmp_path, monkeypatch):
+    """#834: a battery under the guaranteed floor keeps it whatever the
+    forecast consumption; v2.0.0b1 booked 3.99 -> 2.05 -> 2.28 kWh."""
+    raw = json.loads(
+        (SCENARIO_DIR / "834-floor-kept-with-larger-deficit.json").read_text(encoding="utf-8")
+    )
+    totals = []
+    for daily_kwh in (5.0, 12.0, 16.0):
+        raw["consumption"]["daily_total_kwh"] = daily_kwh
+        path = tmp_path / f"floor-{daily_kwh:g}.json"
+        path.write_text(json.dumps(raw), encoding="utf-8")
+        outcome = run_scenario(load_scenario(path), monkeypatch)
+        assert outcome.request.floor_kwh > 0, daily_kwh
+        totals.append(sum(k for _s, k in outcome.booked))
+    assert all(b >= a - _EPS for a, b in zip(totals, totals[1:])), totals

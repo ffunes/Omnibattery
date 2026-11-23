@@ -1866,6 +1866,7 @@
           "capacity_conserving": "Préservation de Capacité",
           "capacity_protection_charging": "Protection de Capacité - Charge",
           "price_discharge_blocked": "Décharge Bloquée par le Prix",
+          "time_slot_floor_hold": "Énergie Réservée pour Après le Créneau Bon Marché",
           "hourly_balance_import": "Solde Horaire - Import",
           "hourly_balance_export": "Solde Horaire - Export",
           "hourly_balance_capped": "Solde Horaire - Limité",
