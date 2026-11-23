@@ -35,6 +35,10 @@ from .curtailment import BatterySnapshot
 
 
 EPSILON = 1e-6
+# ponytail: fixed-step scan for the largest refillable surplus sale (#943);
+# leaves up to one step unsold. Upgrade path: the exact frontier of minimum
+# start levels per fill-completion slot.
+REFILL_SEARCH_STEP_KWH = 0.05
 
 STATUS_DISABLED = "disabled"
 STATUS_FAIL_SAFE = "fail_safe"
@@ -471,6 +475,7 @@ def plan_high_price_discharge(
     surplus_by_start: dict[datetime, TriggerAllocation] = {}
     budget = 0.0
     refill_price: float | None = None
+    refill_hold_kwh = 0.0
     trigger_1_reason = REASON_DISABLED
     if trigger_1_enabled:
         budget = max(0.0, usable_energy_kwh - protected_demand_kwh)
@@ -486,11 +491,39 @@ def plan_high_price_discharge(
                     * battery.capacity_kwh) * efficiency
                 for battery in valid_batteries
             )
-            refill_price = _solar_refill_price(
-                fill_slots, horizon_end,
-                max(0.0, usable_energy_kwh - protected_demand_kwh - budget),
-                full_level, efficiency,
+            # Sell the largest part of the surplus tomorrow's sun provably
+            # refills (#943): the unsold rest is kept as the start level. A
+            # higher start never fails where a lower one passed, so if keeping
+            # the whole surplus fails, nothing is viable. Smaller sales refill
+            # sooner, i.e. cheaper, so keep shrinking until one beats an export
+            # price; with none, report the largest viable one.
+            best_export = max(
+                (float(slot.export_price) for slot in working
+                 if _finite(slot.export_price)
+                 and _slot_capacity_kwh(slot, ceiling_w, total_discharge_power_w) > EPSILON),
+                default=-math.inf,
             )
+            surplus = budget
+            first = chosen = None
+            if _solar_refill_price(fill_slots, horizon_end, surplus,
+                                   full_level, efficiency) is not None:
+                step = 0
+                while (start_level := step * REFILL_SEARCH_STEP_KWH) < surplus - EPSILON:
+                    step += 1
+                    price = _solar_refill_price(
+                        fill_slots, horizon_end, start_level, full_level, efficiency
+                    )
+                    if price is None:
+                        continue
+                    first = first or (start_level, price)
+                    if price / efficiency + additional_cost < best_export:
+                        chosen = (start_level, price)
+                        break
+            if chosen or first:
+                start_level, refill_price = chosen or first
+                budget = surplus - start_level
+                if chosen:
+                    refill_hold_kwh = start_level
             if refill_price is None:
                 trigger_1_reason = REASON_NO_REFILL_PRICE
             else:
@@ -551,6 +584,11 @@ def plan_high_price_discharge(
         tail_reserve_kwh = protected_demand_kwh
     else:
         tail_reserve_kwh = unpriced_tail_kwh
+    if refill_hold_kwh > EPSILON:
+        # The refill proof starts tomorrow from the unsold surplus: demand
+        # sales would eat it (a chronological battery reaches sunrise lower),
+        # so only Trigger 1's own unsold budget stays sellable.
+        tail_reserve_kwh = protected_demand_kwh + refill_hold_kwh
 
     candidates: list[tuple[HorizonSlot, float]] = []
     for index, slot in enumerate(working if enabled else ()):

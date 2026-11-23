@@ -180,7 +180,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
 
     | Atributo | Significado |
     |---|---|
-    | `trigger_1_budget_kwh` | Energía de batería que **Venta a precio alto** (*Solo excedente* o superior) puede vender tras reservar la necesidad prevista hasta el amanecer (con la solar menos el margen de seguridad) |
+    | `trigger_1_budget_kwh` | Energía de batería que **Venta a precio alto** (*Solo excedente* o superior) puede vender tras reservar la necesidad prevista hasta el amanecer (con la solar menos el margen de seguridad), reducida a la parte que la solar de mañana puede reponer |
     | `refill_price` | Precio de exportación de referencia para que la solar rellene la batería mañana |
     | `trigger_1_reason` | Por qué la exportación de excedente está activa o inactiva |
     | `surplus_export_enabled` | Si **Venta a precio alto** está en *Solo excedente* o superior |

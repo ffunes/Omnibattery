@@ -62,7 +62,7 @@ Optional controls in the **Control** tab solve different problems:
 | A price feature is enabled but inactive | Its required forecast, profile, export price, battery capacity, or grid reading is unavailable | The feature’s status binary sensor and reason attribute |
 | Solar surplus exports unexpectedly | **Surplus Price Hold** selected a later, cheaper absorption period | **Surplus Price Hold Status** and its next release time |
 | The battery will not discharge | **Price-Based Discharge**, a hold of the plan (**Discharge Reserve Status**), operating time slots, or another discharge blocker is active | **Integration Status**, feature status sensors, and [operating time slots](../time-slots.md) |
-| **High-Price Sale** on *Surplus only* does not sell | Tomorrow’s solar forecast cannot refill the battery, the forecast integration does not supply Energy dashboard forecasts, or no profitable export period exists | **High-Price Sale Status**, its reason attribute, tomorrow’s solar forecast, and export prices |
+| **High-Price Sale** on *Surplus only* does not sell | Tomorrow’s solar forecast cannot refill even part of the surplus, the forecast integration does not supply Energy dashboard forecasts, or no profitable export period exists | **High-Price Sale Status**, its reason attribute, tomorrow’s solar forecast, and export prices |
 
 ??? "Advanced details"
     ### Price-source normalization
@@ -218,7 +218,7 @@ Optional controls in the **Control** tab solve different problems:
 
     Its export budget starts with usable battery energy, then keeps enough for forecast household consumption until sunrise, counting on the solar forecast less the **Solar Forecast Safety Margin**. The cost of selling is the export income given up tomorrow while solar refills the battery—not the price originally paid to charge it. It sells only when the current export price is higher than the highest export price expected during tomorrow’s refill, adjusted for **Round-Trip Efficiency** and **Minimum Arbitrage Margin**.
 
-    With a flat feed-in tariff it never sells: selling now and refilling later would only lose energy in the battery cycle. It also stays inactive when tomorrow’s solar forecast cannot refill the battery. It uses tomorrow’s forecast from the solar forecast integration already configured in Omnibattery; no extra sensor is needed, but that integration must provide forecasts to Home Assistant’s Energy dashboard.
+    With a flat feed-in tariff it never sells: selling now and refilling later would only lose energy in the battery cycle. When tomorrow’s solar cannot refill the whole surplus, for example because the house runs on the battery in the morning before the sun comes up, it sells only the largest part that the solar can still refill and keeps the rest. It stays inactive only when not even a small sale can be refilled. It uses tomorrow’s forecast from the solar forecast integration already configured in Omnibattery; no extra sensor is needed, but that integration must provide forecasts to Home Assistant’s Energy dashboard.
 
     The plan is rebuilt every five minutes and withdrawal is checked every control cycle. Missing price coverage, an expired period, anti-curtailment, capacity protection, weekly full charge, an active grid-charge period, manual control, operating-time ownership, an invalid grid meter, or any discharge blocker stops either export policy. Lowering the select removes the dropped policy on the next control cycle.
 
