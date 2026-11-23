@@ -9,7 +9,9 @@ Endpoints (HTTP, port 80):
     GET /getDeviceInfo          deviceId, devVer, batteryCapacity (kWh)
     GET /getOutputData          batSoc, batP, ogP, pvP, batTemp, devTemp,
                                 batCTE, batDTE (kWh counters)
-    GET /setPower?p=<watts>     net power setpoint, -1200..1200 W
+    GET /getPower               current on-grid setpoint ("power limit setting")
+    GET /setPower?p=<watts>     net power setpoint, -1200..1200 W; only acted on
+                                in the Local system mode, answers SUCCESS in all
 """
 
 from __future__ import annotations
@@ -27,6 +29,12 @@ MAX_POWER_W = 1200
 # treats a negative value as charge (so setpoints are inverted).
 TELEMETRY_POSITIVE_IS_DISCHARGE = False
 SETPOINT_POSITIVE_IS_DISCHARGE = True
+# On-grid AC port (ogP): the EZHI local API manual says "negative numbers indicate
+# output power" (power delivered to the grid), and its sample payload shows
+# ogP -438 together with batP +136 (charging). So the port already uses the
+# Omnibattery convention (negative = discharge/delivering): no inversion.
+# Check on hardware: during a discharge command "AC delivered power" is negative.
+AC_PORT_POSITIVE_IS_DISCHARGE = False
 
 
 class EzhiError(Exception):
@@ -36,6 +44,30 @@ class EzhiError(Exception):
 def telemetry_to_contract(raw_watts: float) -> float:
     """Convert an EZHI telemetry power value to Omnibattery's +charge/-discharge."""
     return -raw_watts if TELEMETRY_POSITIVE_IS_DISCHARGE else raw_watts
+
+
+def ac_to_contract(raw_watts: float) -> float:
+    """Convert the EZHI on-grid port power to +charge/-discharge."""
+    return -raw_watts if AC_PORT_POSITIVE_IS_DISCHARGE else raw_watts
+
+
+def setpoint_to_contract(wire_watts: float) -> float:
+    """Inverse of contract_to_setpoint (without clamping)."""
+    return -wire_watts if SETPOINT_POSITIVE_IS_DISCHARGE else wire_watts
+
+
+# Candidate field names of the /getPower answer (EZ1-family naming first). The
+# real name is unconfirmed; if none matches, a single numeric field is used.
+_SETPOINT_KEYS = ("maxPower", "power", "p", "setPower")
+
+
+def _extract_setpoint(data: dict[str, Any]) -> float | None:
+    for key in _SETPOINT_KEYS:
+        if key in data and _num(data[key]) is not None:
+            return _num(data[key])
+    numeric = [_num(v) for v in data.values() if not isinstance(v, (dict, list, bool))]
+    numeric = [v for v in numeric if v is not None]
+    return numeric[0] if len(numeric) == 1 else None
 
 
 def contract_to_setpoint(net_power_w: float) -> int:
@@ -109,8 +141,9 @@ class EzhiApiClient:
     async def get_output_data(self) -> dict[str, Any]:
         """Return live telemetry already converted to the Omnibattery contract.
 
-        Keys: soc (%), battery_power_w (+charge/-discharge), grid_power_w
-        (same sign convention, AC port), solar_power_w (>=0), battery_temp,
+        Keys: soc (%), battery_power_w (cell power, +charge/-discharge),
+        ac_power_w (on-grid AC port power, same sign convention; this is what
+        /setPower controls), solar_power_w (>=0), battery_temp,
         device_temp, charged_kwh, discharged_kwh. Missing values are None.
         """
         d = await self._get("/getOutputData")
@@ -119,12 +152,22 @@ class EzhiApiClient:
         return {
             "soc": _num(d.get("batSoc")),
             "battery_power_w": None if bat_p is None else telemetry_to_contract(bat_p),
-            "ac_power_w": None if og_p is None else telemetry_to_contract(og_p),
+            "ac_power_w": None if og_p is None else ac_to_contract(og_p),
             "solar_power_w": _num(d.get("pvP")),
             "battery_temp": _num(d.get("batTemp")),
             "device_temp": _num(d.get("devTemp")),
             "charged_kwh": _num(d.get("batCTE")),
             "discharged_kwh": _num(d.get("batDTE")),
+        }
+
+    async def get_power(self) -> dict[str, Any]:
+        """Read /getPower. Returns {'wire_w', 'setpoint_w'}: the device's own value
+        and the same value in the Omnibattery convention; both None when the
+        answer has no recognisable setpoint field (transport errors raise)."""
+        wire = _extract_setpoint(await self._get("/getPower"))
+        return {
+            "wire_w": None if wire is None else int(round(wire)),
+            "setpoint_w": None if wire is None else int(round(setpoint_to_contract(wire))),
         }
 
     async def set_power(self, net_power_w: float) -> int:

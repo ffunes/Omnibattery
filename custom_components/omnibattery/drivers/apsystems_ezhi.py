@@ -28,6 +28,11 @@ from .base import (
 from .apsystems_ezhi_api import MAX_POWER_W, EzhiApiClient, EzhiError
 from .apsystems_ezhi_flow import EZHI_SETUP
 
+try:  # the shared key zendure.py / anker.py publish the AC-port power under
+    from .base import DELIVERED_AC_POWER_KEY
+except ImportError:  # TODO(PR): import from where zendure.py imports it
+    DELIVERED_AC_POWER_KEY = "ac_delivered_power"
+
 _LOGGER = logging.getLogger(__name__)
 
 _RETRY_DELAY_S = 0.05
@@ -37,16 +42,21 @@ SENSOR_DEFINITIONS = [
     {"key": "battery_soc", "name": "Battery SOC", "unit": "%", "device_class": "battery", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "medium", "enabled_by_default": True},
     {"key": "battery_power", "name": "Battery Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "high", "enabled_by_default": True},
     {"key": "power_setpoint", "name": "Power Setpoint", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "medium", "enabled_by_default": False},
-    {"key": "solar_power", "name": "Solar Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "high", "enabled_by_default": False},
-    {"key": "battery_temperature", "name": "Battery Temperature", "unit": "°C", "device_class": "temperature", "state_class": "measurement", "scale": 1, "precision": 0, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
-    {"key": "device_temperature", "name": "Inverter Temperature", "unit": "°C", "device_class": "temperature", "state_class": "measurement", "scale": 1, "precision": 0, "category": "diagnostic", "scan_interval": "low", "enabled_by_default": False},
+    {"key": "solar_power", "name": "Solar Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "high", "enabled_by_default": True},
+    {"key": DELIVERED_AC_POWER_KEY, "name": "AC Delivered Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "high", "enabled_by_default": True},
+    {"key": "internal_temperature", "name": "Internal Temperature", "unit": "°C", "device_class": "temperature", "state_class": "measurement", "scale": 1, "precision": 1, "scan_interval": "medium", "enabled_by_default": True},
+    {"key": "device_temperature", "name": "Inverter Temperature", "unit": "°C", "device_class": "temperature", "state_class": "measurement", "scale": 1, "precision": 1, "category": "diagnostic", "scan_interval": "medium", "enabled_by_default": False},
+    {"key": "total_charging_energy", "name": "Total Charging Energy", "unit": "kWh", "device_class": "energy", "state_class": "total_increasing", "scale": 1, "precision": 3, "scan_interval": "low", "enabled_by_default": True},
+    {"key": "total_discharging_energy", "name": "Total Discharging Energy", "unit": "kWh", "device_class": "energy", "state_class": "total_increasing", "scale": 1, "precision": 3, "scan_interval": "low", "enabled_by_default": True},
     {"key": "software_version", "name": "Software Version", "data_type": "char", "icon": "mdi:ticket-confirmation-outline", "category": "diagnostic", "scan_interval": "low", "enabled_by_default": True},
 ]
 
-_POWER_KEYS = frozenset({"battery_soc", "battery_power", "power_setpoint", "solar_power"})
-_DIAG_KEYS = frozenset({"battery_temperature", "device_temperature"})
-_OUTPUT_KEYS = frozenset({"battery_soc", "battery_power", "solar_power"}) | _DIAG_KEYS
-_ALL_KEYS = _POWER_KEYS | _DIAG_KEYS | {"software_version"}
+_POWER_KEYS = frozenset({"battery_soc", "battery_power", "power_setpoint", "solar_power", DELIVERED_AC_POWER_KEY})
+_DIAG_KEYS = frozenset({"internal_temperature", "device_temperature"})
+_ENERGY_KEYS = frozenset({"total_charging_energy", "total_discharging_energy"})
+# Served by one /getOutputData request
+_OUTPUT_KEYS = frozenset({"battery_soc", "battery_power", "solar_power", DELIVERED_AC_POWER_KEY}) | _DIAG_KEYS | _ENERGY_KEYS
+_ALL_KEYS = _POWER_KEYS | _DIAG_KEYS | _ENERGY_KEYS | {"software_version"}
 
 
 class ApsystemsEzhiDriver(BatteryDriver):
@@ -106,17 +116,22 @@ class ApsystemsEzhiDriver(BatteryDriver):
             has_mppt_pv=False,
             has_alarm_registers=False,
             has_rs485_control=False,
-            # No lifetime/daily counters are relied on: the integration
-            # integrates power instead, which always works.
-            has_energy_counters=False,
+            # batCTE / batDTE are lifetime kWh totals on the battery (DC) side:
+            # no daily counters, and their ratio is the cell efficiency, not the
+            # AC round trip. Like Sessy, cycles come from discharged energy.
+            has_energy_counters=True,
             has_daily_energy_counters=False,
+            cycles_from_discharge_only=True,
+            lifetime_counters_ac=False,
             has_nominal_capacity=False,  # capacity lives in the stored config
             has_solar_telemetry=True,  # pvP: independent aggregate PV input
             actuator_latency_s=2.0,
         )
         self._read_groups = [
-            ReadGroup("high", tuple(sorted(_POWER_KEYS))),
-            ReadGroup("low", tuple(sorted(_DIAG_KEYS | {"software_version"}))),
+            # Temperatures come from the same /getOutputData request as the power
+            # keys, so they are polled with them at no extra cost.
+            ReadGroup("high", tuple(sorted(_POWER_KEYS | _DIAG_KEYS))),
+            ReadGroup("low", tuple(sorted(_ENERGY_KEYS | {"software_version"}))),
         ]
 
     # ------------------------------------------------------------- identity
@@ -195,25 +210,54 @@ class ApsystemsEzhiDriver(BatteryDriver):
 
     # ------------------------------------------------------------ telemetry
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
+        """Return {} unless the device answered in THIS call.
+
+        Remembered values (last setpoint, cached firmware) never stand in for a
+        read: an unreachable device must look unreachable so the coordinator's
+        failure counter rises. A group that holds only such values therefore
+        still issues a real request.
+        """
         requested = set(keys) if keys is not None else set(_ALL_KEYS)
         snapshot: dict = {}
+        answered = False
 
         if requested & _OUTPUT_KEYS:
             t = await self._request(self._client.get_output_data)
-            if t:
-                snapshot.update({
-                    "battery_soc": t["soc"],
-                    "battery_power": t["battery_power_w"],  # +charge / -discharge
-                    "solar_power": t["solar_power_w"],
-                    "battery_temperature": t["battery_temp"],
-                    "device_temperature": t["device_temp"],
-                })
+            if t is None:
+                return {}
+            answered = True
+            snapshot.update({
+                "battery_soc": t["soc"],
+                "battery_power": t["battery_power_w"],       # cell, +charge / -discharge
+                DELIVERED_AC_POWER_KEY: t["ac_power_w"],     # on-grid port, same sign
+                "solar_power": t["solar_power_w"],
+                # shared key, as for the other brands: the battery's temperature (batTemp)
+                "internal_temperature": t["battery_temp"],
+                "device_temperature": t["device_temp"],     # inverter (devTemp), diagnostic
+                "total_charging_energy": t["charged_kwh"],      # lifetime kWh
+                "total_discharging_energy": t["discharged_kwh"],  # lifetime kWh
+            })
 
-        if "power_setpoint" in requested and self._last_setpoint is not None:
-            snapshot["power_setpoint"] = self._last_setpoint
+        if "power_setpoint" in requested:
+            power = await self._request(self._client.get_power)
+            if power is None:
+                if not answered:
+                    return {}
+            else:
+                answered = True
+                value = power["setpoint_w"]
+                snapshot["power_setpoint"] = value if value is not None else self._last_setpoint
 
         if "software_version" in requested:
-            snapshot["software_version"] = self._info.get("firmware")
+            info = await self._request(self._client.get_device_info)
+            if info is None:
+                if not answered:
+                    return {}
+            else:
+                answered = True
+                if info.get("device_id"):
+                    self._info = info
+                snapshot["software_version"] = self._info.get("firmware")
 
         snapshot = {k: v for k, v in snapshot.items() if v is not None}
         return snapshot if keys is None else {k: v for k, v in snapshot.items() if k in keys}
@@ -230,24 +274,36 @@ class ApsystemsEzhiDriver(BatteryDriver):
         self._last_setpoint = applied
         if not read_back:
             return SetpointResult(True, applied, False, applied={"power_setpoint": applied})
-        # /getOutputData has no setpoint echo, so a device-side SUCCESS answer
-        # to /setPower counts as the acknowledgement; exact=False defers the
-        # settled-state check to the poll comparison.
-        t = await self._request(self._client.get_output_data)
-        measured = None
-        if t and t.get("battery_power_w") is not None:
-            measured = int(round(t["battery_power_w"]))
-        echo = {"power_setpoint": applied}
-        if measured is not None:
-            echo["battery_power"] = measured
-        return SetpointResult(True, applied, True, exact=False, battery_power_w=measured, applied=echo)
+
+        # /setPower answers SUCCESS in every system mode but only acts in Local
+        # mode, so its answer proves nothing. Confirm against /getPower, which
+        # reports the device's own setpoint; if its answer has no recognisable
+        # field, the command stays unconfirmed.
+        power = await self._request(self._client.get_power)
+        device_value = power["setpoint_w"] if power else None
+        confirmed = device_value is not None and device_value == applied
+        echo: dict = {"power_setpoint": device_value if device_value is not None else applied}
+
+        # Delivered power for non-delivery detection is the AC port that
+        # /setPower acts on, not the cell: with PV present the two differ.
+        out = await self._request(self._client.get_output_data)
+        delivered = None
+        if out:
+            if out.get("ac_power_w") is not None:
+                delivered = int(round(out["ac_power_w"]))
+                echo[DELIVERED_AC_POWER_KEY] = delivered
+            if out.get("battery_power_w") is not None:
+                echo["battery_power"] = int(round(out["battery_power_w"]))
+        return SetpointResult(True, applied, confirmed, exact=confirmed,
+                              battery_power_w=delivered, applied=echo)
 
     async def write_control(self, key: str, value: int) -> bool: return False
     def net_power_from_data(self, data: dict) -> Optional[int]:
         value = data.get("power_setpoint")
         return int(value) if value is not None else None
     @property
-    def control_dependency_keys(self) -> frozenset: return frozenset({"power_setpoint"})
+    def control_dependency_keys(self) -> frozenset:
+        return frozenset({"power_setpoint", DELIVERED_AC_POWER_KEY, "solar_power"})
     async def apply_config(self, **kwargs) -> bool: return True
     async def set_charge_cutoff(self, soc_pct: float) -> bool: return False
     async def standby(self) -> bool: return (await self.apply_setpoint(0, read_back=False)).ok
