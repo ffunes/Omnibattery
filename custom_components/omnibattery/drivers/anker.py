@@ -151,6 +151,12 @@ _FIELD_SPECS: list[dict] = [
      "data_type": "uint16", "count": 1},
     {"key": "discharging_cutoff_capacity", "address": 60001, "register_type": "holding",
      "data_type": "uint16", "count": 1},
+    # Backup reserve set in the Anker app (#939): the firmware will not discharge
+    # below it while 60003 is 1. Read-only here; feeds hardware_reserve_soc.
+    {"key": "backup_reserve_soc", "address": 60002, "register_type": "holding",
+     "data_type": "uint16", "count": 1},
+    {"key": "backup_soc_enable", "address": 60003, "register_type": "holding",
+     "data_type": "uint16", "count": 1},
 ]
 
 SENSOR_DEFINITIONS: list[dict] = [
@@ -242,6 +248,11 @@ SENSOR_DEFINITIONS: list[dict] = [
     {"key": "pv_total_generation", "name": "PV Total Generation", "unit": "kWh",
      "device_class": "energy", "state_class": "total_increasing", "scale": 0.1,
      "precision": 2, "scan_interval": "low", "enabled_by_default": True},
+    # Same key and name as Huawei's backup power SOC: the discharge floor the
+    # hardware holds back for itself (0 while the app's backup reserve is off).
+    {"key": "hardware_reserve_soc", "name": "Backup Power SOC", "unit": "%",
+     "state_class": "measurement", "scale": 1, "precision": 0,
+     "category": "diagnostic", "scan_interval": "medium", "enabled_by_default": True},
 ]
 
 NUMBER_DEFINITIONS: list[dict] = [
@@ -718,6 +729,16 @@ class AnkerModbusDriver(BatteryDriver):
             and isinstance(pv_power, (int, float))
         ):
             snapshot[DELIVERED_AC_POWER_KEY] = int(battery_power) - int(pv_power)
+        # ponytail: no 0x8007 capability read (bits 2/3), as 60000/60001 aren't
+        # gated on bits 0/1 either. Assumes firmware without 60002/60003 answers
+        # zeros in the batch (enable=0 = no reserve); add the one-shot FC04 read
+        # at connect if a unit ever reports a non-zero 60003 without the feature.
+        enable = snapshot.get("backup_soc_enable")
+        if isinstance(enable, (int, float)):
+            reserve = snapshot.get("backup_reserve_soc")
+            snapshot["hardware_reserve_soc"] = (
+                reserve if int(enable) == 1 and isinstance(reserve, (int, float)) else 0
+            )
         temperature = snapshot.get("temperature")
         if isinstance(temperature, (int, float)):
             snapshot["internal_temperature"] = temperature
@@ -868,6 +889,10 @@ class AnkerModbusDriver(BatteryDriver):
             "max_discharge_power",
             "charging_cutoff_capacity",
             "discharging_cutoff_capacity",
+            # Sources of hardware_reserve_soc, a discharge floor for the control
+            # layer (#939). Same 60000-60003 batch, so no extra read.
+            "backup_reserve_soc",
+            "backup_soc_enable",
             "operating_mode",
             "commanded_net_power",
             # Sources for normalized control telemetry. Keep polling them even if
