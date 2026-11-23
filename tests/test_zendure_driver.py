@@ -1210,3 +1210,71 @@ async def test_read_telemetry_keeps_soc_status_for_control():
         ["control_status"]))["control_status"] == "soc_calibration"
     assert (await _driver(session=_session(get_data=_REPORT)).read_telemetry(
         ["control_status"]))["control_status"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# full standby after 15 min held idle (#633)
+# ---------------------------------------------------------------------------
+
+def _idle_report(**props):
+    report = {**_REPORT, "properties": {
+        **_REPORT["properties"],
+        "acMode": 2, "outputLimit": 0, "inputLimit": 1920, "smartMode": 1,
+        "packInputPower": 0, "outputPackPower": 0, "solarInputPower": 0,
+        "gridOffMode": 2, "socStatus": 0,
+    }}
+    report["properties"].update(props)
+    return report
+
+
+def _standby_posts(session):
+    return [
+        c for c in session.post.call_args_list
+        if c.kwargs["json"]["properties"] == {"smartMode": 0, "outputLimit": 0, "inputLimit": 0}
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("props", "fires"), [
+    ({}, True),
+    ({"outputPackPower": 30}, False),     # solar still charging the pack
+    ({"gridOffMode": 1}, False),          # off-grid port on (#882)
+    ({"socStatus": 1}, False),            # calibrating
+    ({"smartMode": 0, "inputLimit": 0}, False),  # already in full standby
+    ({"model": "2400ac_pro"}, False),     # PV model: untested in standby
+])
+async def test_full_standby_after_15_min_idle(monkeypatch, props, fires):
+    model = props.pop("model", "2400ac_plus")
+    clock = [1000.0]
+    monkeypatch.setattr(
+        "custom_components.omnibattery.drivers.zendure.time.monotonic", lambda: clock[0]
+    )
+    session = _session(get_data=_idle_report(**props))
+    drv = _driver(session=session)
+    drv._model = model
+
+    await drv.read_telemetry()          # starts the idle count
+    clock[0] += 14 * 60
+    await drv.read_telemetry()
+    assert not _standby_posts(session)
+    clock[0] += 60
+    await drv.read_telemetry()
+    assert len(_standby_posts(session)) == (1 if fires else 0)
+
+
+@pytest.mark.asyncio
+async def test_new_setpoint_restarts_idle_count(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(
+        "custom_components.omnibattery.drivers.zendure.time.monotonic", lambda: clock[0]
+    )
+    session = _session(get_data=_idle_report())
+    drv = _driver(session=session)
+    drv._model = "2400ac_plus"
+
+    await drv.read_telemetry()
+    clock[0] += 14 * 60
+    await drv.apply_setpoint(-300, read_back=False)
+    clock[0] += 60
+    await drv.read_telemetry()          # stale idle echo: count restarts, no standby
+    assert not _standby_posts(session)

@@ -2,6 +2,10 @@
 
 ## [2.0.0b2] - Unreleased
 
+### Changed
+
+- **Zendure AC models go to full standby after 15 minutes idle** (#633), as the Gielz zenSDK package does to cut the inverter's idle draw; the next charge or discharge wakes it. Thanks to @kastanjepoffer.
+
 ### Fixed
 
 - **Predictive charging plans at the batteries' full charge power**: a battery that was warm or near full when the plan was made no longer lowers the charge power planned for later slots.
