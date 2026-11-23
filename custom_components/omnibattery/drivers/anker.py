@@ -729,8 +729,10 @@ class AnkerModbusDriver(BatteryDriver):
             and isinstance(pv_power, (int, float))
         ):
             snapshot[DELIVERED_AC_POWER_KEY] = int(battery_power) - int(pv_power)
-        # ponytail: no 0x8007 capability read. Firmware without 60002/60003
-        # answers zeros in the batch, and enable=0 already means "no reserve".
+        # ponytail: no 0x8007 capability read (bits 2/3), as 60000/60001 aren't
+        # gated on bits 0/1 either. Assumes firmware without 60002/60003 answers
+        # zeros in the batch (enable=0 = no reserve); add the one-shot FC04 read
+        # at connect if a unit ever reports a non-zero 60003 without the feature.
         enable = snapshot.get("backup_soc_enable")
         if isinstance(enable, (int, float)):
             reserve = snapshot.get("backup_reserve_soc")
