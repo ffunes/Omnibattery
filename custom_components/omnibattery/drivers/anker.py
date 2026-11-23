@@ -761,6 +761,14 @@ class AnkerModbusDriver(BatteryDriver):
         self._rated_discharge_w = max(self._rated_discharge_w, live)
         return self._rated_discharge_w or _HW_MAX_POWER_W
 
+    def dynamic_charge_limit_w(self, data: dict) -> Optional[int]:
+        """The live 10036 reading, so the controller never allocates past the clamp."""
+        return self._dynamic_max_charge_w
+
+    def dynamic_discharge_limit_w(self, data: dict) -> Optional[int]:
+        """The live 10038 reading, so the controller never allocates past the clamp."""
+        return self._dynamic_max_discharge_w
+
     def _clamp_net_power(self, net_power_w: int) -> int:
         """Clamp to the live hardware envelope."""
         max_charge = min(_HW_MAX_POWER_W, self._dynamic_max_charge_w)

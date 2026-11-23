@@ -467,11 +467,14 @@ async def test_published_ceiling_is_highest_reading_clamp_is_live():
     assert (snap["max_charge_power"], snap["max_discharge_power"]) == (10500, 10500)
     assert drv._clamp_net_power(9000) == 5138
     assert drv._clamp_net_power(-9000) == -3608
+    # The controller allocates against the live value, not the published ceiling.
+    assert (drv.dynamic_charge_limit_w({}), drv.dynamic_discharge_limit_w({})) == (5138, 3608)
 
     client.async_read_input_block = AsyncMock(return_value=_cap_buffer(0, 0))
     snap = await drv.read_telemetry(keys)
     assert (snap["max_charge_power"], snap["max_discharge_power"]) == (10500, 10500)
     assert drv._clamp_net_power(9000) == 5138
+    assert drv.dynamic_charge_limit_w({}) == 5138
 
 
 @pytest.mark.asyncio
