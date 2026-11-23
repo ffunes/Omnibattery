@@ -8,6 +8,7 @@
 - **Guaranteed Minimum SOC is kept on high-consumption days** (#834): a battery below it no longer loses it in the evening plan.
 - **Time Slot holds the energy for after the window from the moment it opens** (#938); **Integration Status** shows *Holding Energy for After the Cheap Slot* instead of *Balanced*.
 - **Daily operation chart: a past quarter with no measurement no longer shows the plan** (#853). Thanks to @Sjoedzj.
+- **Zendure 4000 Mix Pro MPPT inputs count as solar** (#942): system solar power and daily solar energy now include them, and the solar profile starts learning again. If your Solar Production sensor already includes them, take them out of it. Thanks to @xzaz.
 
 ## [2.0.0b1] - 2026-11-23
 

@@ -588,13 +588,18 @@ def has_connected_mppt_pv(coordinator) -> bool:
     ``has_mppt_pv`` remains a hardware capability. Marstek Venus A/D users can
     explicitly declare that their physical MPPT inputs are unused; coordinators
     and test doubles without that installation setting retain the historical
-    capability-based behaviour.
+    capability-based behaviour. The setting only applies where the traits
+    declare an optional DC PV input: hardware whose MPPT inputs are not
+    optional (Zendure 4000 Mix Pro, #942) follows ``has_mppt_pv`` alone, as
+    the coordinator forces ``dc_pv_connected`` False for those brands.
     """
     capabilities = getattr(coordinator, "capabilities", None)
-    return bool(
-        getattr(capabilities, "has_mppt_pv", False)
-        and getattr(coordinator, "dc_pv_connected", True)
-    )
+    if not getattr(capabilities, "has_mppt_pv", False):
+        return False
+    traits = getattr(coordinator, "traits", None)
+    if traits is not None and not getattr(traits, "optional_dc_pv_input", False):
+        return True
+    return bool(getattr(coordinator, "dc_pv_connected", True))
 
 
 def has_solar_production_source(controller) -> bool:
