@@ -34,10 +34,12 @@ _LOGGER = logging.getLogger(__name__)
 STEP_CONNECTION = "battery_connection_anker"
 STEP_RECONFIGURE = "reconfigure_battery_anker"
 
-# Hardware ceiling (two combined units read 7000 W, #646) and the default the
-# stored max charge/discharge starts at: a 7000 W reading from one unit must not
-# raise it. The user raises it with the Max charge/discharge power number.
-_ANKER_MAX_POWER_W = 7000
+# Sanity bound on 10036/10038, not a rating: a combined system on one IP reports
+# its total (two units 7000 W, three units up to 10500 W, #646). The default the
+# stored max charge/discharge starts at stays one unit; the user raises it with
+# the Max charge/discharge power number.
+# ponytail: four units (Anker's Power Dock limit); raise if a bigger system reads more.
+_ANKER_MAX_POWER_W = 4 * 3500
 _ANKER_DEFAULT_POWER_W = 3500
 
 
