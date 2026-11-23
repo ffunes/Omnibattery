@@ -222,6 +222,8 @@ jobs:
           Abort and revert your edits if the root cause is not certain, the fix is not small, it needs a config or
           storage migration, it changes control behaviour beyond the bug, or you cannot get a failing test to pass.
           Only edit custom_components/, tests/ and CHANGELOG.md.
+          Scratch files (dump scripts, temporary output) go in .claude-ctx/ only: you cannot delete files, and anything
+          left elsewhere ends up in the patch and fails the run.
 
           Your final message must be ONLY this JSON object:
           {"status": "fixed|abort", "title": "fix(scope): summary (#$N)",
