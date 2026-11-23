@@ -2,6 +2,10 @@
 
 ## [2.0.0b2] - Unreleased
 
+### Changed
+
+- **Zendure goes to full standby after 15 minutes idle** (#633): saves the ~19 W the inverter draws while holding 0 W; the next charge or discharge wakes it. Thanks to @kastanjepoffer.
+
 ### Fixed
 
 - **Predictive charging plans at the batteries' full charge power**: a battery that was warm or near full when the plan was made no longer lowers the charge power planned for later slots.
