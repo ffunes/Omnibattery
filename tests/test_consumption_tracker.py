@@ -733,6 +733,28 @@ def test_derive_home_excludes_direct_pv_charging():
     assert tracker._derive_home_power_kw() == pytest.approx(1.311)
 
 
+def test_zendure_pv_in_ac_is_solar_not_home_load():
+    # #529: 4000 Mix AC+ report from the thread, grid at 0. PV-IN gives 986 W:
+    # 630 W into the pack, 356 W out to the house. The house is 356 W, the
+    # system solar 986 W.
+    from custom_components.omnibattery.drivers.zendure import ZendureLocalDriver
+    from tests.test_zendure_driver import PV_IN_REPORT
+
+    driver = ZendureLocalDriver("192.168.1.100", model="4000mix_ac_plus")
+    driver._update_pv_in(PV_IN_REPORT["properties"])
+    unit = SimpleNamespace(
+        driver=driver,
+        capabilities=driver.capabilities,
+        data=driver._snapshot_from_report(PV_IN_REPORT),
+        is_available=True,
+    )
+    home = _make_home_tracker({"sensor.grid": _w(0)}, [unit])
+    solar = _make_solar_tracker({}, None, [unit])
+
+    assert home._derive_home_power_kw() == pytest.approx(0.356)
+    assert solar._read_total_solar_power_kw() == pytest.approx(0.986)
+
+
 def test_derive_home_cancels_grid_energy_used_to_charge_battery():
     # Grid imports 2800 W while the battery charges at 2500 W (negative AC).
     # Only the remaining 300 W belongs to household consumption.
