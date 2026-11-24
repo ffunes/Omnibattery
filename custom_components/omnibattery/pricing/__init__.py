@@ -1,8 +1,8 @@
 """Dynamic pricing package.
 
 Holds the price data model and pure price-math/parsing helpers extracted from
-``ChargeDischargeController``. The runtime engine (``engine.PricingManager``) and
-notifications live in submodules.
+``ChargeDischargeController``. The runtime engine (``engine.PricingManager``) lives in a
+submodule; notification formatters live in ``notifications.plan``.
 """
 from collections import namedtuple
 from dataclasses import dataclass, field

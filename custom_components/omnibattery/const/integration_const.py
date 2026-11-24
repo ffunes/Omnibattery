@@ -2,7 +2,7 @@
 
 DOMAIN = "omnibattery"
 
-# Prefix for every persistent_notification this integration creates/dismisses.
+# Prefix for every persistent notification this integration creates/dismisses.
 # Lets automations (e.g. the Telegram-forwarding blueprint) reliably select only
 # our notifications by ID. All notification_id values MUST start with this.
 NOTIFICATION_ID_PREFIX = "marstek_venus_"
@@ -97,6 +97,11 @@ CONF_VACATION_MODE_ENABLED = "vacation_mode_enabled"
 # current behaviour. Battery alarm, cell-balance, manual-mode and the
 # predictive-charging "disabled" confirmation are not affected.
 CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED = "predictive_charging_notifications_enabled"
+# Other notification categories. A missing plan-info/execution key follows the
+# key above (existing installs keep their choice); a missing modes key is True.
+CONF_NOTIFY_PLAN_INFO_ENABLED = "notify_plan_info_enabled"
+CONF_NOTIFY_EXECUTION_ENABLED = "notify_execution_enabled"
+CONF_NOTIFY_MODES_ENABLED = "notify_modes_enabled"
 CONF_CHARGING_TIME_SLOT = "charging_time_slot"
 CONF_SOLAR_FORECAST_SENSOR = "solar_forecast_sensor"
 # Explicit post-now forecast.  The old key remains a whole-day ``today`` value

@@ -1697,7 +1697,16 @@
         "name": "Carga Predictiva"
       },
       "predictive_charging_notifications": {
-        "name": "Notificaciones de Carga Predictiva"
+        "name": "Notificaciones: Plan con Carga"
+      },
+      "notify_plan_info": {
+        "name": "Notificaciones: Plan Informativo"
+      },
+      "notify_execution": {
+        "name": "Notificaciones: Ejecución"
+      },
+      "notify_modes": {
+        "name": "Notificaciones: Modos"
       },
       "vacation_mode": {
         "name": "Modo vacaciones"

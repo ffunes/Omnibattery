@@ -76,6 +76,9 @@ DEFAULTS = {
     # predictive charging card
     "predictive_charging": "off",
     "predictive_charging_notifications": "on",
+    "notify_plan_info": "same as Charge plan",
+    "notify_execution": "same as Charge plan",
+    "notify_modes": "on",
     "predictive_safety_margin_pct": _pct(DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT),
     "min_soc_floor_enabled": "off",
     "predictive_min_soc_floor": _pct(DEFAULT_PREDICTIVE_MIN_SOC_FLOOR),

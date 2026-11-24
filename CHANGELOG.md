@@ -4,6 +4,9 @@
 
 ### Changed
 
+- **Notifications are now switchable by category and follow Home Assistant's language**: **Charge plan** (the existing Predictive Charging Notifications switch, now only for plans with a charge), **Plan info**, **Execution** and **Modes** switches, in a new Notifications card in the panel's Control tab. Alarms, faults and cell alerts cannot be muted. Languages: en, es, ca, de, fr, nl.
+- **The plan notification is easier to read**: charge slots come in a table, slots on other days carry their date and are sorted, holds and sales are listed, and a new line estimates the saving against buying that energy when it is used.
+- **Notification titles now read "Area: state"** (e.g. *Manual Mode: active*, *Predictive Charging: disabled*, *Cell Balance: ...*). IDs do not change, so the blueprints keep working, but automations that match the old English titles must be updated. The Telegram blueprint forwards the text in Home Assistant's language.
 - **Zendure AC models go to full standby after 15 minutes idle** (#633), as the Gielz zenSDK package does to cut the inverter's idle draw; the next charge or discharge wakes it. Thanks to @kastanjepoffer.
 
 ### Fixed

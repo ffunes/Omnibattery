@@ -1682,7 +1682,16 @@
         "name": "Càrrega Predictiva"
       },
       "predictive_charging_notifications": {
-        "name": "Notificacions de Càrrega Predictiva"
+        "name": "Notificacions: Pla amb Càrrega"
+      },
+      "notify_plan_info": {
+        "name": "Notificacions: Pla Informatiu"
+      },
+      "notify_execution": {
+        "name": "Notificacions: Execució"
+      },
+      "notify_modes": {
+        "name": "Notificacions: Modes"
       },
       "vacation_mode": {
         "name": "Mode vacances"

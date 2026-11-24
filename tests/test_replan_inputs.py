@@ -83,7 +83,6 @@ LIVE = {
     "min_discharge_power",
     "no_pd_mode_enabled",
     "offgrid_mode_enabled",
-    "predictive_charging_notifications_enabled",
     "primary_battery",
     "primary_feedforward_enabled",
     "surplus_hold_min_saving",

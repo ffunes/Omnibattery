@@ -11,6 +11,7 @@ from homeassistant.helpers.storage import Store
 
 from ..control.pack_soc import pack_cell_deltas, worst_pack_delta
 from ..drivers.base import BalanceBaseline
+from ..notifications import HEALTH, async_notify, text
 from ..const import (
     BALANCE_HISTORY_MAX,
     BALANCE_NOTIFY_COOLDOWN_DAYS,
@@ -369,17 +370,19 @@ class BalanceMonitor:
 
         severe = False
         if status == "red":
-            issues.append(f"Delta: {delta_mv:.0f} mV — high cell imbalance.")
+            issues.append(text(self._hass, "balance.high", delta=delta_mv))
         elif status == "orange":
-            issues.append(f"Delta: {delta_mv:.0f} mV — moderate imbalance.")
+            issues.append(text(self._hass, "balance.moderate", delta=delta_mv))
 
         if status == "red" and bat["consecutive_red"] >= BALANCE_RED_CONSECUTIVE_ALERT:
             severe = True
             issues.append(
-                f"High cell imbalance ({delta_mv:.0f} mV) for "
-                f"{bat['consecutive_red']} consecutive full charges. Consider "
-                f"running an active-balance blueprint for this battery "
-                f"to rebalance the cells."
+                text(
+                    self._hass,
+                    "balance.consecutive",
+                    delta=delta_mv,
+                    count=bat["consecutive_red"],
+                )
             )
 
         return status, severe
@@ -417,8 +420,12 @@ class BalanceMonitor:
             and self._effective_delta(trend["avg_4w"], baseline) > BALANCE_TREND_ALERT_AVG_MV
         ):
             issues.append(
-                f"Rising imbalance trend: +{trend['slope']:.1f} mV/reading, "
-                f"avg {trend['avg_4w']:.0f} mV over last readings."
+                text(
+                    self._hass,
+                    "balance.trend",
+                    slope=trend["slope"],
+                    avg=trend["avg_4w"],
+                )
             )
 
     def _maybe_notify(
@@ -435,7 +442,7 @@ class BalanceMonitor:
                 pass
         bat["last_notify_ts"] = now.isoformat()
         icon = "🔴" if severe else "⚠️"
-        title = f"{icon} Cell balance — {name}"
+        title = text(self._hass, "balance.title", icon=icon, name=name)
         message = "\n".join(f"• {line}" for line in issues)
         coroutine = self._notify(
             f"marstek_venus_marstek_balance_{host}", title, message
@@ -554,12 +561,4 @@ class BalanceMonitor:
         return "red"
 
     async def _notify(self, notification_id: str, title: str, message: str) -> None:
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "notification_id": notification_id,
-                "title": title,
-                "message": message,
-            },
-        )
+        await async_notify(self._hass, HEALTH, notification_id, title, message)

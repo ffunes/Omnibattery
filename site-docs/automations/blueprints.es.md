@@ -112,6 +112,7 @@ El objetivo de red es la importación total, no la potencia de carga: la baterí
 - **Finalidad:** reenvía notificaciones persistentes de Home Assistant nuevas o actualizadas a una entidad de notificación de Telegram seleccionada.
 - **Requiere:** una entidad de notificación `telegram_bot` configurada.
 - **Controla:** nada en Omnibattery; solo lee notificaciones y envía mensajes de Telegram.
+- **Nota:** el mensaje llega en el idioma de Home Assistant y su markdown se reenvía como texto, sin formato (una tabla llega como texto con barras). Los IDs de notificación no cambiaron, así que las configuraciones existentes siguen funcionando.
 - **Compatible con:** cualquier notificación persistente, no solo las de Omnibattery; un filtro opcional por prefijo de ID lo delimita. El valor predeterminado `marstek_venus_` conserva la compatibilidad con las notificaciones creadas por la integración anterior; borra el filtro para reenviar todas las notificaciones persistentes o sustitúyelo por otro prefijo.
 - **No hace:** reenviar notificaciones existentes cuando se reinicia Home Assistant.
 
@@ -129,7 +130,7 @@ Envía el título, ID y mensaje de la notificación escapando HTML de forma segu
 
 La notificación puede ser visible brevemente antes de que Home Assistant ejecute la automatización. Desactiva la automatización en cualquier momento para volver a recibir notificaciones de carga predictiva.
 
-Para evitarlas directamente en el origen, desactiva el interruptor **Notificaciones de Carga Predictiva**; consulta [Carga predictiva](../configuration/predictive-charging/index.md).
+Para evitarlas directamente en el origen, desactiva los interruptores de categoría (**Notificaciones: Plan con Carga**, **Plan Informativo**, **Ejecución**, **Modos**); consulta [Carga predictiva](../configuration/predictive-charging/index.md).
 
 ## Reserva de descarga según previsión solar
 

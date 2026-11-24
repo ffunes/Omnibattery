@@ -146,6 +146,9 @@ class ChronologicalPlan:
     # interval (its own battery model, discharge losses included), and the
     # efficiency its slot energies are sized with.
     trajectory: tuple[tuple[datetime, float], ...] = ()
+    # 2.0.0 optimizer only: per quarter, (end, AC kWh the battery delivers to the
+    # house, import price of the quarter); quarters with no delivery are left out.
+    house_delivery: tuple[tuple[datetime, float, float], ...] = ()
     charge_efficiency: float | None = None
     # Slots in which the plan holds the battery (Discharge Reserve, step 5).
     holds: tuple[PriceSlot, ...] = ()

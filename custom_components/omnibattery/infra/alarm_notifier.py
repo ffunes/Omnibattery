@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 
 from ..const import NOTIFICATION_ID_PREFIX
 from ..drivers.base import DriverAlarm
+from ..notifications import HEALTH, async_dismiss, async_notify, text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,30 +39,30 @@ class AlarmNotifier:
         if new:
             await self._send(alarms, new)
         elif self._previous and not current:
-            await self._hass.services.async_call(
-                "persistent_notification",
-                "dismiss",
-                {"notification_id": f"{NOTIFICATION_ID_PREFIX}battery_alarm_{self._device_name}"},
+            await async_dismiss(
+                self._hass,
+                f"{NOTIFICATION_ID_PREFIX}battery_alarm_{self._device_name}",
             )
 
         self._previous = current
 
     async def _send(self, alarms: list[DriverAlarm], new: list[DriverAlarm]) -> None:
         is_fault = any(a.kind == "fault" for a in alarms)
-        header_emoji = "🚨" if is_fault else "⚠️"
         severity = "Fault" if is_fault else "Warning"
+        sev = severity.lower()
+        hass = self._hass
 
         sections: list[str] = []
-        sections.append(f"{header_emoji} {'Fault' if is_fault else 'Warning'} detected on {self._device_name}")
+        sections.append(text(hass, f"alarm.header.{sev}", device=self._device_name))
         sections.append("")
 
         if any(a.kind == "fault" for a in new):
-            sections.append(f"🆕 New faults:")
+            sections.append(text(hass, "alarm.new_faults"))
             for label in _labels(new, "fault"):
                 sections.append(f"  🔴 {label}")
 
         if any(a.kind == "alarm" for a in new):
-            sections.append(f"🆕 New alarms:")
+            sections.append(text(hass, "alarm.new_alarms"))
             for label in _labels(new, "alarm"):
                 sections.append(f"  🟡 {label}")
 
@@ -72,23 +73,21 @@ class AlarmNotifier:
 
         if extra_faults or extra_alarms:
             sections.append("")
-            sections.append("⚡ Also active:")
+            sections.append(text(hass, "alarm.also_active"))
             for label in extra_faults:
                 sections.append(f"  🔴 {label}")
             for label in extra_alarms:
                 sections.append(f"  🟡 {label}")
 
         message = "\n".join(sections)
-        title = f"{header_emoji} Battery {severity}: {self._device_name}"
+        title = text(hass, f"alarm.title.{sev}", device=self._device_name)
 
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": title,
-                "message": message,
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}battery_alarm_{self._device_name}",
-            },
+        await async_notify(
+            self._hass,
+            HEALTH,
+            f"{NOTIFICATION_ID_PREFIX}battery_alarm_{self._device_name}",
+            title,
+            message,
         )
         log_conditions = ", ".join(all_faults + all_alarms)
         _LOGGER.warning("[%s] Battery %s — %s", self._device_name, severity.lower(), log_conditions)

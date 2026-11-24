@@ -8,6 +8,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 
 from custom_components.omnibattery.drivers import indevolt_notify
+from custom_components.omnibattery.notifications import gateway
 from custom_components.omnibattery.drivers.indevolt_notify import IndevoltNotifier
 
 
@@ -15,12 +16,12 @@ from custom_components.omnibattery.drivers.indevolt_notify import IndevoltNotifi
 def calls(monkeypatch):
     recorded = []
     monkeypatch.setattr(
-        indevolt_notify.persistent_notification, "async_create",
+        gateway.persistent_notification, "async_create",
         lambda hass, message, title=None, notification_id=None: recorded.append(
             ("create", notification_id, title, message)),
     )
     monkeypatch.setattr(
-        indevolt_notify.persistent_notification, "async_dismiss",
+        gateway.persistent_notification, "async_dismiss",
         lambda hass, notification_id: recorded.append(("dismiss", notification_id)),
     )
     return recorded
@@ -48,12 +49,12 @@ def test_pause_and_resume(calls):
 
 def test_throttle_names_the_official_integration_only_when_loaded(calls):
     IndevoltNotifier(_hass(ConfigEntryState.NOT_LOADED), "Garage", "k").throttled(20)
-    assert "official Indevolt integration" not in calls[-1][3]
+    assert "official integration is also polling" not in calls[-1][3]
     # Other local clients are named in general, whether or not it is loaded.
     assert "another Home Assistant integration" in calls[-1][3]
     assert "network connection" in calls[-1][3]
     IndevoltNotifier(_hass(ConfigEntryState.LOADED), "Garage", "k").throttled(20)
-    assert "official Indevolt integration" in calls[-1][3]
+    assert "official integration is also polling" in calls[-1][3]
     assert "20s" in calls[-1][3]
 
 
@@ -106,7 +107,7 @@ def test_stopped_flash_writes_raise_a_fixable_repairs_issue(monkeypatch):
     assert issues[-1] == ("delete", issue_id)
 
 
-@pytest.mark.parametrize("language, needle", [("nl", "Realtime"), ("nl-BE", "werkmodus"), ("de", "working mode")])
+@pytest.mark.parametrize("language, needle", [("nl", "Realtime"), ("nl-BE", "werkmodus"), ("pt", "working mode")])
 def test_dutch_texts_and_english_fallback(calls, language, needle):
     hass = _hass()
     hass.config = SimpleNamespace(language=language)
@@ -119,12 +120,6 @@ def test_dutch_texts_and_english_fallback(calls, language, needle):
     notifier.firmware_outdated("V1", "V2")
     notifier.paused("unknown_model", model="YZ-X9000")
     assert "YZ-X9000" in calls[-1][3]
-
-
-def test_every_language_has_every_text():
-    keys = set(indevolt_notify._TEXTS["en"])
-    for language, texts in indevolt_notify._TEXTS.items():
-        assert set(texts) == keys, language
 
 
 def test_notifications_use_the_renamed_device_name(calls, monkeypatch):
@@ -157,3 +152,12 @@ def test_the_name_lookup_uses_the_current_registry_api(calls, monkeypatch):
     assert seen == [{("omnibattery", "192.0.2.1_8080")}]
     registry.async_get_devices = lambda identifiers: []
     assert notifier.display_name == "Indevolt Monitoring"
+
+
+@pytest.mark.parametrize(("language", "expected"), [("es-ES", "pausado"), ("pt", "paused")])
+def test_indevolt_text_follows_server_language(calls, language, expected):
+    hass = _hass()
+    hass.config = SimpleNamespace(language=language)
+    hass.config_entries = SimpleNamespace(async_entries=lambda domain: [])
+    IndevoltNotifier(hass, "Garage", "192.0.2.1_8080").paused("realtime_mode_required")
+    assert expected in calls[-1][3]

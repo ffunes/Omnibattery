@@ -514,6 +514,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     sales: list = []
     rooms: list = []
     trajectory: list = []
+    house_delivery: list = []
     pending = pending0
     full_at = None  # when the plan touches the top of a pending weekly charge
     charging = bool(request.charging_now)  # a slot charging at now goes on: no start
@@ -522,8 +523,9 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     for k, (slot, quarters, ends) in enumerate(groups):
         layer = pending and k <= last_k
         chosen = None
+        run_quarters = quarters if layer else done_quarters[k]
         for option, (e1, c, decide, stored, open_, path, peaks, on) in run_menu(
-                slot, quarters if layer else done_quarters[k], [e], ends, layer):
+                slot, run_quarters, [e], ends, layer):
             start = held = hold_start = False
             if layer:
                 after, hit = onward(k, ends, e1, path, peaks, on, values_on[k + 1],
@@ -576,6 +578,14 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 to_slot_end=open_,
             ))
         total += c
+        # What the battery delivered to the house, per quarter (output only).
+        eff = layer_model[bool(layer)].eff
+        s0 = e
+        for q, end, top_q, x in zip(run_quarters, ends, top, path):
+            kwh = min(max(0.0, max(s0, top_q) - x) * eff, max(0.0, q.house_kwh - q.solar_kwh))
+            if kwh > _TOL:
+                house_delivery.append((end, kwh, q.import_price))
+            s0 = x
         e = e_end
         trajectory += list(zip(ends, path))
         if layer and (hit or k >= last_k):
@@ -608,6 +618,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         reason=reason,
         cheaper_to_import_kwh=cheaper if allocated <= _TOL else 0.0,
         trajectory=tuple(trajectory),
+        house_delivery=tuple(house_delivery),
         charge_efficiency=model.eff,
         holds=tuple(holds),
         exports=tuple(exports),

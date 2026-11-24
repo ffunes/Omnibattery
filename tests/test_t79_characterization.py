@@ -219,7 +219,7 @@ async def test_balance_notification(brand, version):
     await sent[0]
     (notification_id, title, message), = notes
     assert notification_id == f"marstek_venus_marstek_balance_{coord.device_key}"
-    assert title == f"🔴 Cell balance — {coord.name}"
+    assert title == f"🔴 Cell Balance: {coord.name}"
     lines = message.split(chr(10))
     assert lines[0] == "• Delta: 400 mV — high cell imbalance."
     assert len(lines) == 2
