@@ -1354,3 +1354,38 @@ def test_the_plan_names_the_quarters_it_charges_holds_and_runs_empty():
     assert by_kind == {"charge": [0], "hold": [1, 2, 3], "empty": [8, 9, 10, 11]}
     charged = sum(kwh for _a, _b, k, _p, kwh in plan.quarter_actions if k == "charge")
     assert charged == pytest.approx(plan.allocations[0].planned_battery_kwh, abs=0.01)
+
+
+# ----------------------------------------------------------------------
+# What the plan saves against the battery with no plan
+# ----------------------------------------------------------------------
+
+
+def test_a_plan_with_no_orders_saves_nothing():
+    plan = optimize_charge(_request([0.30] * 8, house=0.1, usable=0.5)).plan
+    assert not plan.allocations and not plan.holds
+    assert plan.plan_saving == pytest.approx(0.0, abs=1e-9)
+
+
+def test_a_hold_saves_the_price_gap_on_what_it_keeps():
+    """0.5 kWh stored (0.461 kWh for the house at 0.85 round trip); the house
+    takes 0.2 kWh a quarter, 4 quarters at 0.10 and then 4 at 0.40. With no
+    plan the battery is spent at 0.10; held, the same energy is spent at 0.40:
+    0.461 x (0.40 - 0.10) = 0.138."""
+    request = _with_hold(_request([0.10] * 4 + [0.40] * 4, house=0.2, usable=0.5,
+                                  threshold=0.0))
+    plan = optimize_charge(request).plan
+    assert not plan.allocations and len(plan.holds) == 4
+    delivered = 0.5 * 0.85 ** 0.5
+    assert plan.plan_saving == pytest.approx(delivered * 0.30, abs=1e-3)
+
+
+@pytest.mark.parametrize("prices", [
+    [0.10] * 4 + [0.40] * 4, [0.30, 0.10, 0.30, 0.10] * 3, [0.05] * 8 + [0.50] * 8,
+    [-0.02] * 4 + [0.30] * 8,
+])
+def test_the_plan_never_costs_more_than_no_plan(prices):
+    """The start costs decide and are not money: a cent of slack each."""
+    plan = optimize_charge(_with_hold(_request(prices, house=0.25))).plan
+    assert plan.plan_saving >= -0.02
+

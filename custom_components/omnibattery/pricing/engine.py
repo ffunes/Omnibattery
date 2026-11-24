@@ -3856,7 +3856,7 @@ class PricingManager:
         no order of a plan it replaced."""
         controller = self._controller
         controller._dp_plan_holds = None
-        controller._dp_plan_house_delivery = None
+        controller._dp_plan_saving = None
         controller._dp_plan_quarters = None
         controller._dp_plan_weekly_holds = None
         controller._dp_weekly_full_at = None
@@ -3888,8 +3888,8 @@ class PricingManager:
             if decision_data.get("planner") == "optimizer"
             else None
         )
-        self._controller._dp_plan_house_delivery = (
-            tuple(getattr(plan, "house_delivery", ()) or ())
+        self._controller._dp_plan_saving = (
+            getattr(plan, "plan_saving", None)
             if decision_data.get("planner") == "optimizer"
             else None
         )
@@ -6103,9 +6103,7 @@ class PricingManager:
             max_charge_capacity=self._planning_charge_capacity(),
             plan_orders=orders,
             arbitrage_margin=getattr(controller, "min_arbitrage_margin", None),
-            house_delivery=getattr(controller, "_dp_plan_house_delivery", None) or (),
-            round_trip_efficiency=effective_round_trip_efficiency(controller)[0],
-            weekly=getattr(controller, "_dp_plan_weekly_holds", None) is not None,
+            plan_saving=getattr(controller, "_dp_plan_saving", None),
             now=self._now(),
             lang=language(self._hass),
         )

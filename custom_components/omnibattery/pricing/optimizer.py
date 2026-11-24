@@ -609,6 +609,16 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         if layer and (hit or k >= last_k):
             pending = False
     total -= end_value * e
+    # The same start with no plan (the battery covers the house and stores the
+    # solar surplus, nothing else), valued the same way: what the plan saves
+    # (output only).
+    plain_e, plain = e0, 0.0
+    for plain_k, (plain_slot, _quarters, plain_ends) in enumerate(groups):
+        plain_e1, plain_c, *_rest = run(
+            done_quarters[plain_k], [plain_e], None, plain_slot.price, plain_ends,
+            plain_slot.start)
+        plain_e, plain = float(plain_e1[0]), plain + float(plain_c[0])
+    plain -= end_value * plain_e
 
     intervals = sorted(request.intervals, key=lambda item: item.start)
     deadlines = build_energy_deadlines(intervals, usable, usable_capacity_kwh=cap)
@@ -645,6 +655,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         risk_slots=tuple(s for s, _q, _e in groups if s.start in risk),
     )
     plan.optimizer_cost = total
+    plan.plan_saving = plain - total
     plan.quarter_actions = tuple(quarter_actions)
     plan.charge_starts = starts
     plan.hold_starts = hold_starts
