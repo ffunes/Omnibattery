@@ -1200,7 +1200,7 @@ def test_a_slot_that_charges_one_quarter_shows_that_quarter_then_the_hold():
     assert title.endswith("- 0.25h selected")
     assert "| Wed 25 · 07:00–07:15 | 0.0890 €/kWh | 0.31 kWh | ~0.03 € |" in message
     # One row is its own total; it still replaces the two text lines.
-    assert "Total" not in message
+    assert "Total" not in message.split("🪫")[0]
     assert "Average price" not in message and "Estimated cost" not in message
     # The hold: what the house buys meanwhile, 0.32 kWh x 0.089.
     assert "| Wed 25 · 07:15–08:00 | 0.0890 €/kWh | 0.32 kWh | ~0.03 € |" in message
@@ -1210,15 +1210,18 @@ def test_a_slot_that_charges_one_quarter_shows_that_quarter_then_the_hold():
 
 def test_the_plan_says_when_the_battery_runs_empty_and_at_what_price():
     message = _screenshot_message()[1]
-    # 0.3 kWh at 0.20 and 0.1 at 0.10: 0.4 kWh at 0.175 on average.
+    # One row per price (0.3 kWh at 0.20, 0.1 at 0.10); the total carries
+    # the average, 0.4 kWh at 0.175.
     assert (
         "\n\n🪫 Battery empty (the house buys from the grid):\n\n"
         "| Slot | Price | Energy | Cost |\n|---|---|---|---|\n"
-        "| Wed 25 · 21:30–22:00 | 0.1750 €/kWh | 0.40 kWh | ~0.07 € |\n\n"
+        "| Wed 25 · 21:30–21:45 | 0.2000 €/kWh | 0.30 kWh | ~0.06 € |\n"
+        "| Wed 25 · 21:45–22:00 | 0.1000 €/kWh | 0.10 kWh | ~0.01 € |\n"
+        "| **Total** | 0.1750 €/kWh | 0.40 kWh | ~0.07 € |\n\n"
     ) in message
     assert "\n\n\n" not in message
     assert (
         "🪫 Batería vacía (la casa compra de la red):\n\n"
         "| Tramo | Precio | Energía | Coste |\n|---|---|---|---|\n"
-        "| mié 25 · 21:30–22:00 | 0.1750 €/kWh | 0.40 kWh | ~0.07 € |\n"
+        "| mié 25 · 21:30–21:45 | 0.2000 €/kWh | 0.30 kWh | ~0.06 € |\n"
     ) in _screenshot_message("es")[1]

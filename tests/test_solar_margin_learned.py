@@ -411,3 +411,64 @@ def test_the_panel_resets_in_the_value_editor():
              if ln.lstrip().startswith('predictive_safety_margin_pct: "')]
     assert len(helps) == 6
     assert all("14" in ln and ' 10 %.",' not in ln for ln in helps)
+
+
+# ----------------------------------------------------------------------
+# The first week: the days come from the Recorder
+# ----------------------------------------------------------------------
+
+async def test_missing_days_are_restored_from_the_recorder(monkeypatch):
+    from datetime import datetime, timezone
+
+    from custom_components.omnibattery import solar_forecast
+
+    tracker, controller = _tracker(monkeypatch)
+    tracker._solar_forecast_history = [_day(9.0, 9.0, day="2026-11-22")]  # kept as is
+    tracker._hass = SimpleNamespace(config=SimpleNamespace(time_zone="UTC"))
+    tracker._now_for_backfill = lambda: datetime(2026, 11, 24, 14, 0, tzinfo=timezone.utc)
+    tracker._vacation_periods = []
+    monkeypatch.setattr(
+        solar_forecast, "get_configured_solar_forecast_sensor",
+        lambda _ctrl, source: "sensor.remaining" if source == "remaining" else None,
+    )
+    monkeypatch.setattr(
+        "homeassistant.helpers.entity_registry.async_get",
+        lambda _hass: SimpleNamespace(async_get_entity_id=lambda *_a: "sensor.daily_solar"),
+    )
+
+    def _state(day, hour, minute, value):
+        return SimpleNamespace(
+            state=str(value), attributes={"unit_of_measurement": "kWh"},
+            last_updated=datetime(2026, 11, day, hour, minute, tzinfo=timezone.utc),
+        )
+
+    recorder = {
+        # 23rd: carried-over 0 at the start, the day's forecast, then it falls.
+        ("sensor.remaining", 23): [_state(23, 0, 0, 0), _state(23, 0, 1, 24.4334),
+                                   _state(23, 9, 0, 20.0)],
+        ("sensor.daily_solar", 23): [_state(23, 0, 0, 17.72), _state(23, 0, 1, 0.0),
+                                     _state(23, 12, 0, 8.0), _state(23, 23, 0, 15.55)],
+        # 21st: the forecast did not update in the first hour: left out.
+        ("sensor.remaining", 21): [_state(21, 0, 0, 0), _state(21, 6, 0, 6.7)],
+        ("sensor.daily_solar", 21): [_state(21, 23, 0, 3.58)],
+        # 20th: a forecast, no sun recorded: left out.
+        ("sensor.remaining", 20): [_state(20, 0, 2, 12.48)],
+    }
+
+    async def _query(_token, entity_id, day):
+        return recorder.get((entity_id, day.day))
+
+    tracker._query_recorder_day = _query
+    saved = []
+    tracker.save_daily_energy = lambda: saved.append(True)
+
+    done = await tracker._async_backfill_solar_forecast_history(
+        SimpleNamespace(is_valid=lambda: True)
+    )
+
+    assert done is True and saved == [True]
+    assert tracker._solar_forecast_history == [
+        _day(9.0, 9.0, day="2026-11-22"),
+        {"date": "2026-11-23", "forecast_kwh": 24.4334, "actual_kwh": 15.55,
+         "curtailed_h": 0.0, "full": True},
+    ]
