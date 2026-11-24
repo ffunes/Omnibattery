@@ -47,7 +47,7 @@ Desactiva **Carga predictiva** para pausar toda la carga predictiva desde red y 
 
 ### La tarjeta de carga predictiva
 
-La tarjeta de la pestaña **Control** de Omnibattery empieza con las filas base (interruptor, notificaciones, estado) y después tiene tres encabezados:
+La tarjeta de la pestaña **Control** de Omnibattery empieza con las filas base (interruptor, estado) y después tiene tres encabezados:
 
 - **Planificación**: el margen de seguridad solar y el SOC mínimo garantizado.
 - **Carga y descarga según el precio**: el techo de precio de carga, el margen de arbitraje, la eficiencia de ciclo completo, la carga con precios negativos, **Descarga basada en precio** con su suelo, y el estado de reserva de descarga (activo mientras el plan retiene la batería para más tarde).
@@ -139,6 +139,18 @@ Bajo cada encabezado, cada función es un grupo, separado por una línea: su int
 
     Franja horaria puede notificar una hora antes de un periodo configurado y cuando empieza a cargar. Precio dinámico también comprueba antes de futuros periodos seleccionados, durante la evaluación de final del día, tras una caída importante de SOC y cuando están disponibles los precios de mañana. Las páginas de cada modo describen el comportamiento exacto.
 
-    Para dejar de recibir estas notificaciones, desactiva **Notificaciones de Carga Predictiva** (`switch.omnibattery_predictive_charging_notifications`) en la tarjeta de carga predictiva. Las evaluaciones, la planificación y los atributos de decisión siguen funcionando; solo se omiten las notificaciones persistentes y se descarta cualquier notificación de evaluación visible. Las notificaciones de alarmas de batería, balanceo de celdas y modo manual, y la confirmación que aparece al desactivar la carga predictiva, no se ven afectadas. El interruptor está activado por defecto.
+    Las notificaciones se agrupan en cinco categorías. Cuatro tienen su propio interruptor en la tarjeta **Notificaciones** de la pestaña **Control**; Salud (alarmas y fallos) no tiene ninguno, así que nunca se silencia.
+
+    | Categoría | Interruptor | Cubre |
+    |---|---|---|
+    | Plan con carga | **Notificaciones: Plan con Carga** (`switch.omnibattery_predictive_charging_notifications`) | Carga de red programada, carga a precio negativo, suelo de SOC |
+    | Plan informativo | **Notificaciones: Plan Informativo** (`switch.omnibattery_notify_plan_info`) | No hace falta cargar, horas más baratas, esperando precios, más barato importar, sin slots, modo seguro, aplazado |
+    | Ejecución | **Notificaciones: Ejecución** (`switch.omnibattery_notify_execution`) | Carga iniciada, slot confirmado |
+    | Modos | **Notificaciones: Modos** (`switch.omnibattery_notify_modes`) | Modo manual activo, carga predictiva desactivada, carga semanal sin sol suficiente |
+    | Salud | ninguno | Alarmas, fallos, celdas, Indevolt, migración pausada |
+
+    Apagar un interruptor omite esa categoría y descarta sus notificaciones visibles. Las evaluaciones, la planificación y los atributos de decisión siguen funcionando. Tras la actualización, Plan Informativo y Ejecución empiezan con el valor que tenía el interruptor de **Plan con Carga**; Modos empieza encendido. Los interruptores de Plan con Carga, Plan Informativo y Ejecución existen cuando hay carga predictiva configurada; Modos siempre está disponible. La reevaluación de tarde publica la notificación del plan, así que sigue la categoría del plan (Plan con carga o Plan informativo).
+
+    Las notificaciones salen en el idioma de Home Assistant (inglés, español, catalán, alemán, francés o neerlandés; inglés si no hay otro). Las notificaciones persistentes no son por usuario, así que todos los perfiles ven el idioma del servidor. Los tramos de otro día llevan la fecha, por ejemplo `mié 25 · 05:00–06:00`, y van en orden, y los tramos de carga del plan salen en una tabla (Tramo | Precio | Energía). La notificación del plan también muestra un ahorro estimado frente a comprar esa energía cuando se gasta; es una estimación sobre el plan, no una medida de lo que acabó pasando.
 
     ![Notificación de carga predictiva](../../assets/screenshots/configuration/predictive-charging/notification-example.png){ width="500" style="display: block; margin: 0 auto;" }
