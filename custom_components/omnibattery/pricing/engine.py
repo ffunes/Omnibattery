@@ -98,7 +98,7 @@ from . import (
     SLOT_PURPOSE_NEGATIVE_PRICE,
     calculations,
 )
-from ..notifications import async_dismiss, async_notify
+from ..notifications import async_dismiss, async_notify, language
 from ..notifications import plan as notifications
 from .calculations import normalize_price_slots
 from .chronological import (
@@ -6096,6 +6096,7 @@ class PricingManager:
             round_trip_efficiency=effective_round_trip_efficiency(controller)[0],
             weekly=getattr(controller, "_dp_plan_weekly_holds", None) is not None,
             now=self._now(),
+            lang=language(self._hass),
         )
         targets = getattr(schedule, "slot_energy_targets_kwh", None) or {}
         slots = getattr(schedule, "selected_slots", None) or []
@@ -6282,6 +6283,7 @@ class PricingManager:
             unit=self._get_price_unit(),
             max_contracted_power=self._controller.max_contracted_power,
             now=self._now(),
+            lang=language(self._hass),
         )
         await self._async_create_predictive_notification(
             title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
@@ -6454,6 +6456,7 @@ class PricingManager:
             decision,
             unit=self._get_price_unit(),
             now=self._now(),
+            lang=language(self._hass),
         )
         await self._async_create_predictive_notification(
             title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
@@ -8891,6 +8894,7 @@ class PricingManager:
             max_charge_capacity=self._planning_charge_capacity(),
             charging_time_slot=self._controller._active_charging_slot(),
             now=self._now(),
+            lang=language(self._hass),
         )
 
         # Send the notification

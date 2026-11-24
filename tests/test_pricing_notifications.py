@@ -811,7 +811,7 @@ def test_plan_crossing_midnight_lists_chronologically_with_dates():
     ]
 
 
-def _table_plan(with_kwh=True):
+def _table_plan(lang="en", with_kwh=True):
     slots = [_q(24, 23, price=0.0890), _q(25, 0, price=0.0890), _q(25, 5, price=0.0890)]
     # Equal prices back to back would merge; 23:00 and 00:00 touch, so separate them.
     slots[0] = _q(24, 22, price=0.0890)
@@ -823,7 +823,7 @@ def _table_plan(with_kwh=True):
     return notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, energy_deficit_kwh=3.0, planned_grid_charge_kwh=3.0,
                   planner="optimizer", deadline_required_kwh=3.0),
-        schedule, **{**_DP_CFG, "now": _TUE},
+        schedule, **{**_DP_CFG, "now": _TUE, "lang": lang},
     )[1]
 
 
@@ -838,7 +838,7 @@ def test_optimizer_charge_slots_are_a_table_in_chronological_order():
     assert "•" not in message.split("|---|---|---|")[1].split("\n\n")[0]
 
 
-def test_optimizer_table_dash_without_energy():
+def test_optimizer_table_dash_without_energy_and_spanish_header():
     assert "| 22:00–23:00 | 0.0890 €/kWh | — |" in _table_plan(with_kwh=False)
 
 
@@ -1092,3 +1092,32 @@ def test_saving_line_values_only_what_is_discharged():
 def test_saving_line_hidden(kwargs):
     kwargs = {"deliveries": (_after(300, 1.0, 0.30), _after(315, 0.62, 0.40)), **kwargs}
     assert "Estimated saving" not in _saving_message(**kwargs)
+
+
+# ----------------------------------------------------------------------
+# lang reaches the text catalogue; missing keys fall back to English
+# ----------------------------------------------------------------------
+
+def test_lang_picks_catalogue_text_and_falls_back_to_english(monkeypatch):
+    from custom_components.omnibattery.notifications import texts
+
+    monkeypatch.setitem(texts._TEXTS, "es", {"plan.not_required.title": "Carga: no hace falta"})
+    kwargs = dict(_CFG, lang="es")
+    title, message, _ = notifications.format_predictive_notification_message(
+        _decision(should_charge=False), **kwargs
+    )
+    assert title == "Carga: no hace falta"
+    assert "No grid charging required." in message  # key missing in es: English
+
+
+def test_span_and_clock_use_the_catalogue_day_name(monkeypatch):
+    from custom_components.omnibattery.notifications import texts
+
+    monkeypatch.setitem(texts._TEXTS, "es", {})
+    monkeypatch.setitem(texts._DAYS, "es", ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"))
+    now = datetime(2026, 11, 24, 10, 0)  # Tuesday
+    start = datetime(2026, 11, 25, 1, 0)  # Wednesday
+    end = start + timedelta(minutes=15)
+    assert notifications._span(start, end, now, "es") == "Mié 25 · 01:00–01:15"
+    assert notifications._clock(start, now, "es") == "Mié 25 · 01:00"
+    assert notifications._span(start, end, now) == "Wed 25 · 01:00–01:15"
