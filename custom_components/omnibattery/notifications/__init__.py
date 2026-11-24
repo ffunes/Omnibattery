@@ -14,11 +14,13 @@ from .gateway import (
     load_categories,
     notify,
 )
+from .texts import LANGUAGES, day_name, language, text, translate
 
 __all__ = [
     "CATEGORY_KEYS",
     "EXECUTION",
     "HEALTH",
+    "LANGUAGES",
     "MODES",
     "PLAN_CHARGE",
     "PLAN_INFO",
@@ -26,7 +28,11 @@ __all__ = [
     "async_notify",
     "async_set_category_enabled",
     "category_enabled",
+    "day_name",
     "dismiss",
+    "language",
     "load_categories",
     "notify",
+    "text",
+    "translate",
 ]
