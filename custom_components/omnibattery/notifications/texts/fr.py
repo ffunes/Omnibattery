@@ -71,8 +71,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds": "🔒 Batterie conservée pour plus tard (la maison achète au réseau) :",
-    "plan.orders.empty": "🪫 Batterie vide (la maison achète au réseau) :",
+    # The legend of the one table; plan.py puts each row's icon in front.
+    "plan.orders.charge": "Charge réseau",
+    "plan.orders.holds": "Batterie conservée pour plus tard (la maison achète au réseau)",
+    "plan.orders.empty": "Batterie vide (la maison achète au réseau)",
     "plan.orders.exports": "☀️ Surplus solaire à exporter : {items}",
     "plan.orders.sales": "💶 Vente au réseau :",
     "plan.orders.room": "🔋 On fait de la place pour le soleil :",
@@ -133,7 +135,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     ),
     # --- plan.py: _savings_line ---
     "plan.savings": (
-        "Acheter cette énergie au moment de son utilisation : ~{alternative:.2f} {cost_unit}. "
+        "Acheter l'énergie chargée au moment de son utilisation : ~{alternative:.2f} {cost_unit}. "
         "Économie estimée : ~{saving:.2f} {cost_unit}"
     ),
     # --- plan.py: format_dynamic_pricing_notification ---
@@ -195,7 +197,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     ),
     "plan.pricing.selected_deadline": "Créneaux sélectionnés (les moins chers respectant chaque échéance)",
     "plan.pricing.selected_hours": "Heures sélectionnées (les moins chères)",
-    "plan.pricing.selected_slots": "Créneaux de charge",
     "plan.pricing.grid_charge_hours": (
         "🔌 Charge réseau prévue : {kwh:.2f} kWh → {hours:.1f}h de charge nécessaires"
     ),

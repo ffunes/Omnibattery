@@ -445,13 +445,19 @@ def _bought(rows):
     ]
 
 
-def _table(rows, now, lang, unit) -> list:
-    """``(start, end, price, kWh|None, cost|None)`` rows as a markdown table,
-    lines. Several rows with a cost close with a total: the energy, its
-    average price and the cost."""
+def _table(groups, now, lang, unit) -> list:
+    """``{icon: (start, end, price, kWh|None, cost|None) rows}`` as one
+    markdown table in time order, lines; each row opens with its group's icon
+    (``""`` for none). Several rows with a cost close with a total: the
+    energy, its average price and the cost."""
     cost_unit = unit.split("/")[0]  # "€/kWh" → "€", "CHF" → "CHF"
 
-    blocks = _blocks(rows)
+    # Back-to-back rows at one price join inside a group only: a charge and
+    # the hold after it at the same price stay two rows.
+    blocks = sorted(
+        ((*block, icon) for icon, rows in groups.items() for block in _blocks(rows)),
+        key=lambda block: block[0],
+    )
     # A column no row has a value for (energy, cost) is left out.
     keep = [True, True] + [
         any(block[i] is not None for block in blocks) for i in (3, 4)
@@ -470,24 +476,28 @@ def _table(rows, now, lang, unit) -> list:
 
     header = [c.strip() for c in translate(lang, "plan.table.header").strip("|").split("|")]
     lines = [_cells(header), "|---" * sum(keep) + "|"] + [
-        _row(_span(a, b, now, lang), price, kwh, cost) for a, b, price, kwh, cost in blocks
+        _row(f"{icon} {_span(a, b, now, lang)}".strip(), price, kwh, cost)
+        for a, b, price, kwh, cost, icon in blocks
     ]
-    if len(blocks) > 1 and any(cost is not None for *_rest, cost in blocks):
-        known = [(p, kwh) for _a, _b, p, kwh, _c in blocks if kwh is not None]
+    if len(blocks) > 1 and any(block[4] is not None for block in blocks):
+        known = [(p, kwh) for _a, _b, p, kwh, _c, _i in blocks if kwh is not None]
         energy = sum(kwh for _p, kwh in known)
         lines.append(_row(
             translate(lang, "plan.table.total"),
             sum(p * kwh for p, kwh in known) / energy if energy > 0 else None,
             energy if known else None,
-            sum(cost for *_rest, cost in blocks if cost is not None),
+            sum(block[4] for block in blocks if block[4] is not None),
         ))
     return lines
 
 
-def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> str:
-    """The optimizer's orders besides the grid charge, as executed (published)."""
-    if not orders:
-        return ""
+def _plan_order_lines(
+    orders, now, lang: str = "en", unit: str = "€/kWh", charges=(), note: str = ""
+) -> str:
+    """The optimizer's orders, as executed (published). What is bought from
+    the grid is one table in time order: the charge (``charges``, rows ready
+    for ``_table``), the holds and the battery empty; ``note`` follows it."""
+    orders = orders or {}
     lines = []
 
     def _power_table(key, by_slot):
@@ -512,9 +522,24 @@ def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> s
     holds = _bought(_quarter_rows(orders, "hold") if orders.get("quarters") else [
         (s.start, s.end, s.price, None) for s in orders.get("holds") or ()
     ])
-    if holds:
-        # Blank lines around it, or markdown does not render it as a table.
-        lines += [translate(lang, "plan.orders.holds"), ""] + _table(holds, now, lang, unit) + [""]
+    # The battery empty: the house buys from the grid. One row per price, as
+    # one average over a night hides which part of it is the dear one.
+    bought = [
+        (icon, key, rows)
+        for icon, key, rows in (
+            ("🔌", "charge", list(charges)),
+            ("🔒", "holds", holds),
+            ("🪫", "empty", _bought(_quarter_rows(orders, "empty"))),
+        )
+        if rows
+    ]
+    if bought:
+        # What each icon means, then the table; blank lines around it, or
+        # markdown does not render it as a table.
+        lines += [f"{icon} {translate(lang, f'plan.orders.{key}')}" for icon, key, _rows in bought]
+        lines += [""] + _table({icon: rows for icon, _key, rows in bought}, now, lang, unit) + [""]
+        if note:
+            lines += [note, ""]
     exports = orders.get("exports") or ()
     if exports:
         spans = _blocks((s.start, s.end, None, None) for s in exports)
@@ -533,13 +558,6 @@ def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> s
         _power_table("room", room)
     if orders.get("solar_delay"):
         lines.append(translate(lang, "plan.orders.solar_delay"))
-    # The battery empty: the house buys from the grid. One row per price, as
-    # one average over a night hides which part of it is the dear one.
-    empty = _bought(_quarter_rows(orders, "empty"))
-    if empty:
-        lines += ["", translate(lang, "plan.orders.empty"), ""] + _table(
-            empty, now, lang, unit
-        ) + [""]
     return "".join(line + "\n" for line in lines)
 
 
@@ -900,18 +918,16 @@ def format_dynamic_pricing_notification(
             # The table then carries the price and the cost: no text lines.
             table_costs = share is not None
             # A blank line before the table so markdown renders it as one.
-            slot_lines = "\n" + "\n".join(_table(
-                [
-                    (
-                        *spans[s],
-                        s.price,
-                        None if s not in targets else float(targets[s]),
-                        None if share is None or s not in paid else s.price * paid[s] * share,
-                    )
-                    for s in schedule.selected_slots
-                ],
-                now, lang, unit,
-            ))
+            charge_rows = [
+                (
+                    *spans[s],
+                    s.price,
+                    None if s not in targets else float(targets[s]),
+                    None if share is None or s not in paid else s.price * paid[s] * share,
+                )
+                for s in schedule.selected_slots
+            ]
+            slot_lines = "\n" + "\n".join(_table({"": charge_rows}, now, lang, unit))
         # The table carries the price and the cost, with a total for several rows.
         cost_lines = "" if table_costs else (
             "\n\n"
@@ -1020,8 +1036,6 @@ def format_dynamic_pricing_notification(
                 + f"{chronological_lines}"
             )
             if optimizer:
-                # No deadlines and no deficit: the plan weighed every slot.
-                selected_label = translate(lang, "plan.pricing.selected_slots")
                 deferred = float(decision_data.get("deferred_grid_charge_kwh", 0.0) or 0.0)
                 # The planned grid charge is a row of the balance table.
                 forecast_lines = _balance(("grid_charge", planned_grid_charge))
@@ -1056,20 +1070,25 @@ def format_dynamic_pricing_notification(
                     cost_unit=cost_unit,
                     lang=lang,
                 )
+            if optimizer:
+                # One table, in time order: the charge, the holds and the
+                # battery empty; the cost and saving text right after it.
+                slots_block = _plan_order_lines(
+                    plan_orders, now, lang, unit, charges=charge_rows,
+                    note="\n".join(
+                        text for text in (cost_lines.strip(), savings_line.strip()) if text
+                    ),
+                ).rstrip()
+            else:
+                slots_block = (
+                    translate(lang, "plan.pricing.slots_header", label=selected_label)
+                    + f"\n{slot_lines}"
+                    + cost_lines
+                )
             message = (
                 f"{forecast_lines}"
                 + f"{charge_lines}"
-                + translate(lang, "plan.pricing.slots_header", label=selected_label)
-                + f"\n{slot_lines}"
-                + cost_lines
-                # A blank line after the table, or the text joins its last row.
-                + (
-                    ("\n" if cost_lines else "\n\n") + savings_line.rstrip()
-                    if savings_line
-                    else ""
-                )
-                # The holds and the empty battery come after the charge they follow.
-                + (f"\n\n{orders_lines.rstrip()}" if orders_lines else "")
+                + slots_block
                 + _footer(charge_power=True, discharge=True)
             )
 

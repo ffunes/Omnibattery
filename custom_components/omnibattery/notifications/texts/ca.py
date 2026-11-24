@@ -71,8 +71,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds": "🔒 Bateria reservada per a més tard (la casa compra de la xarxa):",
-    "plan.orders.empty": "🪫 Bateria buida (la casa compra de la xarxa):",
+    # The legend of the one table; plan.py puts each row's icon in front.
+    "plan.orders.charge": "Càrrega de xarxa",
+    "plan.orders.holds": "Bateria reservada per a més tard (la casa compra de la xarxa)",
+    "plan.orders.empty": "Bateria buida (la casa compra de la xarxa)",
     "plan.orders.exports": "☀️ Excedent solar per exportar: {items}",
     "plan.orders.sales": "💶 Venda a la xarxa:",
     "plan.orders.room": "🔋 Fent lloc per al sol:",
@@ -134,7 +136,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     ),
     # --- plan.py: _savings_line ---
     "plan.savings": (
-        "Comprar aquesta energia quan es consumeix: ~{alternative:.2f} {cost_unit}. "
+        "Comprar l'energia carregada quan es consumeix: ~{alternative:.2f} {cost_unit}. "
         "Estalvi estimat: ~{saving:.2f} {cost_unit}"
     ),
     # --- plan.py: format_dynamic_pricing_notification ---
@@ -196,7 +198,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     ),
     "plan.pricing.selected_deadline": "Franges seleccionades (les més barates que compleixen cada termini)",
     "plan.pricing.selected_hours": "Hores seleccionades (les més barates)",
-    "plan.pricing.selected_slots": "Franges de càrrega",
     "plan.pricing.grid_charge_hours": (
         "🔌 Càrrega de xarxa planificada: {kwh:.2f} kWh → calen {hours:.1f}h de càrrega"
     ),

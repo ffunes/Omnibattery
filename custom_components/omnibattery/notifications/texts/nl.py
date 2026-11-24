@@ -71,8 +71,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds": "🔒 Batterij in reserve voor later (het huis koopt van het net):",
-    "plan.orders.empty": "🪫 Batterij leeg (het huis koopt van het net):",
+    # The legend of the one table; plan.py puts each row's icon in front.
+    "plan.orders.charge": "Laden van het net",
+    "plan.orders.holds": "Batterij in reserve voor later (het huis koopt van het net)",
+    "plan.orders.empty": "Batterij leeg (het huis koopt van het net)",
     "plan.orders.exports": "☀️ Zonne-overschot om terug te leveren: {items}",
     "plan.orders.sales": "💶 Verkoop aan het net:",
     "plan.orders.room": "🔋 Ruimte maken voor de zon:",
@@ -134,7 +136,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     ),
     # --- plan.py: _savings_line ---
     "plan.savings": (
-        "Deze energie inkopen op het moment van gebruik: ~{alternative:.2f} {cost_unit}. "
+        "De geladen energie inkopen op het moment van gebruik: ~{alternative:.2f} {cost_unit}. "
         "Geschatte besparing: ~{saving:.2f} {cost_unit}"
     ),
     # --- plan.py: format_dynamic_pricing_notification ---
@@ -196,7 +198,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     ),
     "plan.pricing.selected_deadline": "Geselecteerde slots (goedkoopste die elke deadline halen)",
     "plan.pricing.selected_hours": "Geselecteerde uren (goedkoopste)",
-    "plan.pricing.selected_slots": "Laadslots",
     "plan.pricing.grid_charge_hours": (
         "🔌 Geplande lading vanaf het net: {kwh:.2f} kWh → {hours:.1f}u laden nodig"
     ),
