@@ -101,7 +101,7 @@ def test_predictive_max_power_is_min_of_contracted_and_batteries():
         charging_time_slot={"start_time": "23:00", "end_time": "06:00"},
         now=_DAY,
     )
-    assert "| Charge | 3000W (contracted) |" in message
+    assert "| Charge | 3000W (Max. grid import) |" in message
     assert "peak limit" not in message
 
 

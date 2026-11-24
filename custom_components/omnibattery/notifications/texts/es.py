@@ -51,7 +51,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.power.header": "Potencia máxima",
     "plan.power.charge": "Carga",
     "plan.power.discharge": "Descarga",
-    "plan.power.contracted": "{power:g}W (Pot. máx. contratada)",
+    "plan.power.contracted": "{power:g}W (Máx. importación de red)",
     "plan.power.batteries": "{power:g}W (Baterías)",
     "plan.power.carried": (
         "La carga por encima de la potencia máxima de descarga se toma de la red: {carried:.2f} kWh, fuera de la carga"
