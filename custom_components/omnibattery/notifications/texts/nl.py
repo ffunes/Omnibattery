@@ -9,16 +9,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.horizon.until_day_time": "tot {day} {time}",
     "plan.horizon.until_sunrise": "tot zonsopgang ({time})",
     "plan.horizon.until_midnight": "tot middernacht",
-    "plan.overnight.tomorrow": "Waarvan morgen (00:00-24:00)",
-    "plan.overnight.after_midnight": "Waarvan na middernacht ({horizon})",
-    "plan.overnight.until_sunrise": "Nacht tot zonsopgang",
     "plan.phrase.tomorrow": "de rest van vandaag en morgen",
     "plan.phrase.tomorrow_until": "de rest van vandaag en morgen ({horizon})",
     "plan.phrase.tonight": "de rest van vandaag en vannacht {horizon}",
     "plan.phrase.today": "de rest van vandaag",
-    "plan.consumption.remaining": "Resterend huisverbruik {horizon}",
-    "plan.consumption.expected_horizon": "Verwacht huisverbruik {horizon}",
-    "plan.consumption.expected_today": "Verwacht huisverbruik vandaag",
     "plan.basis.profile": "geleerd profiel per kwartier",
     "plan.basis.profile_days": "geleerd profiel per kwartier ({days} dagen)",
     "plan.basis.temporary_curve": "tijdelijke dagcurve",
@@ -27,25 +21,26 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.basis.average": "daggemiddelde over {days} dagen",
     "plan.basis.daily_default": "standaard dagschatting",
     "plan.basis.adjusted": "{basis}, aangepast met het verbruik van vandaag",
-    "plan.solar.remaining": "Resterende zonne-energie vandaag",
-    "plan.solar.forecast": "Zonneprognose vandaag",
-    "plan.solar.tomorrow": "Zonne-energie morgen",
-    "plan.solar.after_midnight": "Zonne-energie na middernacht ({horizon})",
+    "plan.balance.today": "Vandaag",
+    "plan.balance.tomorrow": "Morgen",
+    "plan.balance.night": "Nacht",
+    "plan.balance.total": "Totaal",
+    "plan.balance.solar": "☀️ Zonneprognose",
+    "plan.balance.solar_margin": "☀️ Met marge ({pct:.0f} %)",
+    "plan.balance.consumption": "📊 Huisverbruik",
+    "plan.balance.battery": "🔋 Batterij ({soc:.0f} %)",
+    "plan.balance.grid_charge": "🔌 Netladen",
+    "plan.balance.available": "✅ Beschikbaar (batterij + zon)",
+    "plan.balance.deficit": "⚡ Energietekort",
+    "plan.balance.grid_need": "⚡ Totale netbehoefte",
+    "plan.balance.grid_floor": "🔌 Netladen (gegarandeerde minimum-SOC)",
+    "plan.balance.solar_surplus": "☀️ Zonne-overschot na verbruik",
+    "plan.balance.import_left": "🔌 Aan het net overgelaten",
     # --- plan.py: _build_forecast_lines and shared lines ---
-    "plan.line.solar": "☀️ {label}: {value}",
-    "plan.line.solar_kwh": "☀️ {label}: {kwh:.2f} kWh",
-    "plan.line.consumption": "📊 {label}: {kwh:.2f} kWh",
     "plan.line.basis": "   🧮 Basis: {basis}",
-    "plan.line.overnight": "🌙 {label}: {kwh:.2f} kWh",
     "plan.battery": "🔋 Batterij: {soc:.0f}% ({usable:.2f} kWh bruikbaar)",
-    "plan.solar_unavailable": "niet beschikbaar",
-    "plan.solar_na": "n.v.t.",
     "plan.horizon_text.today": "vandaag",
     "plan.horizon_text.for": "voor {phrase}",
-    "plan.energy_deficit": "⚡ Energietekort: {kwh:.2f} kWh",
-    "plan.available": (
-        "✅ Beschikbaar voor deze periode: {available:.2f} kWh ≥ {needed:.2f} kWh nodig"
-    ),
     "plan.sufficient": "✓ Voldoende energie voor {horizon}",
     "plan.no_more_charging": "Geen extra laden vanaf het net nodig.",
     "plan.no_charging": "Geen laden vanaf het net nodig.",
@@ -66,7 +61,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.safe.not_activated": "Laden vanaf het net is NIET geactiveerd.",
     "plan.deferred.title": "Voorspellend laden: uitgesteld door tijdschema",
     "plan.deferred.no_quota": "🕒 Dit ingestelde venster heeft geen energiekwota.",
-    "plan.deferred.aggregate_need": "⚡ Totale behoefte vanaf het net: {kwh:.2f} kWh",
     "plan.deferred.shortfall": "⚠️ Tekort voor de deadline: {kwh:.2f} kWh",
     "plan.deferred.reserved": "De energie is gereserveerd voor een ander ingesteld venster.",
     "plan.not_required.title": "Voorspellend laden: niet nodig",
@@ -75,15 +69,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.timing.when_cheap": "⏰ Het laden start zodra de prijzen laag zijn",
     "plan.timing.until": "⏰ Laden tot: {time}",
     "plan.timing.now": "⏰ Nu laden vanaf het net",
-    "plan.charge.floor": "🔌 Net: {kwh:.2f} kWh om de gegarandeerde minimale SOC te bereiken",
-    "plan.charge.planned": "🔌 Geplande lading vanaf het net: {kwh:.2f} kWh",
-    "plan.charge.surplus_remaining": (
-        "☀️ Verwacht resterend zonne-overschot: {kwh:.2f} kWh (na het verwachte verbruik)"
-    ),
-    "plan.charge.surplus": (
-        "☀️ Verwacht zonne-overschot: {kwh:.2f} kWh (na het verwachte verbruik)"
-    ),
-    "plan.charge.deficit": "⚡ Tekort: {kwh:.2f} kWh",
     "plan.charge.needed": "⚡ Energietekort — laden vanaf het net nodig",
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
@@ -91,11 +76,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.orders.holds": "🔒 Batterij in reserve voor later (het huis koopt van het net):",
     "plan.orders.empty": "🪫 Batterij leeg (het huis koopt van het net):",
     "plan.orders.exports": "☀️ Zonne-overschot om terug te leveren: {items}",
-    "plan.orders.sales_one": "💶 Verkoop aan het net: {item}",
-    "plan.orders.sales_many": "💶 Verkoop aan het net:",
-    "plan.orders.at_kw": "{span} met {kw:.1f} kW",
-    "plan.orders.bullet": "  • {item}",
-    "plan.orders.room": "🔋 Ruimte maken voor de zon: {items}",
+    "plan.orders.sales": "💶 Verkoop aan het net:",
+    "plan.orders.room": "🔋 Ruimte maken voor de zon:",
     "plan.orders.solar_delay": "⏳ Laden met zonne-energie vertraagd door het plan",
     # --- plan.py: _no_slots_explanation ---
     "plan.noslots.awaiting_prices.headline": (
@@ -170,7 +152,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Voorspellend laden: prijsoptimalisatie - nog niets te laden"
     ),
     "plan.pricing.deferred.headline": "✓ De goedkoopste slots voor de benodigde energie liggen morgen",
-    "plan.pricing.deferred.needed": "⚡ Benodigde energie: {kwh:.2f} kWh",
     "plan.pricing.deferred.footer": (
         "Er is nu geen laden vanaf het net gepland; bij de volgende dagelijkse beoordeling wordt opnieuw gepland."
     ),
@@ -180,7 +161,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.pricing.import.headline": (
         "ℹ️ Niet laden vanaf het net: de energie inkopen op het moment van gebruik is goedkoper"
     ),
-    "plan.pricing.import.left": "🔌 Aan het net overgelaten: {kwh:.2f} kWh",
     "plan.pricing.import.storing": (
         "Nu opslaan zou na de rendementsverliezen meer kosten."
     ),
@@ -222,7 +202,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.pricing.grid_charge_hours": (
         "🔌 Geplande lading vanaf het net: {kwh:.2f} kWh → {hours:.1f}u laden nodig"
     ),
-    "plan.pricing.grid_charge": "🔌 Geplande lading vanaf het net: {kwh:.2f} kWh",
     "plan.pricing.slots_header": "💰 {label}:",
     "plan.pricing.average_price": "Gemiddelde prijs: {price:.4f} {unit}",
     "plan.pricing.estimated_cost": "Geschatte kosten: ~{cost:.2f} {cost_unit}",
@@ -234,7 +213,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.slot.purpose": " [{purpose}]",
     "plan.slot.purpose_extra": " + {purpose}",
     "plan.table.header": "| Slot | Prijs | Energie | Kosten |",
-    "plan.table.row": "| {span} | {price} | {energy} | {cost} |",
+    "plan.table.power": "Vermogen",
     "plan.table.price": "{price:.4f} {unit}",
     "plan.table.cost": "~{cost:.2f} {cost_unit}",
     "plan.table.total": "**Totaal**",

@@ -118,8 +118,8 @@ def test_predictive_started_reports_the_actual_planned_grid_charge():
         ),
         **_CFG,
     )
-    assert "Planned grid charge: 5.55 kWh" in message
-    assert "Forecast solar surplus: 2.99 kWh (after expected consumption)" in message
+    assert "| 🔌 Grid charge | 5.55 |" in message
+    assert "| ☀️ Solar surplus after consumption | 2.99 |" in message
     assert "Grid: 4.03 kWh" not in message
     assert "solar will charge the remaining" not in message
 
@@ -142,7 +142,7 @@ def test_predictive_floor_charge_reports_grid_deficit_not_solar():
         **_CFG,
     )
     assert title == "Predictive Charging: STARTED"
-    assert "Grid: 0.67 kWh to reach guaranteed minimum SOC" in message
+    assert "| 🔌 Grid charge (guaranteed minimum SOC) | 0.67 |" in message
     assert "solar will charge the remaining" not in message
 
 
@@ -166,8 +166,9 @@ def test_predictive_remaining_fallback_labels_horizon_and_basis():
         **_CFG,
     )
 
-    assert "Solar remaining today: 3.00 kWh" in message
-    assert "Home consumption remaining until midnight: 12.15 kWh" in message
+    assert "| ☀️ Solar forecast | 3.00 |" in message
+    assert "| kWh | Today |" in message
+    assert "| 📊 House consumption | 12.15 |" in message
     assert "Basis: temporary daily curve, adjusted with today's consumption" in message
     assert "7-day avg" not in message
     assert "Sufficient energy for the rest of today" in message
@@ -190,8 +191,8 @@ def test_predictive_extended_horizon_labels_sunrise_and_overnight_leg():
         **_CFG,
     )
 
-    assert "Home consumption remaining until sunrise (06:30): 12.15 kWh" in message
-    assert "🌙 Overnight until sunrise: 1.75 kWh" in message
+    assert "| kWh | Today | Night → 06:30 | Total |" in message
+    assert "| 📊 House consumption | 10.40 | 1.75 | 12.15 |" in message
     assert "Sufficient energy for the rest of today and tonight until sunrise (06:30)" in message
 
 
@@ -211,8 +212,9 @@ def test_predictive_midnight_horizon_omits_overnight_leg():
         **_CFG,
     )
 
-    assert "Home consumption remaining until midnight: 12.15 kWh" in message
-    assert "Overnight until sunrise" not in message
+    assert "| kWh | Today |" in message
+    assert "| 📊 House consumption | 12.15 |" in message
+    assert "Night" not in message
     assert "Sufficient energy for the rest of today" in message
     assert "and tonight" not in message
 
@@ -229,8 +231,8 @@ def test_predictive_daily_profile_reports_profile_as_basis():
         **_CFG,
     )
 
-    assert "Solar remaining today: 3.00 kWh" in message
-    assert "Expected home consumption today: 16.85 kWh" in message
+    assert "| ☀️ Solar forecast | 3.00 |" in message
+    assert "| 📊 House consumption | 16.85 |" in message
     assert "Basis: learned 15-minute profile (23 days)" in message
     assert "7-day avg" not in message
 
@@ -374,7 +376,8 @@ def test_dynamic_informational_lists_slots():
     )
     assert "Price Info" in title and "cheapest" in title
     assert "Cheapest hours today (informational):" in message
-    assert message.count("→") == 4  # one bullet per slot
+    assert "| Slot | Price |\n|---|---|\n| 18:00–18:15 | 0.1000 €/kWh |\n" in message
+    assert message.count("€/kWh |\n") == 4  # one row per slot
     assert "charge ≤ 0.3000 €/kWh" in message
     assert "discharge ≥ 0.4500 €/kWh" in message
     assert "No charging will activate." in message
@@ -393,7 +396,7 @@ def test_dynamic_charging_shows_cost():
     )
     assert "selected" in title
     assert "Selected hours (cheapest):" in message
-    assert "Energy deficit: 4.55 kWh" in message
+    assert "| ⚡ Energy deficit | 4.55 |" in message
     assert "Grid charge planned: 1.58 kWh" in message
     assert "Estimated cost: ~0.75 €" in message
 
@@ -451,10 +454,11 @@ def test_dynamic_remaining_horizon_does_not_label_remainder_as_daily_average():
         schedule,
         **_DP_CFG,
     )
-    assert "Home consumption remaining until midnight: 12.15 kWh" in message
+    assert "| kWh | Today |" in message
+    assert "| 📊 House consumption | 12.15 |" in message
     assert "Basis: remaining-day estimate from 7-day daily average" in message
     assert "17.98 kWh" not in message
-    assert "Solar remaining today: 3.00 kWh" in message
+    assert "| ☀️ Solar forecast | 3.00 |" in message
 
 
 def test_dynamic_extended_horizon_labels_sunrise_and_overnight_leg():
@@ -474,8 +478,8 @@ def test_dynamic_extended_horizon_labels_sunrise_and_overnight_leg():
         schedule,
         **_DP_CFG,
     )
-    assert "Home consumption remaining until sunrise (06:30): 12.15 kWh" in message
-    assert "🌙 Overnight until sunrise: 1.75 kWh" in message
+    assert "| kWh | Today | Night → 06:30 | Total |" in message
+    assert "| 📊 House consumption | 10.40 | 1.75 | 12.15 |" in message
 
 
 def test_dynamic_remaining_profile_scope_is_recognized():
@@ -495,8 +499,8 @@ def test_dynamic_remaining_profile_scope_is_recognized():
         **_DP_CFG,
     )
 
-    assert "Solar remaining today: 3.00 kWh" in message
-    assert "Home consumption remaining until midnight: 11.40 kWh" in message
+    assert "| ☀️ Solar forecast | 3.00 |" in message
+    assert "| 📊 House consumption | 11.40 |" in message
     assert "Basis: learned 15-minute profile" in message
     assert "adjusted with today's consumption" not in message
     assert "7-day avg" not in message
@@ -551,8 +555,8 @@ def test_dp_pre_slot_reevaluation_recognizes_remaining_fallback():
         now=_DAY,
     )
 
-    assert "Solar remaining today: 3.00 kWh" in message
-    assert "Home consumption remaining until midnight: 6.25 kWh" in message
+    assert "| ☀️ Solar forecast | 3.00 |" in message
+    assert "| 📊 House consumption | 6.25 |" in message
     assert "Basis: temporary daily curve, adjusted with today's consumption" in message
     assert "7-day avg" not in message
 
@@ -636,7 +640,7 @@ def test_optimizer_charge_lists_blocks_without_the_old_planner_words():
                   planner="optimizer", deadline_required_kwh=9.0),
         schedule, **_DP_CFG,
     )
-    assert "Grid charge planned: 1.70 kWh" in message
+    assert "| 🔌 Grid charge | 1.70 |" in message
     for old in ("Energy deficit", "Required before deadlines", "Flexible by price",
                 "[flexible]", "[deficit]", "meet each deadline", "of charging needed"):
         assert old not in message
@@ -672,13 +676,19 @@ def test_optimizer_plan_without_charge_still_names_its_orders():
     assert "NOT needed" in title
     assert (
         "🔒 Battery kept for later (the house buys from the grid):\n\n"
-        "| Slot | Price | Energy | Cost |\n|---|---|---|---|\n"
-        "| 19:00–19:30 | 0.3000 €/kWh | — | — |\n\n"
+        "| Slot | Price |\n|---|---|\n"
+        "| 19:00–19:30 | 0.3000 €/kWh |\n\n"
     ) in message
-    assert "Selling to the grid: 20:00–20:30 at 2.5 kW" in message
+    assert (
+        "💶 Selling to the grid:\n\n| Slot | Power |\n|---|---|\n"
+        "| 20:00–20:30 | 2.5 kW |\n\n"
+    ) in message
     assert "Solar surplus to export: 10:00–11:00" in message
     assert "Solar charge delayed by the plan" in message
-    assert "Making room for the sun: 09:00–09:15 at 2.5 kW, 09:15–09:30 at 1.2 kW" in message
+    assert (
+        "🔋 Making room for the sun:\n\n| Slot | Power |\n|---|---|\n"
+        "| 09:00–09:15 | 2.5 kW |\n| 09:15–09:30 | 1.2 kW |\n\n"
+    ) in message
     # The old planner's words stay on its own path, and it has no orders.
     old = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False), None, plan_orders=ORDERS, **_DP_CFG)[1]
@@ -692,7 +702,7 @@ def test_optimizer_cheaper_to_import_is_not_a_warning():
         decision, None, arbitrage_margin=0.0, **_DP_CFG)
     assert title.endswith("Grid import is cheaper")
     assert "⚠️" not in message and "Energy deficit" not in message
-    assert "3.50 kWh" in message and "round-trip losses" in message
+    assert "| 🔌 Left to the grid | 3.50 |" in message and "round-trip losses" in message
     assert "margin" not in message
     message = notifications.format_dynamic_pricing_notification(
         decision, None, arbitrage_margin=0.05, **_DP_CFG)[1]
@@ -867,10 +877,10 @@ def test_a_slot_the_cost_pays_for_without_a_target_has_a_cost_and_no_energy():
     assert "| **Total** | 0.1000 €/kWh | 1.00 kWh | ~0.33 € |" in message
 
 
-def test_optimizer_table_dash_without_energy_and_spanish_header():
+def test_optimizer_table_drops_empty_columns_and_spanish_header():
     # Without energy there is no cost to share out: the text lines stay.
     bare = _table_plan(with_kwh=False)
-    assert "| 22:00–23:00 | 0.0890 €/kWh | — | — |" in bare
+    assert "| Slot | Price |\n|---|---|\n| 22:00–23:00 | 0.0890 €/kWh |\n" in bare
     assert "Total" not in bare and "Estimated cost: ~0.40 €" in bare
     assert "| Tramo | Precio | Energía | Coste |" in _table_plan(lang="es")
 
@@ -883,8 +893,8 @@ def test_two_nights_of_hold_are_dated_not_duplicated():
         plan_orders=orders, **{**_DP_CFG, "now": _TUE},
     )
     assert (
-        "| Wed 25 · 00:00–08:00 | 0.1000 €/kWh | — | — |\n"
-        "| Thu 26 · 00:00–08:00 | 0.1000 €/kWh | — | — |\n"
+        "| Wed 25 · 00:00–08:00 | 0.1000 €/kWh |\n"
+        "| Thu 26 · 00:00–08:00 | 0.1000 €/kWh |\n"
     ) in message
 
 
@@ -898,11 +908,11 @@ def test_sale_and_room_of_tomorrow_are_dated_today_is_not():
         plan_orders=orders, **{**_DP_CFG, "now": _TUE},
     )
     assert (
-        "💶 Selling to the grid:\n"
-        "  • 23:00–00:00 at 2.5 kW\n"
-        "  • Wed 25 · 01:00–02:00 at 2.5 kW\n"
+        "💶 Selling to the grid:\n\n| Slot | Power |\n|---|---|\n"
+        "| 23:00–00:00 | 2.5 kW |\n"
+        "| Wed 25 · 01:00–02:00 | 2.5 kW |\n"
     ) in message
-    assert "Making room for the sun: 22:00–23:00 at 1.2 kW, Thu 26 · 09:00–10:00 at 1.2 kW" in message
+    assert "| 22:00–23:00 | 1.2 kW |\n| Thu 26 · 09:00–10:00 | 1.2 kW |\n" in message
 
 
 def test_span_with_naive_datetimes():
@@ -975,23 +985,23 @@ def test_pre_slot_notification_dates_only_other_days(day, span, at):
 # ----------------------------------------------------------------------
 
 
-def test_one_sale_stays_inline_two_become_a_list():
+def test_sales_are_a_table_of_one_or_more_rows():
     one = {"holds": frozenset({_q(24, 23, 1)}), "sales": {_q(25, 20, 1): 1.5}}
     _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False, planner="optimizer"), None,
         plan_orders=one, **{**_DP_CFG, "now": _TUE},
     )
-    assert "| 23:00–00:00 | 0.1000 €/kWh | — | — |\n" in message
-    assert "💶 Selling to the grid: Wed 25 · 20:00–21:00 at 1.5 kW\n" in message
+    assert "| 23:00–00:00 | 0.1000 €/kWh |\n" in message
+    assert "| Wed 25 · 20:00–21:00 | 1.5 kW |\n" in message
     two = {"sales": {_q(24, 23, 1): 2.5, _q(25, 20, 1): 1.5}}
     _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False, planner="optimizer"), None,
         plan_orders=two, **{**_DP_CFG, "now": _TUE},
     )
     assert (
-        "💶 Selling to the grid:\n"
-        "  • 23:00–00:00 at 2.5 kW\n"
-        "  • Wed 25 · 20:00–21:00 at 1.5 kW\n"
+        "💶 Selling to the grid:\n\n| Slot | Power |\n|---|---|\n"
+        "| 23:00–00:00 | 2.5 kW |\n"
+        "| Wed 25 · 20:00–21:00 | 1.5 kW |\n"
     ) in message
 
 

@@ -15,16 +15,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.horizon.until_day_time": "until {day} {time}",
     "plan.horizon.until_sunrise": "until sunrise ({time})",
     "plan.horizon.until_midnight": "until midnight",
-    "plan.overnight.tomorrow": "Of which tomorrow (00:00-24:00)",
-    "plan.overnight.after_midnight": "Of which after midnight ({horizon})",
-    "plan.overnight.until_sunrise": "Overnight until sunrise",
     "plan.phrase.tomorrow": "the rest of today and tomorrow",
     "plan.phrase.tomorrow_until": "the rest of today and tomorrow ({horizon})",
     "plan.phrase.tonight": "the rest of today and tonight {horizon}",
     "plan.phrase.today": "the rest of today",
-    "plan.consumption.remaining": "Home consumption remaining {horizon}",
-    "plan.consumption.expected_horizon": "Expected home consumption {horizon}",
-    "plan.consumption.expected_today": "Expected home consumption today",
     "plan.basis.profile": "learned 15-minute profile",
     "plan.basis.profile_days": "learned 15-minute profile ({days} days)",
     "plan.basis.temporary_curve": "temporary daily curve",
@@ -33,25 +27,26 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.basis.average": "{days}-day daily average",
     "plan.basis.daily_default": "default daily estimate",
     "plan.basis.adjusted": "{basis}, adjusted with today's consumption",
-    "plan.solar.remaining": "Solar remaining today",
-    "plan.solar.forecast": "Solar forecast today",
-    "plan.solar.tomorrow": "Solar tomorrow",
-    "plan.solar.after_midnight": "Solar after midnight ({horizon})",
+    "plan.balance.today": "Today",
+    "plan.balance.tomorrow": "Tomorrow",
+    "plan.balance.night": "Night",
+    "plan.balance.total": "Total",
+    "plan.balance.solar": "☀️ Solar forecast",
+    "plan.balance.solar_margin": "☀️ With margin ({pct:.0f} %)",
+    "plan.balance.consumption": "📊 House consumption",
+    "plan.balance.battery": "🔋 Battery ({soc:.0f} %)",
+    "plan.balance.grid_charge": "🔌 Grid charge",
+    "plan.balance.available": "✅ Available (battery + solar)",
+    "plan.balance.deficit": "⚡ Energy deficit",
+    "plan.balance.grid_need": "⚡ Total grid need",
+    "plan.balance.grid_floor": "🔌 Grid charge (guaranteed minimum SOC)",
+    "plan.balance.solar_surplus": "☀️ Solar surplus after consumption",
+    "plan.balance.import_left": "🔌 Left to the grid",
     # --- plan.py: _build_forecast_lines and shared lines ---
-    "plan.line.solar": "☀️ {label}: {value}",
-    "plan.line.solar_kwh": "☀️ {label}: {kwh:.2f} kWh",
-    "plan.line.consumption": "📊 {label}: {kwh:.2f} kWh",
     "plan.line.basis": "   🧮 Basis: {basis}",
-    "plan.line.overnight": "🌙 {label}: {kwh:.2f} kWh",
     "plan.battery": "🔋 Battery: {soc:.0f}% ({usable:.2f} kWh usable)",
-    "plan.solar_unavailable": "unavailable",
-    "plan.solar_na": "N/A",
     "plan.horizon_text.today": "today",
     "plan.horizon_text.for": "for {phrase}",
-    "plan.energy_deficit": "⚡ Energy deficit: {kwh:.2f} kWh",
-    "plan.available": (
-        "✅ Available for this horizon: {available:.2f} kWh ≥ {needed:.2f} kWh needed"
-    ),
     "plan.sufficient": "✓ Sufficient energy for {horizon}",
     "plan.no_more_charging": "No additional grid charging required.",
     "plan.no_charging": "No grid charging required.",
@@ -72,7 +67,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.safe.not_activated": "Grid charging NOT activated.",
     "plan.deferred.title": "Predictive Charging: Deferred by timeline",
     "plan.deferred.no_quota": "🕒 This configured window has no energy quota.",
-    "plan.deferred.aggregate_need": "⚡ Aggregate grid need: {kwh:.2f} kWh",
     "plan.deferred.shortfall": "⚠️ Deadline shortfall: {kwh:.2f} kWh",
     "plan.deferred.reserved": "The energy is reserved for another configured window.",
     "plan.not_required.title": "Predictive Charging: Not required",
@@ -81,15 +75,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.timing.when_cheap": "⏰ Charging will activate when prices are low",
     "plan.timing.until": "⏰ Charging until: {time}",
     "plan.timing.now": "⏰ Charging now from grid",
-    "plan.charge.floor": "🔌 Grid: {kwh:.2f} kWh to reach guaranteed minimum SOC",
-    "plan.charge.planned": "🔌 Planned grid charge: {kwh:.2f} kWh",
-    "plan.charge.surplus_remaining": (
-        "☀️ Forecast remaining solar surplus: {kwh:.2f} kWh (after expected consumption)"
-    ),
-    "plan.charge.surplus": (
-        "☀️ Forecast solar surplus: {kwh:.2f} kWh (after expected consumption)"
-    ),
-    "plan.charge.deficit": "⚡ Deficit: {kwh:.2f} kWh",
     "plan.charge.needed": "⚡ Energy deficit — grid charging needed",
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
@@ -97,11 +82,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.orders.holds": "🔒 Battery kept for later (the house buys from the grid):",
     "plan.orders.empty": "🪫 Battery empty (the house buys from the grid):",
     "plan.orders.exports": "☀️ Solar surplus to export: {items}",
-    "plan.orders.sales_one": "💶 Selling to the grid: {item}",
-    "plan.orders.sales_many": "💶 Selling to the grid:",
-    "plan.orders.at_kw": "{span} at {kw:.1f} kW",
-    "plan.orders.bullet": "  • {item}",
-    "plan.orders.room": "🔋 Making room for the sun: {items}",
+    "plan.orders.sales": "💶 Selling to the grid:",
+    "plan.orders.room": "🔋 Making room for the sun:",
     "plan.orders.solar_delay": "⏳ Solar charge delayed by the plan",
     # --- plan.py: _no_slots_explanation ---
     "plan.noslots.awaiting_prices.headline": (
@@ -175,7 +157,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Predictive Charging: Price Optimization - nothing to charge yet"
     ),
     "plan.pricing.deferred.headline": "✓ The cheapest slots for the energy needed are tomorrow",
-    "plan.pricing.deferred.needed": "⚡ Energy needed: {kwh:.2f} kWh",
     "plan.pricing.deferred.footer": (
         "No grid charging is scheduled now; it is planned again at the next daily evaluation."
     ),
@@ -185,7 +166,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.pricing.import.headline": (
         "ℹ️ No grid charge: buying the energy when it is used is cheaper"
     ),
-    "plan.pricing.import.left": "🔌 Left to the grid: {kwh:.2f} kWh",
     "plan.pricing.import.storing": (
         "Storing it now would cost more after the round-trip losses."
     ),
@@ -227,7 +207,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.pricing.grid_charge_hours": (
         "🔌 Grid charge planned: {kwh:.2f} kWh → {hours:.1f}h of charging needed"
     ),
-    "plan.pricing.grid_charge": "🔌 Grid charge planned: {kwh:.2f} kWh",
     "plan.pricing.slots_header": "💰 {label}:",
     "plan.pricing.average_price": "Average price: {price:.4f} {unit}",
     "plan.pricing.estimated_cost": "Estimated cost: ~{cost:.2f} {cost_unit}",
@@ -239,7 +218,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.slot.purpose": " [{purpose}]",
     "plan.slot.purpose_extra": " + {purpose}",
     "plan.table.header": "| Slot | Price | Energy | Cost |",
-    "plan.table.row": "| {span} | {price} | {energy} | {cost} |",
+    "plan.table.power": "Power",
     "plan.table.price": "{price:.4f} {unit}",
     "plan.table.cost": "~{cost:.2f} {cost_unit}",
     "plan.table.total": "**Total**",
