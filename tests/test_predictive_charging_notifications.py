@@ -34,6 +34,12 @@ from custom_components.omnibattery.const import (
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_TIME_SLOT,
 )
+from custom_components.omnibattery.notifications import (
+    MODES,
+    PLAN_CHARGE,
+    async_notify,
+    load_categories,
+)
 from custom_components.omnibattery.pricing import engine as engine_module
 from custom_components.omnibattery.pricing.engine import PricingManager
 from custom_components.omnibattery.switch import (
@@ -57,6 +63,7 @@ def _recording_hass():
 
     hass = SimpleNamespace(
         services=SimpleNamespace(async_call=_async_call),
+        data={},
         config_entries=SimpleNamespace(async_update_entry=_update_entry),
     )
     return hass, calls
@@ -68,18 +75,22 @@ def _recording_hass():
 
 
 @pytest.mark.parametrize(
-    ("controller_kwargs", "expected_creates"),
+    ("entry_data", "expected_creates"),
     [
-        ({}, 1),  # attribute missing (older controller/stubs) -> legacy behaviour
-        ({"predictive_charging_notifications_enabled": True}, 1),
-        ({"predictive_charging_notifications_enabled": False}, 0),
+        (None, 1),  # categories never loaded (stubs) -> legacy behaviour
+        ({CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED: True}, 1),
+        ({CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED: False}, 0),
     ],
 )
-def test_engine_gate_honours_controller_flag(controller_kwargs, expected_creates):
+def test_engine_gate_honours_category_state(entry_data, expected_creates):
     hass, calls = _recording_hass()
-    manager = PricingManager(hass, SimpleNamespace(**controller_kwargs))
+    if entry_data is not None:
+        load_categories(hass, entry_data)
+    manager = PricingManager(hass, SimpleNamespace())
 
-    asyncio.run(manager._async_create_predictive_notification("T", "M", EVAL_ID))
+    sent = asyncio.run(manager._async_create_predictive_notification("T", "M", EVAL_ID))
+
+    assert sent is bool(expected_creates)
 
     creates = [c for c in calls if c[:2] == ("persistent_notification", "create")]
     assert len(creates) == expected_creates
@@ -114,7 +125,6 @@ def _muted_manager(monkeypatch):
         )
     hass, calls = _recording_hass()
     controller = SimpleNamespace(
-        predictive_charging_notifications_enabled=False,
         max_price_threshold=None,
         discharge_price_threshold=None,
         _dp_arbitrage_ceiling=None,
@@ -125,6 +135,7 @@ def _muted_manager(monkeypatch):
         coordinators=[],
         _active_charging_slot=lambda: None,
     )
+    load_categories(hass, {CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED: False})
     manager = PricingManager(hass, controller)
     manager._get_price_unit = lambda: "EUR/kWh"
     return manager, controller, calls
@@ -144,7 +155,7 @@ def test_every_evaluation_sender_is_muted(monkeypatch):
 
     # Unmuted, the same four senders post exactly four notifications with
     # their existing IDs (blueprints and user automations depend on them).
-    controller.predictive_charging_notifications_enabled = True
+    load_categories(manager._hass, {})
     asyncio.run(_send_all())
     ids = [c[2]["notification_id"] for c in calls if c[1] == "create"]
     assert ids == [EVAL_ID, EVAL_ID, EVAL_ID, EVAL_ID]
@@ -160,7 +171,7 @@ def _dedupe_manager(monkeypatch, title=lambda: "needed"):
         "format_dynamic_pricing_notification",
         lambda *a, **k: (title(), "message"),
     )
-    controller.predictive_charging_notifications_enabled = True
+    load_categories(manager._hass, {})
     return manager, calls
 
 
@@ -239,9 +250,9 @@ def test_no_schedule_twice_notifies_once(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def _make_switch(entry_data=None, **controller_kwargs):
+def _make_switch(entry_data=None):
     hass, calls = _recording_hass()
-    controller = SimpleNamespace(**controller_kwargs)
+    controller = SimpleNamespace()
     entry = SimpleNamespace(entry_id="test-entry", data=dict(entry_data or {}))
     sw = PredictiveChargingNotificationsSwitch(hass, entry, controller)
     sw.async_write_ha_state = lambda: None  # not registered with HA
@@ -256,14 +267,17 @@ def test_switch_defaults_on_for_existing_installs():
 
 
 def test_turn_off_persists_mutes_and_dismisses_shown_notifications():
-    sw, controller, entry, calls = _make_switch(
-        entry_data={"unrelated": 42},
-        predictive_charging_notifications_enabled=True,
-    )
+    sw, controller, entry, calls = _make_switch(entry_data={"unrelated": 42})
+    for category, nid in (
+        (PLAN_CHARGE, EVAL_ID),
+        (PLAN_CHARGE, EVENING_ID),
+        (MODES, f"{NOTIFICATION_ID_PREFIX}predictive_charging_override"),
+    ):
+        asyncio.run(async_notify(sw.hass, category, nid, "T", "M"))
+    calls.clear()
     asyncio.run(sw.async_turn_off())
 
     assert sw.is_on is False
-    assert controller.predictive_charging_notifications_enabled is False
     assert entry.data[CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED] is False
     assert entry.data["unrelated"] == 42
     dismissed = {c[2]["notification_id"] for c in calls if c[1] == "dismiss"}
@@ -277,23 +291,20 @@ def test_turn_off_persists_mutes_and_dismisses_shown_notifications():
 def test_turn_on_persists_and_does_not_touch_notifications():
     sw, controller, entry, calls = _make_switch(
         entry_data={CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED: False},
-        predictive_charging_notifications_enabled=False,
     )
     asyncio.run(sw.async_turn_on())
 
     assert sw.is_on is True
-    assert controller.predictive_charging_notifications_enabled is True
     assert entry.data[CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED] is True
     assert calls == []
 
 
 def test_muting_through_the_switch_silences_the_engine(monkeypatch):
-    """End to end on the shared controller object the two components use."""
+    """End to end on the shared hass state the two components use."""
     manager, controller, engine_calls = _muted_manager(monkeypatch)
-    controller.predictive_charging_notifications_enabled = True
-    hass, switch_calls = _recording_hass()
+    load_categories(manager._hass, {})
     entry = SimpleNamespace(entry_id="test-entry", data={})
-    sw = PredictiveChargingNotificationsSwitch(hass, entry, controller)
+    sw = PredictiveChargingNotificationsSwitch(manager._hass, entry, controller)
     sw.async_write_ha_state = lambda: None
 
     asyncio.run(sw.async_turn_off())

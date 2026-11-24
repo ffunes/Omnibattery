@@ -6105,32 +6105,24 @@ class PricingManager:
         if key == self._last_dp_notification_key:
             _LOGGER.debug("Dynamic Pricing plan unchanged, notification not re-sent")
             return
-        await self._async_create_predictive_notification(
-            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
-        )
         # ponytail: in memory only, so a restart sends the plan once more; a dismissed
         # notification stays dismissed while the plan does not change.
         # A muted send shows nothing, so it must not count as announced.
-        if getattr(self._controller, "predictive_charging_notifications_enabled", True):
+        if await self._async_create_predictive_notification(
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
+        ):
             self._last_dp_notification_key = key
 
     async def _async_create_predictive_notification(
         self, title: str, message: str, notification_id: str
-    ) -> None:
-        """Send a predictive-charging notification through the gateway unless muted.
+    ) -> bool:
+        """Send a predictive-charging notification through the gateway.
 
-        The ``predictive_charging_notifications`` switch only silences the
-        announcement: the evaluation itself, its schedule and its diagnostics
-        are unaffected and stay visible on the dashboard and sensors.
+        The gateway drops it when the category is muted (and returns False): the
+        evaluation itself, its schedule and its diagnostics are unaffected and
+        stay visible on the dashboard and sensors.
         """
-        if not getattr(self._controller, "predictive_charging_notifications_enabled", True):
-            _LOGGER.debug(
-                "Predictive charging notification suppressed (%s): %s",
-                notification_id,
-                title,
-            )
-            return
-        await async_notify(self._hass, PLAN_CHARGE, notification_id, title, message)
+        return await async_notify(self._hass, PLAN_CHARGE, notification_id, title, message)
 
     def _contracted_charge_ceiling(self) -> float:
         """The configured grid import cap (#506), which also caps grid charging.

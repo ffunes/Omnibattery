@@ -35,7 +35,6 @@ from .const import (
     CONF_OFFGRID_MODE_ENABLED,
     CONF_PRIMARY_FEEDFORWARD_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
-    CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_PRICE_DISCHARGE_CONTROL,
     CONF_SMART_PREDISCHARGE_ENABLED,
@@ -63,7 +62,14 @@ from .infra.entity_naming import (
     system_entity_id,
     SYSTEM_UNIQUE_ID_PREFIX,
 )
-from .notifications import MODES, async_dismiss, async_notify
+from .notifications import (
+    MODES,
+    PLAN_CHARGE,
+    async_dismiss,
+    async_notify,
+    async_set_category_enabled,
+    category_enabled,
+)
 from .pricing.engine import DynamicPricingEvaluationHorizon
 
 _LOGGER = logging.getLogger(__name__)
@@ -706,15 +712,6 @@ class PredictiveChargingSwitch(SwitchEntity):
         }
 
 
-# Notification IDs created by the pricing engine for predictive-charging
-# evaluations. The "disabled" confirmation (``predictive_charging_override``) is
-# direct feedback to a user action and is deliberately not muted.
-_PREDICTIVE_EVALUATION_NOTIFICATION_IDS = (
-    f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
-    f"{NOTIFICATION_ID_PREFIX}predictive_charging_evening_reeval",
-)
-
-
 class PredictiveChargingNotificationsSwitch(SwitchEntity):
     """Mute or unmute predictive-charging evaluation notifications (#141).
 
@@ -740,18 +737,10 @@ class PredictiveChargingNotificationsSwitch(SwitchEntity):
 
     @property
     def is_on(self) -> bool:
-        return bool(
-            getattr(self.controller, "predictive_charging_notifications_enabled", True)
-        )
+        return category_enabled(self.hass, PLAN_CHARGE)
 
     async def _set_enabled(self, enabled: bool) -> None:
-        self.controller.predictive_charging_notifications_enabled = enabled
-        data = dict(self.entry.data)
-        data[CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED] = enabled
-        self.hass.config_entries.async_update_entry(self.entry, data=data)
-        if not enabled:
-            for notification_id in _PREDICTIVE_EVALUATION_NOTIFICATION_IDS:
-                await async_dismiss(self.hass, notification_id)
+        await async_set_category_enabled(self.hass, self.entry, PLAN_CHARGE, enabled)
         _LOGGER.info(
             "Predictive charging notifications %s",
             "enabled" if enabled else "muted",

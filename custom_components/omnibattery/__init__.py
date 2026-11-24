@@ -45,7 +45,6 @@ from .const import (
     NOTIFICATION_ID_PREFIX,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_VACATION_MODE_ENABLED,
-    CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED,
     CONF_CHARGING_TIME_SLOT,
     CONF_SOLAR_FORECAST_SENSOR,
     CONF_SOLAR_FORECAST_REMAINING_SENSOR,
@@ -257,7 +256,7 @@ from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
 from .infra.device_lookup import get_entry_device
-from .notifications import HEALTH, async_dismiss, async_notify
+from .notifications import HEALTH, async_dismiss, async_notify, load_categories
 from .tracking.hourly_balance import HourlyBalanceManager
 from .tracking.non_responsive_tracker import NonResponsiveTracker
 from .tracking.daily_timeline import (
@@ -1020,9 +1019,7 @@ class ChargeDischargeController:
         # Predictive Grid Charging state
         self.predictive_charging_enabled = config_entry.data.get(CONF_ENABLE_PREDICTIVE_CHARGING, False)
         self.vacation_mode_enabled = config_entry.data.get(CONF_VACATION_MODE_ENABLED, False)
-        self.predictive_charging_notifications_enabled = config_entry.data.get(
-            CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED, True
-        )
+        load_categories(self.hass, config_entry.data)
         # Predictive charging windows: list of {start_time, end_time, days} dicts.
         # Legacy configs stored a single dict — normalize to a one-element list.
         _raw_slots = config_entry.data.get(CONF_CHARGING_TIME_SLOT, None)
@@ -3422,9 +3419,7 @@ class ChargeDischargeController:
         self.vacation_mode_enabled = self.config_entry.data.get(
             CONF_VACATION_MODE_ENABLED, False
         )
-        self.predictive_charging_notifications_enabled = self.config_entry.data.get(
-            CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED, True
-        )
+        load_categories(self.hass, self.config_entry.data)
         if self._phase_power_limiter is not None:
             self._phase_power_limiter.refresh_config()
             self._phase_power_limiter.update_manual_mode_warning(
