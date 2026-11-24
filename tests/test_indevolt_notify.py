@@ -8,6 +8,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 
 from custom_components.omnibattery.drivers import indevolt_notify
+from custom_components.omnibattery.notifications import gateway
 from custom_components.omnibattery.drivers.indevolt_notify import IndevoltNotifier
 
 
@@ -15,12 +16,12 @@ from custom_components.omnibattery.drivers.indevolt_notify import IndevoltNotifi
 def calls(monkeypatch):
     recorded = []
     monkeypatch.setattr(
-        indevolt_notify.persistent_notification, "async_create",
+        gateway.persistent_notification, "async_create",
         lambda hass, message, title=None, notification_id=None: recorded.append(
             ("create", notification_id, title, message)),
     )
     monkeypatch.setattr(
-        indevolt_notify.persistent_notification, "async_dismiss",
+        gateway.persistent_notification, "async_dismiss",
         lambda hass, notification_id: recorded.append(("dismiss", notification_id)),
     )
     return recorded

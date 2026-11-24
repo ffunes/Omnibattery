@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 
 from ..const import DOMAIN, NOTIFICATION_ID_PREFIX
+from ..notifications import HEALTH, dismiss, notify
 from .indevolt_settings import FLASH_WRITES_ISSUE
 
 _LOGGER = logging.getLogger(__name__)
@@ -189,14 +189,12 @@ class IndevoltNotifier:
 
     def _create(self, topic: str, title: str, message: str) -> None:
         self._active.add(topic)
-        persistent_notification.async_create(
-            self._hass, message, title=title, notification_id=self._prefix + topic
-        )
+        notify(self._hass, HEALTH, self._prefix + topic, title, message)
 
     def _dismiss(self, topic: str) -> None:
         if topic in self._active:
             self._active.discard(topic)
-            persistent_notification.async_dismiss(self._hass, self._prefix + topic)
+            dismiss(self._hass, self._prefix + topic)
 
     def paused(self, reason: str, *, model: str | None = None) -> None:
         if reason not in PAUSE_TOPICS:
