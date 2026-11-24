@@ -50,16 +50,14 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.sufficient": "✓ Sufficient energy for {horizon}",
     "plan.no_more_charging": "No additional grid charging required.",
     "plan.no_charging": "No grid charging required.",
-    "plan.max_charge_power": "Max charge power: {power}",
-    # --- plan.py: _max_charge_power_str / _max_discharge_power_line ---
-    "plan.power.contracted": "contracted: {power:g}W",
-    "plan.power.icp": "ICP: {power:g}W",
-    "plan.power.batteries": "batteries: {power:g}W",
-    "plan.power.summary": "{limit:g}W ({parts})",
-    "plan.max_discharge": "Max discharge power: {limit:g}W",
-    "plan.max_discharge_carried": (
-        "Max discharge power: {limit:g}W (load above it from the grid: "
-        "{carried:.2f} kWh, left out of the charge)"
+    # --- plan.py: _limits_table (the power limits the plan used) ---
+    "plan.power.header": "Maximum power",
+    "plan.power.charge": "Charge",
+    "plan.power.discharge": "Discharge",
+    "plan.power.contracted": "{power:g}W (Max. grid import)",
+    "plan.power.batteries": "{power:g}W (batteries)",
+    "plan.power.carried": (
+        "Load above the maximum discharge power comes from the grid: {carried:.2f} kWh, left out of the charge"
     ),
     # --- plan.py: format_predictive_notification_message ---
     "plan.safe.title": "Predictive Charging: Safe mode",

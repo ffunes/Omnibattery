@@ -87,7 +87,8 @@ def test_predictive_started():
     )
     assert title == "Predictive Charging: STARTED"
     assert "06:00" in message  # end of charging slot
-    assert "contracted: 5000W, batteries: 3000W" in message
+    # Only the limit that binds, as a table.
+    assert message.endswith("\n\n| Maximum power | |\n|---|---|\n| Charge | 3000W (batteries) |")
 
 
 def test_predictive_max_power_is_min_of_contracted_and_batteries():
@@ -100,7 +101,7 @@ def test_predictive_max_power_is_min_of_contracted_and_batteries():
         charging_time_slot={"start_time": "23:00", "end_time": "06:00"},
         now=_DAY,
     )
-    assert "Max charge power: 3000W" in message
+    assert "| Charge | 3000W (Max. grid import) |" in message
     assert "peak limit" not in message
 
 
@@ -601,10 +602,10 @@ def test_dynamic_shows_the_discharge_limit_the_plan_used():
     )
 
     assert message.endswith(
-        "Max discharge power: 800W "
-        "(load above it from the grid: 3.46 kWh, left out of the charge)"
+        "| Charge | 3000W (batteries) |\n| Discharge | 800W |\n\n"
+        "Load above the maximum discharge power comes from the grid: "
+        "3.46 kWh, left out of the charge"
     )
-    assert "Max charge power: 3000W" in message
 
 
 def test_dynamic_omits_the_discharge_line_without_a_limit():
@@ -615,7 +616,7 @@ def test_dynamic_omits_the_discharge_line_without_a_limit():
         **_DP_CFG,
     )
 
-    assert "Max discharge power" not in message
+    assert "| Discharge |" not in message
 
 
 # ----------------------------------------------------------------------
@@ -1038,8 +1039,8 @@ def test_optimizer_plan_ends_with_thresholds_and_power_after_a_blank_line():
     message = _optimizer_plan_message()
     assert message.endswith(
         "\n\n⚙️ Price thresholds: charge ≤ 0.3000 €/kWh | discharge ≥ 0.4500 €/kWh\n"
-        "Max charge power: 3000W (ICP: 5000W, batteries: 3000W)\n"
-        "Max discharge power: 2500W"
+        "\n| Maximum power | |\n|---|---|\n"
+        "| Charge | 3000W (batteries) |\n| Discharge | 2500W |"
     )
     assert message.count("Price thresholds") == 1 and "\n\n\n" not in message
 

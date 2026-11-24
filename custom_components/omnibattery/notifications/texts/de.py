@@ -44,16 +44,14 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.sufficient": "✓ Genug Energie für {horizon}",
     "plan.no_more_charging": "Kein weiteres Laden aus dem Netz nötig.",
     "plan.no_charging": "Kein Laden aus dem Netz nötig.",
-    "plan.max_charge_power": "Max. Ladeleistung: {power}",
-    # --- plan.py: _max_charge_power_str / _max_discharge_power_line ---
-    "plan.power.contracted": "vertraglich: {power:g}W",
-    "plan.power.icp": "ICP: {power:g}W",
-    "plan.power.batteries": "Batterien: {power:g}W",
-    "plan.power.summary": "{limit:g}W ({parts})",
-    "plan.max_discharge": "Max. Entladeleistung: {limit:g}W",
-    "plan.max_discharge_carried": (
-        "Max. Entladeleistung: {limit:g}W (Last darüber aus dem Netz: "
-        "{carried:.2f} kWh, nicht in der Ladung enthalten)"
+    # --- plan.py: _limits_table (the power limits the plan used) ---
+    "plan.power.header": "Maximale Leistung",
+    "plan.power.charge": "Laden",
+    "plan.power.discharge": "Entladen",
+    "plan.power.contracted": "{power:g}W (Max. Netzbezug)",
+    "plan.power.batteries": "{power:g}W (Batterien)",
+    "plan.power.carried": (
+        "Last über der maximalen Entladeleistung kommt aus dem Netz: {carried:.2f} kWh, nicht in der Ladung enthalten"
     ),
     # --- plan.py: format_predictive_notification_message ---
     "plan.safe.title": "Prädiktives Laden: Sicherer Modus",

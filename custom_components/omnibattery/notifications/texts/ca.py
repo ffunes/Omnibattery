@@ -44,16 +44,14 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.sufficient": "✓ Energia suficient per a {horizon}",
     "plan.no_more_charging": "No cal més càrrega des de la xarxa.",
     "plan.no_charging": "No cal càrrega des de la xarxa.",
-    "plan.max_charge_power": "Potència màx. de càrrega: {power}",
-    # --- plan.py: _max_charge_power_str / _max_discharge_power_line ---
-    "plan.power.contracted": "contractada: {power:g}W",
-    "plan.power.icp": "ICP: {power:g}W",
-    "plan.power.batteries": "bateries: {power:g}W",
-    "plan.power.summary": "{limit:g}W ({parts})",
-    "plan.max_discharge": "Potència màx. de descàrrega: {limit:g}W",
-    "plan.max_discharge_carried": (
-        "Potència màx. de descàrrega: {limit:g}W (consum per sobre, de la xarxa: "
-        "{carried:.2f} kWh, exclòs de la càrrega)"
+    # --- plan.py: _limits_table (the power limits the plan used) ---
+    "plan.power.header": "Potència màxima",
+    "plan.power.charge": "Càrrega",
+    "plan.power.discharge": "Descàrrega",
+    "plan.power.contracted": "{power:g}W (Màx. importació de xarxa)",
+    "plan.power.batteries": "{power:g}W (Bateries)",
+    "plan.power.carried": (
+        "El consum per sobre de la potència màxima de descàrrega ve de la xarxa: {carried:.2f} kWh, exclòs de la càrrega"
     ),
     # --- plan.py: format_predictive_notification_message ---
     "plan.safe.title": "Càrrega predictiva: mode segur",
