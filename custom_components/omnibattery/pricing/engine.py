@@ -98,6 +98,7 @@ from . import (
     SLOT_PURPOSE_NEGATIVE_PRICE,
     calculations,
 )
+from ..notifications import PLAN_CHARGE, async_dismiss, async_notify
 from ..notifications import plan as notifications
 from .calculations import normalize_price_slots
 from .chronological import (
@@ -6116,7 +6117,7 @@ class PricingManager:
     async def _async_create_predictive_notification(
         self, title: str, message: str, notification_id: str
     ) -> None:
-        """Create a predictive-charging persistent notification unless muted.
+        """Send a predictive-charging notification through the gateway unless muted.
 
         The ``predictive_charging_notifications`` switch only silences the
         announcement: the evaluation itself, its schedule and its diagnostics
@@ -6129,15 +6130,7 @@ class PricingManager:
                 title,
             )
             return
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": title,
-                "message": message,
-                "notification_id": notification_id,
-            },
-        )
+        await async_notify(self._hass, PLAN_CHARGE, notification_id, title, message)
 
     def _contracted_charge_ceiling(self) -> float:
         """The configured grid import cap (#506), which also caps grid charging.
@@ -8867,10 +8860,8 @@ class PricingManager:
                 self._controller.error_integral = 0.0
                 self._controller.previous_error = 0.0
                 self._controller.sign_changes = 0
-                await self._hass.services.async_call(
-                    "persistent_notification",
-                    "dismiss",
-                    {"notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"},
+                await async_dismiss(
+                    self._hass, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
                 )
 
             self._controller._slot_entry_time = None

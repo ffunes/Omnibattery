@@ -90,15 +90,15 @@ def test_engine_gate_honours_controller_flag(controller_kwargs, expected_creates
 def test_engine_creates_predictive_notifications_only_through_the_gate():
     """No evaluation notification may bypass the mute switch.
 
-    The only ``persistent_notification`` ``create`` call left in the engine is
-    the one inside the gate helper; the remaining service calls are dismissals.
+    The engine no longer talks to ``persistent_notification`` at all: its only
+    ``async_notify(`` call is the one inside the gate helper.
     """
     src = ENGINE_SRC.read_text(encoding="utf-8")
-    creates = [m.start() for m in re.finditer(r'"persistent_notification",\s*\n\s*"create"', src)]
-    assert len(creates) == 1
+    assert "persistent_notification" not in src
+    assert src.count("async_notify(") == 1
     helper = src.index("async def _async_create_predictive_notification(")
-    next_def = src.index("\n    def ", helper + 1)
-    assert helper < creates[0] < next_def
+    next_def = re.search(r"\n    (?:async )?def ", src[helper + 1 :]).start() + helper + 1
+    assert helper < src.index("async_notify(") < next_def
 
 
 def _muted_manager(monkeypatch):
