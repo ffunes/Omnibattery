@@ -436,7 +436,7 @@ class BalanceMonitor:
                 pass
         bat["last_notify_ts"] = now.isoformat()
         icon = "🔴" if severe else "⚠️"
-        title = f"{icon} Cell balance — {name}"
+        title = f"{icon} Cell Balance: {name}"
         message = "\n".join(f"• {line}" for line in issues)
         coroutine = self._notify(
             f"marstek_venus_marstek_balance_{host}", title, message

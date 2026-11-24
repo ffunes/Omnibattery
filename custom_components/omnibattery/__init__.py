@@ -12223,7 +12223,7 @@ async def _async_migrate_legacy_active_balance(
                     f"{NOTIFICATION_ID_PREFIX}active_balance_migration_"
                     f"{coordinator.device_key}"
                 ),
-                f"{coordinator.name}: active balance migration paused",
+                f"Active Balance: migration paused ({coordinator.name})",
                 (
                     "The old integrated active-balance run could not be migrated "
                     f"safely ({err}). The battery is held in manual mode at 0 W. "

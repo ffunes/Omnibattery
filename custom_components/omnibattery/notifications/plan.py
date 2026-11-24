@@ -356,15 +356,26 @@ def _blocks(rows):
 _DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
+def _day_prefix(start, now) -> str:
+    """``""`` when ``start`` is today, else ``Wed 25 · `` (``start`` already in ``now``'s zone)."""
+    if start.date() == now.date():
+        return ""
+    return f"{_DAY_NAMES[start.weekday()]} {start.day} · "
+
+
+def _clock(at, now) -> str:
+    """``HH:MM``; ``Wed 25 · HH:MM`` when ``at`` is not today."""
+    if at.tzinfo is not None and now.tzinfo is not None:
+        at = at.astimezone(now.tzinfo)
+    return f"{_day_prefix(at, now)}{at.strftime('%H:%M')}"
+
+
 def _span(start, end, now) -> str:
     """``HH:MM–HH:MM``; ``Wed 25 · HH:MM–HH:MM`` when ``start`` is not today."""
     if start.tzinfo is not None and now.tzinfo is not None:
         start = start.astimezone(now.tzinfo)
         end = end.astimezone(now.tzinfo)
-    hours = f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
-    if start.date() == now.date():
-        return hours
-    return f"{_DAY_NAMES[start.weekday()]} {start.day} · {hours}"
+    return f"{_day_prefix(start, now)}{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
 
 
 def _plan_order_lines(orders, now) -> str:
@@ -397,7 +408,7 @@ def _plan_order_lines(orders, now) -> str:
 
 
 def _no_slots_explanation(
-    decision_data: dict, unit: str, arbitrage_binding: bool
+    decision_data: dict, unit: str, arbitrage_binding: bool, now: datetime
 ) -> tuple[str, str]:
     """Headline and hint for a deficit that ended with no selected slot.
 
@@ -455,7 +466,7 @@ def _no_slots_explanation(
     rejected = decision_data.get("cheapest_rejected_slot")
     if reason == "price_threshold" and isinstance(rejected, dict):
         try:
-            start = datetime.fromisoformat(str(rejected["start"])).strftime("%H:%M")
+            start = _clock(datetime.fromisoformat(str(rejected["start"])), now)
             price = float(rejected["price"])
             ceiling = rejected.get("ceiling")
             ceiling_str = (
@@ -550,7 +561,7 @@ def format_dynamic_pricing_notification(
             )
         else:
             headline, hint = _no_slots_explanation(
-                decision_data, unit, arbitrage_binding
+                decision_data, unit, arbitrage_binding, now
             )
             plan_reason = decision_data.get("chronological_plan_reason")
             category = PLAN_INFO
@@ -607,7 +618,7 @@ def format_dynamic_pricing_notification(
                 else ""
             )
             + (
-                f" [before {schedule.slot_deadlines[s].strftime('%H:%M')}]"
+                f" [before {_clock(schedule.slot_deadlines[s], now)}]"
                 if getattr(schedule, "slot_deadlines", {}).get(s) is not None
                 else (
                     " [flexible]"
@@ -772,7 +783,7 @@ def format_slot_start_notification(
         s for s in schedule.selected_slots if s.start > slot.start
     ]
     next_slot_str = (
-        f"Next slot: {remaining_slots[0].start.strftime('%H:%M')}"
+        f"Next slot: {_clock(remaining_slots[0].start, now)}"
         if remaining_slots else "Last slot"
     )
     remaining_str = (
@@ -780,10 +791,10 @@ def format_slot_start_notification(
         if remaining_slots else "No more slots today"
     )
 
-    title = f"Predictive Charging STARTED ({slot.price:.4f} {unit})"
+    title = f"Predictive Charging: STARTED ({slot.price:.4f} {unit})"
     message = (
         f"⚡ Charging at max {max_contracted_power:g}W\n"
-        f"Slot: {slot.start.strftime('%H:%M')}-{slot.end.strftime('%H:%M')}\n"
+        f"Slot: {_span(slot.start, slot.end, now)}\n"
         f"{next_slot_str} · {remaining_str}"
     )
     return (title, message, EXECUTION)
@@ -804,13 +815,13 @@ def format_dp_pre_slot_reevaluation_notification(
     context = _forecast_notification_context(decision)
     solar_str = f"{solar_forecast:.2f} kWh" if solar_forecast is not None else "N/A"
 
-    title = f"Predictive Charging: slot {slot.start.strftime('%H:%M')} confirmed — charging needed"
+    title = f"Predictive Charging: slot {_clock(slot.start, now)} confirmed — charging needed"
     message = (
         f"🔋 Battery: {avg_soc:.0f}% ({usable_energy:.2f} kWh usable)\n"
         f"{_build_forecast_lines(context, solar_str, context['consumption_kwh'])}"
         f"⚡ Energy deficit: {energy_deficit:.2f} kWh\n\n"
-        f"Slot: {slot.start.strftime('%H:%M')}–{slot.end.strftime('%H:%M')} "
+        f"Slot: {_span(slot.start, slot.end, now)} "
         f"@ {slot.price:.4f} {unit}\n"
-        f"→ Charging will activate at {slot.start.strftime('%H:%M')}"
+        f"→ Charging will activate at {_clock(slot.start, now)}"
     )
     return (title, message, EXECUTION)

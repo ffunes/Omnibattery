@@ -10,7 +10,7 @@ running. These tests cover:
     that honours the controller flag (default ON for existing installs),
   * the switch persists the flag in the entry, updates the controller live,
     dismisses currently shown evaluation notifications when muted, and leaves
-    the user-action "Predictive Charging Disabled" confirmation alone,
+    the user-action "Predictive Charging: disabled" confirmation alone,
   * the switch is registered wherever the predictive master switch is.
 
 Run without the Home Assistant runtime: stub hass/entry/controller objects.
@@ -320,7 +320,7 @@ def test_turn_off_persists_mutes_and_dismisses_shown_notifications():
     assert entry.data["unrelated"] == 42
     dismissed = {c[2]["notification_id"] for c in calls if c[1] == "dismiss"}
     assert dismissed == {EVAL_ID, EVENING_ID}
-    # The "Predictive Charging Disabled" confirmation answers a user action
+    # The "Predictive Charging: disabled" confirmation answers a user action
     # and is intentionally never dismissed by this switch.
     assert f"{NOTIFICATION_ID_PREFIX}predictive_charging_override" not in dismissed
     assert not any(c[1] == "create" for c in calls)

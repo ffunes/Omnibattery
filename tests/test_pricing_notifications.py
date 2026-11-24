@@ -354,7 +354,7 @@ def test_dynamic_no_slots_price_threshold_names_cheapest_rejected_slot():
             energy_deficit_kwh=4.0,
             chronological_plan_reason="price_threshold",
             cheapest_rejected_slot={
-                "start": "2026-11-09T03:00:00",
+                "start": "2999-01-01T03:00:00",
                 "price": 0.3412,
                 "ceiling": 0.30,
             },
@@ -512,7 +512,7 @@ def test_slot_start_notification():
     title, message, _ = notifications.format_slot_start_notification(
         first, schedule, unit="€/kWh", max_contracted_power=5000, now=_DAY
     )
-    assert title == "Predictive Charging STARTED (0.1000 €/kWh)"
+    assert title == "Predictive Charging: STARTED (0.1000 €/kWh)"
     assert "Charging at max 5000W" in message
     assert "2 slot(s) remaining" in message
 
@@ -848,3 +848,52 @@ def test_span_converts_utc_slots_to_the_local_zone():
     # 23:30 UTC is already tomorrow 00:30 locally: dated by its local start.
     start = datetime(2026, 11, 24, 23, 30, tzinfo=timezone.utc)
     assert notifications._span(start, start + timedelta(hours=1), _TUE) == "Wed 25 · 00:30–01:30"
+
+
+def test_clock_today_and_other_day():
+    now = datetime(2026, 11, 24, 22, 0, tzinfo=_TZ)
+    assert notifications._clock(datetime(2026, 11, 24, 23, 30, tzinfo=_TZ), now) == "23:30"
+    assert notifications._clock(datetime(2026, 11, 25, 5, 0, tzinfo=_TZ), now) == "Wed 25 · 05:00"
+    utc = datetime(2026, 11, 24, 23, 30, tzinfo=timezone.utc)  # 00:30 Madrid, next day
+    assert notifications._clock(utc, now) == "Wed 25 · 00:30"
+
+
+def _dated_schedule(*starts):
+    slots = [
+        PriceSlot(start=s, end=s + timedelta(hours=1), price=0.1) for s in starts
+    ]
+    return SimpleNamespace(selected_slots=slots)
+
+
+@pytest.mark.parametrize(
+    "day, span, nxt",
+    [
+        (25, "Wed 25 · 05:00–06:00", "Next slot: Wed 25 · 07:00"),
+        (24, "05:00–06:00", "Next slot: 07:00"),
+    ],
+)
+def test_slot_start_notification_dates_only_other_days(day, span, nxt):
+    now = datetime(2026, 11, 24, 4, 0 if day == 24 else 0, tzinfo=_TZ)
+    now = now.replace(hour=22) if day == 25 else now
+    first = datetime(2026, 11, day, 5, 0, tzinfo=_TZ)
+    schedule = _dated_schedule(first, first.replace(hour=7))
+    _, message, _ = notifications.format_slot_start_notification(
+        schedule.selected_slots[0], schedule, unit="€/kWh", max_contracted_power=5000, now=now
+    )
+    assert f"Slot: {span}\n" in message
+    assert nxt in message
+
+
+@pytest.mark.parametrize("day, span, at", [
+    (25, "Wed 25 · 05:00–06:00", "Wed 25 · 05:00"),
+    (24, "05:00–06:00", "05:00"),
+])
+def test_pre_slot_notification_dates_only_other_days(day, span, at):
+    now = datetime(2026, 11, 24, 22 if day == 25 else 4, 0, tzinfo=_TZ)
+    slot = _dated_schedule(datetime(2026, 11, day, 5, 0, tzinfo=_TZ)).selected_slots[0]
+    title, message, _ = notifications.format_dp_pre_slot_reevaluation_notification(
+        slot, _decision(energy_deficit_kwh=1.5), unit="€/kWh", now=now
+    )
+    assert f"slot {at} confirmed" in title
+    assert f"Slot: {span} @" in message
+    assert f"activate at {at}" in message

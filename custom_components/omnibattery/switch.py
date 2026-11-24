@@ -688,7 +688,7 @@ class PredictiveChargingSwitch(SwitchEntity):
             self.hass,
             MODES,
             f"{NOTIFICATION_ID_PREFIX}predictive_charging_override",
-            "Predictive Charging Disabled",
+            "Predictive Charging: disabled",
             message,
         )
         _LOGGER.info("Predictive charging disabled (overridden)")
@@ -1651,7 +1651,7 @@ class ManualModeSwitch(SwitchEntity):
             self.hass,
             MODES,
             f"{NOTIFICATION_ID_PREFIX}manual_mode_active",
-            "Manual Mode Active",
+            "Manual Mode: active",
             (
                 "Automatic charge/discharge control is paused. "
                 "All batteries have been set to idle (0W). "
