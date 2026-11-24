@@ -504,6 +504,7 @@ def test_notification_names_energy_deferred_to_tomorrow():
         discharge_price_threshold=None,
         max_contracted_power=3000,
         max_charge_capacity=3000,
+        now=NOW,
     )
 
     assert "nothing to charge yet" in title
@@ -547,6 +548,7 @@ def test_extended_horizon_notification_labels_tomorrow_not_tonight():
             max_contracted_power=3000,
             max_charge_capacity=3000,
             charging_time_slot=None,
+            now=NOW,
         )[1]
 
     message = _message(

@@ -6086,6 +6086,7 @@ class PricingManager:
             max_charge_capacity=self._planning_charge_capacity(),
             plan_orders=orders,
             arbitrage_margin=getattr(controller, "min_arbitrage_margin", None),
+            now=self._now(),
         )
         targets = getattr(schedule, "slot_energy_targets_kwh", None) or {}
         slots = getattr(schedule, "selected_slots", None) or []
@@ -6271,6 +6272,7 @@ class PricingManager:
             schedule,
             unit=self._get_price_unit(),
             max_contracted_power=self._controller.max_contracted_power,
+            now=self._now(),
         )
         await self._async_create_predictive_notification(
             title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
@@ -6442,6 +6444,7 @@ class PricingManager:
             slot,
             decision,
             unit=self._get_price_unit(),
+            now=self._now(),
         )
         await self._async_create_predictive_notification(
             title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
@@ -8878,6 +8881,7 @@ class PricingManager:
             max_contracted_power=self._controller.max_contracted_power,
             max_charge_capacity=self._planning_charge_capacity(),
             charging_time_slot=self._controller._active_charging_slot(),
+            now=self._now(),
         )
 
         # Send the notification

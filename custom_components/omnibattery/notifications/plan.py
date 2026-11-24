@@ -210,6 +210,7 @@ def format_predictive_notification_message(
     max_contracted_power,
     max_charge_capacity,
     charging_time_slot,
+    now: datetime,
 ) -> tuple[str, str, str]:
     """Format notification title and message from decision data.
 
@@ -351,11 +352,22 @@ def _blocks(rows):
     return out
 
 
-def _span(start, end) -> str:
-    return f"{start.strftime('%H:%M')}-{end.strftime('%H:%M')}"
+# ponytail: day names move to the text catalogue in phase 4.
+_DAY_NAMES = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
-def _plan_order_lines(orders) -> str:
+def _span(start, end, now) -> str:
+    """``HH:MM–HH:MM``; ``Wed 25 · HH:MM–HH:MM`` when ``start`` is not today."""
+    if start.tzinfo is not None and now.tzinfo is not None:
+        start = start.astimezone(now.tzinfo)
+        end = end.astimezone(now.tzinfo)
+    hours = f"{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
+    if start.date() == now.date():
+        return hours
+    return f"{_DAY_NAMES[start.weekday()]} {start.day} · {hours}"
+
+
+def _plan_order_lines(orders, now) -> str:
     """The optimizer's orders besides the grid charge, as executed (published)."""
     if not orders:
         return ""
@@ -364,20 +376,20 @@ def _plan_order_lines(orders) -> str:
         slots = orders.get(key) or ()
         if slots:
             spans = _blocks((s.start, s.end, None, None) for s in slots)
-            lines.append(f"{label}: " + ", ".join(_span(a, b) for a, b, _v, _k in spans))
+            lines.append(f"{label}: " + ", ".join(_span(a, b, now) for a, b, _v, _k in spans))
     sales = orders.get("sales") or {}
     if sales:
         spans = _blocks((s.start, s.end, round(float(kw), 1), None) for s, kw in sales.items())
         lines.append(
             "💶 Selling to the grid: "
-            + ", ".join(f"{_span(a, b)} at {kw:.1f} kW" for a, b, kw, _k in spans)
+            + ", ".join(f"{_span(a, b, now)} at {kw:.1f} kW" for a, b, kw, _k in spans)
         )
     room = orders.get("room") or {}
     if room:
         spans = _blocks((s.start, s.end, round(float(kw), 1), None) for s, kw in room.items())
         lines.append(
             "🔋 Making room for the sun: "
-            + ", ".join(f"{_span(a, b)} at {kw:.1f} kW" for a, b, kw, _k in spans)
+            + ", ".join(f"{_span(a, b, now)} at {kw:.1f} kW" for a, b, kw, _k in spans)
         )
     if orders.get("solar_delay"):
         lines.append("⏳ Solar charge delayed by the plan")
@@ -469,6 +481,7 @@ def format_dynamic_pricing_notification(
     max_charge_capacity,
     plan_orders=None,
     arbitrage_margin=None,
+    now: datetime,
 ) -> tuple[str, str, str]:
     """Format dynamic pricing evaluation notification.
 
@@ -477,7 +490,7 @@ def format_dynamic_pricing_notification(
     blocks and the plan's other orders (``plan_orders``: the published holds,
     exports, sales and solar delay)."""
     optimizer = decision_data.get("planner") == "optimizer"
-    orders_lines = _plan_order_lines(plan_orders) if optimizer else ""
+    orders_lines = _plan_order_lines(plan_orders, now) if optimizer else ""
     avg_soc = decision_data.get("avg_soc", 0)
     usable_energy = decision_data.get("usable_energy_kwh", 0)
     solar_forecast = decision_data.get("solar_forecast_kwh")
@@ -587,7 +600,7 @@ def format_dynamic_pricing_notification(
 
         cost_unit = unit.split("/")[0]  # "€/kWh" → "€", "CHF" → "CHF"
         slot_lines = "\n".join(
-            f"  • {s.start.strftime('%H:%M')}-{s.end.strftime('%H:%M')} → {s.price:.4f} {unit}"
+            f"  • {_span(s.start, s.end, now)} → {s.price:.4f} {unit}"
             + (
                 f", {float(schedule.slot_energy_targets_kwh[s]):.2f} kWh"
                 if s in getattr(schedule, "slot_energy_targets_kwh", {})
@@ -610,13 +623,13 @@ def format_dynamic_pricing_notification(
                 and schedule.purpose_for(s) in {"negative_price", "combined"}
                 else ""
             )
-            for s in schedule.selected_slots
+            for s in sorted(schedule.selected_slots, key=lambda s: s.start)
         )
         if optimizer:
             # The optimizer books quarters: one line per run at one price.
             targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
             slot_lines = "\n".join(
-                f"  • {_span(a, b)} → {price:.4f} {unit}"
+                f"  • {_span(a, b, now)} → {price:.4f} {unit}"
                 + ("" if kwh is None else f", {kwh:.2f} kWh")
                 for a, b, price, kwh in _blocks(
                     (s.start, s.end, s.price,
@@ -749,6 +762,7 @@ def format_slot_start_notification(
     *,
     unit: str,
     max_contracted_power,
+    now: datetime,
 ) -> tuple[str, str, str]:
     """Format the 'cheap pricing slot started' notification.
 
@@ -780,6 +794,7 @@ def format_dp_pre_slot_reevaluation_notification(
     decision: dict,
     *,
     unit: str,
+    now: datetime,
 ) -> tuple[str, str, str]:
     """Format the pre-slot re-evaluation 'charging still needed' notification."""
     avg_soc = decision.get("avg_soc", 0)

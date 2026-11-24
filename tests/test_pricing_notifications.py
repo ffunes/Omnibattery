@@ -7,7 +7,8 @@ is a SimpleNamespace exposing only the attributes the formatters read.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from types import SimpleNamespace
 
 import pytest
@@ -61,7 +62,7 @@ def _schedule(prices, *, hours_needed=1.0, charging_needed=False, estimated_cost
 # ----------------------------------------------------------------------
 
 _CFG = dict(max_contracted_power=5000, max_charge_capacity=3000,
-            charging_time_slot={"start_time": "23:00", "end_time": "06:00"})
+            charging_time_slot={"start_time": "23:00", "end_time": "06:00"}, now=_DAY)
 
 
 def test_predictive_safe_mode_when_no_solar():
@@ -97,6 +98,7 @@ def test_predictive_max_power_is_min_of_contracted_and_batteries():
         max_contracted_power=3000,
         max_charge_capacity=3500,
         charging_time_slot={"start_time": "23:00", "end_time": "06:00"},
+        now=_DAY,
     )
     assert "Max charge power: 3000W" in message
     assert "peak limit" not in message
@@ -238,7 +240,7 @@ def test_predictive_daily_profile_reports_profile_as_basis():
 # ----------------------------------------------------------------------
 
 _DP_CFG = dict(unit="€/kWh", max_price_threshold=0.30, discharge_price_threshold=0.45,
-               max_contracted_power=5000, max_charge_capacity=3000)
+               max_contracted_power=5000, max_charge_capacity=3000, now=_DAY)
 
 
 def test_dynamic_none_schedule_not_needed():
@@ -508,7 +510,7 @@ def test_slot_start_notification():
     schedule = _schedule([0.10, 0.12, 0.11])
     first = schedule.selected_slots[0]
     title, message, _ = notifications.format_slot_start_notification(
-        first, schedule, unit="€/kWh", max_contracted_power=5000
+        first, schedule, unit="€/kWh", max_contracted_power=5000, now=_DAY
     )
     assert title == "Predictive Charging STARTED (0.1000 €/kWh)"
     assert "Charging at max 5000W" in message
@@ -518,7 +520,7 @@ def test_slot_start_notification():
 def test_slot_start_last_slot():
     schedule = _schedule([0.10])
     title, message, _ = notifications.format_slot_start_notification(
-        schedule.selected_slots[0], schedule, unit="€/kWh", max_contracted_power=5000
+        schedule.selected_slots[0], schedule, unit="€/kWh", max_contracted_power=5000, now=_DAY
     )
     assert "Last slot" in message and "No more slots today" in message
 
@@ -526,7 +528,7 @@ def test_slot_start_last_slot():
 def test_dp_pre_slot_reevaluation():
     slot = _slots([0.09])[0]
     title, message, _ = notifications.format_dp_pre_slot_reevaluation_notification(
-        slot, _decision(energy_deficit_kwh=1.5), unit="€/kWh"
+        slot, _decision(energy_deficit_kwh=1.5), unit="€/kWh", now=_DAY
     )
     assert "confirmed" in title
     assert "0.0900 €/kWh" in message
@@ -546,6 +548,7 @@ def test_dp_pre_slot_reevaluation_recognizes_remaining_fallback():
             energy_deficit_kwh=1.5,
         ),
         unit="€/kWh",
+        now=_DAY,
     )
 
     assert "Solar remaining today: 3.00 kWh" in message
@@ -638,8 +641,8 @@ def test_optimizer_charge_lists_blocks_without_the_old_planner_words():
                 "[flexible]", "[deficit]", "meet each deadline", "of charging needed"):
         assert old not in message
     # Back-to-back quarters at one price are one line, with their energy added up.
-    assert "18:00-18:45 → 0.1000 €/kWh, 1.40 kWh" in message
-    assert "18:45-19:00 → 0.1200 €/kWh, 0.30 kWh" in message
+    assert "18:00–18:45 → 0.1000 €/kWh, 1.40 kWh" in message
+    assert "18:45–19:00 → 0.1200 €/kWh, 0.30 kWh" in message
     assert message.count("→") == 2
 
 
@@ -663,11 +666,11 @@ def test_optimizer_plan_without_charge_still_names_its_orders():
         plan_orders=ORDERS, **_DP_CFG,
     )
     assert "NOT needed" in title
-    assert "Battery kept for later: 19:00-19:30" in message
-    assert "Selling to the grid: 20:00-20:30 at 2.5 kW" in message
-    assert "Solar surplus to export: 10:00-11:00" in message
+    assert "Battery kept for later: 19:00–19:30" in message
+    assert "Selling to the grid: 20:00–20:30 at 2.5 kW" in message
+    assert "Solar surplus to export: 10:00–11:00" in message
     assert "Solar charge delayed by the plan" in message
-    assert "Making room for the sun: 09:00-09:15 at 2.5 kW, 09:15-09:30 at 1.2 kW" in message
+    assert "Making room for the sun: 09:00–09:15 at 2.5 kW, 09:15–09:30 at 1.2 kW" in message
     # The old planner's words stay on its own path, and it has no orders.
     old = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False), None, plan_orders=ORDERS, **_DP_CFG)[1]
@@ -693,7 +696,7 @@ def test_optimizer_price_info_groups_the_cheap_hours_without_tags():
     schedule.purpose_for = lambda _s: "deficit"
     message = notifications.format_dynamic_pricing_notification(
         _decision(planner="optimizer"), schedule, **_DP_CFG)[1]
-    assert "18:00-19:00 → 0.1000 €/kWh" in message
+    assert "18:00–19:00 → 0.1000 €/kWh" in message
     assert message.count("→") == 1 and "[deficit]" not in message
 
 
@@ -771,8 +774,77 @@ def test_dynamic_formatter_returns_branch_category(decision, schedule, title_par
 def test_slot_start_and_pre_slot_formatters_are_execution():
     schedule = _schedule([0.10, 0.12])
     assert notifications.format_slot_start_notification(
-        schedule.selected_slots[0], schedule, unit="€/kWh", max_contracted_power=5000
+        schedule.selected_slots[0], schedule, unit="€/kWh", max_contracted_power=5000, now=_DAY
     )[2] == EXECUTION
     assert notifications.format_dp_pre_slot_reevaluation_notification(
-        _slots([0.09])[0], _decision(energy_deficit_kwh=1.5), unit="€/kWh"
+        _slots([0.09])[0], _decision(energy_deficit_kwh=1.5), unit="€/kWh", now=_DAY
     )[2] == EXECUTION
+
+
+# ----------------------------------------------------------------------
+# Dated spans (task 3.1)
+# ----------------------------------------------------------------------
+
+_TZ = ZoneInfo("Europe/Madrid")
+_TUE = datetime(2026, 11, 24, 22, 0, tzinfo=_TZ)
+
+
+def _q(day, hour, hours=1, price=0.1):
+    start = datetime(2026, 11, day, hour, 0, tzinfo=_TZ)
+    return PriceSlot(start=start, end=start + timedelta(hours=hours), price=price)
+
+
+def test_plan_crossing_midnight_lists_chronologically_with_dates():
+    slots = [_q(25, 5, price=0.12), _q(24, 23, price=0.10), _q(25, 0, price=0.11)]  # out of order; prices differ so they stay apart
+    schedule = _optimizer_schedule([0.1] * 3, [1.0, 1.0, 1.0])
+    schedule.selected_slots = slots
+    schedule.slot_energy_targets_kwh = dict(zip(slots, [1.0, 1.0, 1.0]))
+    schedule.slot_deadlines = {s: None for s in slots}
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=3.0, planned_grid_charge_kwh=3.0,
+                  planner="optimizer", deadline_required_kwh=3.0),
+        schedule, **{**_DP_CFG, "now": _TUE},
+    )
+    lines = [ln for ln in message.splitlines() if "→" in ln]
+    assert [ln.split(" → ")[0].strip("  •") for ln in lines] == [
+        "23:00–00:00", "Wed 25 · 00:00–01:00", "Wed 25 · 05:00–06:00",
+    ]
+
+
+def test_two_nights_of_hold_are_dated_not_duplicated():
+    orders = {"holds": frozenset({_q(25, 0, 8), _q(26, 0, 8)})}
+    # One slot of 8 h each: two distinct nights, not a repeated span.
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False, planner="optimizer"), None,
+        plan_orders=orders, **{**_DP_CFG, "now": _TUE},
+    )
+    assert "🔒 Battery kept for later: Wed 25 · 00:00–08:00, Thu 26 · 00:00–08:00" in message
+
+
+def test_sale_and_room_of_tomorrow_are_dated_today_is_not():
+    orders = {
+        "sales": {_q(24, 23, 1): 2.5, _q(25, 1, 1): 2.5},
+        "room": {_q(24, 22, 1): 1.2, _q(26, 9, 1): 1.2},
+    }
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False, planner="optimizer"), None,
+        plan_orders=orders, **{**_DP_CFG, "now": _TUE},
+    )
+    assert "Selling to the grid: 23:00–00:00 at 2.5 kW, Wed 25 · 01:00–02:00 at 2.5 kW" in message
+    assert "Making room for the sun: 22:00–23:00 at 1.2 kW, Thu 26 · 09:00–10:00 at 1.2 kW" in message
+
+
+def test_span_with_naive_datetimes():
+    now = datetime(2026, 11, 24, 22, 0)
+    assert notifications._span(datetime(2026, 11, 24, 23, 0), datetime(2026, 11, 25, 0, 0), now) == "23:00–00:00"
+    assert notifications._span(datetime(2026, 12, 3, 5, 0), datetime(2026, 12, 3, 6, 0), now) == "Thu 3 · 05:00–06:00"
+
+
+def test_span_converts_utc_slots_to_the_local_zone():
+    # 21:30-22:30 UTC is 22:30-23:30 in Madrid (CET): both ends local.
+    start = datetime(2026, 11, 24, 21, 30, tzinfo=timezone.utc)
+    end = datetime(2026, 11, 24, 22, 30, tzinfo=timezone.utc)
+    assert notifications._span(start, end, _TUE) == "22:30–23:30"
+    # 23:30 UTC is already tomorrow 00:30 locally: dated by its local start.
+    start = datetime(2026, 11, 24, 23, 30, tzinfo=timezone.utc)
+    assert notifications._span(start, start + timedelta(hours=1), _TUE) == "Wed 25 · 00:30–01:30"
