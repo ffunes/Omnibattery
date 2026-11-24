@@ -93,6 +93,7 @@ class NonResponsiveTracker:
     def _record_fail(
         self, coordinator, reason: str, detail: str,
         *, retry_attempted: bool = False, allow_wake_grace: bool = False,
+        comm: bool = False,
     ) -> str | None:
         """Increment the fail counter for a battery and exclude after threshold.
 
@@ -127,6 +128,10 @@ class NonResponsiveTracker:
                 "degraded_since": None,
             },
         )
+        if not comm and info.get("degraded_since") is not None:
+            # The battery took a command and delivered nothing: only a real
+            # delivery may end this spell, not a write that merely went through.
+            info["delivery_fault"] = True
         info["fail_count"] += 1
         info["reason"] = reason
         info["retry_attempted"] = retry_attempted
@@ -148,6 +153,7 @@ class NonResponsiveTracker:
             info["excluded_at"] = dt_util.utcnow()
             if info.get("degraded_since") is None:
                 info["degraded_since"] = info["excluded_at"]
+                info["delivery_fault"] = not comm
             _LOGGER.warning(
                 "[%s] Non-responsive after %d consecutive cycles (reason=%s, "
                 "retry_attempted=%s) — %s. Excluding from pool for %d minutes.",
@@ -188,8 +194,26 @@ class NonResponsiveTracker:
         """
         return self._record_fail(
             coordinator, reason, "Power write/feedback did not complete",
-            retry_attempted=retry_attempted,
+            retry_attempted=retry_attempted, comm=True,
         ) == "excluded"
+
+    def record_write_ok(self, coordinator) -> None:
+        """End a spell that only Modbus/comms failures started.
+
+        A write that goes through (or a battery already sitting at the commanded
+        set-points) proves the link works again. Without this, a spell opened by a
+        short write glitch could only end on a real delivery, so a battery left
+        idle or waiting its turn raised the Repair 30 minutes later (#945). A
+        spell that saw a non-delivery is left alone: a working link says nothing
+        about power actually flowing. Exclusion and fail count are untouched.
+        """
+        info = self.batteries.get(coordinator)
+        if (
+            info
+            and info.get("degraded_since") is not None
+            and not info.get("delivery_fault")
+        ):
+            info["degraded_since"] = None
 
     def set_wake_attempted(self, coordinator, value: bool) -> None:
         """Flag whether a wake nudge was sent at the moment of exclusion."""
@@ -215,6 +239,7 @@ class NonResponsiveTracker:
                 info["degraded_since"] = None
             if info.get("degraded_since") is None:
                 info["reason"] = None
+                info["delivery_fault"] = False
             info["fail_count"] = 0
             info["excluded_at"] = None
             info["retry_attempted"] = False

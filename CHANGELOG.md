@@ -16,6 +16,7 @@
 - **Discharge Reserve Status shows the holds still ahead again**: new `upcoming_holds` attribute with the start and end of each planned hold, as the daily chart draws them.
 - **High-Price Sale (*Surplus only*) sells part of the surplus** (#943): when tomorrow's sun cannot refill all of it, it sells the largest part the sun can refill instead of nothing. Thanks to @TvdBrink.
 - **Anker: the app's backup reserve is a discharge floor** (#939): Omnibattery stops discharging there instead of excluding the battery as not delivering. New **Backup Power SOC** diagnostic sensor. Thanks to @Rene-63.
+- **No false "not delivering" Repair after a short write glitch** (#945): a battery that is idle or waiting its turn no longer gets the Repair 30 minutes after a brief connection error once its writes go through again. Thanks to @Misterzeh.
 
 ## [2.0.0b1] - 2026-11-23
 
