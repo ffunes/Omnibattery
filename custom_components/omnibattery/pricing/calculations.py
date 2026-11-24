@@ -14,6 +14,8 @@ from ..infra.clock import local_now
 from . import PriceSlot
 from ..const import (
     CHARGE_EFFICIENCY,
+    CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
+    DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
     PRICE_INTEGRATION_CKW,
     PRICE_INTEGRATION_ENTSOE,
@@ -1201,6 +1203,90 @@ def select_cheapest_slots_by_duration(
         if accumulated_h >= hours_needed:
             break
     return sorted(selected, key=lambda item: item.start)
+
+
+# The learned safety margin: how far the day's first solar forecast fell
+# short of the sun that came, over the last days.
+SOLAR_MARGIN_HISTORY_DAYS = 14
+SOLAR_MARGIN_MIN_DAYS = 7
+SOLAR_MARGIN_PERCENTILE = 0.80
+SOLAR_MARGIN_MAX_PCT = 50.0
+SOLAR_MARGIN_MIN_FORECAST_KWH = 1.0
+SOLAR_MARGIN_MAX_CURTAILED_H = 0.5
+
+
+def solar_forecast_shortfalls(history) -> list[float]:
+    """The % each usable day of ``history`` fell short of its forecast (0 when
+    it did not), for its last ``SOLAR_MARGIN_HISTORY_DAYS`` records.
+
+    A day is left out when its forecast was not a whole-day one (``full``),
+    was too small to compare, no sun was measured at all (no telemetry is not
+    a 100 % miss) or the batteries were full for a while: curtailed sun is not
+    a forecast error.
+    """
+    out = []
+    for record in list(history or ())[-SOLAR_MARGIN_HISTORY_DAYS:]:
+        try:
+            forecast = float(record["forecast_kwh"])
+            actual = float(record["actual_kwh"])
+            curtailed = float(record.get("curtailed_h") or 0.0)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            continue
+        if (
+            not record.get("full")
+            or not (math.isfinite(forecast) and math.isfinite(actual))
+            or forecast < SOLAR_MARGIN_MIN_FORECAST_KWH
+            or actual <= 0.0
+            or curtailed >= SOLAR_MARGIN_MAX_CURTAILED_H
+        ):
+            continue
+        out.append(max(0.0, (forecast - actual) / forecast * 100.0))
+    return out
+
+
+def learned_solar_margin_pct(history) -> float | None:
+    """The safety margin the last days ask for: the 80th percentile of the
+    forecast's shortfall, a whole % up to 50. None with too few usable days.
+
+    A percentile, not the mean: the margin is there for the days the forecast
+    misses, and the mean leaves half of them uncovered.
+    """
+    shortfalls = sorted(solar_forecast_shortfalls(history))
+    if len(shortfalls) < SOLAR_MARGIN_MIN_DAYS:
+        return None
+    position = SOLAR_MARGIN_PERCENTILE * (len(shortfalls) - 1)
+    low = int(position)
+    high = min(low + 1, len(shortfalls) - 1)
+    value = shortfalls[low] + (shortfalls[high] - shortfalls[low]) * (position - low)
+    return float(round(min(SOLAR_MARGIN_MAX_PCT, value)))
+
+
+def refresh_solar_safety_margin(controller) -> None:
+    """Set the safety margin the controller plans with, and where it is from.
+
+    A stored value is used as given. Without one the learned margin applies,
+    and the default only while there are too few days to learn from.
+
+    ``_solar_headroom_margin_pct`` never follows the learned value: the room
+    kept before negative-price hours covers sun *above* the forecast, which a
+    forecast that falls short does not ask for.
+    """
+    data = getattr(getattr(controller, "config_entry", None), "data", None) or {}
+    stored = data.get(CONF_PREDICTIVE_SAFETY_MARGIN_PCT)
+    tracker = getattr(controller, "_consumption_tracker", None)
+    learned = learned_solar_margin_pct(getattr(tracker, "_solar_forecast_history", None))
+    controller._predictive_safety_margin_learned_pct = learned
+    if stored is not None:
+        value, source = stored, "configured"
+    elif learned is not None:
+        value, source = learned, "measured"
+    else:
+        value, source = DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT, "default"
+    controller._predictive_safety_margin_pct = value
+    controller._predictive_safety_margin_source = source
+    controller._solar_headroom_margin_pct = (
+        stored if stored is not None else DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT
+    )
 
 
 def solar_safety_margin_kwh(pct, solar_kwh) -> float:

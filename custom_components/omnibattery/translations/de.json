@@ -3005,6 +3005,10 @@
     "use_measured_round_trip_efficiency": {
       "name": "Gemessenen Round-Trip-Wirkungsgrad verwenden",
       "description": "Entfernt einen festen Round-Trip-Wirkungsgrad: der Planer nutzt wieder den an deinen Batterien gemessenen Wirkungsgrad (0,85, bis eine Batterie genug Historie hat). Der Wert-Editor des Dashboards ruft die Aktion über „Gemessenen verwenden“ auf."
+    },
+    "use_measured_solar_safety_margin": {
+      "name": "Gelernte Solar-Sicherheitsmarge verwenden",
+      "description": "Entfernt eine feste Sicherheitsmarge der Solarprognose: Der Planer nutzt wieder die aus den letzten 14 Tagen gelernte Marge (10 %, bis 7 Tage vorliegen). Der Werteditor des Dashboards ruft sie über „Gemessenen verwenden“ auf."
     }
   }
 }

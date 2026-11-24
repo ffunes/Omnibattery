@@ -3002,6 +3002,10 @@
     "use_measured_round_trip_efficiency": {
       "name": "Use measured round-trip efficiency",
       "description": "Drops a fixed Round-Trip Efficiency, so the planner uses the efficiency measured on your batteries again (0.85 until a battery has enough history). The dashboard's value editor calls it from “Use measured”."
+    },
+    "use_measured_solar_safety_margin": {
+      "name": "Use learned solar safety margin",
+      "description": "Drops a fixed Solar Forecast Safety Margin, so the planner uses the margin learned from the last 14 days again (10 % until there are 7 days). The dashboard's value editor calls it from “Use measured”."
     }
   }
 }

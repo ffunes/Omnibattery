@@ -3005,6 +3005,10 @@
     "use_measured_round_trip_efficiency": {
       "name": "Usar la eficiencia de ciclo completo medida",
       "description": "Elimina el valor fijo de la eficiencia de ciclo completo: el planificador vuelve a usar la eficiencia medida en tus baterías (0,85 hasta que una batería tenga suficiente historial). El editor de valor del panel la llama desde «Usar la medida»."
+    },
+    "use_measured_solar_safety_margin": {
+      "name": "Usar el margen de seguridad solar aprendido",
+      "description": "Elimina el valor fijo del margen de seguridad de la previsión solar: el planificador vuelve a usar el margen aprendido de los últimos 14 días (10 % hasta tener 7 días). El editor de valor del panel la llama desde «Usar la medida»."
     }
   }
 }

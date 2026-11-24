@@ -33,6 +33,7 @@ from homeassistant.util import dt as dt_util
 from ..infra.clock import local_now
 from ..const import DEFAULT_BASE_CONSUMPTION_KWH, DOMAIN, MISSING_DAY_FLEET_SHARE
 from ..infra.entity_naming import is_omnibattery_solar_entity
+from ..pricing.calculations import SOLAR_MARGIN_HISTORY_DAYS, refresh_solar_safety_margin
 from ..drivers.base import (
     AC_PORT_FIRST,
     can_take_setpoint,
@@ -196,6 +197,11 @@ class ConsumptionTracker:
         self._accumulator_store: Store = Store(
             hass, 1, f"{DOMAIN}.{config_entry.entry_id}.accumulators"
         )
+        # Closed days for the learned solar safety margin (see
+        # pricing.calculations.learned_solar_margin_pct), and today's share.
+        self._solar_forecast_history: list[dict] = []
+        self._daily_solar_curtailed_h = 0.0
+        self._daily_solar_forecast_full = False
         self._daily_energy_store: Store = Store(
             hass, 1, f"{DOMAIN}.{config_entry.entry_id}.daily_energy"
         )
@@ -803,6 +809,9 @@ class ConsumptionTracker:
 
         today = local_now().date()
         ctrl = self._controller
+        # Before yesterday's forecast is overwritten: the midnight evaluation
+        # can run ahead of the daily reset.
+        self._close_solar_forecast_day()
         if (
             ctrl._daily_solar_forecast_initial_date == today
             and ctrl._daily_solar_forecast_initial_kwh is not None
@@ -811,8 +820,44 @@ class ConsumptionTracker:
 
         ctrl._daily_solar_forecast_initial_date = today
         ctrl._daily_solar_forecast_initial_kwh = round(value, 4)
+        # A whole-day figure only while nothing was produced yet: a first
+        # capture later in the day is what is left of it.
+        produced = ctrl._daily_solar_energy_kwh if ctrl._daily_solar_energy_date == today else 0.0
+        self._daily_solar_forecast_full = produced < 0.05
         self.save_daily_energy()
         return True
+
+    def _close_solar_forecast_day(self) -> None:
+        """Keep a finished day's forecast and sun for the learned margin.
+
+        Called by both the forecast capture and the daily reset, whichever
+        comes first after midnight; the day is kept once, and only when its
+        forecast and its sun are of the same day.
+        """
+        ctrl = self._controller
+        day = getattr(ctrl, "_daily_solar_energy_date", None)
+        forecast = getattr(ctrl, "_daily_solar_forecast_initial_kwh", None)
+        if (
+            day is None
+            or day == local_now().date()
+            or forecast is None
+            or getattr(ctrl, "_daily_solar_forecast_initial_date", None) != day
+        ):
+            return
+        history = getattr(self, "_solar_forecast_history", None)
+        if history is None:
+            history = self._solar_forecast_history = []
+        if any(record.get("date") == day.isoformat() for record in history):
+            return
+        history.append({
+            "date": day.isoformat(),
+            "forecast_kwh": round(float(forecast), 4),
+            "actual_kwh": round(float(ctrl._daily_solar_energy_kwh), 4),
+            "curtailed_h": round(float(getattr(self, "_daily_solar_curtailed_h", 0.0)), 3),
+            "full": bool(getattr(self, "_daily_solar_forecast_full", False)),
+        })
+        del history[:-SOLAR_MARGIN_HISTORY_DAYS]
+        refresh_solar_safety_margin(ctrl)
 
     async def async_save_daily_energy(self) -> None:
         """Await-able persist of the daily energy totals (used on unload)."""
@@ -832,6 +877,15 @@ class ConsumptionTracker:
                     if ctrl._daily_solar_forecast_initial_date is not None
                     else None
                 ),
+                "solar_forecast_initial_full": bool(
+                    getattr(self, "_daily_solar_forecast_full", False)
+                ),
+                "solar_curtailed_h": round(
+                    float(getattr(self, "_daily_solar_curtailed_h", 0.0)), 3
+                ),
+                "solar_forecast_history": list(
+                    getattr(self, "_solar_forecast_history", None) or ()
+                ),
             })
         except Exception as e:
             _LOGGER.error("Failed to save daily energy: %s", e)
@@ -841,9 +895,20 @@ class ConsumptionTracker:
         ctrl = self._controller
         try:
             data = await self._daily_energy_store.async_load()
-            if not data or data.get("date") != local_now().date().isoformat():
+            if not data:
+                return
+            # The closed days outlive the day they were saved on. A stale
+            # day's own totals are not added to them: they may be partial.
+            self._solar_forecast_history = [
+                record
+                for record in data.get("solar_forecast_history") or ()
+                if isinstance(record, dict)
+            ][-SOLAR_MARGIN_HISTORY_DAYS:]
+            refresh_solar_safety_margin(ctrl)
+            if data.get("date") != local_now().date().isoformat():
                 return
             today = local_now().date()
+            self._daily_solar_curtailed_h = float(data.get("solar_curtailed_h") or 0.0)
             ctrl._daily_solar_energy_kwh = float(data.get("solar_kwh", 0.0))
             ctrl._daily_solar_energy_date = today
             ctrl._daily_home_energy_kwh = float(data.get("home_kwh", 0.0))
@@ -861,6 +926,9 @@ class ConsumptionTracker:
                 if value is not None and math.isfinite(value) and value >= 0.0:
                     ctrl._daily_solar_forecast_initial_kwh = value
                     ctrl._daily_solar_forecast_initial_date = today
+                    self._daily_solar_forecast_full = bool(
+                        data.get("solar_forecast_initial_full")
+                    )
             _LOGGER.info(
                 "Restored daily energy totals from storage: solar=%.2f kWh, home=%.2f kWh, "
                 "grid import=%.2f kWh, grid export=%.2f kWh",
@@ -879,12 +947,14 @@ class ConsumptionTracker:
         ctrl = self._controller
         today = local_now().date()
         if ctrl._daily_solar_energy_date != today:
+            self._close_solar_forecast_day()
             if ctrl._daily_solar_energy_date is not None:
                 _LOGGER.info(
                     "Daily solar energy reset (was %.2f kWh for %s)",
                     ctrl._daily_solar_energy_kwh, ctrl._daily_solar_energy_date,
                 )
             ctrl._daily_solar_energy_kwh = 0.0
+            self._daily_solar_curtailed_h = 0.0
             self._daily_solar_last_time = None
             self._daily_solar_last_power_kw = None
             ctrl._daily_solar_energy_date = today
@@ -914,6 +984,7 @@ class ConsumptionTracker:
         if ctrl._daily_solar_forecast_initial_date != today:
             ctrl._daily_solar_forecast_initial_kwh = None
             ctrl._daily_solar_forecast_initial_date = today
+            self._daily_solar_forecast_full = False
 
     def _read_power_kw(self, entity_id: str) -> Optional[float]:
         """Read a power entity and return its value in kW, or None if unusable."""
@@ -1104,6 +1175,13 @@ class ConsumptionTracker:
             if dt_hours > 0:
                 avg_kw = (self._daily_solar_last_power_kw + power_kw) / 2.0
                 self._controller._daily_solar_energy_kwh += avg_kw * dt_hours
+                # Time the solar profile saw the sun held back (batteries full,
+                # no export): such a day says nothing about the forecast.
+                # ponytail: only known while the solar profile is on.
+                if getattr(self._solar_profile, "_runtime_curtailment_active", False):
+                    self._daily_solar_curtailed_h = (
+                        getattr(self, "_daily_solar_curtailed_h", 0.0) + dt_hours
+                    )
         self._daily_solar_last_time = now
         self._daily_solar_last_power_kw = power_kw
 

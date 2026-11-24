@@ -11,3 +11,4 @@ exclude_consumption_days:
       selector:
         date:
 use_measured_round_trip_efficiency:
+use_measured_solar_safety_margin:
