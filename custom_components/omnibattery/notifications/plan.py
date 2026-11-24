@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import math
+import re
 
 from .gateway import EXECUTION, PLAN_CHARGE, PLAN_INFO
 from .texts import day_name, translate
@@ -449,7 +450,40 @@ def _span(start, end, now, lang: str = "en") -> str:
     return f"{_day_prefix(start, now, lang)}{start.strftime('%H:%M')}–{end.strftime('%H:%M')}"
 
 
-def _plan_order_lines(orders, now, lang: str = "en") -> str:
+def _quarter_rows(orders, kind):
+    """The plan's ``(start, end, price, kWh)`` quarters of one kind."""
+    return [
+        (a, b, price, kwh)
+        for a, b, k, price, kwh in (orders or {}).get("quarters") or ()
+        if k == kind
+    ]
+
+
+def _charge_span(slot, charges):
+    """The part of ``slot`` the plan charges in: its first charge quarter's
+    start to its last one's end; the whole slot without quarter data."""
+    inside = [(a, b) for a, b, _p, _k in charges if slot.start <= a < slot.end]
+    if not inside:
+        return slot.start, slot.end
+    return min(a for a, _b in inside), max(b for _a, b in inside)
+
+
+def _table(rows, now, lang, unit) -> list:
+    """``(start, end, price, kWh|None)`` rows as a markdown table, lines."""
+    return [translate(lang, "plan.table.header"), "|---|---|---|"] + [
+        translate(
+            lang,
+            "plan.table.row",
+            span=_span(a, b, now, lang),
+            price=price,
+            unit=unit,
+            energy="—" if kwh is None else translate(lang, "plan.table.kwh", kwh=kwh),
+        )
+        for a, b, price, kwh in _blocks(rows)
+    ]
+
+
+def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> str:
     """The optimizer's orders besides the grid charge, as executed (published)."""
     if not orders:
         return ""
@@ -470,20 +504,24 @@ def _plan_order_lines(orders, now, lang: str = "en") -> str:
             lines.append(translate(lang, f"plan.orders.{key}_many"))
             lines.extend(translate(lang, "plan.orders.bullet", item=item) for item in items)
 
-    for key in ("holds", "exports"):
-        slots = orders.get(key) or ()
-        if slots:
-            spans = _blocks((s.start, s.end, None, None) for s in slots)
-            if key == "holds":
-                _order("holds", spans)
-            else:
-                lines.append(
-                    translate(
-                        lang,
-                        "plan.orders.exports",
-                        items=", ".join(_span(a, b, now, lang) for a, b, _v, _k in spans),
-                    )
-                )
+    # The holds as a table, by quarter when the plan gave them (a slot that
+    # charges and then holds is held only after its charge).
+    holds = _quarter_rows(orders, "hold") if orders.get("quarters") else [
+        (s.start, s.end, s.price, None) for s in orders.get("holds") or ()
+    ]
+    if holds:
+        # Blank lines around it, or markdown does not render it as a table.
+        lines += [translate(lang, "plan.orders.holds"), ""] + _table(holds, now, lang, unit) + [""]
+    exports = orders.get("exports") or ()
+    if exports:
+        spans = _blocks((s.start, s.end, None, None) for s in exports)
+        lines.append(
+            translate(
+                lang,
+                "plan.orders.exports",
+                items=", ".join(_span(a, b, now, lang) for a, b, _v, _k in spans),
+            )
+        )
     sales = orders.get("sales") or {}
     if sales:
         spans = _blocks((s.start, s.end, round(float(kw), 1), None) for s, kw in sales.items())
@@ -500,6 +538,29 @@ def _plan_order_lines(orders, now, lang: str = "en") -> str:
         )
     if orders.get("solar_delay"):
         lines.append(translate(lang, "plan.orders.solar_delay"))
+    # Each run with the battery empty: the house buys from the grid.
+    runs = []
+    for a, b, price, kwh in sorted(_quarter_rows(orders, "empty")):
+        if runs and runs[-1][1] == a:
+            runs[-1] = (runs[-1][0], b, runs[-1][2] + price * kwh, runs[-1][3] + kwh)
+        else:
+            runs.append((a, b, price * kwh, kwh))
+    items = [
+        translate(
+            lang,
+            "plan.orders.empty_item",
+            span=_span(a, b, now, lang),
+            kwh=kwh,
+            price=cost / kwh,
+            unit=unit,
+        )
+        for a, b, cost, kwh in runs
+    ]
+    if len(items) == 1:
+        lines.append(translate(lang, "plan.orders.empty_one", item=items[0]))
+    elif items:
+        lines.append(translate(lang, "plan.orders.empty_many"))
+        lines.extend(translate(lang, "plan.orders.bullet", item=item) for item in items)
     return "".join(line + "\n" for line in lines)
 
 
@@ -644,7 +705,7 @@ def format_dynamic_pricing_notification(
     blocks and the plan's other orders (``plan_orders``: the published holds,
     exports, sales and solar delay)."""
     optimizer = decision_data.get("planner") == "optimizer"
-    orders_lines = _plan_order_lines(plan_orders, now, lang) if optimizer else ""
+    orders_lines = _plan_order_lines(plan_orders, now, lang, unit) if optimizer else ""
     avg_soc = decision_data.get("avg_soc", 0)
     usable_energy = decision_data.get("usable_energy_kwh", 0)
     solar_forecast = decision_data.get("solar_forecast_kwh")
@@ -805,15 +866,20 @@ def format_dynamic_pricing_notification(
         n_slots = len(schedule.selected_slots)
         schedule_type = getattr(schedule, "schedule_type", "deficit")
         category = PLAN_CHARGE
+        charges = _quarter_rows(plan_orders, "charge") if optimizer else []
+        spans = {s: _charge_span(s, charges) for s in schedule.selected_slots}
+        if charges:
+            # The time the plan really charges, not the slots it charges in.
+            hours_needed = sum((b - a).total_seconds() for a, b in spans.values()) / 3600.0
         slots_label = (
             translate(lang, "plan.pricing.slots", count=n_slots)
-            if n_slots != int(hours_needed)
+            if n_slots != int(hours_needed) and not charges
             else ""
         )
         hours_label = (
-            translate(lang, "plan.pricing.hours_slots", hours=hours_needed, slots=slots_label)
+            translate(lang, "plan.pricing.hours_slots", hours=round(hours_needed, 2), slots=slots_label)
             if slots_label
-            else translate(lang, "plan.pricing.hours", hours=hours_needed)
+            else translate(lang, "plan.pricing.hours", hours=round(hours_needed, 2))
         )
         title = translate(lang, "plan.pricing.selected.title", hours=hours_label)
 
@@ -868,24 +934,13 @@ def format_dynamic_pricing_notification(
             # The optimizer books quarters: one line per run at one price.
             targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
             # A blank line before the table so markdown renders it as one.
-            slot_lines = "\n" + "\n".join(
-                [translate(lang, "plan.table.header"), "|---|---|---|"]
-                + [
-                    translate(
-                        lang,
-                        "plan.table.row",
-                        span=_span(a, b, now, lang),
-                        price=price,
-                        unit=unit,
-                        energy="—" if kwh is None else translate(lang, "plan.table.kwh", kwh=kwh),
-                    )
-                    for a, b, price, kwh in _blocks(
-                        (s.start, s.end, s.price,
-                         None if s not in targets else float(targets[s]))
-                        for s in schedule.selected_slots
-                    )
-                ]
-            )
+            slot_lines = "\n" + "\n".join(_table(
+                [
+                    (*spans[s], s.price, None if s not in targets else float(targets[s]))
+                    for s in schedule.selected_slots
+                ],
+                now, lang, unit,
+            ))
         if schedule_type == "negative_price":
             title = translate(lang, "plan.pricing.negative.title", hours=hours_label)
             opportunity_energy = float(
@@ -1013,7 +1068,7 @@ def format_dynamic_pricing_notification(
                         if deferred > 0.005
                         else ""
                     )
-                    + f"{orders_lines}\n"
+                    + "\n"
                 )
             savings_line = ""
             # Only the energy the cost pays for: the plan's deferred (tomorrow)
@@ -1054,10 +1109,13 @@ def format_dynamic_pricing_notification(
                     cost_unit=cost_unit,
                 )
                 + (f"\n{savings_line.rstrip()}" if savings_line else "")
+                # The holds and the empty battery come after the charge they follow.
+                + (f"\n\n{orders_lines.rstrip()}" if orders_lines else "")
                 + _footer(charge_power=True, discharge=True)
             )
 
-    return (title, message, category)
+    # A table closes with a blank line; the text after it may add its own.
+    return (title, re.sub(r"\n{3,}", "\n\n", message), category)
 
 
 def format_slot_start_notification(

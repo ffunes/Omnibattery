@@ -88,8 +88,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds_one": "🔒 Batterij in reserve voor later: {item}",
-    "plan.orders.holds_many": "🔒 Batterij in reserve voor later:",
+    "plan.orders.holds": "🔒 Batterij in reserve voor later (het huis koopt van het net):",
+    "plan.orders.empty_one": "🪫 Batterij leeg: {item}",
+    "plan.orders.empty_many": "🪫 Batterij leeg:",
+    "plan.orders.empty_item": "{span}, {kwh:.2f} kWh van het net tegen gemiddeld {price:.4f} {unit}",
     "plan.orders.exports": "☀️ Zonne-overschot om terug te leveren: {items}",
     "plan.orders.sales_one": "💶 Verkoop aan het net: {item}",
     "plan.orders.sales_many": "💶 Verkoop aan het net:",
@@ -189,8 +191,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "{margin:.4f} {unit} meer kosten."
     ),
     "plan.pricing.warning": "⚠️ {headline}",
-    "plan.pricing.hours": "{hours:.1f}u",
-    "plan.pricing.hours_slots": "{hours:.1f}u ({slots})",
+    "plan.pricing.hours": "{hours:g}u",
+    "plan.pricing.hours_slots": "{hours:g}u ({slots})",
     "plan.pricing.slots": {"one": "{count} slot", "other": "{count} slots"},
     "plan.pricing.selected.title": "Voorspellend laden: prijsoptimalisatie - {hours} geselecteerd",
     "plan.pricing.floor.title": (

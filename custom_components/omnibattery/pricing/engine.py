@@ -3853,6 +3853,7 @@ class PricingManager:
         controller = self._controller
         controller._dp_plan_holds = None
         controller._dp_plan_house_delivery = None
+        controller._dp_plan_quarters = None
         controller._dp_plan_weekly_holds = None
         controller._dp_weekly_full_at = None
         controller._dp_plan_exports = None
@@ -3885,6 +3886,11 @@ class PricingManager:
         )
         self._controller._dp_plan_house_delivery = (
             tuple(getattr(plan, "house_delivery", ()) or ())
+            if decision_data.get("planner") == "optimizer"
+            else None
+        )
+        self._controller._dp_plan_quarters = (
+            tuple(getattr(plan, "quarter_actions", ()) or ())
             if decision_data.get("planner") == "optimizer"
             else None
         )
@@ -6077,6 +6083,7 @@ class PricingManager:
             "exports": getattr(controller, "_dp_plan_exports", None),
             "sales": getattr(controller, "_dp_plan_sales", None),
             "solar_delay": bool(getattr(controller, "_dp_plan_solar_delay", False)),
+            "quarters": getattr(controller, "_dp_plan_quarters", None) or (),
             "room": {
                 slot: kw for slot, (kw, _level) in getattr(self._plan_room(), "orders", {}).items()
             },
