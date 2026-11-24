@@ -35,7 +35,6 @@ from .const import (
     CONF_OFFGRID_MODE_ENABLED,
     CONF_PRIMARY_FEEDFORWARD_ENABLED,
     CONF_PREDICTIVE_CHARGING_OVERRIDDEN,
-    CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_PRICE_DISCHARGE_CONTROL,
     CONF_SMART_PREDISCHARGE_ENABLED,
@@ -62,6 +61,17 @@ from .infra.entity_naming import (
     excluded_device_name,
     system_entity_id,
     SYSTEM_UNIQUE_ID_PREFIX,
+)
+from .notifications import (
+    EXECUTION,
+    MODES,
+    PLAN_CHARGE,
+    PLAN_INFO,
+    async_dismiss,
+    async_notify,
+    async_set_category_enabled,
+    category_enabled,
+    text,
 )
 from .pricing.engine import DynamicPricingEvaluationHorizon
 
@@ -145,9 +155,15 @@ async def async_setup_entry(
     # leaving orphaned settings with no toggle (#68).
     if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
         entities.append(PredictiveChargingSwitch(hass, entry, controller))
-        # Mute toggle for the evaluation notifications (#141); lives next to the
-        # master switch so it exists on every install that can produce them.
-        entities.append(PredictiveChargingNotificationsSwitch(hass, entry, controller))
+        # Mute toggles for the three predictive-charging notification
+        # categories (#141); next to the master switch so they exist on every
+        # install that can produce them.
+        for category in (PLAN_CHARGE, PLAN_INFO, EXECUTION):
+            entities.append(NotificationCategorySwitch(hass, entry, controller, category))
+
+    # The modes category (manual mode, predictive off, ...) exists without it.
+    if controller:
+        entities.append(NotificationCategorySwitch(hass, entry, controller, MODES))
 
     # Add capacity protection switch (system-level, when configured, regardless of enabled state)
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
@@ -639,10 +655,8 @@ class PredictiveChargingSwitch(SwitchEntity):
         new_data[CONF_ENABLE_PREDICTIVE_CHARGING] = True
         new_data[CONF_PREDICTIVE_CHARGING_OVERRIDDEN] = False
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-        await self.hass.services.async_call(
-            "persistent_notification",
-            "dismiss",
-            {"notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_override"},
+        await async_dismiss(
+            self.hass, f"{NOTIFICATION_ID_PREFIX}predictive_charging_override"
         )
         _LOGGER.info("Predictive charging enabled")
         self.async_write_ha_state()
@@ -668,17 +682,15 @@ class PredictiveChargingSwitch(SwitchEntity):
         new_data[CONF_PREDICTIVE_CHARGING_OVERRIDDEN] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         if was_grid_charging_active:
-            message = "Predictive grid charging has been paused. Turn the switch back on to resume."
+            message = text(self.hass, "switch.override.paused")
         else:
-            message = "Predictive charging is now disabled. It will not activate when the time slot becomes active."
-        await self.hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": "Predictive Charging Disabled",
-                "message": message,
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}predictive_charging_override",
-            },
+            message = text(self.hass, "switch.override.disabled")
+        await async_notify(
+            self.hass,
+            MODES,
+            f"{NOTIFICATION_ID_PREFIX}predictive_charging_override",
+            text(self.hass, "switch.override.title"),
+            message,
         )
         _LOGGER.info("Predictive charging disabled (overridden)")
         self.async_write_ha_state()
@@ -709,58 +721,42 @@ class PredictiveChargingSwitch(SwitchEntity):
         }
 
 
-# Notification IDs created by the pricing engine for predictive-charging
-# evaluations. The "disabled" confirmation (``predictive_charging_override``) is
-# direct feedback to a user action and is deliberately not muted.
-_PREDICTIVE_EVALUATION_NOTIFICATION_IDS = (
-    f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation",
-    f"{NOTIFICATION_ID_PREFIX}predictive_charging_evening_reeval",
-)
+_NOTIFICATION_SWITCHES = {
+    PLAN_CHARGE: ("predictive_charging_notifications", "mdi:bell-ring-outline"),
+    PLAN_INFO: ("notify_plan_info", "mdi:information-outline"),
+    EXECUTION: ("notify_execution", "mdi:play-circle-outline"),
+    MODES: ("notify_modes", "mdi:bell-cog-outline"),
+}
 
 
-class PredictiveChargingNotificationsSwitch(SwitchEntity):
-    """Mute or unmute predictive-charging evaluation notifications (#141).
+class NotificationCategorySwitch(SwitchEntity):
+    """Mute or unmute one notification category (#141).
 
-    ON (default) = the daily/dynamic-pricing evaluation, price-slot start,
-    pre-slot and evening re-evaluation results are posted as persistent
-    notifications, as before.
-    OFF = those notifications are not created. Evaluations, schedules and
-    diagnostics run unchanged; battery alarm, cell-balance and manual-mode
-    notifications are unaffected. Turning it off also dismisses any
-    predictive-charging evaluation notification that is currently shown.
+    One switch per category; alarms and failures have no switch.
     """
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller, category: str) -> None:
         self.hass = hass
         self.entry = entry
         self.controller = controller
+        self._category = category
+        key, icon = _NOTIFICATION_SWITCHES[category]
         self._attr_has_entity_name = True
-        self._attr_translation_key = "predictive_charging_notifications"
-        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}predictive_charging_notifications"
-        self.entity_id = system_entity_id("switch", "predictive_charging_notifications")
-        self._attr_icon = "mdi:bell-ring-outline"
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+        self.entity_id = system_entity_id("switch", key)
+        self._attr_icon = icon
         self._attr_should_poll = False
 
     @property
     def is_on(self) -> bool:
-        return bool(
-            getattr(self.controller, "predictive_charging_notifications_enabled", True)
-        )
+        return category_enabled(self.hass, self._category)
 
     async def _set_enabled(self, enabled: bool) -> None:
-        self.controller.predictive_charging_notifications_enabled = enabled
-        data = dict(self.entry.data)
-        data[CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED] = enabled
-        self.hass.config_entries.async_update_entry(self.entry, data=data)
-        if not enabled:
-            for notification_id in _PREDICTIVE_EVALUATION_NOTIFICATION_IDS:
-                await self.hass.services.async_call(
-                    "persistent_notification",
-                    "dismiss",
-                    {"notification_id": notification_id},
-                )
+        await async_set_category_enabled(self.hass, self.entry, self._category, enabled)
         _LOGGER.info(
-            "Predictive charging notifications %s",
+            "Notifications %s %s",
+            self._category,
             "enabled" if enabled else "muted",
         )
         self.async_write_ha_state()
@@ -1652,23 +1648,12 @@ class ManualModeSwitch(SwitchEntity):
             except Exception as e:
                 _LOGGER.error("Failed to set %s to 0W: %s", coordinator.name, e)
 
-        await self.hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": "Manual Mode Active",
-                "message": (
-                    "Automatic charge/discharge control is paused. "
-                    "All batteries have been set to idle (0W). "
-                    "You can now manually control each battery using the "
-                    "'Set Forcible Charge/Discharge Power' controls, or — "
-                    "for batteries whose own integration offers more "
-                    "operating modes — select another mode there without "
-                    "OmniBattery reverting it.\n\n"
-                    "Turn off Manual Mode to resume automatic control."
-                ),
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}manual_mode_active",
-            },
+        await async_notify(
+            self.hass,
+            MODES,
+            f"{NOTIFICATION_ID_PREFIX}manual_mode_active",
+            text(self.hass, "switch.manual.title"),
+            text(self.hass, "switch.manual.message"),
         )
         self.async_write_ha_state()
 
@@ -1695,10 +1680,8 @@ class ManualModeSwitch(SwitchEntity):
 
         _LOGGER.info("Manual Mode DISABLED - resuming automatic control")
 
-        await self.hass.services.async_call(
-            "persistent_notification",
-            "dismiss",
-            {"notification_id": f"{NOTIFICATION_ID_PREFIX}manual_mode_active"},
+        await async_dismiss(
+            self.hass, f"{NOTIFICATION_ID_PREFIX}manual_mode_active"
         )
         self.async_write_ha_state()
 

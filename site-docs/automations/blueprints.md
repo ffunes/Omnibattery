@@ -112,6 +112,7 @@ The grid target is the total import, not the charge power: the battery charges w
 - **Purpose:** forwards new or updated Home Assistant persistent notifications to a selected Telegram notify entity.
 - **Requires:** a configured `telegram_bot` notify entity.
 - **Controls:** nothing in Omnibattery; it only reads notifications and sends Telegram messages.
+- **Note:** the message arrives in the language of Home Assistant, and its markdown is forwarded as plain text (a table arrives as text with bars). Notification IDs did not change, so existing setups keep working.
 - **Compatible with:** any persistent notification, not only Omnibattery's; an optional ID-prefix filter narrows this. The default `marstek_venus_` preserves compatibility with notifications created by the earlier integration — clear the filter to forward every persistent notification, or replace it with another prefix.
 - **Does not do:** resend existing notifications when Home Assistant restarts.
 
@@ -129,7 +130,7 @@ It sends the notification title, ID, and message with HTML-safe escaping.
 
 The notification may be visible briefly before Home Assistant executes the automation. Disable the automation at any time to receive predictive-charging notifications again.
 
-To stop these notifications at the source instead, turn off the **Predictive Charging Notifications** switch; see [Predictive charging](../configuration/predictive-charging/index.md).
+To stop these notifications at the source instead, turn off the category switches (**Notifications: Charge Plan**, **Plan Info**, **Execution**, **Modes**); see [Predictive charging](../configuration/predictive-charging/index.md).
 
 ## Solar forecast reserve discharge
 

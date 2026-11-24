@@ -20,7 +20,6 @@ from datetime import date, datetime, timedelta
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components import persistent_notification
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -35,6 +34,7 @@ from ..const import (
     WEEKDAY_MAP,
 )
 from ..drivers.base import InverterStatus, can_take_setpoint
+from ..notifications import MODES, dismiss, notify, text
 from ..solar_forecast import read_remaining_solar_kwh
 
 if TYPE_CHECKING:
@@ -514,21 +514,21 @@ class WeeklyFullChargeManager:
         if sufficient and notified:
             # A late or revised forecast now covers the gap: the warning is wrong.
             # The flag stays set, so a forecast hovering at the edge warns once a run.
-            persistent_notification.async_dismiss(ctrl.hass, _OUTLOOK_NOTIFICATION_ID)
+            dismiss(ctrl.hass, _OUTLOOK_NOTIFICATION_ID)
         if sufficient or notified or ctrl.predictive_charging_enabled:
             return
         self._outlook_notified = True
-        persistent_notification.async_create(
+        notify(
             ctrl.hass,
-            (
-                f"Today's remaining solar ({net_kwh:.1f} kWh after home consumption) "
-                f"will not cover the {needed_kwh:.1f} kWh still needed to reach 100%. "
-                "With Predictive Charging off, the weekly full charge does not charge "
-                "from the grid. Enable Predictive Charging, or let an automation act on "
-                "the solar_sufficient attribute of the Weekly Full Charge sensor."
+            MODES,
+            _OUTLOOK_NOTIFICATION_ID,
+            text(ctrl.hass, "weekly.title"),
+            text(
+                ctrl.hass,
+                "weekly.not_enough_solar",
+                net=net_kwh,
+                needed=needed_kwh,
             ),
-            title="Weekly Full Charge: not enough solar",
-            notification_id=_OUTLOOK_NOTIFICATION_ID,
         )
 
     def _clear_solar_outlook(self) -> None:
@@ -538,7 +538,7 @@ class WeeklyFullChargeManager:
         self._outlook_forecast_kwh = None
         if getattr(self, "_outlook_notified", False):
             self._outlook_notified = False
-            persistent_notification.async_dismiss(self._controller.hass, _OUTLOOK_NOTIFICATION_ID)
+            dismiss(self._controller.hass, _OUTLOOK_NOTIFICATION_ID)
 
     async def load_state(self) -> None:
         """Load persisted weekly charge state from storage.

@@ -4,8 +4,9 @@ The driver reports why control is paused, and a few one-off setup problems,
 through this adapter. Each topic has one notification per battery: raising it
 again replaces the text, and it is dismissed once the condition clears.
 
-Texts follow Home Assistant's language for English and Dutch (many Indevolt
-owners are Dutch); every other language falls back to English.
+Texts live in the shared notification catalogue (notifications/texts, keys
+"battery_control.*") and follow Home Assistant's language, with English as the
+fallback. They do not name the brand: the user knows the battery by its name.
 
 One topic is a Repairs issue instead: setting writes that stopped at the yearly
 allowance (see drivers/indevolt_settings.py). Only the user can turn them back
@@ -16,13 +17,14 @@ from __future__ import annotations
 
 import logging
 
-from homeassistant.components import persistent_notification
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 
 from ..const import DOMAIN, NOTIFICATION_ID_PREFIX
+from ..notifications import HEALTH, dismiss, notify
+from ..notifications.texts import language, translate
 from .indevolt_settings import FLASH_WRITES_ISSUE
 
 _LOGGER = logging.getLogger(__name__)
@@ -39,120 +41,6 @@ _SETTING_LABELS = {
     "max_discharge_power": "max_discharge_power",
 }
 
-_TEXTS = {
-    "en": {
-        "paused_title": "Indevolt control paused: {name}",
-        "realtime_mode_required": (
-            "Omnibattery paused control of **{name}** because the battery is not in "
-            "**Realtime** mode.\n\n"
-            "Open the Indevolt app and set the working mode to Realtime. Omnibattery "
-            "then resumes control automatically."
-        ),
-        "handover_failed": (
-            "Omnibattery could not take control of **{name}**: the battery did not "
-            "confirm standby after a stop command. It keeps monitoring and retries "
-            "automatically."
-        ),
-        "unknown_model": (
-            "**{name}** reports model code `{model}`, which Omnibattery does not "
-            "support yet. It is monitored, but not controlled. Please report the model "
-            "code so it can be added."
-        ),
-        "firmware_title": "Indevolt firmware update recommended: {name}",
-        "firmware": (
-            "**{name}** runs firmware `{firmware}`. Indevolt recommends at least "
-            "`{minimum}` for the local API. Monitoring works; update the battery in "
-            "the Indevolt app if control misbehaves."
-        ),
-        "setting_title": "Indevolt setting not applied: {name}",
-        "setting_failed": (
-            "Omnibattery could not set the {setting} of **{name}** to {value}. The "
-            "battery keeps its current value, and Omnibattery shows and uses that "
-            "value again. Try again later, or change it in the Indevolt app."
-        ),
-        "min_soc": "minimum SOC",
-        "max_charge_power": "maximum charge power",
-        "max_discharge_power": "maximum discharge power",
-        "throttled_title": "Indevolt battery slow: {name}",
-        "throttled": (
-            "**{name}** answers slowly or not at all, so Omnibattery now waits "
-            "{interval:.0f}s between requests. Something else may be polling the battery "
-            "too, such as another Home Assistant integration, or its network connection "
-            "may be weak."
-        ),
-        "official": (
-            "\n\nThe official Indevolt integration is also polling this battery. "
-            "Omnibattery is meant to replace it: disable the Indevolt integration for "
-            "this device to free the battery's request budget. Its controls (energy "
-            "mode, discharge limit, feed-in limit) also write to the battery's flash "
-            "memory whenever they are used."
-        ),
-        "slower": (
-            "\n\nIf this keeps happening, lower the request speed of **{name}** one step, "
-            "to **{speed}**: in Settings → Devices & services, choose Reconfigure on "
-            "Omnibattery."
-        ),
-        "speed_fast": "Fast (2s)",
-        "speed_normal": "Normal (3s)",
-        "speed_conservative": "Conservative (5s)",
-    },
-    "nl": {
-        "paused_title": "Indevolt-aansturing gepauzeerd: {name}",
-        "realtime_mode_required": (
-            "Omnibattery heeft de aansturing van **{name}** gepauzeerd, omdat de "
-            "batterij niet in de modus **Realtime** staat.\n\n"
-            "Open de Indevolt-app en zet de werkmodus op Realtime. Omnibattery neemt "
-            "de aansturing dan vanzelf weer over."
-        ),
-        "handover_failed": (
-            "Omnibattery kon de aansturing van **{name}** niet overnemen: de batterij "
-            "bevestigde geen stand-by na een stopopdracht. Omnibattery blijft de "
-            "batterij volgen en probeert het vanzelf opnieuw."
-        ),
-        "unknown_model": (
-            "**{name}** meldt modelcode `{model}`, die Omnibattery nog niet ondersteunt. "
-            "De batterij wordt gevolgd, maar niet aangestuurd. Meld de modelcode graag, "
-            "zodat die kan worden toegevoegd."
-        ),
-        "firmware_title": "Indevolt-firmware-update aanbevolen: {name}",
-        "firmware": (
-            "**{name}** draait firmware `{firmware}`. Indevolt raadt voor de lokale API "
-            "minimaal `{minimum}` aan. Uitlezen werkt; werk de batterij bij in de "
-            "Indevolt-app als de aansturing niet goed werkt."
-        ),
-        "setting_title": "Indevolt-instelling niet toegepast: {name}",
-        "setting_failed": (
-            "Omnibattery kon het {setting} van **{name}** niet op {value} zetten. De "
-            "batterij houdt haar huidige waarde, en Omnibattery toont en gebruikt die "
-            "waarde weer. Probeer het later opnieuw, of wijzig het in de Indevolt-app."
-        ),
-        "min_soc": "minimale SOC",
-        "max_charge_power": "maximale laadvermogen",
-        "max_discharge_power": "maximale ontlaadvermogen",
-        "throttled_title": "Indevolt-batterij traag: {name}",
-        "throttled": (
-            "**{name}** reageert traag of niet, dus Omnibattery wacht nu {interval:.0f}s "
-            "tussen verzoeken. Mogelijk vraagt iets anders de batterij ook uit, zoals een "
-            "andere Home Assistant-integratie, of is de netwerkverbinding zwak."
-        ),
-        "official": (
-            "\n\nDe officiële Indevolt-integratie vraagt deze batterij ook uit. "
-            "Omnibattery is bedoeld als vervanging: schakel de Indevolt-integratie voor "
-            "dit apparaat uit, zodat de batterij haar verzoeken niet hoeft te delen. De "
-            "bediening van die integratie (werkmodus, ontlaadlimiet, terugleverlimiet) "
-            "schrijft bovendien naar het flashgeheugen van de batterij zodra je die gebruikt."
-        ),
-        "slower": (
-            "\n\nGebeurt dit vaker, zet de verzoeksnelheid van **{name}** dan een stap "
-            "lager, op **{speed}**: kies in Instellingen → Apparaten & diensten bij "
-            "Omnibattery voor Opnieuw configureren."
-        ),
-        "speed_fast": "Snel (2s)",
-        "speed_normal": "Normaal (3s)",
-        "speed_conservative": "Conservatief (5s)",
-    },
-}
-
 
 class IndevoltNotifier:
     """Create and dismiss the Indevolt notifications for one battery."""
@@ -165,9 +53,7 @@ class IndevoltNotifier:
         self._active: set[str] = set()
 
     def _text(self, key: str, **values) -> str:
-        language = str(getattr(getattr(self._hass, "config", None), "language", None) or "en")
-        texts = _TEXTS.get(language.split("-")[0].lower(), _TEXTS["en"])
-        return texts[key].format(name=self.display_name, **values)
+        return translate(language(self._hass), f"battery_control.{key}", name=self.display_name, **values)
 
     @property
     def display_name(self) -> str:
@@ -189,14 +75,12 @@ class IndevoltNotifier:
 
     def _create(self, topic: str, title: str, message: str) -> None:
         self._active.add(topic)
-        persistent_notification.async_create(
-            self._hass, message, title=title, notification_id=self._prefix + topic
-        )
+        notify(self._hass, HEALTH, self._prefix + topic, title, message)
 
     def _dismiss(self, topic: str) -> None:
         if topic in self._active:
             self._active.discard(topic)
-            persistent_notification.async_dismiss(self._hass, self._prefix + topic)
+            dismiss(self._hass, self._prefix + topic)
 
     def paused(self, reason: str, *, model: str | None = None) -> None:
         if reason not in PAUSE_TOPICS:

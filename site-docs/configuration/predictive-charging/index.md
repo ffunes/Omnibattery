@@ -47,7 +47,7 @@ Turn off **Predictive Charging** to pause all predictive grid charging and its D
 
 ### The predictive-charging card
 
-The card in the Omnibattery **Control** tab starts with the base rows (switch, notifications, status) and then has three headings:
+The card in the Omnibattery **Control** tab starts with the base rows (switch, status) and then has three headings:
 
 - **Planning**: the solar safety margin and the guaranteed minimum SOC.
 - **Price-based charge & discharge**: the charge price ceiling, the arbitrage margin, the round-trip efficiency, charging at negative prices, **Price-Based Discharge** with its floor, and the Discharge reserve status (on while the plan holds the battery for later).
@@ -139,6 +139,18 @@ Under a heading each feature is one group, separated by a line: its switch, its 
 
     Time Slot can notify one hour before a configured period and when charging starts. Dynamic Pricing also checks before future selected periods, during the late-day assessment, after a material SOC drop, and when tomorrow's prices become available. The active mode pages describe the exact behavior.
 
-    To stop these notifications, turn off **Predictive Charging Notifications** (`switch.omnibattery_predictive_charging_notifications`) on the predictive-charging card. Evaluations, the schedule and the decision attributes keep working; only the persistent notifications are skipped, and any evaluation notification currently shown is dismissed. Battery alarm, cell-balance and manual-mode notifications, and the confirmation shown when you turn predictive charging off, are not affected. The switch is on by default.
+    Notifications are grouped in five categories. Four have their own switch on the **Notifications** card of the **Control** tab; Health (alarms and failures) has none, so it is never silenced.
+
+    | Category | Switch | Covers |
+    |---|---|---|
+    | Charge plan | **Notifications: Charge Plan** (`switch.omnibattery_predictive_charging_notifications`) | A scheduled grid charge, charging at negative prices, the SOC floor |
+    | Plan info | **Notifications: Plan Info** (`switch.omnibattery_notify_plan_info`) | No charge needed, cheapest hours, waiting for prices, cheaper to import, no slots, safe mode, postponed |
+    | Execution | **Notifications: Execution** (`switch.omnibattery_notify_execution`) | Charge started, slot confirmed |
+    | Modes | **Notifications: Modes** (`switch.omnibattery_notify_modes`) | Manual mode active, predictive charging turned off, weekly charge without enough sun |
+    | Health | none | Alarms, failures, cells, Indevolt, paused migration |
+
+    Turning a switch off skips that category and dismisses its notifications currently shown. Evaluations, the schedule and the decision attributes keep working. After the update, Plan Info and Execution start with the value the **Charge Plan** switch had; Modes starts on. The Charge Plan, Plan Info and Execution switches exist when predictive charging is configured; Modes is always available. The evening re-evaluation publishes the plan notification, so it follows the plan category (Charge plan or Plan info).
+
+    Notifications use the language of Home Assistant (English, Spanish, Catalan, German, French or Dutch; English otherwise). Persistent notifications are not per user, so every profile sees the server language. Slots on another day show the date, for example `Wed 25 · 05:00–06:00`, in order, and the charge slots of the plan appear in a table (Slot | Price | Energy). The plan notification also shows an estimated saving compared with buying that energy when it is used; it is an estimate based on the plan, not a measure of what finally happened.
 
     ![Predictive charging notification](../../assets/screenshots/configuration/predictive-charging/notification-example.png){ width="500" style="display: block; margin: 0 auto;" }

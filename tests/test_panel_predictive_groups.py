@@ -18,7 +18,6 @@ PANEL = Path("custom_components/omnibattery/frontend/marstek-panel.js")
 # using, selling and the solar-surplus features.
 EXPECTED = [
     ("predictive_charging", "base"),
-    ("predictive_charging_notifications", "base"),
     ("predictive_charging_active", "base"),
     ("discharge_reserve_status", "base"),
     ("predictive_safety_margin_pct", "solar"),

@@ -1718,7 +1718,16 @@
         "name": "Voorspellend Laden"
       },
       "predictive_charging_notifications": {
-        "name": "Meldingen Voorspellend Laden"
+        "name": "Meldingen: Plan met Laden"
+      },
+      "notify_plan_info": {
+        "name": "Meldingen: Plan-info"
+      },
+      "notify_execution": {
+        "name": "Meldingen: Uitvoering"
+      },
+      "notify_modes": {
+        "name": "Meldingen: Modi"
       },
       "vacation_mode": {
         "name": "Vakantiemodus"

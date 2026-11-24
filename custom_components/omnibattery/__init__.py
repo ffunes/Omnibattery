@@ -45,7 +45,6 @@ from .const import (
     NOTIFICATION_ID_PREFIX,
     CONF_ENABLE_PREDICTIVE_CHARGING,
     CONF_VACATION_MODE_ENABLED,
-    CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED,
     CONF_CHARGING_TIME_SLOT,
     CONF_SOLAR_FORECAST_SENSOR,
     CONF_SOLAR_FORECAST_REMAINING_SENSOR,
@@ -257,6 +256,7 @@ from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
 from .infra.device_lookup import get_entry_device
+from .notifications import HEALTH, async_dismiss, async_notify, load_categories, text
 from .tracking.hourly_balance import HourlyBalanceManager
 from .tracking.non_responsive_tracker import NonResponsiveTracker
 from .tracking.daily_timeline import (
@@ -294,7 +294,6 @@ from .pricing import (
     SLOT_PURPOSE_DEFICIT,
     SLOT_PURPOSE_NEGATIVE_PRICE,
     calculations,
-    notifications,
 )
 from .pricing.engine import DynamicPricingEvaluationHorizon, PricingManager
 
@@ -1020,9 +1019,7 @@ class ChargeDischargeController:
         # Predictive Grid Charging state
         self.predictive_charging_enabled = config_entry.data.get(CONF_ENABLE_PREDICTIVE_CHARGING, False)
         self.vacation_mode_enabled = config_entry.data.get(CONF_VACATION_MODE_ENABLED, False)
-        self.predictive_charging_notifications_enabled = config_entry.data.get(
-            CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED, True
-        )
+        load_categories(self.hass, config_entry.data)
         # Predictive charging windows: list of {start_time, end_time, days} dicts.
         # Legacy configs stored a single dict — normalize to a one-element list.
         _raw_slots = config_entry.data.get(CONF_CHARGING_TIME_SLOT, None)
@@ -3422,9 +3419,7 @@ class ChargeDischargeController:
         self.vacation_mode_enabled = self.config_entry.data.get(
             CONF_VACATION_MODE_ENABLED, False
         )
-        self.predictive_charging_notifications_enabled = self.config_entry.data.get(
-            CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED, True
-        )
+        load_categories(self.hass, self.config_entry.data)
         if self._phase_power_limiter is not None:
             self._phase_power_limiter.refresh_config()
             self._phase_power_limiter.update_manual_mode_warning(
@@ -12076,11 +12071,7 @@ async def _dismiss_legacy_active_balance_notifications(
                 )
 
     for notification_id in notification_ids:
-        await hass.services.async_call(
-            "persistent_notification",
-            "dismiss",
-            {"notification_id": notification_id},
-        )
+        await async_dismiss(hass, notification_id)
 
 
 async def _async_migrate_legacy_active_balance(
@@ -12225,21 +12216,15 @@ async def _async_migrate_legacy_active_balance(
             battery["manual_set_charge_power"] = 0
             battery["manual_set_discharge_power"] = 0
             data_changed = True
-            await hass.services.async_call(
-                "persistent_notification",
-                "create",
-                {
-                    "notification_id": (
-                        f"{NOTIFICATION_ID_PREFIX}active_balance_migration_"
-                        f"{coordinator.device_key}"
-                    ),
-                    "title": f"{coordinator.name}: active balance migration paused",
-                    "message": (
-                        "The old integrated active-balance run could not be migrated "
-                        f"safely ({err}). The battery is held in manual mode at 0 W. "
-                        "Keep it available and reload Omnibattery to retry."
-                    ),
-                },
+            await async_notify(
+                hass,
+                HEALTH,
+                (
+                    f"{NOTIFICATION_ID_PREFIX}active_balance_migration_"
+                    f"{coordinator.device_key}"
+                ),
+                text(hass, "migration.title", name=coordinator.name),
+                text(hass, "migration.message", error=err),
             )
             _LOGGER.error(
                 "[%s] Could not migrate integrated active-balance state; "
