@@ -405,7 +405,7 @@ def test_dynamic_floor_charge_names_the_floor_in_title():
         schedule,
         **_DP_CFG,
     )
-    assert title == "Predictive Charging: Price Optimization + Min SOC floor - 1.0h selected"
+    assert title == "Predictive Charging: Price Optimization + Min SOC floor - 1h selected"
     title, _, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, planned_grid_charge_kwh=1.15),
         schedule,
@@ -666,7 +666,11 @@ def test_optimizer_plan_without_charge_still_names_its_orders():
         plan_orders=ORDERS, **_DP_CFG,
     )
     assert "NOT needed" in title
-    assert "Battery kept for later: 19:00–19:30" in message
+    assert (
+        "🔒 Battery kept for later (the house buys from the grid):\n\n"
+        "| Slot | Price | Energy |\n|---|---|---|\n"
+        "| 19:00–19:30 | 0.3000 €/kWh | — |\n\n"
+    ) in message
     assert "Selling to the grid: 20:00–20:30 at 2.5 kW" in message
     assert "Solar surplus to export: 10:00–11:00" in message
     assert "Solar charge delayed by the plan" in message
@@ -851,9 +855,8 @@ def test_two_nights_of_hold_are_dated_not_duplicated():
         plan_orders=orders, **{**_DP_CFG, "now": _TUE},
     )
     assert (
-        "🔒 Battery kept for later:\n"
-        "  • Wed 25 · 00:00–08:00\n"
-        "  • Thu 26 · 00:00–08:00\n"
+        "| Wed 25 · 00:00–08:00 | 0.1000 €/kWh | — |\n"
+        "| Thu 26 · 00:00–08:00 | 0.1000 €/kWh | — |\n"
     ) in message
 
 
@@ -944,13 +947,13 @@ def test_pre_slot_notification_dates_only_other_days(day, span, at):
 # ----------------------------------------------------------------------
 
 
-def test_one_hold_and_one_sale_stay_inline_two_become_lists():
+def test_one_sale_stays_inline_two_become_a_list():
     one = {"holds": frozenset({_q(24, 23, 1)}), "sales": {_q(25, 20, 1): 1.5}}
     _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False, planner="optimizer"), None,
         plan_orders=one, **{**_DP_CFG, "now": _TUE},
     )
-    assert "🔒 Battery kept for later: 23:00–00:00\n" in message
+    assert "| 23:00–00:00 | 0.1000 €/kWh | — |\n" in message
     assert "💶 Selling to the grid: Wed 25 · 20:00–21:00 at 1.5 kW\n" in message
     two = {"sales": {_q(24, 23, 1): 2.5, _q(25, 20, 1): 1.5}}
     _, message, _ = notifications.format_dynamic_pricing_notification(
@@ -1122,3 +1125,61 @@ def test_span_and_clock_use_the_catalogue_day_name(monkeypatch):
     assert notifications._span(start, end, now, "es") == "Mié 25 · 01:00–01:15"
     assert notifications._clock(start, now, "es") == "Mié 25 · 01:00"
     assert notifications._span(start, end, now) == "Wed 25 · 01:00–01:15"
+
+
+# ----------------------------------------------------------------------
+# The plan's quarters: when it really charges and holds inside a slot
+# ----------------------------------------------------------------------
+
+
+def _quarter(day, hour, minute, kind, price, kwh):
+    start = datetime(2026, 11, day, hour, minute, tzinfo=_TZ)
+    return (start, start + timedelta(minutes=15), kind, price, kwh)
+
+
+def _screenshot_message(lang="en"):
+    """The 2026-11-25 plan: one hourly slot 07:00-08:00 at 0.089 charges
+    0.31 kWh (one quarter at 4.6 kW) and holds the rest of the hour; the
+    battery empties that evening."""
+    slot = _q(25, 7, price=0.0890)
+    schedule = _optimizer_schedule([0.1], [0.31])
+    schedule.selected_slots = [slot]
+    schedule.slot_energy_targets_kwh = {slot: 0.31}
+    schedule.slot_deadlines = {slot: None}
+    schedule.average_price = 0.0890
+    orders = {
+        "holds": frozenset({slot}),
+        "quarters": (
+            _quarter(25, 7, 0, "charge", 0.0890, 0.31),
+            _quarter(25, 7, 15, "hold", 0.0890, 0.10),
+            _quarter(25, 7, 30, "hold", 0.0890, 0.10),
+            _quarter(25, 7, 45, "hold", 0.0890, 0.12),
+            _quarter(25, 21, 30, "empty", 0.20, 0.30),
+            _quarter(25, 21, 45, "empty", 0.10, 0.10),
+        ),
+    }
+    return notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=0.31, planned_grid_charge_kwh=0.31,
+                  planner="optimizer"),
+        schedule, plan_orders=orders, **{**_DP_CFG, "now": _TUE, "lang": lang},
+    )
+
+
+def test_a_slot_that_charges_one_quarter_shows_that_quarter_then_the_hold():
+    title, message, _ = _screenshot_message()
+    assert title.endswith("- 0.25h selected")
+    assert "| Wed 25 · 07:00–07:15 | 0.0890 €/kWh | 0.31 kWh |" in message
+    assert "| Wed 25 · 07:15–08:00 | 0.0890 €/kWh | 0.32 kWh |" in message
+    assert "07:00–08:00" not in message
+    assert "\n\n\n" not in message
+
+
+def test_the_plan_says_when_the_battery_runs_empty_and_at_what_price():
+    message = _screenshot_message()[1]
+    # 0.3 kWh at 0.20 and 0.1 at 0.10: 0.4 kWh at 0.175 on average.
+    assert (
+        "🪫 Battery empty: Wed 25 · 21:30–22:00, 0.40 kWh from the grid at 0.1750 €/kWh on average\n"
+    ) in message
+    assert "🪫 Batería vacía: mié 25 · 21:30–22:00, 0.40 kWh de red a 0.1750 €/kWh de media" in (
+        _screenshot_message("es")[1]
+    )

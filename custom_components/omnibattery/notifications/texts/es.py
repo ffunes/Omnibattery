@@ -91,8 +91,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds_one": "🔒 Batería reservada para más tarde: {item}",
-    "plan.orders.holds_many": "🔒 Batería reservada para más tarde:",
+    "plan.orders.holds": "🔒 Batería reservada para más tarde (la casa compra de la red):",
+    "plan.orders.empty_one": "🪫 Batería vacía: {item}",
+    "plan.orders.empty_many": "🪫 Batería vacía:",
+    "plan.orders.empty_item": "{span}, {kwh:.2f} kWh de red a {price:.4f} {unit} de media",
     "plan.orders.exports": "☀️ Excedente solar para exportar: {items}",
     "plan.orders.sales_one": "💶 Vendiendo a la red: {item}",
     "plan.orders.sales_many": "💶 Vendiendo a la red:",
@@ -192,8 +194,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "margen de arbitraje de {margin:.4f} {unit}."
     ),
     "plan.pricing.warning": "⚠️ {headline}",
-    "plan.pricing.hours": "{hours:.1f}h",
-    "plan.pricing.hours_slots": "{hours:.1f}h ({slots})",
+    "plan.pricing.hours": "{hours:g}h",
+    "plan.pricing.hours_slots": "{hours:g}h ({slots})",
     "plan.pricing.slots": {"one": "{count} tramo", "other": "{count} tramos"},
     "plan.pricing.selected.title": "Carga Predictiva: optimización de precio - {hours} seleccionadas",
     "plan.pricing.floor.title": (

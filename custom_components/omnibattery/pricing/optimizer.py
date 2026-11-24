@@ -320,6 +320,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         done = np.zeros(e.shape, dtype=bool)
         ends = []
         peaks = []  # the quarter's highest energy: after its charge phase, or at its end
+        adds = []  # the grid charge stored in each quarter (output only)
         for q, end in zip(quarters, quarter_ends):
             t = None
             top = e
@@ -339,6 +340,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 decide += margin * bought
                 if not request.negative_price_charging and slot_price < 0:
                     decide -= slot_price * bought  # D3: counts as 0
+            adds.append(top - e)
             if hold:
                 # What the battery would have covered goes to the grid.
                 q = dataclasses.replace(q, discharge_kwh=0.0)
@@ -410,7 +412,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         # Still charging at the slot's end (open, under the top): the next
         # slot's charge goes on without a start (#899, #571).
         on = (stored > _TOL) & to_end & (np.max(peaks, axis=0) < model.cap - _FULL_TOL)
-        return e, cost, decide, stored, to_end, ends, peaks, on
+        return e, cost, decide, stored, to_end, ends, peaks, on, adds
 
     def run_menu(slot, quarters, e, slot_ends, pending=False):
         """[(option, run)] for the slot's menu, in its order. The charge quotas
@@ -427,12 +429,13 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                                       pending=pending))
         for rows in stacks.values():
             asks = np.array([[options[i][0]] for i in rows], dtype=float)
-            e1, c, decide, stored, to_end, ends, peaks, on = run(
+            e1, c, decide, stored, to_end, ends, peaks, on, adds = run(
                 quarters, e, options[rows[0]], slot.price, slot_ends, slot.start, asks=asks,
                 pending=pending)
             for r, i in enumerate(rows):
                 out[i] = (options[i], (e1[r], c[r], decide[r], stored[r], to_end[r],
-                                       [x[r] for x in ends], [x[r] for x in peaks], on[r]))
+                                       [x[r] for x in ends], [x[r] for x in peaks], on[r],
+                                       [x[r] for x in adds]))
         return out
 
     def shortfall(ends, path, peaks, by):
@@ -471,7 +474,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         nxt_on, nxt_off, nxt_hold = values_on[-1], values_off[-1], values_hold[-1]
         nxt_pending = pending_values[-1]
         best_on = best_off = best_hold = None
-        for option, (e1, _c, decide, stored, _te, _p, _pk, on) in run_menu(
+        for option, (e1, _c, decide, stored, _te, _p, _pk, on, _a) in run_menu(
                 slot, done_quarters[k], levels, slot_ends):
             after = np.interp(e1, levels, nxt_off)
             hold = 0.0
@@ -491,7 +494,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         best = best_off
         if pending0 and k <= last_k:
             best_pending = None
-            for _option, (e1, _c, decide, _st, _te, path, peaks, on) in run_menu(
+            for _option, (e1, _c, decide, _st, _te, path, peaks, on, _a) in run_menu(
                     slot, quarters, levels, slot_ends, True):
                 v = decide + onward(k, slot_ends, e1, path, peaks, on, nxt_on, nxt_off,
                                     nxt_pending)[0]
@@ -515,6 +518,10 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     rooms: list = []
     trajectory: list = []
     house_delivery: list = []
+    # (start, end, "charge" | "hold" | "empty", price, kWh) per quarter, for the
+    # notification (output only): when the charge and the hold really run
+    # inside their slot, and what the grid sells with the battery empty.
+    quarter_actions: list = []
     pending = pending0
     full_at = None  # when the plan touches the top of a pending weekly charge
     charging = bool(request.charging_now)  # a slot charging at now goes on: no start
@@ -524,7 +531,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         layer = pending and k <= last_k
         chosen = None
         run_quarters = quarters if layer else done_quarters[k]
-        for option, (e1, c, decide, stored, open_, path, peaks, on) in run_menu(
+        for option, (e1, c, decide, stored, open_, path, peaks, on, adds) in run_menu(
                 slot, run_quarters, [e], ends, layer):
             start = held = hold_start = False
             if layer:
@@ -541,11 +548,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                                + np.interp(e1[0], levels, nxt)), False
             row = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
                    bool(open_[0]), [float(x[0]) for x in path], hit,
-                   [float(x[0]) for x in peaks], bool(on[0]), start, held, hold_start)
+                   [float(x[0]) for x in peaks], bool(on[0]), start, held, hold_start,
+                   [float(x[0]) for x in adds])
             if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
                 chosen = row
         (_v, option, e_end, c, stored, open_, path, hit, top, charging, start, held,
-         hold_start) = chosen
+         hold_start, adds) = chosen
         starts += start
         hold_starts += hold_start
         holding = held
@@ -580,11 +588,21 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         total += c
         # What the battery delivered to the house, per quarter (output only).
         eff = layer_model[bool(layer)].eff
+        charged = option not in (None, HOLD, EXPORT) and not selling and stored > _TOL
+        holds_here = _holds(option) and not selling and not layer
         s0 = e
-        for q, end, top_q, x in zip(run_quarters, ends, top, path):
-            kwh = min(max(0.0, max(s0, top_q) - x) * eff, max(0.0, q.house_kwh - q.solar_kwh))
+        for q, end, top_q, x, add in zip(run_quarters, ends, top, path, adds):
+            net = max(0.0, q.house_kwh - q.solar_kwh)
+            kwh = min(max(0.0, max(s0, top_q) - x) * eff, net)
             if kwh > _TOL:
                 house_delivery.append((end, kwh, q.import_price))
+            begin = end - timedelta(hours=q.hours)
+            if charged and add > _TOL:
+                quarter_actions.append((begin, end, "charge", q.import_price, add))
+            elif holds_here:
+                quarter_actions.append((begin, end, "hold", q.import_price, net))
+            elif not selling and x <= _TOL and net - kwh > _TOL:
+                quarter_actions.append((begin, end, "empty", q.import_price, net - kwh))
             s0 = x
         e = e_end
         trajectory += list(zip(ends, path))
@@ -627,6 +645,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         risk_slots=tuple(s for s, _q, _e in groups if s.start in risk),
     )
     plan.optimizer_cost = total
+    plan.quarter_actions = tuple(quarter_actions)
     plan.charge_starts = starts
     plan.hold_starts = hold_starts
     plan.weekly_holds = tuple(weekly_holds)

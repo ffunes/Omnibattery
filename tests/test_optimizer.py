@@ -1338,3 +1338,19 @@ def test_a_pending_weekly_charge_neither_sells_nor_exports():
     plan = optimize_charge(_weekly(request, 24)).plan
     reach = _reach(plan, 3.0)
     assert not [s for s, _kw in plan.sales if reach is None or s.start < reach]
+
+
+def test_the_plan_names_the_quarters_it_charges_holds_and_runs_empty():
+    """The notification showed a whole hourly slot for a one-quarter charge and
+    its hold: the plan says, per quarter, when it charges, when it holds, and
+    when the house buys from the grid with the battery empty (output only)."""
+    request = _with_hold(_request([0.20, 0.40, 0.40], house=0.25, usable=0.0, room=0.9,
+                                  slot_quarters=4, power=5.0, threshold=0.25))
+    plan = optimize_charge(request).plan
+    kinds = [(a - T0) // Q for a, _b, _k, _p, _kwh in plan.quarter_actions]
+    by_kind = {}
+    for (_a, _b, kind, _p, _kwh), quarter in zip(plan.quarter_actions, kinds):
+        by_kind.setdefault(kind, []).append(quarter)
+    assert by_kind == {"charge": [0], "hold": [1, 2, 3], "empty": [8, 9, 10, 11]}
+    charged = sum(kwh for _a, _b, k, _p, kwh in plan.quarter_actions if k == "charge")
+    assert charged == pytest.approx(plan.allocations[0].planned_battery_kwh, abs=0.01)

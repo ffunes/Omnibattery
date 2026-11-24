@@ -94,8 +94,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds_one": "🔒 Battery kept for later: {item}",
-    "plan.orders.holds_many": "🔒 Battery kept for later:",
+    "plan.orders.holds": "🔒 Battery kept for later (the house buys from the grid):",
+    "plan.orders.empty_one": "🪫 Battery empty: {item}",
+    "plan.orders.empty_many": "🪫 Battery empty:",
+    "plan.orders.empty_item": "{span}, {kwh:.2f} kWh from the grid at {price:.4f} {unit} on average",
     "plan.orders.exports": "☀️ Solar surplus to export: {items}",
     "plan.orders.sales_one": "💶 Selling to the grid: {item}",
     "plan.orders.sales_many": "💶 Selling to the grid:",
@@ -194,8 +196,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "{margin:.4f} {unit} arbitrage margin."
     ),
     "plan.pricing.warning": "⚠️ {headline}",
-    "plan.pricing.hours": "{hours:.1f}h",
-    "plan.pricing.hours_slots": "{hours:.1f}h ({slots})",
+    "plan.pricing.hours": "{hours:g}h",
+    "plan.pricing.hours_slots": "{hours:g}h ({slots})",
     "plan.pricing.slots": {"one": "{count} slot", "other": "{count} slots"},
     "plan.pricing.selected.title": "Predictive Charging: Price Optimization - {hours} selected",
     "plan.pricing.floor.title": (

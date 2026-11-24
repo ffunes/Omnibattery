@@ -88,8 +88,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds_one": "🔒 Batterie für später reserviert: {item}",
-    "plan.orders.holds_many": "🔒 Batterie für später reserviert:",
+    "plan.orders.holds": "🔒 Batterie für später reserviert (das Haus bezieht aus dem Netz):",
+    "plan.orders.empty_one": "🪫 Batterie leer: {item}",
+    "plan.orders.empty_many": "🪫 Batterie leer:",
+    "plan.orders.empty_item": "{span}, {kwh:.2f} kWh aus dem Netz zu durchschnittlich {price:.4f} {unit}",
     "plan.orders.exports": "☀️ Solarüberschuss zum Einspeisen: {items}",
     "plan.orders.sales_one": "💶 Verkauf ins Netz: {item}",
     "plan.orders.sales_many": "💶 Verkauf ins Netz:",
@@ -192,8 +194,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Arbitragemarge von {margin:.4f} {unit} teurer."
     ),
     "plan.pricing.warning": "⚠️ {headline}",
-    "plan.pricing.hours": "{hours:.1f}h",
-    "plan.pricing.hours_slots": "{hours:.1f}h ({slots})",
+    "plan.pricing.hours": "{hours:g}h",
+    "plan.pricing.hours_slots": "{hours:g}h ({slots})",
     "plan.pricing.slots": {"one": "{count} Slot", "other": "{count} Slots"},
     "plan.pricing.selected.title": "Prädiktives Laden: Preisoptimierung - {hours} ausgewählt",
     "plan.pricing.floor.title": (

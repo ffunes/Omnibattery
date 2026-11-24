@@ -88,8 +88,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds_one": "🔒 Batterie conservée pour plus tard : {item}",
-    "plan.orders.holds_many": "🔒 Batterie conservée pour plus tard :",
+    "plan.orders.holds": "🔒 Batterie conservée pour plus tard (la maison achète au réseau) :",
+    "plan.orders.empty_one": "🪫 Batterie vide : {item}",
+    "plan.orders.empty_many": "🪫 Batterie vide :",
+    "plan.orders.empty_item": "{span}, {kwh:.2f} kWh du réseau à {price:.4f} {unit} en moyenne",
     "plan.orders.exports": "☀️ Surplus solaire à exporter : {items}",
     "plan.orders.sales_one": "💶 Vente au réseau : {item}",
     "plan.orders.sales_many": "💶 Vente au réseau :",
@@ -188,8 +190,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "marge d'arbitrage de {margin:.4f} {unit}."
     ),
     "plan.pricing.warning": "⚠️ {headline}",
-    "plan.pricing.hours": "{hours:.1f}h",
-    "plan.pricing.hours_slots": "{hours:.1f}h ({slots})",
+    "plan.pricing.hours": "{hours:g}h",
+    "plan.pricing.hours_slots": "{hours:g}h ({slots})",
     "plan.pricing.slots": {"one": "{count} créneau", "other": "{count} créneaux"},
     "plan.pricing.selected.title": "Charge prédictive : optimisation du prix - {hours} sélectionnées",
     "plan.pricing.floor.title": (

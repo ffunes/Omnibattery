@@ -88,8 +88,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    "plan.orders.holds_one": "🔒 Bateria reservada per a més tard: {item}",
-    "plan.orders.holds_many": "🔒 Bateria reservada per a més tard:",
+    "plan.orders.holds": "🔒 Bateria reservada per a més tard (la casa compra de la xarxa):",
+    "plan.orders.empty_one": "🪫 Bateria buida: {item}",
+    "plan.orders.empty_many": "🪫 Bateria buida:",
+    "plan.orders.empty_item": "{span}, {kwh:.2f} kWh de la xarxa a {price:.4f} {unit} de mitjana",
     "plan.orders.exports": "☀️ Excedent solar per exportar: {items}",
     "plan.orders.sales_one": "💶 Venda a la xarxa: {item}",
     "plan.orders.sales_many": "💶 Venda a la xarxa:",
@@ -189,8 +191,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "el marge d'arbitratge de {margin:.4f} {unit}."
     ),
     "plan.pricing.warning": "⚠️ {headline}",
-    "plan.pricing.hours": "{hours:.1f}h",
-    "plan.pricing.hours_slots": "{hours:.1f}h ({slots})",
+    "plan.pricing.hours": "{hours:g}h",
+    "plan.pricing.hours_slots": "{hours:g}h ({slots})",
     "plan.pricing.slots": {"one": "{count} franja", "other": "{count} franges"},
     "plan.pricing.selected.title": "Càrrega predictiva: optimització de preu - {hours} seleccionades",
     "plan.pricing.floor.title": (
