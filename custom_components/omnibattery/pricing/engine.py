@@ -97,8 +97,8 @@ from . import (
     SLOT_PURPOSE_DEFICIT,
     SLOT_PURPOSE_NEGATIVE_PRICE,
     calculations,
-    notifications,
 )
+from ..notifications import plan as notifications
 from .calculations import normalize_price_slots
 from .chronological import (
     ENERGY_TOLERANCE_KWH,
@@ -8888,7 +8888,7 @@ class PricingManager:
             decision_data: Dict from _should_activate_grid_charging() with decision factors
             is_daily_evaluation: True when called from daily evaluation in automation_slots mode
         """
-        # Format the notification using the pricing.notifications helper
+        # Format the notification using the notifications.plan helper
         title, message = notifications.format_predictive_notification_message(
             decision_data,
             is_daily_evaluation,

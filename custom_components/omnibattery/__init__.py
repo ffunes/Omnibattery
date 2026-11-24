@@ -294,7 +294,6 @@ from .pricing import (
     SLOT_PURPOSE_DEFICIT,
     SLOT_PURPOSE_NEGATIVE_PRICE,
     calculations,
-    notifications,
 )
 from .pricing.engine import DynamicPricingEvaluationHorizon, PricingManager
 

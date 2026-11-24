@@ -1,7 +1,7 @@
 """Characterization tests for the pure pricing notification formatters (PR2).
 
 Pin the current (title, message) output of the formatters extracted from
-``ChargeDischargeController`` into ``pricing.notifications`` so the move is
+``ChargeDischargeController`` into ``notifications.plan`` so the move is
 proven cero-cambio-funcional. Pure functions: no hass, no controller — schedule
 is a SimpleNamespace exposing only the attributes the formatters read.
 """
@@ -10,10 +10,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
-from custom_components.omnibattery.pricing import (
-    PriceSlot,
-    notifications,
-)
+from custom_components.omnibattery.notifications import plan as notifications
+from custom_components.omnibattery.pricing import PriceSlot
 
 _DAY = datetime(2999, 1, 1, 18, 0)
 
