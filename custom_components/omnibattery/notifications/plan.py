@@ -53,11 +53,6 @@ def _forecast_notification_context(decision: dict, lang: str = "en") -> dict:
                 time=horizon_end.strftime("%H:%M"),
             )
         )
-        overnight_label = (
-            translate(lang, "plan.overnight.tomorrow")
-            if ends_at_midnight
-            else translate(lang, "plan.overnight.after_midnight", horizon=horizon_label)
-        )
         horizon_phrase = (
             translate(lang, "plan.phrase.tomorrow")
             if ends_at_midnight
@@ -67,17 +62,14 @@ def _forecast_notification_context(decision: dict, lang: str = "en") -> dict:
         horizon_label = translate(
             lang, "plan.horizon.until_sunrise", time=horizon_end.strftime("%H:%M")
         )
-        overnight_label = translate(lang, "plan.overnight.until_sunrise")
         horizon_phrase = translate(lang, "plan.phrase.tonight", horizon=horizon_label)
     else:
         horizon_label = translate(lang, "plan.horizon.until_midnight")
-        overnight_label = translate(lang, "plan.overnight.until_sunrise")
         horizon_phrase = translate(lang, "plan.phrase.today")
     overnight_kwh_raw = decision.get("overnight_consumption_kwh")
     overnight_kwh = float(overnight_kwh_raw) if overnight_kwh_raw is not None else None
 
     if is_remaining:
-        consumption_label = translate(lang, "plan.consumption.remaining", horizon=horizon_label)
         uses_profile = scope == "remaining_profile" or consumption_source == "profile"
         if uses_profile:
             basis = translate(lang, "plan.basis.profile")
@@ -90,11 +82,6 @@ def _forecast_notification_context(decision: dict, lang: str = "en") -> dict:
         if not uses_profile and decision.get("consumption_accumulator_ready"):
             basis = translate(lang, "plan.basis.adjusted", basis=basis)
     else:
-        consumption_label = (
-            translate(lang, "plan.consumption.expected_horizon", horizon=horizon_label)
-            if horizon_extended
-            else translate(lang, "plan.consumption.expected_today")
-        )
         if scope == "daily_profile" or consumption_source == "profile":
             sample_count = profile_days or days
             if sample_count > 0:
@@ -106,40 +93,42 @@ def _forecast_notification_context(decision: dict, lang: str = "en") -> dict:
         else:
             basis = translate(lang, "plan.basis.daily_default")
 
-    solar_source = str(
-        decision.get("solar_forecast_diagnostic_source")
-        or decision.get("solar_forecast_source")
-        or ""
-    )
-    solar_is_remaining = is_remaining or solar_source in {
-        "remaining",
-        "remaining_sensor",
-    }
-    solar_label = translate(
-        lang, "plan.solar.remaining" if solar_is_remaining else "plan.solar.forecast"
-    )
     # On a horizon covering tomorrow the solar figure is today's remainder
-    # plus tomorrow's forecast; show the two parts instead of one "today" line.
+    # plus tomorrow's forecast; the table shows the two parts.
     solar_split = None
     remaining_solar = decision.get("remaining_solar_kwh")
     tomorrow_solar = decision.get("tomorrow_solar_kwh")
-    if covers_tomorrow and remaining_solar is not None and tomorrow_solar is not None:
-        solar_split = (
-            float(remaining_solar),
-            translate(lang, "plan.solar.tomorrow")
-            if ends_at_midnight
-            else translate(lang, "plan.solar.after_midnight", horizon=horizon_label),
-            float(tomorrow_solar),
-        )
+    if (
+        is_remaining
+        and covers_tomorrow
+        and remaining_solar is not None
+        and tomorrow_solar is not None
+    ):
+        solar_split = (float(remaining_solar), float(tomorrow_solar))
+    # The plan counts on the sun minus the safety margin; the table shows both.
+    try:
+        solar_total = decision.get("solar_forecast_kwh")
+        solar_total = None if solar_total is None else float(solar_total)
+        solar_margin = float(decision.get("solar_safety_margin_kwh") or 0.0)
+    except (TypeError, ValueError):
+        solar_total, solar_margin = None, 0.0
     return {
+        "solar_total_kwh": solar_total,
+        "solar_margin_share": (
+            solar_margin / solar_total if solar_total and solar_margin > 0 else 0.0
+        ),
         "solar_split": solar_split,
-        "overnight_label": overnight_label,
+        "covers_tomorrow": covers_tomorrow,
+        # Where the leg after midnight ends, unless that is midnight itself.
+        "horizon_end_clock": (
+            horizon_end.strftime("%H:%M")
+            if horizon_extended and not ends_at_midnight
+            else None
+        ),
         "horizon_phrase": horizon_phrase,
         "is_remaining": is_remaining,
         "consumption_kwh": consumption_kwh,
-        "consumption_label": consumption_label,
         "consumption_basis": basis,
-        "solar_label": solar_label,
         "horizon_extended": horizon_extended,
         "horizon_label": horizon_label,
         "overnight_kwh": overnight_kwh,
@@ -147,50 +136,76 @@ def _forecast_notification_context(decision: dict, lang: str = "en") -> dict:
 
 
 def _build_forecast_lines(
-    context: dict, solar_str: str, consumption_for_horizon: float, lang: str = "en"
+    context: dict, decision: dict, lang: str = "en", *extra
 ) -> str:
-    """Render the shared solar/consumption forecast block, plus overnight if any."""
+    """The energy balance as one table: sun, house, battery, then ``extra``
+    ``(name, kWh)`` rows such as the grid charge (``plan.balance.<name>``).
+
+    A horizon past midnight gets a column per leg plus the total; the leg
+    after midnight is part of the total, never on top of it.
+    """
     solar_split = context.get("solar_split")
-    if solar_split is not None and context["is_remaining"]:
-        today_kwh, tomorrow_label, tomorrow_kwh = solar_split
-        solar_lines = (
+    solar_total = context.get("solar_total_kwh")
+    share = context.get("solar_margin_share") or 0.0
+    consumption = context["consumption_kwh"]
+    overnight = context.get("overnight_kwh") or 0.0
+    legs = solar_split is not None or overnight > 0
+
+    def _row(label, total, today=None, later=None):
+        cells = [today, later, total] if legs else [total]
+        if total is None:
+            cells[-1] = "—"
+        return f"| {label} | " + " | ".join(
+            cell if isinstance(cell, str) else "" if cell is None else f"{cell:.2f}"
+            for cell in cells
+        ) + " |"
+
+    columns = [translate(lang, "plan.balance.today")]
+    if legs:
+        columns += [
             translate(
                 lang,
-                "plan.line.solar_kwh",
-                label=translate(lang, "plan.solar.remaining"),
-                kwh=today_kwh,
+                "plan.balance.tomorrow" if context.get("covers_tomorrow") else "plan.balance.night",
             )
-            + "\n"
-            + translate(lang, "plan.line.solar_kwh", label=tomorrow_label, kwh=tomorrow_kwh)
-            + "\n"
+            + (f" → {clock}" if (clock := context.get("horizon_end_clock")) else ""),
+            translate(lang, "plan.balance.total"),
+        ]
+    solar_parts = solar_split or (None, None)
+    rows = [
+        "| kWh | " + " | ".join(columns) + " |",
+        "|---" * (len(columns) + 1) + "|",
+        _row(translate(lang, "plan.balance.solar"), solar_total, *solar_parts),
+    ]
+    if share > 0:
+        rows.append(_row(
+            translate(lang, "plan.balance.solar_margin", pct=share * 100.0),
+            solar_total * (1.0 - share),
+            *(None if part is None else part * (1.0 - share) for part in solar_parts),
+        ))
+    rows.append(
+        _row(
+            translate(lang, "plan.balance.consumption"),
+            consumption,
+            max(0.0, consumption - overnight),
+            overnight,
         )
-    else:
-        solar_lines = (
-            translate(lang, "plan.line.solar", label=context["solar_label"], value=solar_str)
-            + "\n"
-        )
-    lines = (
-        f"{solar_lines}"
-        + translate(
-            lang,
-            "plan.line.consumption",
-            label=context["consumption_label"],
-            kwh=consumption_for_horizon,
-        )
-        + "\n"
+        if overnight > 0
+        else _row(translate(lang, "plan.balance.consumption"), consumption)
+    )
+    rows.append(_row(
+        translate(lang, "plan.balance.battery", soc=float(decision.get("avg_soc") or 0.0)),
+        float(decision.get("usable_energy_kwh") or 0.0),
+    ))
+    rows += [
+        _row(translate(lang, f"plan.balance.{name}"), float(kwh or 0.0)) for name, kwh in extra
+    ]
+    # A blank line closes the table, or the text joins its last row.
+    return (
+        "\n".join(rows)
+        + "\n\n"
         + translate(lang, "plan.line.basis", basis=context["consumption_basis"])
         + "\n"
     )
-    overnight_kwh = context.get("overnight_kwh")
-    if overnight_kwh is not None and overnight_kwh > 0:
-        overnight_label = context.get(
-            "overnight_label", translate(lang, "plan.overnight.until_sunrise")
-        )
-        lines += (
-            translate(lang, "plan.line.overnight", label=overnight_label, kwh=overnight_kwh)
-            + "\n"
-        )
-    return lines
 
 
 def _horizon_text(context: dict, *, with_for: bool = False, lang: str = "en") -> str:
@@ -270,21 +285,11 @@ def format_predictive_notification_message(
 
     should_charge = decision_data["should_charge"]
     solar_forecast = decision_data["solar_forecast_kwh"]
-    usable_energy = decision_data["usable_energy_kwh"]
-    avg_soc = decision_data["avg_soc"]
     total_available = decision_data["total_available_kwh"]
     energy_deficit = decision_data["energy_deficit_kwh"]
     context = _forecast_notification_context(decision_data, lang)
-    consumption_for_horizon = context["consumption_kwh"]
 
-    solar_str = (
-        f"{solar_forecast:.2f} kWh"
-        if solar_forecast is not None
-        else translate(lang, "plan.solar_unavailable")
-    )
-    forecast_lines = _build_forecast_lines(context, solar_str, consumption_for_horizon, lang)
     power_str = _max_charge_power_str(max_contracted_power, max_charge_capacity, lang=lang)
-    battery_line = translate(lang, "plan.battery", soc=avg_soc, usable=usable_energy)
 
     # Safe mode: no solar forecast
     if solar_forecast is None:
@@ -292,17 +297,8 @@ def format_predictive_notification_message(
         message = (
             translate(lang, "plan.safe.no_forecast")
             + "\n\n"
-            + battery_line
+            + _build_forecast_lines(context, decision_data, lang)
             + "\n"
-            + translate(
-                lang,
-                "plan.line.consumption",
-                label=context["consumption_label"],
-                kwh=consumption_for_horizon,
-            )
-            + "\n"
-            + translate(lang, "plan.line.basis", basis=context["consumption_basis"])
-            + "\n\n"
             + translate(lang, "plan.safe.not_activated")
         )
         return (title, message, PLAN_INFO)
@@ -313,11 +309,7 @@ def format_predictive_notification_message(
         message = (
             translate(lang, "plan.deferred.no_quota")
             + "\n\n"
-            + battery_line
-            + "\n"
-            + f"{forecast_lines}"
-            + translate(lang, "plan.deferred.aggregate_need", kwh=energy_deficit)
-            + "\n"
+            + _build_forecast_lines(context, decision_data, lang, ("grid_need", energy_deficit))
             + (
                 translate(lang, "plan.deferred.shortfall", kwh=shortfall)
                 if shortfall > 0
@@ -334,16 +326,8 @@ def format_predictive_notification_message(
         message = (
             translate(lang, "plan.sufficient", horizon=horizon_text)
             + "\n\n"
-            + battery_line
+            + _build_forecast_lines(context, decision_data, lang, ("available", total_available))
             + "\n"
-            + f"{forecast_lines}"
-            + translate(
-                lang,
-                "plan.available",
-                available=total_available,
-                needed=consumption_for_horizon,
-            )
-            + "\n\n"
             + translate(
                 lang,
                 "plan.no_more_charging" if context["is_remaining"] else "plan.no_charging",
@@ -378,35 +362,22 @@ def format_predictive_notification_message(
         # energy balance. The floor charge happens whenever SOC is low (often
         # overnight, before solar ramps), so the day's solar surplus can't be
         # credited against it — the whole deficit comes from the grid.
-        charge_split_line = translate(lang, "plan.charge.floor", kwh=energy_deficit) + "\n"
+        charge_rows = [("grid_floor", energy_deficit)]
     elif planned_grid_charge is not None and solar_surplus is not None:
         # The predictive SOC target is based on planned_grid_charge_kwh.  Do not
         # report the complementary headroom calculation here: it can differ
         # from the actual grid target when a grid-charge margin is configured.
         # Solar surplus is a whole-day energy-balance estimate, not a promise
         # that the remainder of today's battery headroom will be solar-charged.
-        charge_split_line = (
-            translate(lang, "plan.charge.planned", kwh=planned_grid_charge)
-            + "\n"
-            + translate(
-                lang,
-                "plan.charge.surplus_remaining"
-                if context["is_remaining"]
-                else "plan.charge.surplus",
-                kwh=solar_surplus,
-            )
-            + "\n"
-        )
+        charge_rows = [("grid_charge", planned_grid_charge), ("solar_surplus", solar_surplus)]
     else:
-        charge_split_line = translate(lang, "plan.charge.deficit", kwh=energy_deficit) + "\n"
+        charge_rows = [("deficit", energy_deficit)]
 
     message = (
         translate(lang, "plan.charge.needed")
         + "\n\n"
-        + battery_line
+        + _build_forecast_lines(context, decision_data, lang, *charge_rows)
         + "\n"
-        + f"{forecast_lines}"
-        + f"{charge_split_line}\n"
         + f"{timing_line}"
         + translate(lang, "plan.max_charge_power", power=power_str)
     )
@@ -487,18 +458,25 @@ def _table(rows, now, lang, unit) -> list:
     average price and the cost."""
     cost_unit = unit.split("/")[0]  # "€/kWh" → "€", "CHF" → "CHF"
 
-    def _row(span, price, kwh, cost):
-        return translate(
-            lang,
-            "plan.table.row",
-            span=span,
-            price="—" if price is None else translate(lang, "plan.table.price", price=price, unit=unit),
-            energy="—" if kwh is None else translate(lang, "plan.table.kwh", kwh=kwh),
-            cost="—" if cost is None else translate(lang, "plan.table.cost", cost=cost, cost_unit=cost_unit),
-        )
-
     blocks = _blocks(rows)
-    lines = [translate(lang, "plan.table.header"), "|---|---|---|---|"] + [
+    # A column no row has a value for (energy, cost) is left out.
+    keep = [True, True] + [
+        any(block[i] is not None for block in blocks) for i in (3, 4)
+    ]
+
+    def _cells(cells):
+        return "| " + " | ".join(c for c, kept in zip(cells, keep) if kept) + " |"
+
+    def _row(span, price, kwh, cost):
+        return _cells([
+            span,
+            "—" if price is None else translate(lang, "plan.table.price", price=price, unit=unit),
+            "—" if kwh is None else translate(lang, "plan.table.kwh", kwh=kwh),
+            "—" if cost is None else translate(lang, "plan.table.cost", cost=cost, cost_unit=cost_unit),
+        ])
+
+    header = [c.strip() for c in translate(lang, "plan.table.header").strip("|").split("|")]
+    lines = [_cells(header), "|---" * sum(keep) + "|"] + [
         _row(_span(a, b, now, lang), price, kwh, cost) for a, b, price, kwh, cost in blocks
     ]
     if len(blocks) > 1 and any(cost is not None for *_rest, cost in blocks):
@@ -519,20 +497,22 @@ def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> s
         return ""
     lines = []
 
-    def _item(a, b, kw):
-        span = _span(a, b, now, lang)
-        if kw is None:
-            return span
-        return translate(lang, "plan.orders.at_kw", span=span, kw=kw)
-
-    def _order(key, spans):
-        # One block: inline; several: the label, then one bullet each.
-        items = [_item(a, b, kw) for a, b, kw, _k in spans]
-        if len(items) == 1:
-            lines.append(translate(lang, f"plan.orders.{key}_one", item=items[0]))
-        else:
-            lines.append(translate(lang, f"plan.orders.{key}_many"))
-            lines.extend(translate(lang, "plan.orders.bullet", item=item) for item in items)
+    def _power_table(key, by_slot):
+        # The label, then span and power; blank lines so markdown renders it.
+        span_header = translate(lang, "plan.table.header").strip("|").split("|")[0].strip()
+        lines.extend([
+            translate(lang, f"plan.orders.{key}"),
+            "",
+            f"| {span_header} | {translate(lang, 'plan.table.power')} |",
+            "|---|---|",
+            *(
+                f"| {_span(a, b, now, lang)} | {kw:.1f} kW |"
+                for a, b, kw, _k in _blocks(
+                    (s.start, s.end, round(float(kw), 1), None) for s, kw in by_slot.items()
+                )
+            ),
+            "",
+        ])
 
     # The holds as a table, by quarter when the plan gave them (a slot that
     # charges and then holds is held only after its charge).
@@ -554,18 +534,10 @@ def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> s
         )
     sales = orders.get("sales") or {}
     if sales:
-        spans = _blocks((s.start, s.end, round(float(kw), 1), None) for s, kw in sales.items())
-        _order("sales", spans)
+        _power_table("sales", sales)
     room = orders.get("room") or {}
     if room:
-        spans = _blocks((s.start, s.end, round(float(kw), 1), None) for s, kw in room.items())
-        lines.append(
-            translate(
-                lang,
-                "plan.orders.room",
-                items=", ".join(_item(a, b, kw) for a, b, kw, _k in spans),
-            )
-        )
+        _power_table("room", room)
     if orders.get("solar_delay"):
         lines.append(translate(lang, "plan.orders.solar_delay"))
     # The battery empty: the house buys from the grid. One row per price, as
@@ -722,17 +694,13 @@ def format_dynamic_pricing_notification(
     orders_lines = _plan_order_lines(plan_orders, now, lang, unit) if optimizer else ""
     avg_soc = decision_data.get("avg_soc", 0)
     usable_energy = decision_data.get("usable_energy_kwh", 0)
-    solar_forecast = decision_data.get("solar_forecast_kwh")
     energy_deficit = decision_data.get("energy_deficit_kwh", 0)
     planned_grid_charge = decision_data.get("planned_grid_charge_kwh", energy_deficit)
     context = _forecast_notification_context(decision_data, lang)
-    solar_str = (
-        f"{solar_forecast:.2f} kWh"
-        if solar_forecast is not None
-        else translate(lang, "plan.solar_na")
-    )
-    consumption_for_horizon = context["consumption_kwh"]
-    forecast_lines = _build_forecast_lines(context, solar_str, consumption_for_horizon, lang)
+
+    def _balance(*rows) -> str:
+        return _build_forecast_lines(context, decision_data, lang, *rows)
+
     battery_line = translate(lang, "plan.battery", soc=avg_soc, usable=usable_energy)
     # The arbitrage ceiling is only the binding constraint when it undercuts the
     # static one; otherwise it is reported for information but decided nothing.
@@ -790,15 +758,7 @@ def format_dynamic_pricing_notification(
             message = (
                 translate(lang, "plan.sufficient", horizon=horizon_text)
                 + "\n\n"
-                + battery_line
-                + "\n"
-                + f"{forecast_lines}\n"
-                + translate(
-                    lang,
-                    "plan.available",
-                    available=decision_data.get("total_available_kwh", 0),
-                    needed=consumption_for_horizon,
-                )
+                + _balance(("available", decision_data.get("total_available_kwh", 0)))
                 + "\n"
                 + f"{orders_lines}"
                 + translate(
@@ -813,11 +773,7 @@ def format_dynamic_pricing_notification(
             message = (
                 translate(lang, "plan.pricing.deferred.headline")
                 + "\n\n"
-                + battery_line
-                + "\n"
-                + f"{forecast_lines}"
-                + translate(lang, "plan.pricing.deferred.needed", kwh=energy_deficit)
-                + "\n"
+                + _balance(("deficit", energy_deficit))
                 + f"{orders_lines}\n"
                 + translate(lang, "plan.pricing.deferred.footer")
                 + f"{_footer()}"
@@ -853,11 +809,7 @@ def format_dynamic_pricing_notification(
                 message = (
                     translate(lang, "plan.pricing.import.headline")
                     + "\n\n"
-                    + battery_line
-                    + "\n"
-                    + f"{forecast_lines}"
-                    + translate(lang, "plan.pricing.import.left", kwh=imported)
-                    + "\n"
+                    + _balance(("import_left", imported))
                     + f"{orders_lines}\n"
                     + storing
                     + f"{_footer()}"
@@ -866,11 +818,7 @@ def format_dynamic_pricing_notification(
                 message = (
                     translate(lang, "plan.pricing.warning", headline=headline)
                     + "\n\n"
-                    + battery_line
-                    + "\n"
-                    + f"{forecast_lines}"
-                    + translate(lang, "plan.energy_deficit", kwh=energy_deficit)
-                    + "\n"
+                    + _balance(("deficit", energy_deficit))
                     + f"{orders_lines}\n"
                     + f"{hint}"
                     + f"{_footer()}"
@@ -945,7 +893,8 @@ def format_dynamic_pricing_notification(
             for s in sorted(schedule.selected_slots, key=lambda s: s.start)
         )
         table_costs = False
-        if optimizer:
+        # The old planner's charge keeps its tagged list (deadline, flexible).
+        if optimizer or schedule_type == "negative_price" or not schedule.charging_needed:
             # The optimizer books quarters: one line per run at one price.
             targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
             # Each slot's share of the estimated cost (it includes the charging
@@ -1003,16 +952,8 @@ def format_dynamic_pricing_notification(
             message = (
                 translate(lang, "plan.pricing.info.no_charging", horizon=horizon_text)
                 + "\n\n"
-                + battery_line
+                + _balance(("available", decision_data.get("total_available_kwh", 0)))
                 + "\n"
-                + f"{forecast_lines}"
-                + translate(
-                    lang,
-                    "plan.available",
-                    available=decision_data.get("total_available_kwh", 0),
-                    needed=consumption_for_horizon,
-                )
-                + "\n\n"
                 + f"{orders_lines}"
                 + translate(lang, "plan.pricing.info.header")
                 + f"\n{slot_lines}\n\n"
@@ -1073,10 +1014,9 @@ def format_dynamic_pricing_notification(
                 if getattr(schedule, "chronological_planning_active", False)
                 else "plan.pricing.selected_hours",
             )
+            forecast_lines = _balance(("deficit", energy_deficit))
             charge_lines = (
-                translate(lang, "plan.energy_deficit", kwh=energy_deficit)
-                + "\n"
-                + f"{opportunity_line}"
+                f"{opportunity_line}"
                 + translate(
                     lang,
                     "plan.pricing.grid_charge_hours",
@@ -1090,10 +1030,10 @@ def format_dynamic_pricing_notification(
                 # No deadlines and no deficit: the plan weighed every slot.
                 selected_label = translate(lang, "plan.pricing.selected_slots")
                 deferred = float(decision_data.get("deferred_grid_charge_kwh", 0.0) or 0.0)
+                # The planned grid charge is a row of the balance table.
+                forecast_lines = _balance(("grid_charge", planned_grid_charge))
                 charge_lines = (
-                    translate(lang, "plan.pricing.grid_charge", kwh=planned_grid_charge)
-                    + "\n"
-                    + (
+                    (
                         translate(lang, "plan.pricing.tomorrow", kwh=deferred) + "\n"
                         if deferred > 0.005
                         else ""
@@ -1124,9 +1064,7 @@ def format_dynamic_pricing_notification(
                     lang=lang,
                 )
             message = (
-                battery_line
-                + "\n"
-                + f"{forecast_lines}"
+                f"{forecast_lines}"
                 + f"{charge_lines}"
                 + translate(lang, "plan.pricing.slots_header", label=selected_label)
                 + f"\n{slot_lines}"
@@ -1192,24 +1130,13 @@ def format_dp_pre_slot_reevaluation_notification(
     lang: str = "en",
 ) -> tuple[str, str, str]:
     """Format the pre-slot re-evaluation 'charging still needed' notification."""
-    avg_soc = decision.get("avg_soc", 0)
-    usable_energy = decision.get("usable_energy_kwh", 0)
-    solar_forecast = decision.get("solar_forecast_kwh")
     energy_deficit = decision.get("energy_deficit_kwh", 0)
     context = _forecast_notification_context(decision, lang)
-    solar_str = (
-        f"{solar_forecast:.2f} kWh"
-        if solar_forecast is not None
-        else translate(lang, "plan.solar_na")
-    )
 
     title = translate(lang, "pre_slot.title", time=_clock(slot.start, now, lang))
     message = (
-        translate(lang, "plan.battery", soc=avg_soc, usable=usable_energy)
+        _build_forecast_lines(context, decision, lang, ("deficit", energy_deficit))
         + "\n"
-        + f"{_build_forecast_lines(context, solar_str, context['consumption_kwh'], lang)}"
-        + translate(lang, "plan.energy_deficit", kwh=energy_deficit)
-        + "\n\n"
         + translate(
             lang,
             "pre_slot.slot",

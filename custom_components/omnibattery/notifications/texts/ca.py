@@ -9,16 +9,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.horizon.until_day_time": "fins {day} {time}",
     "plan.horizon.until_sunrise": "fins a la sortida del sol ({time})",
     "plan.horizon.until_midnight": "fins a mitjanit",
-    "plan.overnight.tomorrow": "Dels quals demà (00:00-24:00)",
-    "plan.overnight.after_midnight": "Dels quals després de mitjanit ({horizon})",
-    "plan.overnight.until_sunrise": "Nit fins a la sortida del sol",
     "plan.phrase.tomorrow": "la resta d'avui i demà",
     "plan.phrase.tomorrow_until": "la resta d'avui i demà ({horizon})",
     "plan.phrase.tonight": "la resta d'avui i aquesta nit {horizon}",
     "plan.phrase.today": "la resta d'avui",
-    "plan.consumption.remaining": "Consum de la llar restant {horizon}",
-    "plan.consumption.expected_horizon": "Consum previst de la llar {horizon}",
-    "plan.consumption.expected_today": "Consum previst de la llar avui",
     "plan.basis.profile": "perfil après de 15 minuts",
     "plan.basis.profile_days": "perfil après de 15 minuts ({days} dies)",
     "plan.basis.temporary_curve": "corba diària temporal",
@@ -27,25 +21,26 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.basis.average": "mitjana diària de {days} dies",
     "plan.basis.daily_default": "estimació diària per defecte",
     "plan.basis.adjusted": "{basis}, ajustat amb el consum d'avui",
-    "plan.solar.remaining": "Solar restant avui",
-    "plan.solar.forecast": "Previsió solar d'avui",
-    "plan.solar.tomorrow": "Solar demà",
-    "plan.solar.after_midnight": "Solar després de mitjanit ({horizon})",
+    "plan.balance.today": "Avui",
+    "plan.balance.tomorrow": "Demà",
+    "plan.balance.night": "Nit",
+    "plan.balance.total": "Total",
+    "plan.balance.solar": "☀️ Solar previst",
+    "plan.balance.solar_margin": "☀️ Amb marge ({pct:.0f} %)",
+    "plan.balance.consumption": "📊 Consum casa",
+    "plan.balance.battery": "🔋 Bateria ({soc:.0f} %)",
+    "plan.balance.grid_charge": "🔌 Càrrega de xarxa",
+    "plan.balance.available": "✅ Disponible (bateria + sol)",
+    "plan.balance.deficit": "⚡ Dèficit d'energia",
+    "plan.balance.grid_need": "⚡ Necessitat total de la xarxa",
+    "plan.balance.grid_floor": "🔌 Càrrega de xarxa (SOC mínim garantit)",
+    "plan.balance.solar_surplus": "☀️ Excedent solar després del consum",
+    "plan.balance.import_left": "🔌 Es deixa a la xarxa",
     # --- plan.py: _build_forecast_lines and shared lines ---
-    "plan.line.solar": "☀️ {label}: {value}",
-    "plan.line.solar_kwh": "☀️ {label}: {kwh:.2f} kWh",
-    "plan.line.consumption": "📊 {label}: {kwh:.2f} kWh",
     "plan.line.basis": "   🧮 Base: {basis}",
-    "plan.line.overnight": "🌙 {label}: {kwh:.2f} kWh",
     "plan.battery": "🔋 Bateria: {soc:.0f}% ({usable:.2f} kWh utilitzables)",
-    "plan.solar_unavailable": "no disponible",
-    "plan.solar_na": "N/D",
     "plan.horizon_text.today": "avui",
     "plan.horizon_text.for": "per a {phrase}",
-    "plan.energy_deficit": "⚡ Dèficit d'energia: {kwh:.2f} kWh",
-    "plan.available": (
-        "✅ Disponible per a aquest horitzó: {available:.2f} kWh ≥ {needed:.2f} kWh necessaris"
-    ),
     "plan.sufficient": "✓ Energia suficient per a {horizon}",
     "plan.no_more_charging": "No cal més càrrega des de la xarxa.",
     "plan.no_charging": "No cal càrrega des de la xarxa.",
@@ -66,7 +61,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.safe.not_activated": "Càrrega des de la xarxa NO activada.",
     "plan.deferred.title": "Càrrega predictiva: ajornada per calendari",
     "plan.deferred.no_quota": "🕒 Aquesta franja configurada no té quota d'energia.",
-    "plan.deferred.aggregate_need": "⚡ Necessitat total de xarxa: {kwh:.2f} kWh",
     "plan.deferred.shortfall": "⚠️ Dèficit abans del termini: {kwh:.2f} kWh",
     "plan.deferred.reserved": "L'energia està reservada per a una altra franja configurada.",
     "plan.not_required.title": "Càrrega predictiva: no necessària",
@@ -75,15 +69,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.timing.when_cheap": "⏰ La càrrega s'activarà quan els preus siguin baixos",
     "plan.timing.until": "⏰ Carregant fins a: {time}",
     "plan.timing.now": "⏰ Carregant ara des de la xarxa",
-    "plan.charge.floor": "🔌 Xarxa: {kwh:.2f} kWh per arribar al SOC mínim garantit",
-    "plan.charge.planned": "🔌 Càrrega planificada des de la xarxa: {kwh:.2f} kWh",
-    "plan.charge.surplus_remaining": (
-        "☀️ Excedent solar restant previst: {kwh:.2f} kWh (després del consum previst)"
-    ),
-    "plan.charge.surplus": (
-        "☀️ Excedent solar previst: {kwh:.2f} kWh (després del consum previst)"
-    ),
-    "plan.charge.deficit": "⚡ Dèficit: {kwh:.2f} kWh",
     "plan.charge.needed": "⚡ Dèficit d'energia — cal carregar des de la xarxa",
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
@@ -91,11 +76,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.orders.holds": "🔒 Bateria reservada per a més tard (la casa compra de la xarxa):",
     "plan.orders.empty": "🪫 Bateria buida (la casa compra de la xarxa):",
     "plan.orders.exports": "☀️ Excedent solar per exportar: {items}",
-    "plan.orders.sales_one": "💶 Venda a la xarxa: {item}",
-    "plan.orders.sales_many": "💶 Venda a la xarxa:",
-    "plan.orders.at_kw": "{span} a {kw:.1f} kW",
-    "plan.orders.bullet": "  • {item}",
-    "plan.orders.room": "🔋 Fent lloc per al sol: {items}",
+    "plan.orders.sales": "💶 Venda a la xarxa:",
+    "plan.orders.room": "🔋 Fent lloc per al sol:",
     "plan.orders.solar_delay": "⏳ Càrrega solar retardada pel pla",
     # --- plan.py: _no_slots_explanation ---
     "plan.noslots.awaiting_prices.headline": (
@@ -170,7 +152,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Càrrega predictiva: optimització de preu - encara res a carregar"
     ),
     "plan.pricing.deferred.headline": "✓ Les franges més barates per a l'energia necessària són demà",
-    "plan.pricing.deferred.needed": "⚡ Energia necessària: {kwh:.2f} kWh",
     "plan.pricing.deferred.footer": (
         "Ara no hi ha càrrega des de la xarxa programada; es planificarà de nou en la propera avaluació diària."
     ),
@@ -180,7 +161,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.pricing.import.headline": (
         "ℹ️ Sense càrrega de xarxa: comprar l'energia quan es consumeix surt més barat"
     ),
-    "plan.pricing.import.left": "🔌 Deixat a la xarxa: {kwh:.2f} kWh",
     "plan.pricing.import.storing": (
         "Emmagatzemar-la ara costaria més tenint en compte les pèrdues del cicle."
     ),
@@ -222,7 +202,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.pricing.grid_charge_hours": (
         "🔌 Càrrega de xarxa planificada: {kwh:.2f} kWh → calen {hours:.1f}h de càrrega"
     ),
-    "plan.pricing.grid_charge": "🔌 Càrrega de xarxa planificada: {kwh:.2f} kWh",
     "plan.pricing.slots_header": "💰 {label}:",
     "plan.pricing.average_price": "Preu mitjà: {price:.4f} {unit}",
     "plan.pricing.estimated_cost": "Cost estimat: ~{cost:.2f} {cost_unit}",
@@ -234,7 +213,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.slot.purpose": " [{purpose}]",
     "plan.slot.purpose_extra": " + {purpose}",
     "plan.table.header": "| Franja | Preu | Energia | Cost |",
-    "plan.table.row": "| {span} | {price} | {energy} | {cost} |",
+    "plan.table.power": "Potència",
     "plan.table.price": "{price:.4f} {unit}",
     "plan.table.cost": "~{cost:.2f} {cost_unit}",
     "plan.table.total": "**Total**",

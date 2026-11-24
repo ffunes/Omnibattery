@@ -12,16 +12,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.horizon.until_day_time": "hasta el {day} a las {time}",
     "plan.horizon.until_sunrise": "hasta el amanecer ({time})",
     "plan.horizon.until_midnight": "hasta la medianoche",
-    "plan.overnight.tomorrow": "De ello, mañana (00:00-24:00)",
-    "plan.overnight.after_midnight": "De ello, después de medianoche ({horizon})",
-    "plan.overnight.until_sunrise": "Noche hasta el amanecer",
     "plan.phrase.tomorrow": "el resto de hoy y mañana",
     "plan.phrase.tomorrow_until": "el resto de hoy y mañana ({horizon})",
     "plan.phrase.tonight": "el resto de hoy y esta noche {horizon}",
     "plan.phrase.today": "el resto de hoy",
-    "plan.consumption.remaining": "Consumo restante de la casa {horizon}",
-    "plan.consumption.expected_horizon": "Consumo previsto de la casa {horizon}",
-    "plan.consumption.expected_today": "Consumo previsto de la casa hoy",
     "plan.basis.profile": "perfil aprendido de 15 minutos",
     "plan.basis.profile_days": "perfil aprendido de 15 minutos ({days} días)",
     "plan.basis.temporary_curve": "curva diaria provisional",
@@ -30,25 +24,26 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.basis.average": "media diaria de {days} días",
     "plan.basis.daily_default": "estimación diaria por defecto",
     "plan.basis.adjusted": "{basis}, ajustado con el consumo de hoy",
-    "plan.solar.remaining": "Solar restante hoy",
-    "plan.solar.forecast": "Previsión solar de hoy",
-    "plan.solar.tomorrow": "Solar de mañana",
-    "plan.solar.after_midnight": "Solar después de medianoche ({horizon})",
+    "plan.balance.today": "Hoy",
+    "plan.balance.tomorrow": "Mañana",
+    "plan.balance.night": "Noche",
+    "plan.balance.total": "Total",
+    "plan.balance.solar": "☀️ Solar previsto",
+    "plan.balance.solar_margin": "☀️ Con margen ({pct:.0f} %)",
+    "plan.balance.consumption": "📊 Consumo casa",
+    "plan.balance.battery": "🔋 Batería ({soc:.0f} %)",
+    "plan.balance.grid_charge": "🔌 Carga de red",
+    "plan.balance.available": "✅ Disponible (batería + sol)",
+    "plan.balance.deficit": "⚡ Déficit de energía",
+    "plan.balance.grid_need": "⚡ Necesidad total de la red",
+    "plan.balance.grid_floor": "🔌 Carga de red (SOC mínimo garantizado)",
+    "plan.balance.solar_surplus": "☀️ Excedente solar tras el consumo",
+    "plan.balance.import_left": "🔌 Se deja a la red",
     # --- plan.py: _build_forecast_lines and shared lines ---
-    "plan.line.solar": "☀️ {label}: {value}",
-    "plan.line.solar_kwh": "☀️ {label}: {kwh:.2f} kWh",
-    "plan.line.consumption": "📊 {label}: {kwh:.2f} kWh",
     "plan.line.basis": "   🧮 Base: {basis}",
-    "plan.line.overnight": "🌙 {label}: {kwh:.2f} kWh",
     "plan.battery": "🔋 Batería: {soc:.0f}% ({usable:.2f} kWh utilizables)",
-    "plan.solar_unavailable": "no disponible",
-    "plan.solar_na": "N/D",
     "plan.horizon_text.today": "hoy",
     "plan.horizon_text.for": "para {phrase}",
-    "plan.energy_deficit": "⚡ Déficit de energía: {kwh:.2f} kWh",
-    "plan.available": (
-        "✅ Disponible para este horizonte: {available:.2f} kWh ≥ {needed:.2f} kWh necesarios"
-    ),
     "plan.sufficient": "✓ Energía suficiente para {horizon}",
     "plan.no_more_charging": "No hace falta cargar más de la red.",
     "plan.no_charging": "No hace falta cargar de la red.",
@@ -69,7 +64,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.safe.not_activated": "La carga desde la red NO se ha activado.",
     "plan.deferred.title": "Carga Predictiva: aplazada por el calendario",
     "plan.deferred.no_quota": "🕒 Esta ventana configurada no tiene cuota de energía.",
-    "plan.deferred.aggregate_need": "⚡ Necesidad total de la red: {kwh:.2f} kWh",
     "plan.deferred.shortfall": "⚠️ Falta antes del plazo: {kwh:.2f} kWh",
     "plan.deferred.reserved": "La energía está reservada para otra ventana configurada.",
     "plan.not_required.title": "Carga Predictiva: no necesaria",
@@ -78,15 +72,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.timing.when_cheap": "⏰ La carga se activará cuando los precios sean bajos",
     "plan.timing.until": "⏰ Cargando hasta: {time}",
     "plan.timing.now": "⏰ Cargando ahora desde la red",
-    "plan.charge.floor": "🔌 Red: {kwh:.2f} kWh para llegar al SOC mínimo garantizado",
-    "plan.charge.planned": "🔌 Carga de red prevista: {kwh:.2f} kWh",
-    "plan.charge.surplus_remaining": (
-        "☀️ Excedente solar restante previsto: {kwh:.2f} kWh (tras el consumo previsto)"
-    ),
-    "plan.charge.surplus": (
-        "☀️ Excedente solar previsto: {kwh:.2f} kWh (tras el consumo previsto)"
-    ),
-    "plan.charge.deficit": "⚡ Déficit: {kwh:.2f} kWh",
     "plan.charge.needed": "⚡ Déficit de energía — hace falta cargar de la red",
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
@@ -94,11 +79,8 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.orders.holds": "🔒 Batería reservada para más tarde (la casa compra de la red):",
     "plan.orders.empty": "🪫 Batería vacía (la casa compra de la red):",
     "plan.orders.exports": "☀️ Excedente solar para exportar: {items}",
-    "plan.orders.sales_one": "💶 Vendiendo a la red: {item}",
-    "plan.orders.sales_many": "💶 Vendiendo a la red:",
-    "plan.orders.at_kw": "{span} a {kw:.1f} kW",
-    "plan.orders.bullet": "  • {item}",
-    "plan.orders.room": "🔋 Haciendo hueco para el sol: {items}",
+    "plan.orders.sales": "💶 Vendiendo a la red:",
+    "plan.orders.room": "🔋 Haciendo hueco para el sol:",
     "plan.orders.solar_delay": "⏳ Carga solar retrasada por el plan",
     # --- plan.py: _no_slots_explanation ---
     "plan.noslots.awaiting_prices.headline": (
@@ -173,7 +155,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Carga Predictiva: optimización de precio - aún no hay nada que cargar"
     ),
     "plan.pricing.deferred.headline": "✓ Los tramos más baratos para la energía necesaria son mañana",
-    "plan.pricing.deferred.needed": "⚡ Energía necesaria: {kwh:.2f} kWh",
     "plan.pricing.deferred.footer": (
         "Ahora no hay carga de red programada; se volverá a planificar en la siguiente evaluación diaria."
     ),
@@ -183,7 +164,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.pricing.import.headline": (
         "ℹ️ Sin carga de red: comprar la energía cuando se use sale más barato"
     ),
-    "plan.pricing.import.left": "🔌 Se deja a la red: {kwh:.2f} kWh",
     "plan.pricing.import.storing": (
         "Almacenarla ahora costaría más tras las pérdidas de ida y vuelta."
     ),
@@ -225,7 +205,6 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.pricing.grid_charge_hours": (
         "🔌 Carga de red prevista: {kwh:.2f} kWh → hacen falta {hours:.1f}h de carga"
     ),
-    "plan.pricing.grid_charge": "🔌 Carga de red prevista: {kwh:.2f} kWh",
     "plan.pricing.slots_header": "💰 {label}:",
     "plan.pricing.average_price": "Precio medio: {price:.4f} {unit}",
     "plan.pricing.estimated_cost": "Coste estimado: ~{cost:.2f} {cost_unit}",
@@ -237,7 +216,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.slot.purpose": " [{purpose}]",
     "plan.slot.purpose_extra": " + {purpose}",
     "plan.table.header": "| Tramo | Precio | Energía | Coste |",
-    "plan.table.row": "| {span} | {price} | {energy} | {cost} |",
+    "plan.table.power": "Potencia",
     "plan.table.price": "{price:.4f} {unit}",
     "plan.table.cost": "~{cost:.2f} {cost_unit}",
     "plan.table.total": "**Total**",
