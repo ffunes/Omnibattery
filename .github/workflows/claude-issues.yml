@@ -96,7 +96,7 @@ jobs:
            "duplicate_of": null, "root_cause": "file:line - one sentence, for fix only"}
           EOF
           # /proc/*/environ holds the OAuth token: a prompt injection must not be able to read it.
-          claude -p "$(cat .claude-ctx/prompt.md)" --model sonnet --max-turns 40 --output-format json \
+          claude -p "$(cat .claude-ctx/prompt.md)" --model opus --max-turns 40 --output-format json \
             --permission-mode dontAsk --allowedTools "Read,Grep,Glob" \
             --settings '{"permissions":{"deny":["Read(//proc/**)","Read(//home/runner/work/_temp/**)"]}}' \
             > .claude-ctx/out.json || true
@@ -222,6 +222,8 @@ jobs:
           Abort and revert your edits if the root cause is not certain, the fix is not small, it needs a config or
           storage migration, it changes control behaviour beyond the bug, or you cannot get a failing test to pass.
           Only edit custom_components/, tests/ and CHANGELOG.md.
+          Scratch files (dump scripts, temporary output) go in .claude-ctx/ only: you cannot delete files, and anything
+          left elsewhere ends up in the patch and fails the run.
 
           Your final message must be ONLY this JSON object:
           {"status": "fixed|abort", "title": "fix(scope): summary (#$N)",

@@ -594,6 +594,9 @@ class ActiveBatteriesSensor(SensorEntity):
             "charge_active": len(charge),
             "charge_batteries": [c.name for c in charge],
         }
+        mode_manager = getattr(self.controller, "_autonomous_mode_mgr", None)
+        if mode_manager is not None:
+            attrs.update(mode_manager.pool_attributes())
 
         # Add per-battery SOC and lifetime energy for context
         for c in self._coordinators:
@@ -1055,6 +1058,8 @@ class IntegrationStatusSensor(SensorEntity):
         discharge_blockers = c.get_discharge_blockers()
         if "price_discharge" in discharge_blockers:
             return "price_discharge_blocked"
+        if "time_slot_floor_hold" in discharge_blockers:
+            return "time_slot_floor_hold"
 
         # Per-battery, so it is not in the global registry above.
         if self._price_reserve_batteries():
@@ -1111,6 +1116,9 @@ class IntegrationStatusSensor(SensorEntity):
             "charge_blocked": c.is_charge_effectively_blocked(),
             "discharge_blocked": c.is_discharge_effectively_blocked(),
         }
+        mode_manager = getattr(c, "_autonomous_mode_mgr", None)
+        if mode_manager is not None:
+            attrs.update(mode_manager.pool_attributes())
         charge_blockers = c.get_charge_blockers()
         if charge_blockers:
             attrs["charge_blockers"] = charge_blockers

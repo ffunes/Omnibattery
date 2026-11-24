@@ -47,7 +47,7 @@ The plan adapts inside an active window when SOC changes materially, the guarant
 | A changed forecast does not start charging at midday | No configured charging window is open | Wait for the next window or add a tariff-valid window |
 | The first window stops before reaching the full daily target | Energy has been assigned to a later window | Per-window quota and remaining selected windows |
 | The plan reports an energy shortfall | The configured windows or physical charge power cannot deliver enough energy before its deadline | Window duration, charge limits, battery capacity, and active blockers |
-| The battery stops discharging during a window | It reached the energy it needs after the window; the grid covers the house until the window ends | `time_slot_floor_kwh` on **Predictive Charging Active** and the `time_slot_floor_hold` discharge blocker |
+| The battery stops discharging during a window | It reached the energy it needs after the window; the grid covers the house until the window ends | **Integration Status** `time_slot_floor_hold`, `time_slot_floor_kwh` on **Predictive Charging Active** and the `time_slot_floor_hold` discharge blocker |
 | Pressing re-evaluate does nothing | The button was pressed outside an active window | Press it during a configured window; outside one it prepares the next entry |
 
 ??? "Advanced details"
@@ -61,7 +61,7 @@ The plan adapts inside an active window when SOC changes materially, the guarant
 
     ### Window floor
 
-    The planner treats every configured window as battery-idle: the house load inside it is left to the grid and is not part of any quota. At each evaluation the window gets a floor, the stored energy it must end with. If the window charges, the floor is the current energy plus the quota. Otherwise it is the current energy minus the lowest point of the projection without grid charging, which is the energy that is spare until the next window. While stored energy is at or below the floor, the `time_slot_floor_hold` discharge blocker keeps the battery idle. Capacity protection can still discharge. The floor clears when the window ends, and is not used during a weekly full charge.
+    The planner treats every configured window as battery-idle: the house load inside it is left to the grid and is not part of any quota. At each evaluation the window gets a floor, the stored energy it must end with. If the window charges, the floor is the current energy plus the quota. Otherwise it is the current energy minus the lowest point of the projection without grid charging, which is the energy that is spare until the next window. While stored energy is at or below the floor, the `time_slot_floor_hold` discharge blocker keeps the battery idle. Until the window's first evaluation (it waits up to 5 minutes for the solar forecast), the floor is the energy stored at that moment. Capacity protection can still discharge. The floor clears when the window ends, and is not used during a weekly full charge.
 
     ### Re-evaluation triggers
 

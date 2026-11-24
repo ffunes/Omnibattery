@@ -138,6 +138,38 @@ def test_cheap_hours_at_one_price_stop_less(monkeypatch, prices, soc, usable):
         assert starts_off[0] == 4 and starts[0] == 2
 
 
+@pytest.mark.parametrize(("prices", "expected"), [
+    ([0.10] * 4, 1),
+    ([0.10, 0.11, 0.12, 0.13], 1),
+    ([0.12, 0.10, 0.11, 0.13], 1),
+    # The dearest hour first: a part hour, then the block from the next one.
+    ([0.13, 0.12, 0.11, 0.10], 2),
+])
+@pytest.mark.parametrize(("soc", "usable"), [(10.0, 0.3), (40.0, 2.7)])
+def test_cheap_hours_charge_in_one_block_when_the_plan_holds(monkeypatch, prices, expected,
+                                                             soc, usable):
+    # #899 as the engine asks for it in Dynamic Pricing (hold allowed): the
+    # block charges on, fills and holds, so a part hour ends it.
+    import dataclasses
+
+    from custom_components.omnibattery.pricing import optimizer
+
+    request = dataclasses.replace(
+        _request(prices + [0.40] * 4, house=[0.05] * 16 + [0.5] * 16, slot_quarters=4,
+                 cap=8.16, soc=soc, usable=usable, room=7.3, power=2.4, discharge=2.4),
+        hold_allowed=True,
+    )
+    plan = optimize_charge(request).plan
+    starts = []
+    assert _replay(request, plan, held=set(plan.holds), starts=starts) == pytest.approx(
+        plan.optimizer_cost, abs=1e-4)
+    assert plan.charge_starts == starts[0] == expected
+    if len(set(prices)) == 1 and soc == 40.0:
+        # The start cost is what joins it.
+        monkeypatch.setattr(optimizer, "START_COST_EUR", 0.0)
+        assert optimize_charge(request).plan.charge_starts == 3
+
+
 def test_the_last_charge_of_a_run_keeps_its_quota(monkeypatch):
     # Nothing charges after it: run to its end, it would save no start and
     # only cost more.

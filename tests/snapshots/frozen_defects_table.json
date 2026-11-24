@@ -29,7 +29,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=<absent>|serial=<absent>": {
@@ -61,7 +62,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=v2|serial=/dev/ttyUSB0": {
@@ -93,7 +95,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=v2|serial=<absent>": {
@@ -125,7 +128,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=v3|serial=/dev/ttyUSB0": {
@@ -157,7 +161,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=v3|serial=<absent>": {
@@ -189,7 +194,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=vA|serial=/dev/ttyUSB0": {
@@ -221,7 +227,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=vA|serial=<absent>": {
@@ -253,7 +260,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=vD|serial=/dev/ttyUSB0": {
@@ -285,7 +293,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=vD|serial=<absent>": {
@@ -317,7 +326,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=zz|serial=/dev/ttyUSB0": {
@@ -349,7 +359,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "<missing>|version=zz|serial=<absent>": {
@@ -381,7 +392,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=<absent>|serial=/dev/ttyUSB0": {
@@ -413,7 +425,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=<absent>|serial=<absent>": {
@@ -445,7 +458,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=v2|serial=/dev/ttyUSB0": {
@@ -477,7 +491,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=v2|serial=<absent>": {
@@ -509,7 +524,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=v3|serial=/dev/ttyUSB0": {
@@ -541,7 +557,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=v3|serial=<absent>": {
@@ -573,7 +590,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=vA|serial=/dev/ttyUSB0": {
@@ -605,7 +623,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=vA|serial=<absent>": {
@@ -637,7 +656,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=vD|serial=/dev/ttyUSB0": {
@@ -669,7 +689,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=vD|serial=<absent>": {
@@ -701,7 +722,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=zz|serial=/dev/ttyUSB0": {
@@ -733,7 +755,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "acme|version=zz|serial=<absent>": {
@@ -765,7 +788,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=<absent>|serial=/dev/ttyUSB0": {
@@ -797,7 +821,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=<absent>|serial=<absent>": {
@@ -829,7 +854,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=v2|serial=/dev/ttyUSB0": {
@@ -861,7 +887,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=v2|serial=<absent>": {
@@ -893,7 +920,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=v3|serial=/dev/ttyUSB0": {
@@ -925,7 +953,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=v3|serial=<absent>": {
@@ -957,7 +986,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=vA|serial=/dev/ttyUSB0": {
@@ -989,7 +1019,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=vA|serial=<absent>": {
@@ -1021,7 +1052,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=vD|serial=/dev/ttyUSB0": {
@@ -1053,7 +1085,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=vD|serial=<absent>": {
@@ -1085,7 +1118,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=zz|serial=/dev/ttyUSB0": {
@@ -1117,7 +1151,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "anker|version=zz|serial=<absent>": {
@@ -1149,7 +1184,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=<absent>|serial=/dev/ttyUSB0": {
@@ -1181,7 +1217,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=<absent>|serial=<absent>": {
@@ -1213,7 +1250,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=v2|serial=/dev/ttyUSB0": {
@@ -1245,7 +1283,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=v2|serial=<absent>": {
@@ -1277,7 +1316,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=v3|serial=/dev/ttyUSB0": {
@@ -1309,7 +1349,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=v3|serial=<absent>": {
@@ -1341,7 +1382,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=vA|serial=/dev/ttyUSB0": {
@@ -1373,7 +1415,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=vA|serial=<absent>": {
@@ -1405,7 +1448,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=vD|serial=/dev/ttyUSB0": {
@@ -1437,7 +1481,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=vD|serial=<absent>": {
@@ -1469,7 +1514,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=zz|serial=/dev/ttyUSB0": {
@@ -1501,7 +1547,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "esphome|version=zz|serial=<absent>": {
@@ -1533,7 +1580,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=<absent>|serial=/dev/ttyUSB0": {
@@ -1565,7 +1613,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=<absent>|serial=<absent>": {
@@ -1597,7 +1646,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=v2|serial=/dev/ttyUSB0": {
@@ -1629,7 +1679,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=v2|serial=<absent>": {
@@ -1661,7 +1712,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=v3|serial=/dev/ttyUSB0": {
@@ -1693,7 +1745,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=v3|serial=<absent>": {
@@ -1725,7 +1778,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=vA|serial=/dev/ttyUSB0": {
@@ -1757,7 +1811,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=vA|serial=<absent>": {
@@ -1789,7 +1844,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=vD|serial=/dev/ttyUSB0": {
@@ -1821,7 +1877,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=vD|serial=<absent>": {
@@ -1853,7 +1910,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=zz|serial=/dev/ttyUSB0": {
@@ -1885,7 +1943,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "hoymiles|version=zz|serial=<absent>": {
@@ -1917,7 +1976,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=<absent>|serial=/dev/ttyUSB0": {
@@ -1949,7 +2009,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=<absent>|serial=<absent>": {
@@ -1981,7 +2042,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=v2|serial=/dev/ttyUSB0": {
@@ -2013,7 +2075,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=v2|serial=<absent>": {
@@ -2045,7 +2108,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=v3|serial=/dev/ttyUSB0": {
@@ -2077,7 +2141,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=v3|serial=<absent>": {
@@ -2109,7 +2174,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=vA|serial=/dev/ttyUSB0": {
@@ -2141,7 +2207,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=vA|serial=<absent>": {
@@ -2173,7 +2240,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=vD|serial=/dev/ttyUSB0": {
@@ -2205,7 +2273,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=vD|serial=<absent>": {
@@ -2237,7 +2306,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=zz|serial=/dev/ttyUSB0": {
@@ -2269,7 +2339,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "huawei|version=zz|serial=<absent>": {
@@ -2301,7 +2372,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=<absent>|serial=/dev/ttyUSB0": {
@@ -2333,7 +2405,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=<absent>|serial=<absent>": {
@@ -2365,7 +2438,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=v2|serial=/dev/ttyUSB0": {
@@ -2397,7 +2471,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=v2|serial=<absent>": {
@@ -2429,7 +2504,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=v3|serial=/dev/ttyUSB0": {
@@ -2461,7 +2537,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=v3|serial=<absent>": {
@@ -2493,7 +2570,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=vA|serial=/dev/ttyUSB0": {
@@ -2525,7 +2603,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=vA|serial=<absent>": {
@@ -2557,7 +2636,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=vD|serial=/dev/ttyUSB0": {
@@ -2589,7 +2669,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=vD|serial=<absent>": {
@@ -2621,7 +2702,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=zz|serial=/dev/ttyUSB0": {
@@ -2653,7 +2735,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "indevolt|version=zz|serial=<absent>": {
@@ -2685,7 +2768,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=<absent>|serial=/dev/ttyUSB0": {
@@ -2717,7 +2801,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=<absent>|serial=<absent>": {
@@ -2749,7 +2834,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=v2|serial=/dev/ttyUSB0": {
@@ -2781,7 +2867,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=v2|serial=<absent>": {
@@ -2813,7 +2900,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=v3|serial=/dev/ttyUSB0": {
@@ -2845,7 +2933,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=v3|serial=<absent>": {
@@ -2877,7 +2966,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=vA|serial=/dev/ttyUSB0": {
@@ -2909,7 +2999,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=vA|serial=<absent>": {
@@ -2941,7 +3032,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=vD|serial=/dev/ttyUSB0": {
@@ -2973,7 +3065,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=vD|serial=<absent>": {
@@ -3005,7 +3098,8 @@
     "optional_dc_pv_input": true,
     "sequential_pack_fill": true,
     "soc_decimals": 1,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=zz|serial=/dev/ttyUSB0": {
@@ -3037,7 +3131,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "marstek|version=zz|serial=<absent>": {
@@ -3069,7 +3164,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": true
+    "supports_voltage_taper": true,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=<absent>|serial=/dev/ttyUSB0": {
@@ -3101,7 +3197,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=<absent>|serial=<absent>": {
@@ -3133,7 +3230,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=v2|serial=/dev/ttyUSB0": {
@@ -3165,7 +3263,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=v2|serial=<absent>": {
@@ -3197,7 +3296,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=v3|serial=/dev/ttyUSB0": {
@@ -3229,7 +3329,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=v3|serial=<absent>": {
@@ -3261,7 +3362,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=vA|serial=/dev/ttyUSB0": {
@@ -3293,7 +3395,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=vA|serial=<absent>": {
@@ -3325,7 +3428,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=vD|serial=/dev/ttyUSB0": {
@@ -3357,7 +3461,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=vD|serial=<absent>": {
@@ -3389,7 +3494,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=zz|serial=/dev/ttyUSB0": {
@@ -3421,7 +3527,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "sessy|version=zz|serial=<absent>": {
@@ -3453,7 +3560,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=<absent>|serial=/dev/ttyUSB0": {
@@ -3485,7 +3593,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=<absent>|serial=<absent>": {
@@ -3517,7 +3626,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=v2|serial=/dev/ttyUSB0": {
@@ -3549,7 +3659,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=v2|serial=<absent>": {
@@ -3581,7 +3692,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=v3|serial=/dev/ttyUSB0": {
@@ -3613,7 +3725,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=v3|serial=<absent>": {
@@ -3645,7 +3758,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=vA|serial=/dev/ttyUSB0": {
@@ -3677,7 +3791,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=vA|serial=<absent>": {
@@ -3709,7 +3824,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=vD|serial=/dev/ttyUSB0": {
@@ -3741,7 +3857,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=vD|serial=<absent>": {
@@ -3773,7 +3890,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=zz|serial=/dev/ttyUSB0": {
@@ -3805,7 +3923,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   },
   "zendure|version=zz|serial=<absent>": {
@@ -3837,7 +3956,8 @@
     "optional_dc_pv_input": false,
     "sequential_pack_fill": false,
     "soc_decimals": null,
-    "supports_voltage_taper": false
+    "supports_voltage_taper": false,
+    "takes_power_setpoint": true
    }
   }
  }

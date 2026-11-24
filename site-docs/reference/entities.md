@@ -146,6 +146,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
     | Switch | `full_charge_voltage_taper` | Compatible cell telemetry |
     | Switch | `backup_function`, `rs485_control_mode`, `lamp_switch` | Driver exposes the control |
     | Select | `force_mode`, `grid_off_mode`, `user_work_mode` | Driver exposes the control |
+    | Select | `autonomous_operating_mode` (`nom`, `manual`) | Battery read through Home Assistant entities with an operating mode entity. The state is what you asked for; `effective_mode`, `status`, `suspended`, `suspension_causes`, `last_change`, `last_error` and `failed_attempts` are attributes |
     | Button | `reset_device` | Driver exposes the command |
 
 ## Status and diagnostic attributes
@@ -179,7 +180,7 @@ Battery entities depend on the driver. A missing entity usually means that the d
 
     | Attribute | Meaning |
     |---|---|
-    | `trigger_1_budget_kwh` | Battery energy that **High-Price Sale** (*Surplus only* or above) may sell after preserving the forecast need before sunrise (solar counted less the safety margin) |
+    | `trigger_1_budget_kwh` | Battery energy that **High-Price Sale** (*Surplus only* or above) may sell after preserving the forecast need before sunrise (solar counted less the safety margin), reduced to the part tomorrow’s solar can refill |
     | `refill_price` | Export-price reference for solar refilling the battery tomorrow |
     | `trigger_1_reason` | Why surplus export is active or inactive |
     | `surplus_export_enabled` | Whether **High-Price Sale** is set to *Surplus only* or above |

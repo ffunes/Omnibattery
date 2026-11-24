@@ -10,3 +10,4 @@ exclude_consumption_days:
       example: "2026-09-08"
       selector:
         date:
+use_measured_round_trip_efficiency:

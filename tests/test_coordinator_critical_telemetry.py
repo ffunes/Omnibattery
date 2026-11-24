@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -102,6 +102,33 @@ async def test_aggregate_and_critical_failures_trigger_only_one_reconnect():
         await MarstekVenusDataUpdateCoordinator._async_update_data(coordinator)
 
     coordinator.async_reconnect_fresh.assert_awaited_once()
+
+
+async def test_a_snapshot_of_only_none_is_not_an_answer():
+    """#934: a Marstek that answers nothing still hands back the pack slots its
+    probe wrote off, purged to None. That counted as a read, so a Venus A that
+    started switched off "recovered" every third poll and reloaded the entry."""
+    coordinator, _ = _coordinator(critical_succeeds=False)
+    coordinator._consecutive_failures = 2
+    coordinator.data = {"temperature": 25}
+    coordinator.reload_entry_when_reachable = True  # started unreachable
+    coordinator._config_entry = SimpleNamespace(entry_id="abc")
+    coordinator.hass = SimpleNamespace(
+        config_entries=SimpleNamespace(async_schedule_reload=Mock()), data={}
+    )
+
+    async def purge_only(keys):
+        return dict.fromkeys(keys)
+
+    coordinator.driver.read_telemetry = purge_only
+
+    await MarstekVenusDataUpdateCoordinator._async_update_data(coordinator)
+
+    assert coordinator._consecutive_failures == 3
+    assert coordinator._is_connected is False
+    assert coordinator.data["temperature"] is None  # the purge still lands
+    coordinator.hass.config_entries.async_schedule_reload.assert_not_called()
+    assert coordinator.reload_entry_when_reachable is True
 
 
 async def test_configured_capacity_is_injected_for_drivers_without_nominal_capacity():

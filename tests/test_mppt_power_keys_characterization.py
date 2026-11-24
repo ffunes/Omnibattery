@@ -20,8 +20,10 @@ its ``has_mppt_pv`` is False) and Huawei (one per PV string). The others never w
 the keys, so for them the lists are inert; only absent keys are exercised for them
 (injecting a channel into a non-publisher is unreachable and is not characterized).
 
-Known defect kept (plan section 8): a Zendure 4000 Mix Pro has ``dc_pv_connected``
-forced to False, so the aggregate cell power leaves its channels out.
+A Zendure 4000 Mix Pro has ``dc_pv_connected`` forced to False (plan section 8), so
+the aggregate cell power leaves its channels out. Its MPPT inputs are not optional,
+so ``has_connected_mppt_pv`` follows the hardware capability and the tracker,
+fingerprint and decision count them (#942).
 """
 from __future__ import annotations
 
@@ -259,14 +261,14 @@ GOLDEN: dict = {
     ('zendure-2400ac_pro', 'negative'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a3d25d7296a11430', 'decision': (150.0, 2)},
     ('zendure-2400ac_pro', 'zero'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a3d25d7296a11430', 'decision': (150.0, 2)},
     ('zendure-2400ac_pro', 'full_and_solar'): {'aggregate': 200.0, 'efficiency': None, 'tracker': 0.5, 'fingerprint': 'a3d25d7296a11430', 'decision': (150.0, 1)},
-    ('zendure-4000mix_pro', 'none'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
-    ('zendure-4000mix_pro', 'solar_only'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
-    ('zendure-4000mix_pro', 'full'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
-    ('zendure-4000mix_pro', 'partial'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
-    ('zendure-4000mix_pro', 'none_first'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
-    ('zendure-4000mix_pro', 'negative'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
-    ('zendure-4000mix_pro', 'zero'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
-    ('zendure-4000mix_pro', 'full_and_solar'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
+    ('zendure-4000mix_pro', 'none'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': '824752e5d252829c', 'decision': (150.0, 2)},
+    ('zendure-4000mix_pro', 'solar_only'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': '824752e5d252829c', 'decision': (150.0, 2)},
+    ('zendure-4000mix_pro', 'full'): {'aggregate': 200.0, 'efficiency': None, 'tracker': 1.0, 'fingerprint': '20df4d25e1765fcc', 'decision': (150.0, 1)},
+    ('zendure-4000mix_pro', 'partial'): {'aggregate': 200.0, 'efficiency': None, 'tracker': 0.25, 'fingerprint': 'a74a04874b6a57ce', 'decision': (150.0, 1)},
+    ('zendure-4000mix_pro', 'none_first'): {'aggregate': 200.0, 'efficiency': None, 'tracker': 0.15, 'fingerprint': '21ae823908c8a518', 'decision': (150.0, 1)},
+    ('zendure-4000mix_pro', 'negative'): {'aggregate': 200.0, 'efficiency': None, 'tracker': 0.1, 'fingerprint': '21ae823908c8a518', 'decision': (150.0, 1)},
+    ('zendure-4000mix_pro', 'zero'): {'aggregate': 200.0, 'efficiency': None, 'tracker': 0.0, 'fingerprint': '20df4d25e1765fcc', 'decision': (150.0, 2)},
+    ('zendure-4000mix_pro', 'full_and_solar'): {'aggregate': 200.0, 'efficiency': None, 'tracker': 1.0, 'fingerprint': '20df4d25e1765fcc', 'decision': (150.0, 1)},
     ('zendure-1600ac_plus', 'none'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
     ('zendure-1600ac_plus', 'solar_only'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a74472309aa6b1ef', 'decision': (150.0, 2)},
     ('zendure-solarflow_800', 'none'): {'aggregate': 200.0, 'efficiency': None, 'tracker': None, 'fingerprint': 'a3d25d7296a11430', 'decision': (150.0, 2)},

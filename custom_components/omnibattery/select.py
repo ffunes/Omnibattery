@@ -32,7 +32,12 @@ from .const import (
     normalize_battery_phase,
     pd_profile_from_params,
 )
-from .drivers.base import KEY_FORCE_MODE, is_observed
+from .drivers.base import (
+    KEY_FORCE_MODE,
+    NativeOperatingMode,
+    is_observed,
+    supports_nom_mode,
+)
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.entity_naming import english_entity_id, system_entity_id, SYSTEM_UNIQUE_ID_PREFIX
 from .infra.manual_control import assert_manual_control
@@ -53,6 +58,12 @@ async def async_setup_entry(
     for coordinator in coordinators:
         for definition in coordinator.select_definitions:
             entities.append(MarstekVenusSelect(coordinator, definition))
+
+        controller = hass.data[DOMAIN][entry.entry_id].get("controller")
+        if supports_nom_mode(coordinator) and controller is not None:
+            entities.append(
+                BatteryAutonomousModeSelect(coordinator, controller._autonomous_mode_mgr)
+            )
 
         # A battery that takes no power command is never allocated to, so the
         # phase limiter has nothing to limit on it and there is no set-point for
@@ -158,6 +169,49 @@ class BatteryPhaseSelect(CoordinatorEntity, SelectEntity):
 
     async def _handle_entry_update(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Re-render the selector after a config-entry update."""
+        self.async_write_ha_state()
+
+    @property
+    def device_info(self):
+        """Return device information for the battery."""
+        return self.coordinator.battery_device_info
+
+
+class BatteryAutonomousModeSelect(CoordinatorEntity, SelectEntity):
+    """Native mode of a battery that regulates on its own.
+
+    Shows what the user asked for. What the battery does and why NOM is held off
+    are in the attributes.
+    """
+
+    def __init__(self, coordinator: MarstekVenusDataUpdateCoordinator, manager) -> None:
+        """Initialize the operating mode selector."""
+        super().__init__(coordinator)
+        self._manager = manager
+
+        self._attr_has_entity_name = True
+        self._attr_translation_key = "autonomous_operating_mode"
+        self._attr_unique_id = f"{coordinator.device_key}_autonomous_operating_mode"
+        self.entity_id = english_entity_id(
+            "select", coordinator.name, "autonomous_operating_mode"
+        )
+        self._attr_options = [mode.value for mode in NativeOperatingMode]
+        self._attr_icon = "mdi:home-lightning-bolt-outline"
+        self._attr_should_poll = False
+
+    @property
+    def current_option(self) -> str:
+        """Return the mode the user asked for."""
+        return self._manager.requested(self.coordinator).value
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return the effective mode and what is holding NOM off."""
+        return self._manager.snapshot(self.coordinator)
+
+    async def async_select_option(self, option: str) -> None:
+        """Store the choice and let the manager act on it."""
+        await self._manager.async_set_requested_mode(self.coordinator, option)
         self.async_write_ha_state()
 
     @property

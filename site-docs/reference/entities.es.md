@@ -146,6 +146,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
     | Interruptor | `full_charge_voltage_taper` | Telemetría de celdas compatible |
     | Interruptor | `backup_function`, `rs485_control_mode`, `lamp_switch` | El controlador expone el control |
     | Selector | `force_mode`, `grid_off_mode`, `user_work_mode` | El controlador expone el control |
+    | Selector | `autonomous_operating_mode` (`nom`, `manual`) | Batería leída mediante entidades de Home Assistant con entidad de modo de operación. El estado es lo que has pedido; `effective_mode`, `status`, `suspended`, `suspension_causes`, `last_change`, `last_error` y `failed_attempts` son atributos |
     | Botón | `reset_device` | El controlador expone la orden |
 
 ## Atributos de estado y diagnóstico
@@ -179,7 +180,7 @@ Las entidades de batería dependen del controlador. Una entidad ausente normalme
 
     | Atributo | Significado |
     |---|---|
-    | `trigger_1_budget_kwh` | Energía de batería que **Venta a precio alto** (*Solo excedente* o superior) puede vender tras reservar la necesidad prevista hasta el amanecer (con la solar menos el margen de seguridad) |
+    | `trigger_1_budget_kwh` | Energía de batería que **Venta a precio alto** (*Solo excedente* o superior) puede vender tras reservar la necesidad prevista hasta el amanecer (con la solar menos el margen de seguridad), reducida a la parte que la solar de mañana puede reponer |
     | `refill_price` | Precio de exportación de referencia para que la solar rellene la batería mañana |
     | `trigger_1_reason` | Por qué la exportación de excedente está activa o inactiva |
     | `surplus_export_enabled` | Si **Venta a precio alto** está en *Solo excedente* o superior |

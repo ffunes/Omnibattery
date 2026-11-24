@@ -18,6 +18,7 @@ Control mapping (net_power_w sign: +charge / -discharge, same as Marstek convent
              (smartMode=0 while the off-grid port is on, see apply_setpoint)
   net < 0  → acMode=2 (discharge to home), outputLimit=|power|, smartMode=1
   net == 0 → acMode=2, outputLimit=0, smartMode=1
+             (after 15 min held idle: full standby, see _DEEP_STANDBY_AFTER_S)
 
 smartMode=1 on a write keeps the setpoint in RAM instead of flash, so the per-cycle
 real-time PD writes don't wear the flash. It obeys the commanded acMode and holds the
@@ -40,6 +41,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from dataclasses import replace
 from typing import Any, Optional
 
@@ -130,6 +132,25 @@ _AGGREGATE_PV_MODELS: frozenset[str] = frozenset({
     # SolarFlow 2400 Pro has DC PV inputs reported as solarInputPower (#630).
     ZENDURE_MODEL_2400AC_PRO,
 })
+# AC-coupled models with a PV-IN AC port (#529): an AC PV inverter feeds the
+# unit, reported as negative gridOffPower2 while pvacSwitch=1. Same flow as the
+# 800's DC PV: into the pack first, the rest out of the AC port.
+_PV_IN_AC_MODELS: frozenset[str] = frozenset({
+    ZENDURE_MODEL_3000MIX_AC_PLUS,
+    ZENDURE_MODEL_4000MIX_AC_PLUS,
+})
+
+
+def _has_solar(model: str, pv_in: bool) -> bool:
+    return model in _AGGREGATE_PV_MODELS or (pv_in and model in _PV_IN_AC_MODELS)
+
+
+def _excluded_sensor_keys(model: str, pv_in: bool) -> frozenset[str]:
+    if model not in _AC_COUPLED_MODELS:
+        return frozenset()
+    if pv_in and model in _PV_IN_AC_MODELS:
+        return frozenset(_MPPT_POWER_KEYS)
+    return _SOLAR_MPPT_KEYS
 
 # Zendure API property name → logical coordinator key.
 _PROP_TO_KEY: dict[str, str] = {
@@ -184,6 +205,14 @@ _KEY_TO_PROP: dict[str, str] = {v: k for k, v in _PROP_TO_KEY.items()}
 
 _AC_MODE_CHARGE = 1
 _AC_MODE_DISCHARGE = 2
+
+# #633: holding a 0 W setpoint keeps the inverter awake (~19 W). After this long
+# held idle, write the Gielz1986 zenSDK "full standby" (smartMode=0, both limits
+# 0); the next setpoint wakes it, since it carries smartMode=1. Measured on a
+# 2400 AC+: state held, bundled 200 W discharge echoed in ~1 s, power at ~7 s.
+# ponytail: fixed delay, no option; add one if someone needs another value.
+_DEEP_STANDBY_AFTER_S = 15 * 60
+_DEEP_STANDBY_PAYLOAD = {"smartMode": 0, "outputLimit": 0, "inputLimit": 0}
 
 # socSet / minSoc are deci-percent on the device (1000 = 100.0%), unlike the
 # whole-percent entity definitions and the rest of the integration. Converted on
@@ -523,6 +552,10 @@ class ZendureLocalDriver(BatteryDriver):
         self._shutting_down = False
         # gridOffMode normal (0) or economy (1); refreshed on every poll (#882).
         self._offgrid_port_on = False
+        # PV-IN AC switched on (pvacSwitch=1, #529); refreshed on every report.
+        self._pv_in = False
+        # Monotonic start of the current held-idle stretch (#633), None if not idle.
+        self._idle_since: float | None = None
         self._sn: Optional[str] = None  # populated from first GET response
         self._product: Optional[str] = None  # device model from the report root
         self._model = model
@@ -544,7 +577,7 @@ class ZendureLocalDriver(BatteryDriver):
             mppt_power_keys=(
                 () if model in _AC_COUPLED_MODELS else _MPPT_POWER_KEYS
             ),
-            has_solar_telemetry=model in _AGGREGATE_PV_MODELS,
+            has_solar_telemetry=_has_solar(model, self._pv_in),
             has_alarm_registers=True,    # faultLevel + is_error
             has_rs485_control=False,
             has_energy_counters=False,   # no kWh / capacity in the report; synthesised
@@ -556,7 +589,7 @@ class ZendureLocalDriver(BatteryDriver):
             cell_voltage_profile=LFP_CELL_VOLTAGE_PROFILE,  # publishes max_cell_voltage
         )
 
-        _excluded = _SOLAR_MPPT_KEYS if model in _AC_COUPLED_MODELS else frozenset()
+        _excluded = _excluded_sensor_keys(model, self._pv_in)
         _sensor_defs = [d for d in SENSOR_DEFINITIONS if d["key"] not in _excluded]
         _number_defs = _number_definitions_for_model(model)
 
@@ -662,6 +695,7 @@ class ZendureLocalDriver(BatteryDriver):
         self._sn = data.get("sn")
         self._product = data.get("product")
         self._update_model_from_product(self._product)
+        self._update_pv_in(data.get("properties", {}))
         self._connected = True
         _LOGGER.info("Connected to Zendure device at %s (sn=%s)", self._base_url, self._sn)
         return True
@@ -700,8 +734,10 @@ class ZendureLocalDriver(BatteryDriver):
         if self._product is None:
             self._product = data.get("product")
         self._update_model_from_product(self._product)
+        self._update_pv_in(data.get("properties", {}))
 
         snapshot = self._snapshot_from_report(data)
+        await self._maybe_deep_standby(data.get("properties", {}))
 
         if keys is not None:
             # max_charge_power is a control attribute (it drives PD allocation),
@@ -715,6 +751,42 @@ class ZendureLocalDriver(BatteryDriver):
             }
 
         return snapshot
+
+    async def _maybe_deep_standby(self, props: dict) -> None:
+        """Full standby once the device has held a 0 W setpoint for 15 min (#633).
+
+        Judged on the fresh report, so it also arms after a restart. Only the
+        plain idle hold of an AC-only unit qualifies: no pack or solar power, off-grid port off
+        (#882 loads), not calibrating. Once written the report shows smartMode=0,
+        which ends the stretch, so it fires once per idle period.
+        """
+        held_idle = (
+            not self._shutting_down
+            # ponytail: AC-only units, as in Gielz's package; whether PV keeps
+            # charging in full standby is untested, extend once someone checks.
+            and self._model in _AC_COUPLED_MODELS
+            and not self._pv_in
+            and props.get("acMode") == _AC_MODE_DISCHARGE
+            and props.get("outputLimit") == 0
+            and props.get("smartMode") == 1
+            and not props.get("packInputPower")
+            and not props.get("outputPackPower")
+            and not props.get("solarInputPower")
+            and not self._offgrid_port_on
+            and props.get("socStatus") != 1
+        )
+        if not held_idle:
+            self._idle_since = None
+            return
+        now = time.monotonic()
+        if self._idle_since is None:
+            self._idle_since = now
+            return
+        if now - self._idle_since < _DEEP_STANDBY_AFTER_S:
+            return
+        self._idle_since = None
+        if await self._post_write(dict(_DEEP_STANDBY_PAYLOAD)):
+            _LOGGER.info("Zendure %s: idle 15 min, full standby", self._base_url)
 
     def _snapshot_from_report(self, data: dict) -> TelemetrySnapshot:
         """Map a /properties/report payload to a logical-key snapshot.
@@ -738,6 +810,16 @@ class ZendureLocalDriver(BatteryDriver):
         for key in _DECIPERCENT_KEYS:
             if snapshot.get(key) is not None:
                 snapshot[key] = snapshot[key] / 10
+
+        # PV-IN AC (#529): the inverter on that port is gridOffPower2, negative
+        # while it delivers. solarInputPower is the DC input, always 0 here.
+        if self._pv_in and self._model in _PV_IN_AC_MODELS:
+            pv_in_w = props.get("gridOffPower2")
+            snapshot["solar_power"] = (
+                max(0, -pv_in_w)
+                if isinstance(pv_in_w, (int, float)) and not isinstance(pv_in_w, bool)
+                else None
+            )
 
         # hyperTmp is deci-Kelvin (zenSDK); the offset can't ride the entity
         # scale, so convert here (entity scale is 1).
@@ -856,16 +938,38 @@ class ZendureLocalDriver(BatteryDriver):
             mppt_power_keys=(
                 () if detected in _AC_COUPLED_MODELS else _MPPT_POWER_KEYS
             ),
-            has_solar_telemetry=detected in _AGGREGATE_PV_MODELS,
+            has_solar_telemetry=_has_solar(detected, self._pv_in),
         )
 
         # The AC+ profile omits DC MPPT entities; the Pro profile exposes them.
         # Rebuild the definitions/read group so promotion remains correct if an
         # entry was instantiated with the old generic profile.
-        excluded = _SOLAR_MPPT_KEYS if detected in _AC_COUPLED_MODELS else frozenset()
+        self._rebuild_definitions()
+
+    def _update_pv_in(self, props: dict) -> None:
+        """Follow pvacSwitch: PV-IN AC counts as solar only while it is on (#529).
+
+        A Mix AC+ with nothing on PV-IN must not become a permanent 0 W solar
+        source. Entities are created at setup (connect() runs first), so a later
+        switch change shows its solar entity after a reload.
+        """
+        if "pvacSwitch" not in props:
+            return
+        pv_in = props["pvacSwitch"] == 1
+        if pv_in == self._pv_in:
+            return
+        self._pv_in = pv_in
+        self._capabilities = replace(
+            self._capabilities,
+            has_solar_telemetry=_has_solar(self._model, pv_in),
+        )
+        self._rebuild_definitions()
+
+    def _rebuild_definitions(self) -> None:
+        excluded = _excluded_sensor_keys(self._model, self._pv_in)
         sensor_defs = [d for d in SENSOR_DEFINITIONS if d["key"] not in excluded]
         self._definitions["sensor"] = sensor_defs
-        number_defs = _number_definitions_for_model(detected)
+        number_defs = _number_definitions_for_model(self._model)
         self._definitions["number"] = number_defs
         self._definitions["all"] = (
             sensor_defs
@@ -911,6 +1015,9 @@ class ZendureLocalDriver(BatteryDriver):
         per charge setpoint change (RAM vs flash is not observable through the
         API). Discharge with smartMode=1 is unaffected.
         """
+        # A new command restarts the idle count: the report still echoes the
+        # previous setpoint for ~2 s, so a poll in between must not look idle.
+        self._idle_since = None
         if net_power_w > 0:
             power = min(net_power_w, self._capabilities.max_charge_power_w)
             payload: dict[str, Any] = {

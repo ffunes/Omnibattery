@@ -1,7 +1,7 @@
 """Regression tests for weekly full-charge lifecycle persistence and cleanup."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,6 +10,7 @@ import pytest
 from custom_components.omnibattery.control.weekly_full_charge import (
     WeeklyFullChargeManager,
 )
+from custom_components.omnibattery.infra.clock import local_now
 
 
 def _controller(**overrides):
@@ -45,10 +46,12 @@ def test_exiting_weekly_day_marks_unfinished_run_for_restore():
 
     # Tuesday immediately after a Monday weekly run.
     with (
-        patch("custom_components.omnibattery.control.weekly_full_charge.datetime") as clock,
+        patch(
+            "custom_components.omnibattery.control.weekly_full_charge.local_now",
+            return_value=datetime(2026, 8, 18),
+        ),
         patch("custom_components.omnibattery.control.weekly_full_charge.asyncio.create_task"),
     ):
-        clock.now.return_value = datetime(2026, 8, 18)
         assert manager.is_active() is False
 
     assert controller._weekly_charge_needs_restore is True
@@ -76,7 +79,7 @@ async def test_load_state_restores_saved_soc_and_pending_restore():
     store = SimpleNamespace(
         async_load=AsyncMock(
             return_value={
-                "date": date.today().isoformat(),
+                "date": local_now().date().isoformat(),
                 "complete": False,
                 "registers_written": True,
                 "state": "Charging to 100%",
@@ -103,7 +106,7 @@ async def test_load_state_queues_restore_for_unfinished_previous_day():
     store = SimpleNamespace(
         async_load=AsyncMock(
             return_value={
-                "date": (date.today() - timedelta(days=1)).isoformat(),
+                "date": (local_now().date() - timedelta(days=1)).isoformat(),
                 "complete": False,
                 "registers_written": True,
                 "saved_max_soc": {"Zendure": 95},
@@ -275,7 +278,7 @@ def test_without_a_known_sunrise_the_run_still_ends_at_midnight(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_a_restart_in_the_night_keeps_the_run(monkeypatch):
-    today = date.today()
+    today = local_now().date()
     yesterday = today - timedelta(days=1)
     day_names = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
     controller, manager = _night_manager(
@@ -298,4 +301,17 @@ async def test_a_restart_in_the_night_keeps_the_run(monkeypatch):
     await manager.load_state()
 
     assert controller.weekly_full_charge_registers_written is True
+    assert controller._weekly_charge_needs_restore is False
+
+
+@pytest.mark.asyncio
+async def test_load_state_of_another_day_logs_no_error(caplog):
+    controller = _controller()
+    manager = WeeklyFullChargeManager.__new__(WeeklyFullChargeManager)
+    manager._controller = controller
+    manager._store = SimpleNamespace(async_load=AsyncMock(return_value={"date": "2020-01-01", "complete": True}))
+
+    await manager.load_state()
+
+    assert "Failed to load" not in caplog.text
     assert controller._weekly_charge_needs_restore is False

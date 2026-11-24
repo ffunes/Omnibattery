@@ -366,6 +366,94 @@ async def test_legacy_profile_promotes_to_3000_mix_ac_plus():
     assert driver.capabilities.has_mppt_pv is False
 
 
+# 4000 Mix AC+ with an AC PV inverter on PV-IN (#529, report from the thread):
+# 986 W in, 630 W to the pack, 356 W out of the AC port to the house.
+PV_IN_REPORT = {
+    "sn": "ZB529",
+    "product": "solarFlow4000MixAC+",
+    "properties": {
+        "packInputPower": 0, "outputPackPower": 630, "outputHomePower": 356,
+        "gridInputPower": 0, "solarInputPower": 0, "solarPower1": 0,
+        "solarPower2": 0, "gridOffPower": 0, "gridOffPower2": -986,
+        "pvacSwitch": 1, "electricLevel": 45, "acMode": 2,
+    },
+}
+
+
+def _pv_in_report(**props):
+    return {**PV_IN_REPORT, "properties": {**PV_IN_REPORT["properties"], **props}}
+
+
+async def test_pv_in_ac_counts_as_solar_on_the_mix_ac_plus():
+    """#529: gridOffPower2 is solar; the AC port keeps only what crosses it."""
+    driver = ZendureLocalDriver(
+        "192.168.1.100",
+        model=ZENDURE_MODEL_2400AC_PLUS,  # legacy entry, promoted by the report
+        session=_session(get_data=PV_IN_REPORT),
+    )
+    assert await driver.connect() is True
+    keys = {d["key"] for d in driver.sensor_definitions}
+    assert driver.model_key == ZENDURE_MODEL_4000MIX_AC_PLUS
+    assert driver.capabilities.has_solar_telemetry is True
+    assert driver.capabilities.has_mppt_pv is False
+    assert "solar_power" in keys
+    assert not keys & {"mppt1_power", "mppt2_power"}
+
+    snap = await driver.read_telemetry(list(driver.read_groups[0].keys))
+    assert snap["solar_power"] == 986
+    assert snap["battery_power"] == 630           # cells
+    assert snap["ac_delivered_power"] == -356     # PV passed on to the house
+
+
+async def test_pv_in_ac_with_grid_charging():
+    # Case C from the thread: 749 W from the grid + 1379 W PV-IN = 2128 W.
+    report = _pv_in_report(
+        outputPackPower=2128, outputHomePower=0, gridInputPower=749,
+        gridOffPower2=-1379, acMode=1,
+    )
+    driver = ZendureLocalDriver(
+        "192.168.1.100", model=ZENDURE_MODEL_3000MIX_AC_PLUS,
+        session=_session(get_data=report),
+    )
+    snap = await driver.read_telemetry()
+    assert snap["solar_power"] == 1379
+    assert snap["battery_power"] == 2128
+    assert snap["ac_delivered_power"] == 749
+
+
+@pytest.mark.parametrize("props", [{"pvacSwitch": 0}, {"pvacSwitch": None}])
+async def test_pv_in_ac_off_is_no_solar_source(props):
+    # A Mix AC+ with PV-IN off must not become a permanent 0 W solar source.
+    report = _pv_in_report(**props)
+    driver = ZendureLocalDriver(
+        "192.168.1.100", model=ZENDURE_MODEL_4000MIX_AC_PLUS,
+        session=_session(get_data=report),
+    )
+    assert await driver.connect() is True
+    assert driver.capabilities.has_solar_telemetry is False
+    assert "solar_power" not in {d["key"] for d in driver.sensor_definitions}
+    snap = await driver.read_telemetry(list(driver.read_groups[0].keys))
+    assert "solar_power" not in snap
+
+
+async def test_pv_in_ac_switch_missing_from_report_keeps_profile():
+    report = _pv_in_report()
+    del report["properties"]["pvacSwitch"]
+    driver = ZendureLocalDriver(
+        "192.168.1.100", model=ZENDURE_MODEL_4000MIX_AC_PLUS,
+        session=_session(get_data=report),
+    )
+    assert await driver.connect() is True
+    assert driver.capabilities.has_solar_telemetry is False
+
+
+def test_pv_in_switch_is_ignored_on_other_models():
+    driver = ZendureLocalDriver("192.168.1.100", model=ZENDURE_MODEL_2400AC_PLUS)
+    driver._update_pv_in({"pvacSwitch": 1})
+    assert driver.capabilities.has_solar_telemetry is False
+    assert "solar_power" not in {d["key"] for d in driver.sensor_definitions}
+
+
 # ---------------------------------------------------------------------------
 # entity definitions
 # ---------------------------------------------------------------------------
@@ -1122,3 +1210,71 @@ async def test_read_telemetry_keeps_soc_status_for_control():
         ["control_status"]))["control_status"] == "soc_calibration"
     assert (await _driver(session=_session(get_data=_REPORT)).read_telemetry(
         ["control_status"]))["control_status"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# full standby after 15 min held idle (#633)
+# ---------------------------------------------------------------------------
+
+def _idle_report(**props):
+    report = {**_REPORT, "properties": {
+        **_REPORT["properties"],
+        "acMode": 2, "outputLimit": 0, "inputLimit": 1920, "smartMode": 1,
+        "packInputPower": 0, "outputPackPower": 0, "solarInputPower": 0,
+        "gridOffMode": 2, "socStatus": 0,
+    }}
+    report["properties"].update(props)
+    return report
+
+
+def _standby_posts(session):
+    return [
+        c for c in session.post.call_args_list
+        if c.kwargs["json"]["properties"] == {"smartMode": 0, "outputLimit": 0, "inputLimit": 0}
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("props", "fires"), [
+    ({}, True),
+    ({"outputPackPower": 30}, False),     # solar still charging the pack
+    ({"gridOffMode": 1}, False),          # off-grid port on (#882)
+    ({"socStatus": 1}, False),            # calibrating
+    ({"smartMode": 0, "inputLimit": 0}, False),  # already in full standby
+    ({"model": "2400ac_pro"}, False),     # PV model: untested in standby
+])
+async def test_full_standby_after_15_min_idle(monkeypatch, props, fires):
+    model = props.pop("model", "2400ac_plus")
+    clock = [1000.0]
+    monkeypatch.setattr(
+        "custom_components.omnibattery.drivers.zendure.time.monotonic", lambda: clock[0]
+    )
+    session = _session(get_data=_idle_report(**props))
+    drv = _driver(session=session)
+    drv._model = model
+
+    await drv.read_telemetry()          # starts the idle count
+    clock[0] += 14 * 60
+    await drv.read_telemetry()
+    assert not _standby_posts(session)
+    clock[0] += 60
+    await drv.read_telemetry()
+    assert len(_standby_posts(session)) == (1 if fires else 0)
+
+
+@pytest.mark.asyncio
+async def test_new_setpoint_restarts_idle_count(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(
+        "custom_components.omnibattery.drivers.zendure.time.monotonic", lambda: clock[0]
+    )
+    session = _session(get_data=_idle_report())
+    drv = _driver(session=session)
+    drv._model = "2400ac_plus"
+
+    await drv.read_telemetry()
+    clock[0] += 14 * 60
+    await drv.apply_setpoint(-300, read_back=False)
+    clock[0] += 60
+    await drv.read_telemetry()          # stale idle echo: count restarts, no standby
+    assert not _standby_posts(session)

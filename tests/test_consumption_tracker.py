@@ -18,6 +18,7 @@ import pytest
 from custom_components.omnibattery.const import (
     DEFAULT_BASE_CONSUMPTION_KWH,
 )
+from custom_components.omnibattery.infra.clock import local_now
 from custom_components.omnibattery.tracking.consumption_tracker import (
     CONSUMPTION_HISTORY_SCOPE,
     ConsumptionTracker,
@@ -132,7 +133,7 @@ def test_vacation_period_marks_a_partial_legacy_day_as_excluded():
 async def test_exclude_dates_drops_the_day_and_blocks_its_rebuild():
     """A bad day must leave learning and never come back from a backfill."""
     # Relative to today: the save prunes periods older than the retention.
-    bad = date.today() - timedelta(days=2)
+    bad = local_now().date() - timedelta(days=2)
     before, after = bad - timedelta(days=1), bad + timedelta(days=1)
     history = [(before, 18.0), (bad, 49.71), (after, 19.34)]
     tracker = _make_tracker(history)
@@ -321,17 +322,12 @@ def test_initialize_defaults_seeds_seven_calendar_days():
     tracker = _make_history_tracker([], _MON_FRI)
     import custom_components.omnibattery.tracking.consumption_tracker as ct
 
-    class _FrozenDate(date):
-        @classmethod
-        def today(cls):
-            return date(2026, 7, 3)  # Friday
-
-    orig = ct.date
-    ct.date = _FrozenDate
+    orig = ct.local_now
+    ct.local_now = lambda: datetime(2026, 7, 3, 12, 0)  # Friday
     try:
         tracker.initialize_history_with_defaults()
     finally:
-        ct.date = orig
+        ct.local_now = orig
 
     seeded = {d for d, _ in tracker._controller._daily_consumption_history}
     assert len(seeded) == 7
@@ -428,12 +424,12 @@ def _make_daily_energy_controller(**overrides):
     """Build the controller fields used by the daily-energy Store."""
     values = {
         "_daily_solar_energy_kwh": 2.5,
-        "_daily_solar_energy_date": date.today(),
+        "_daily_solar_energy_date": local_now().date(),
         "_daily_home_energy_kwh": 7.25,
-        "_daily_home_energy_date": date.today(),
+        "_daily_home_energy_date": local_now().date(),
         "_daily_grid_import_energy_kwh": 4.0,
         "_daily_grid_export_energy_kwh": 0.75,
-        "_daily_grid_energy_date": date.today(),
+        "_daily_grid_energy_date": local_now().date(),
         "_daily_solar_forecast_initial_kwh": None,
         "_daily_solar_forecast_initial_date": None,
     }
@@ -450,7 +446,7 @@ def test_daily_solar_forecast_captures_first_value_only(monkeypatch):
 
     assert tracker.capture_daily_solar_forecast(5.12345) is True
     assert controller._daily_solar_forecast_initial_kwh == pytest.approx(5.1235)
-    assert controller._daily_solar_forecast_initial_date == date.today()
+    assert controller._daily_solar_forecast_initial_date == local_now().date()
 
     # A later, live forecast must not replace the 00:05 reference.
     assert tracker.capture_daily_solar_forecast(9.0) is False
@@ -465,7 +461,7 @@ def test_daily_solar_forecast_captures_first_value_only(monkeypatch):
 async def test_daily_solar_forecast_is_restored_from_store():
     controller = _make_daily_energy_controller(
         _daily_solar_forecast_initial_kwh=6.75,
-        _daily_solar_forecast_initial_date=date.today(),
+        _daily_solar_forecast_initial_date=local_now().date(),
     )
     tracker = ConsumptionTracker.__new__(ConsumptionTracker)
     tracker._controller = controller
@@ -474,7 +470,7 @@ async def test_daily_solar_forecast_is_restored_from_store():
     await tracker.async_save_daily_energy()
     saved = tracker._daily_energy_store._data
     assert saved["solar_forecast_initial_kwh"] == pytest.approx(6.75)
-    assert saved["solar_forecast_initial_date"] == date.today().isoformat()
+    assert saved["solar_forecast_initial_date"] == local_now().date().isoformat()
 
     restored_controller = _make_daily_energy_controller()
     restored = ConsumptionTracker.__new__(ConsumptionTracker)
@@ -484,7 +480,7 @@ async def test_daily_solar_forecast_is_restored_from_store():
     await restored.load_daily_energy()
 
     assert restored_controller._daily_solar_forecast_initial_kwh == pytest.approx(6.75)
-    assert restored_controller._daily_solar_forecast_initial_date == date.today()
+    assert restored_controller._daily_solar_forecast_initial_date == local_now().date()
 
 
 @pytest.mark.asyncio
@@ -526,13 +522,13 @@ async def test_legacy_same_day_accumulator_rebuild_is_deferred_to_backfill():
     tracker._controller._household_energy_accumulator = 1.0
     tracker._controller._household_accumulator_date = None
     tracker._accumulator_store = _FakeConsumptionStore(
-        {"date": date.today().isoformat(), "household_kwh": 1.0}
+        {"date": local_now().date().isoformat(), "household_kwh": 1.0}
     )
 
     await tracker.load_accumulators()
 
     assert tracker._controller._household_energy_accumulator == pytest.approx(0.0)
-    assert tracker._controller._household_accumulator_date == date.today()
+    assert tracker._controller._household_accumulator_date == local_now().date()
     assert tracker._legacy_accumulator_rebuild_pending is True
     assert "consumption_scope" not in tracker._accumulator_store._data
 
@@ -737,6 +733,28 @@ def test_derive_home_excludes_direct_pv_charging():
     assert tracker._derive_home_power_kw() == pytest.approx(1.311)
 
 
+def test_zendure_pv_in_ac_is_solar_not_home_load():
+    # #529: 4000 Mix AC+ report from the thread, grid at 0. PV-IN gives 986 W:
+    # 630 W into the pack, 356 W out to the house. The house is 356 W, the
+    # system solar 986 W.
+    from custom_components.omnibattery.drivers.zendure import ZendureLocalDriver
+    from tests.test_zendure_driver import PV_IN_REPORT
+
+    driver = ZendureLocalDriver("192.168.1.100", model="4000mix_ac_plus")
+    driver._update_pv_in(PV_IN_REPORT["properties"])
+    unit = SimpleNamespace(
+        driver=driver,
+        capabilities=driver.capabilities,
+        data=driver._snapshot_from_report(PV_IN_REPORT),
+        is_available=True,
+    )
+    home = _make_home_tracker({"sensor.grid": _w(0)}, [unit])
+    solar = _make_solar_tracker({}, None, [unit])
+
+    assert home._derive_home_power_kw() == pytest.approx(0.356)
+    assert solar._read_total_solar_power_kw() == pytest.approx(0.986)
+
+
 def test_derive_home_cancels_grid_energy_used_to_charge_battery():
     # Grid imports 2800 W while the battery charges at 2500 W (negative AC).
     # Only the remaining 300 W belongs to household consumption.
@@ -855,5 +873,5 @@ async def test_daily_capture_runs_while_predictive_charging_is_off():
 
     await tracker.capture_daily_consumption()
 
-    assert tracker._controller._daily_consumption_history == [(date.today(), 6.42)]
+    assert tracker._controller._daily_consumption_history == [(local_now().date(), 6.42)]
     assert saved

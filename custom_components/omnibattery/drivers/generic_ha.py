@@ -40,10 +40,16 @@ Some of these batteries expose a writable target or minimum SOC. That is not a
 power setpoint and cannot stand in for one — it steers the vendor's own
 regulator rather than replacing it — so it lives behind its own capability and
 its own entity, never on the ``apply_setpoint`` path.
+
+The optional mode entity is the other one: a select or switch of the source
+integration, mapped to NOM and Manual. With it the battery declares
+``supports_nom_mode`` and ``control/autonomous_mode.py`` drives it; without it
+the battery is only observed.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 from typing import Optional, Sequence
@@ -60,6 +66,8 @@ from .base import (
     DriverCapabilities,
     DriverContext,
     DriverTraits,
+    NativeOperatingMode,
+    OperatingModeResult,
     ReadGroup,
     SetpointResult,
     TelemetrySnapshot,
@@ -76,6 +84,13 @@ _LOGGER = logging.getLogger(__name__)
 # design — too tight and a healthy slow poller flaps the battery offline.
 DEFAULT_STALE_AFTER_S = 600.0
 
+# A source that only reports changes says nothing about a battery at rest, all
+# night long. Silence is only a loss of telemetry while the last power says the
+# battery was doing something: a real measurement of that keeps moving.
+# ponytail: a source that dies without its entities going unavailable while the
+# battery rests is taken for a resting battery.
+RESTING_POWER_W = 50.0
+
 # Without these two the driver has no reason to exist: SOC without power fixes
 # none of the measurement errors above, and power without SOC tells planning
 # nothing about the battery's state.
@@ -87,6 +102,11 @@ _UNITS = {
     "total_charging_energy": (EnergyConverter, UnitOfEnergy.KILO_WATT_HOUR),
     "total_discharging_energy": (EnergyConverter, UnitOfEnergy.KILO_WATT_HOUR),
 }
+
+# A vendor service that never answers must not hold a mode change forever, and
+# a device behind a cloud shows the new mode some seconds after accepting it.
+MODE_WRITE_TIMEOUT_S = 10.0
+MODE_CONFIRM_TIMEOUT_S = 5.0
 
 POWER_POSITIVE_CHARGE = "charge"
 POWER_POSITIVE_DISCHARGE = "discharge"
@@ -118,12 +138,22 @@ TARGET_SOC_DEFINITION: dict = {
 }
 
 
+def mode_entity_options(hass: HomeAssistant, entity_id: Optional[str]) -> list[str]:
+    """The states the mode entity can be put in; empty when they are not known."""
+    state = hass.states.get(entity_id) if entity_id else None
+    if state is None:
+        return []
+    if entity_id.split(".")[0] in ("select", "input_select"):
+        return [str(option) for option in state.attributes.get("options") or []]
+    return ["on", "off"]
+
+
 class GenericHaEntityDriver(BatteryDriver):
-    """Reads one battery from configured HA entities; commands none of it."""
+    """Reads one battery from configured HA entities; sets none of its power."""
 
     BRAND = "generic_ha"
     SETUP = GENERIC_HA_SETUP
-    LABEL = "Other battery, read-only via Home Assistant entities"
+    LABEL = "Other battery via Home Assistant entities"
     # The device registry wants a vendor before any entity has been read, and
     # the honest answer at that point is where the readings come from rather
     # than a guess at whose battery it is. ``model_label`` refines it to the
@@ -131,6 +161,7 @@ class GenericHaEntityDriver(BatteryDriver):
     MANUFACTURER = "Home Assistant"
     DEFAULT_MODEL = "Observed battery"
     TRAITS = DriverTraits(
+        takes_power_setpoint=False,
         # Nothing is written at setup: every limit belongs to the vendor's own
         # regulator, which Omnibattery does not reach.
         device_owns_initial_config=True,
@@ -157,6 +188,9 @@ class GenericHaEntityDriver(BatteryDriver):
             charge_energy_entities=battery_config.get("ha_charge_energy_entities") or (),
             discharge_energy_entity=battery_config.get("ha_discharge_energy_entity"),
             target_soc_entity=battery_config.get("ha_target_soc_entity"),
+            mode_entity=battery_config.get("ha_mode_entity"),
+            mode_nom_option=battery_config.get("ha_mode_nom_option"),
+            mode_manual_option=battery_config.get("ha_mode_manual_option"),
             stale_after_s=float(
                 battery_config.get("ha_stale_after_s") or DEFAULT_STALE_AFTER_S
             ),
@@ -173,6 +207,9 @@ class GenericHaEntityDriver(BatteryDriver):
         charge_energy_entities: Sequence[str] = (),
         discharge_energy_entity: Optional[str] = None,
         target_soc_entity: Optional[str] = None,
+        mode_entity: Optional[str] = None,
+        mode_nom_option: Optional[str] = None,
+        mode_manual_option: Optional[str] = None,
         stale_after_s: float = DEFAULT_STALE_AFTER_S,
         label: str = "generic_ha",
     ) -> None:
@@ -184,6 +221,17 @@ class GenericHaEntityDriver(BatteryDriver):
         self._charge_energy_entities = tuple(e for e in charge_energy_entities if e)
         self._discharge_energy_entity = discharge_energy_entity or None
         self._target_soc_entity = target_soc_entity or None
+        self._mode_entity = mode_entity or None
+        # An incomplete mapping is no mapping: the battery is only observed.
+        self._mode_options: dict[NativeOperatingMode, str] = {}
+        if (
+            self._mode_entity and mode_nom_option and mode_manual_option
+            and mode_nom_option != mode_manual_option
+        ):
+            self._mode_options = {
+                NativeOperatingMode.NOM: mode_nom_option,
+                NativeOperatingMode.MANUAL: mode_manual_option,
+            }
         self._stale_after_s = float(stale_after_s)
 
         self._connected = False
@@ -218,6 +266,7 @@ class GenericHaEntityDriver(BatteryDriver):
             has_nominal_capacity=False,
             cycles_from_discharge_only=True,
             supports_power_setpoint=False,
+            supports_nom_mode=bool(self._mode_options),
         )
 
         self._target_soc_definition = dict(TARGET_SOC_DEFINITION)
@@ -408,15 +457,37 @@ class GenericHaEntityDriver(BatteryDriver):
             return None
         return (dt_util.utcnow() - newest).total_seconds()
 
+    def _is_stalled(self, power: float, age: Optional[float]) -> bool:
+        """Whether the source has been silent too long for a battery doing ``power``."""
+        return (
+            age is not None and age > self._stale_after_s and abs(power) > RESTING_POWER_W
+        )
+
+    def telemetry_is_back(self) -> bool:
+        """Whether a read would answer now: these are lookups in hass.states."""
+        power = self._read_one("battery_power", self._power_entity)
+        return (
+            power is not None
+            and self._read_one("battery_soc", self._soc_entity) is not None
+            and not self._is_stalled(power, self._stall_age_s())
+        )
+
     async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
         """Return the configured entities' states as a snapshot.
 
         Unavailable, unknown or unparseable states are omitted rather than
         zeroed: zero is a valid battery power, and a fabricated one would be
-        indistinguishable from a resting battery.
+        indistinguishable from a resting battery. Without both required readings
+        the snapshot is empty.
         """
+        power = self._read_one("battery_power", self._power_entity)
+        if power is None or self._read_one("battery_soc", self._soc_entity) is None:
+            # Half a battery is a lost battery: another entity still answering
+            # (the target SOC may live elsewhere) must not keep it looking alive
+            # on its last power.
+            return {}
         age = self._stall_age_s()
-        if age is not None and age > self._stale_after_s:
+        if self._is_stalled(power, age):
             if not self._stalled:
                 self._stalled = True
                 _LOGGER.warning(
@@ -504,7 +575,7 @@ class GenericHaEntityDriver(BatteryDriver):
         target = self._clamp_target_soc(value)
         try:
             await self.hass.services.async_call(
-                "number", "set_value",
+                self._target_soc_entity.split(".")[0], "set_value",
                 {"entity_id": self._target_soc_entity, "value": target},
                 blocking=True,
             )
@@ -529,6 +600,62 @@ class GenericHaEntityDriver(BatteryDriver):
         snapped = low + round((requested - low) / step) * step
         snapped = max(low, min(high, snapped))
         return round(snapped, 3)
+
+    def power_sample_time(self):
+        """When the source last reported the power: it may poll every 30 s or more."""
+        return getattr(self.hass.states.get(self._power_entity), "last_reported", None)
+
+    def operating_mode_from_data(self, data: dict) -> Optional[NativeOperatingMode]:
+        """The mode entity's live state; None when it is neither of the two."""
+        state = self.hass.states.get(self._mode_entity) if self._mode_options else None
+        if state is None:
+            return None
+        for mode, option in self._mode_options.items():
+            if state.state == option:
+                return mode
+        return None
+
+    async def apply_operating_mode(
+        self, mode: NativeOperatingMode, *, read_back: bool = True
+    ) -> OperatingModeResult:
+        """Put the mode entity in the option mapped to ``mode``."""
+        if not self._mode_options:
+            return await super().apply_operating_mode(mode, read_back=read_back)
+        option = self._mode_options[mode]
+        domain = self._mode_entity.split(".")[0]
+        data = {"entity_id": self._mode_entity}
+        if domain in ("select", "input_select"):
+            service = "select_option"
+            data["option"] = option
+        else:
+            service = "turn_on" if option == "on" else "turn_off"
+        failure = None
+        try:
+            async with asyncio.timeout(MODE_WRITE_TIMEOUT_S):
+                await self.hass.services.async_call(domain, service, data, blocking=True)
+        except TimeoutError:
+            failure = "timeout"
+        except Exception as exc:  # noqa: BLE001 - any failure is just a failed write
+            failure = str(exc) or type(exc).__name__
+        effective = self.operating_mode_from_data({})
+        if failure is None and read_back:
+            waited = 0.0
+            while effective is not mode and waited < MODE_CONFIRM_TIMEOUT_S:
+                await asyncio.sleep(0.25)
+                waited += 0.25
+                effective = self.operating_mode_from_data({})
+        if failure is not None and not self._shutting_down:
+            _LOGGER.warning(
+                "%s: switching %s to %s failed: %s",
+                self._label, self._mode_entity, option, failure,
+            )
+        return OperatingModeResult(
+            ok=failure is None,
+            confirmed=effective is mode,
+            requested_mode=mode,
+            effective_mode=effective,
+            failure_reason=failure,
+        )
 
     def net_power_from_data(self, data: dict) -> Optional[int]:
         """No command was ever issued, so there is no echo to reconstruct."""
@@ -576,8 +703,10 @@ class GenericHaEntityDriver(BatteryDriver):
         return False
 
     async def standby(self) -> bool:
-        """Already idle from Omnibattery's point of view; nothing to release."""
-        return True
+        """Switch to Manual and confirm it; nothing to release without a mode."""
+        if not self._mode_options:
+            return True
+        return (await self.apply_operating_mode(NativeOperatingMode.MANUAL)).confirmed
 
 
 def _read_state(hass: HomeAssistant, entity_id: str, key: str) -> Optional[float]:

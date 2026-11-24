@@ -17,6 +17,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
+from .drivers.base import can_take_setpoint
 from .drivers.registry import redact_keys
 
 # Identifiers and user sensor references that could deanonymise the dump.
@@ -869,7 +870,7 @@ async def async_get_config_entry_diagnostics(
                 "battery_manual_mode_enabled": bool(
                     getattr(coord, "battery_manual_mode_enabled", False)
                 ),
-                "automatic_pool": not bool(
+                "automatic_pool": can_take_setpoint(coord) and not bool(
                     getattr(coord, "battery_manual_mode_enabled", False)
                 ),
             },
@@ -884,7 +885,9 @@ async def async_get_config_entry_diagnostics(
     automatic_batteries = [
         coord.name for coord in coordinators
         if not getattr(coord, "battery_manual_mode_enabled", False)
+        and can_take_setpoint(coord)
     ]
+    mode_manager = getattr(controller, "_autonomous_mode_mgr", None)
 
     consumption_profile = {}
     solar_profile = {}
@@ -928,6 +931,9 @@ async def async_get_config_entry_diagnostics(
             "manual_batteries": manual_batteries,
             "automatic_batteries": automatic_batteries,
         },
+        "autonomous_batteries": (
+            _json_safe(mode_manager.diagnostics()) if mode_manager is not None else {}
+        ),
         "dynamic_pricing": _dynamic_pricing_info(controller),
         "daily_operation_timeline": _daily_operation_timeline_summary(controller),
         "consumption_profile": consumption_profile,

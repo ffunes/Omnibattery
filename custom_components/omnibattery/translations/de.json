@@ -26,6 +26,22 @@
       "title": "Batterie {battery} liefert keine Leistung",
       "description": "{battery} nimmt seit {minutes} Minuten Lade-/Entladebefehle an, ohne Leistung zu liefern ({reason}). Omnibattery hält sie aus der Verteilung heraus und versucht es alle {cooldown} Minuten erneut, sodass der Rest der Flotte das Haus in der Zwischenzeit versorgt. Die Batterie selbst oder ihre Verbindung braucht Aufmerksamkeit: Prüfe, ob sie nicht unter der Kontrolle ihrer eigenen App im Standby steht und ob die Verbindung nicht überlastet ist. Die manuelle Batteriesteuerung für diese Batterie ein- und wieder auszuschalten stellt sie oft wieder her."
     },
+    "nom_manual_unconfirmed": {
+      "title": "{battery} konnte nicht angehalten werden",
+      "description": "Omnibattery hat {battery} aufgefordert, auf Manuell zu gehen, aber sie zeigt diesen Modus nicht und lädt oder entlädt möglicherweise weiter von selbst. Eine Netzladung der anderen Batterien läuft trotzdem: Im schlimmsten Fall entlädt {battery} in sie hinein. Omnibattery versucht es weiter, und dieser Hinweis verschwindet von selbst, sobald die Batterie Manuell zeigt. Prüfe, ob die Integration, die {battery} liest, funktioniert und ob sich ihre Modus-Entität von Hand ändern lässt."
+    },
+    "nom_restore_failed": {
+      "title": "{battery} geht nicht zu NOM zurück",
+      "description": "Du hast für {battery} NOM gewählt, aber mehrere Umschaltversuche sind fehlgeschlagen; sie bleibt in Manuell und tut nichts. Omnibattery versucht es weiter, und dieser Hinweis verschwindet von selbst. Prüfe, ob die Integration, die {battery} liest, funktioniert und ob sich ihre Modus-Entität von Hand ändern lässt."
+    },
+    "nom_telemetry_lost": {
+      "title": "Die Leistung von {battery} ist nicht lesbar",
+      "description": "{battery} steht auf NOM, aber Omnibattery hat seit mehreren Minuten keinen Leistungswert und hält sie deshalb in Manuell. Solange auch Manuell nicht bestätigt ist, entladen die anderen Batterien nicht: Sie könnten eine Ladung speisen, die niemand sieht. Prüfe die Integration, die {battery} liest. Sobald der Wert zurückkommt, normalisiert sich alles von selbst."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} entlädt sich immer wieder in eine andere Batterie",
+      "description": "Mindestens dreimal in der letzten Stunde hat {battery} entladen, während eine andere Batterie lud, und musste angehalten werden. Energie, die von Batterie zu Batterie fließt, wird doppelt bezahlt. Suche nach etwas anderem, das eine von ihnen steuert: der Zeitplan der Batterie-App, eine Automation oder zwei Regler mit verschiedenen Zielen am selben Zähler."
+    },
     "configured_sensor_missing": {
       "title": "Konfigurierter Sensor existiert nicht mehr",
       "description": "Omnibattery ist mit {sensors} konfiguriert, das in Home Assistant nicht existiert. Alle Funktionen, die ihn lesen, sind inaktiv. Der gespeicherte Verweis wird absichtlich beibehalten, denn die Entitätsauswahl kann eine verschwundene Entität nicht anzeigen und würde Ihre Einstellung stillschweigend löschen: Öffnen Sie Optionen → Sensoren und wählen Sie einen Ersatz, oder leeren Sie das Feld, sobald die Entität zurück ist."
@@ -206,7 +222,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Batterie {battery_num} einrichten — Home-Assistant-Entitäten",
-        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie und gibt ihr nie eine Leistung vor: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "Ladezustandssensor",
@@ -215,17 +231,31 @@
           "ha_charge_energy_entities": "Zähler geladener Energie",
           "ha_discharge_energy_entity": "Zähler entladener Energie",
           "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_mode_entity": "Betriebsmodus-Entität",
           "ha_stale_after_s": "Telemetrie gilt als verloren nach"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
           "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
-          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in W oder kW meldet",
           "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
-          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
-          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in Wh, kWh oder MWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in Wh, kWh oder MWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
-          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+          "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen. Stille bei ruhender Batterie zählt nicht"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterie {battery_num} — Betriebsmodus",
+        "description": "Welcher Zustand von {entity} bedeutet, dass die Batterie selbst regelt, und welcher, dass sie ruht? Batterie {battery_num} startet in Manuell; später änderst du das über ihre Auswahl Betriebsmodus.",
+        "data": {
+          "ha_mode_nom_option": "NOM (null am Zähler)",
+          "ha_mode_manual_option": "Manuell (die Batterie ruht)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "Die Batterie lädt und entlädt selbst, um ihren Zähler auf 0 W zu halten",
+          "ha_mode_manual_option": "Die Batterie lädt und entlädt nicht"
         }
       },
       "battery_limits": {
@@ -766,7 +796,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Batterie {battery_num} neu konfigurieren — Home-Assistant-Entitäten",
-        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie und gibt ihr nie eine Leistung vor: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "Ladezustandssensor",
@@ -775,17 +805,19 @@
           "ha_charge_energy_entities": "Zähler geladener Energie",
           "ha_discharge_energy_entity": "Zähler entladener Energie",
           "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_mode_entity": "Betriebsmodus-Entität",
           "ha_stale_after_s": "Telemetrie gilt als verloren nach"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
           "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
-          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in W oder kW meldet",
           "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
-          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
-          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in Wh, kWh oder MWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in Wh, kWh oder MWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
-          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+          "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen. Stille bei ruhender Batterie zählt nicht"
         }
       },
       "restore_backup": {
@@ -910,6 +942,8 @@
       "huawei_device_mismatch": "Das gewählte Batteriegerät gehört zu einem anderen Wechselrichter als die angegebene Modbus-Adresse. Bei kaskadierten Wechselrichtern kämen die Messwerte dann von dem einen und die Befehle beim anderen an. Prüfe Gerät und Slave-ID.",
       "esphome_entities_missing": "Dem ausgewählten ESPHome-Gerät fehlen erforderliche Entitäten: {missing}. Stelle sicher, dass es die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführt.",
       "generic_ha_entities_missing": "Omnibattery konnte diese Entitäten nicht lesen: {missing}. Wähle Entitäten, die existieren und gerade eine Zahl melden.",
+      "generic_ha_mode_same": "NOM und Manuell müssen zwei verschiedene Zustände sein.",
+      "generic_ha_mode_unreadable": "Omnibattery konnte die Optionen dieser Entität nicht lesen. Wähle ein Auswahlfeld oder einen Schalter, der gerade verfügbar ist.",
       "sensor_not_found": "Solarprognose-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
       "invalid_unit": "Solarprognose-Sensor muss 'kWh' oder 'Wh' als Einheit haben.",
       "solar_production_sensor_not_found": "Solarproduktions-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
@@ -1106,7 +1140,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Batterie {battery_num} einrichten — Home-Assistant-Entitäten",
-        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie, steuert sie aber nie: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
+        "description": "Verweise Omnibattery auf die Entitäten, die eine andere Integration für Batterie {battery_num} bereits veröffentlicht. Omnibattery liest diese Batterie und gibt ihr nie eine Leistung vor: Ladezustand und Leistung sind es, die die Hausverbrauchsrechnung korrekt machen.",
         "data": {
           "name": "Name",
           "ha_soc_entity": "Ladezustandssensor",
@@ -1115,17 +1149,31 @@
           "ha_charge_energy_entities": "Zähler geladener Energie",
           "ha_discharge_energy_entity": "Zähler entladener Energie",
           "ha_target_soc_entity": "Ziel-Ladezustand",
+          "ha_mode_entity": "Betriebsmodus-Entität",
           "ha_stale_after_s": "Telemetrie gilt als verloren nach"
         },
         "data_description": {
           "name": "Beschreibender Name zur Identifizierung dieser Batterie",
           "ha_soc_entity": "Ein Sensor, der den Ladezustand dieser Batterie in Prozent meldet",
-          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in Watt meldet",
+          "ha_power_entity": "Ein Sensor, der Lade- und Entladeleistung in W oder kW meldet",
           "ha_power_positive_is": "Ob der Sensor Laden oder Entladen positiv zählt. Prüfe es bei ladender Batterie: Kostal und einige andere melden Laden negativ",
-          "ha_charge_energy_entities": "Optionale Gesamtzähler in kWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
-          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in kWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
+          "ha_charge_energy_entities": "Optionale Gesamtzähler in Wh, kWh oder MWh. Wähle mehrere, wenn die Quelle sie aufteilt, etwa Ladung aus PV und aus dem Netz; sie werden addiert",
+          "ha_discharge_energy_entity": "Optionale entladene Gesamtenergie in Wh, kWh oder MWh. Ohne sie wird die Energie aus der gemessenen Leistung abgeleitet",
           "ha_target_soc_entity": "Optionaler schreibbarer Ziel- oder Mindest-Ladezustand. Er erscheint als Zahl, die du selbst setzen kannst; Omnibattery schreibt ihn nie von sich aus",
-          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen"
+          "ha_mode_entity": "Optionales Auswahlfeld oder Schalter der Quell-Integration, der bestimmt, ob die Batterie ihren eigenen Zähler auf null regelt (NOM) oder ruht. Damit kann Omnibattery die Batterie während einer Netzladung oder eines laufenden ausgeschlossenen Geräts anhalten. Ihre Leistung wird nie vorgegeben",
+          "ha_stale_after_s": "Wie lange die Quell-Integration schweigen darf, bevor diese Batterie als nicht erreichbar gilt. Für langsame Abfrager erhöhen. Stille bei ruhender Batterie zählt nicht"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterie {battery_num} — Betriebsmodus",
+        "description": "Welcher Zustand von {entity} bedeutet, dass die Batterie selbst regelt, und welcher, dass sie ruht? Batterie {battery_num} startet in Manuell; später änderst du das über ihre Auswahl Betriebsmodus.",
+        "data": {
+          "ha_mode_nom_option": "NOM (null am Zähler)",
+          "ha_mode_manual_option": "Manuell (die Batterie ruht)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "Die Batterie lädt und entlädt selbst, um ihren Zähler auf 0 W zu halten",
+          "ha_mode_manual_option": "Die Batterie lädt und entlädt nicht"
         }
       },
       "battery_limits": {
@@ -1620,6 +1668,8 @@
       "huawei_device_mismatch": "Das gewählte Batteriegerät gehört zu einem anderen Wechselrichter als die angegebene Modbus-Adresse. Bei kaskadierten Wechselrichtern kämen die Messwerte dann von dem einen und die Befehle beim anderen an. Prüfe Gerät und Slave-ID.",
       "esphome_entities_missing": "Dem ausgewählten ESPHome-Gerät fehlen erforderliche Entitäten: {missing}. Stelle sicher, dass es die marstek-lilygo-rs485-Firmware mit den Original-Entitätsnamen ausführt.",
       "generic_ha_entities_missing": "Omnibattery konnte diese Entitäten nicht lesen: {missing}. Wähle Entitäten, die existieren und gerade eine Zahl melden.",
+      "generic_ha_mode_same": "NOM und Manuell müssen zwei verschiedene Zustände sein.",
+      "generic_ha_mode_unreadable": "Omnibattery konnte die Optionen dieser Entität nicht lesen. Wähle ein Auswahlfeld oder einen Schalter, der gerade verfügbar ist.",
       "sensor_not_found": "Solarprognose-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
       "invalid_unit": "Solarprognose-Sensor muss 'kWh' oder 'Wh' als Einheit haben.",
       "solar_production_sensor_not_found": "Solarproduktions-Sensor existiert nicht. Überprüfen Sie, dass der Sensor verfügbar ist.",
@@ -1782,7 +1832,7 @@
         "name": "Temperatur-Entladegrenze"
       },
       "weekly_full_charge_delay": {
-        "name": "Wöchentliche Vollladung verzögern"
+        "name": "Wöchentliche Vollladung: auf Ladeverzögerung warten"
       },
       "capacity_protection": {
         "name": "Spitzenlastkappung"
@@ -1948,6 +1998,7 @@
           "capacity_conserving": "Kapazität Schonen",
           "capacity_protection_charging": "Kapazitätsschutz - Laden",
           "price_discharge_blocked": "Entladung durch Preis blockiert",
+          "time_slot_floor_hold": "Energie für nach dem günstigen Zeitfenster halten",
           "hourly_balance_import": "Stundensaldo - Import",
           "hourly_balance_export": "Stundensaldo - Export",
           "hourly_balance_capped": "Stundensaldo - Begrenzt",
@@ -1967,7 +2018,7 @@
       "weekly_full_charge": {
         "name": "Wöchentliche Vollladung",
         "state": {
-          "idle": "Bereit",
+          "idle": "Inaktiv",
           "disabled": "Deaktiviert",
           "charging": "Lädt auf 100%",
           "complete": "Abgeschlossen"
@@ -1976,7 +2027,7 @@
       "charge_delay_status": {
         "name": "Ladeverzögerung",
         "state": {
-          "idle": "Bereit",
+          "idle": "Inaktiv",
           "disabled": "Deaktiviert",
           "waiting_for_solar": "Warte auf Solar",
           "delayed": "Verzögert",
@@ -2801,6 +2852,30 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Betriebsmodus",
+        "state": {
+          "nom": "NOM (null am Zähler)",
+          "manual": "Manuell (keine Aktion)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "manual": "Manuell",
+              "nom_active": "NOM aktiv",
+              "nom_pending": "NOM kehrt gleich zurück",
+              "nom_suspended_excluded_load": "NOM ausgesetzt: ausgeschlossenes Gerät läuft",
+              "nom_suspended_grid_charge": "NOM ausgesetzt: Netzladung",
+              "nom_suspended_global_manual": "NOM ausgesetzt: globaler Handbetrieb",
+              "nom_suspended_cross_charge": "NOM ausgesetzt: entlud sich in eine andere Batterie",
+              "nom_suspended_import_cap": "NOM ausgesetzt: ihre Ladung überschritt das Importlimit",
+              "nom_suspended_grid_target": "NOM ausgesetzt: gewollter Bezug oder Einspeisung",
+              "degraded": "Modus oder Leistung nicht bestätigt"
+            }
+          }
+        }
+      },
       "user_work_mode": {
         "name": "Arbeitsmodus",
         "state": {
@@ -2967,13 +3042,13 @@
         "name": "Sicherheitspuffer Solarprognose"
       },
       "negative_injection_threshold": {
-        "name": "Schwellenwert für negative Einspeisung"
+        "name": "Schwelle negativer Einspeisepreis"
       },
       "predischarge_reserve_soc": {
-        "name": "SOC-Reserve für Vorentladung"
+        "name": "Niedrigster SOC der Vorentladung"
       },
       "predictive_min_soc_floor": {
-        "name": "Garantierter Mindest-SOC"
+        "name": "Garantierter Mindest-SOC (Wert)"
       },
       "battery_capacity": {
         "name": "Batteriekapazität"
@@ -2993,6 +3068,9 @@
       "soc_set": {
         "name": "Ziel-SOC"
       },
+      "target_soc": {
+        "name": "Ziel-SOC"
+      },
       "min_soc": {
         "name": "Minimaler SOC"
       },
@@ -3000,7 +3078,7 @@
         "name": "Max. Wechselrichterleistung"
       },
       "max_price_threshold": {
-        "name": "Maximaler Preis (Laden)"
+        "name": "Lade-Preisobergrenze"
       },
       "discharge_price_threshold": {
         "name": "Entlade-Preisuntergrenze"
@@ -3046,6 +3124,10 @@
           "description": "Letzter lokaler Tag, der ausgeschlossen wird. Ohne Angabe wird nur der Starttag ausgeschlossen."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Gemessenen Round-Trip-Wirkungsgrad verwenden",
+      "description": "Entfernt einen festen Round-Trip-Wirkungsgrad: der Planer nutzt wieder den an deinen Batterien gemessenen Wirkungsgrad (0,85, bis eine Batterie genug Historie hat). Der Wert-Editor des Dashboards ruft die Aktion über „Gemessenen verwenden“ auf."
     }
   }
 }

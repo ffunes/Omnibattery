@@ -26,6 +26,22 @@
       "title": "La batterie {battery} ne délivre pas de puissance",
       "description": "{battery} accepte des ordres de charge/décharge depuis {minutes} minutes sans délivrer de puissance ({reason}). Omnibattery la garde hors de la répartition et la réessaie toutes les {cooldown} minutes, le reste du parc couvre donc la maison entre-temps. La batterie elle-même ou sa connexion demande une vérification : contrôlez qu'elle n'est pas en veille sous le contrôle de sa propre application et que la connexion n'est pas saturée. Activer puis désactiver le contrôle manuel de cette batterie la rétablit souvent."
     },
+    "nom_manual_unconfirmed": {
+      "title": "{battery} n'a pas pu être arrêtée",
+      "description": "Omnibattery a demandé à {battery} de passer en Manuel et elle n'affiche pas ce mode : elle peut donc encore se charger ou se décharger d'elle-même. La charge réseau des autres batteries a lieu malgré tout : au pire, {battery} s'y décharge. Omnibattery continue d'essayer et cet avis disparaît de lui-même dès que la batterie affiche Manuel. Vérifiez que l'intégration qui lit {battery} fonctionne et que son entité de mode peut être changée à la main."
+    },
+    "nom_restore_failed": {
+      "title": "{battery} ne repasse pas en NOM",
+      "description": "Vous avez choisi NOM pour {battery} et plusieurs tentatives de bascule ont échoué : elle reste en Manuel et ne fait rien. Omnibattery continue d'essayer et cet avis disparaît de lui-même. Vérifiez que l'intégration qui lit {battery} fonctionne et que son entité de mode peut être changée à la main."
+    },
+    "nom_telemetry_lost": {
+      "title": "La puissance de {battery} est illisible",
+      "description": "{battery} est réglée sur NOM mais Omnibattery n'a plus de lecture de sa puissance depuis plusieurs minutes : elle est maintenue en Manuel. Tant que Manuel n'est pas confirmé non plus, les autres batteries ne se déchargent pas : elles pourraient alimenter une charge invisible. Vérifiez l'intégration qui lit {battery}. Tout revient à la normale de lui-même au retour de la lecture."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} se décharge sans cesse dans une autre batterie",
+      "description": "Au moins trois fois au cours de la dernière heure, {battery} se déchargeait pendant qu'une autre batterie se chargeait, et il a fallu l'arrêter. L'énergie qui passe d'une batterie à l'autre est payée deux fois. Cherchez ce qui commande aussi l'une d'elles : le programme de l'application de la batterie, une automatisation ou deux régulateurs aux objectifs différents sur le même compteur."
+    },
     "configured_sensor_missing": {
       "title": "Un capteur configuré n'existe plus",
       "description": "Omnibattery est configuré avec {sensors}, qui n'existe pas dans Home Assistant. Toutes les fonctions qui le lisent sont inactives. La référence enregistrée est conservée volontairement, car le sélecteur d'entités ne peut pas afficher une entité disparue et effacerait votre réglage en silence : ouvrez Options → Capteurs et choisissez un remplaçant, ou videz le champ une fois l'entité revenue."
@@ -206,7 +222,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configurer la batterie {battery_num} — Entités Home Assistant",
-        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie et ne fixe jamais sa puissance : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Capteur d'état de charge",
@@ -215,17 +231,31 @@
           "ha_charge_energy_entities": "Compteurs d'énergie chargée",
           "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
           "ha_target_soc_entity": "État de charge cible",
+          "ha_mode_entity": "Entité du mode de fonctionnement",
           "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
           "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
-          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge, en W ou kW",
           "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
-          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
-          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs, en Wh, kWh ou MWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en Wh, kWh ou MWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
-          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+          "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente. Le silence d'une batterie au repos ne compte pas"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterie {battery_num} — mode de fonctionnement",
+        "description": "Quel état de {entity} signifie que la batterie régule d'elle-même, et lequel qu'elle reste au repos ? La batterie {battery_num} démarre en Manuel ; vous le changez ensuite avec son sélecteur Mode de fonctionnement.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zéro au compteur)",
+          "ha_mode_manual_option": "Manuel (la batterie est au repos)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "La batterie se charge et se décharge d'elle-même pour garder son compteur à 0 W",
+          "ha_mode_manual_option": "La batterie ne se charge ni ne se décharge"
         }
       },
       "battery_limits": {
@@ -766,7 +796,7 @@
       },
       "reconfigure_battery_generic_ha": {
         "title": "Reconfigurer la batterie {battery_num} — Home Assistant entities",
-        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie et ne fixe jamais sa puissance : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Capteur d'état de charge",
@@ -775,17 +805,19 @@
           "ha_charge_energy_entities": "Compteurs d'énergie chargée",
           "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
           "ha_target_soc_entity": "État de charge cible",
+          "ha_mode_entity": "Entité du mode de fonctionnement",
           "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
           "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
-          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge, en W ou kW",
           "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
-          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
-          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs, en Wh, kWh ou MWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en Wh, kWh ou MWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
-          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+          "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente. Le silence d'une batterie au repos ne compte pas"
         }
       },
       "restore_backup": {
@@ -910,6 +942,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Il manque des entités requises à l'appareil ESPHome sélectionné : {missing}. Vérifiez qu'il exécute le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
       "generic_ha_entities_missing": "Omnibattery n'a pas pu lire ces entités : {missing}. Choisissez des entités qui existent et qui indiquent actuellement un nombre.",
+      "generic_ha_mode_same": "NOM et Manuel doivent être deux états différents.",
+      "generic_ha_mode_unreadable": "Omnibattery n'a pas pu lire les options de cette entité. Choisissez un sélecteur ou un interrupteur disponible en ce moment.",
       "sensor_not_found": "Le capteur de prévision solaire n'existe pas. Vérifiez que le capteur est disponible.",
       "invalid_unit": "Le capteur de prévision solaire doit avoir 'kWh' ou 'Wh' comme unité.",
       "solar_production_sensor_not_found": "Le capteur de production solaire n'existe pas. Vérifiez que le capteur est disponible.",
@@ -1106,7 +1140,7 @@
       },
       "battery_connection_generic_ha": {
         "title": "Configurer la batterie {battery_num} — Entités Home Assistant",
-        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie mais ne la commande jamais : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
+        "description": "Indiquez à Omnibattery les entités qu'une autre intégration publie déjà pour la batterie {battery_num}. Omnibattery lit cette batterie et ne fixe jamais sa puissance : l'état de charge et la puissance sont ce qui rend correct le calcul de la consommation du foyer.",
         "data": {
           "name": "Nom",
           "ha_soc_entity": "Capteur d'état de charge",
@@ -1115,17 +1149,31 @@
           "ha_charge_energy_entities": "Compteurs d'énergie chargée",
           "ha_discharge_energy_entity": "Compteur d'énergie déchargée",
           "ha_target_soc_entity": "État de charge cible",
+          "ha_mode_entity": "Entité du mode de fonctionnement",
           "ha_stale_after_s": "Considérer la télémétrie comme perdue après"
         },
         "data_description": {
           "name": "Nom descriptif pour identifier cette batterie",
           "ha_soc_entity": "Un capteur indiquant l'état de charge de cette batterie en pourcentage",
-          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge en watts",
+          "ha_power_entity": "Un capteur indiquant la puissance de charge et de décharge, en W ou kW",
           "ha_power_positive_is": "Si le capteur compte la charge ou la décharge comme positive. Vérifiez-le pendant que la batterie se charge : Kostal et plusieurs autres indiquent la charge en négatif",
-          "ha_charge_energy_entities": "Compteurs totaux facultatifs en kWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
-          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en kWh. Sans elle, l'énergie est déduite de la puissance mesurée",
+          "ha_charge_energy_entities": "Compteurs totaux facultatifs, en Wh, kWh ou MWh. Choisissez-en plusieurs si la source les sépare, par exemple la charge solaire et celle du réseau ; ils sont additionnés",
+          "ha_discharge_energy_entity": "Énergie totale déchargée, facultative, en Wh, kWh ou MWh. Sans elle, l'énergie est déduite de la puissance mesurée",
           "ha_target_soc_entity": "État de charge cible ou minimal, facultatif et inscriptible. Il apparaît comme un nombre que vous réglez vous-même ; Omnibattery ne l'écrit jamais de lui-même",
-          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente"
+          "ha_mode_entity": "Sélecteur ou interrupteur facultatif de l'intégration source qui choisit si la batterie régule son propre compteur à zéro (NOM) ou reste au repos. Avec lui, Omnibattery peut arrêter la batterie pendant une charge réseau ou tant qu'un appareil exclu fonctionne. Il ne fixe jamais sa puissance",
+          "ha_stale_after_s": "Combien de temps l'intégration source peut rester muette avant que cette batterie soit considérée injoignable. Augmentez-le pour une interrogation lente. Le silence d'une batterie au repos ne compte pas"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Batterie {battery_num} — mode de fonctionnement",
+        "description": "Quel état de {entity} signifie que la batterie régule d'elle-même, et lequel qu'elle reste au repos ? La batterie {battery_num} démarre en Manuel ; vous le changez ensuite avec son sélecteur Mode de fonctionnement.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zéro au compteur)",
+          "ha_mode_manual_option": "Manuel (la batterie est au repos)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "La batterie se charge et se décharge d'elle-même pour garder son compteur à 0 W",
+          "ha_mode_manual_option": "La batterie ne se charge ni ne se décharge"
         }
       },
       "battery_limits": {
@@ -1620,6 +1668,8 @@
       "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
       "esphome_entities_missing": "Il manque des entités requises à l'appareil ESPHome sélectionné : {missing}. Vérifiez qu'il exécute le firmware marstek-lilygo-rs485 avec les noms d'entités d'origine.",
       "generic_ha_entities_missing": "Omnibattery n'a pas pu lire ces entités : {missing}. Choisissez des entités qui existent et qui indiquent actuellement un nombre.",
+      "generic_ha_mode_same": "NOM et Manuel doivent être deux états différents.",
+      "generic_ha_mode_unreadable": "Omnibattery n'a pas pu lire les options de cette entité. Choisissez un sélecteur ou un interrupteur disponible en ce moment.",
       "sensor_not_found": "Le capteur de prévision solaire n'existe pas. Vérifiez que le capteur est disponible.",
       "invalid_unit": "Le capteur de prévision solaire doit avoir 'kWh' ou 'Wh' comme unité.",
       "solar_production_sensor_not_found": "Le capteur de production solaire n'existe pas. Vérifiez que le capteur est disponible.",
@@ -1782,7 +1832,7 @@
         "name": "Limite de décharge par température"
       },
       "weekly_full_charge_delay": {
-        "name": "Retarder la Charge Complète Hebdomadaire"
+        "name": "Charge complète hebdomadaire : attendre le délai de charge"
       },
       "capacity_protection": {
         "name": "Écrêtement de Pointe"
@@ -1948,6 +1998,7 @@
           "capacity_conserving": "Préservation de Capacité",
           "capacity_protection_charging": "Protection de Capacité - Charge",
           "price_discharge_blocked": "Décharge Bloquée par le Prix",
+          "time_slot_floor_hold": "Énergie Réservée pour Après le Créneau Bon Marché",
           "hourly_balance_import": "Solde Horaire - Import",
           "hourly_balance_export": "Solde Horaire - Export",
           "hourly_balance_capped": "Solde Horaire - Limité",
@@ -2801,6 +2852,30 @@
           "l3": "L3"
         }
       },
+      "autonomous_operating_mode": {
+        "name": "Mode de fonctionnement",
+        "state": {
+          "nom": "NOM (zéro au compteur)",
+          "manual": "Manuel (aucune action)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "État",
+            "state": {
+              "manual": "Manuel",
+              "nom_active": "NOM actif",
+              "nom_pending": "NOM sur le point de reprendre",
+              "nom_suspended_excluded_load": "NOM suspendu : appareil exclu en marche",
+              "nom_suspended_grid_charge": "NOM suspendu : charge réseau",
+              "nom_suspended_global_manual": "NOM suspendu : mode manuel global",
+              "nom_suspended_cross_charge": "NOM suspendu : elle se déchargeait dans une autre batterie",
+              "nom_suspended_import_cap": "NOM suspendu : sa charge dépassait la limite d'import",
+              "nom_suspended_grid_target": "NOM suspendu : import ou export voulu",
+              "degraded": "Mode ou puissance non confirmés"
+            }
+          }
+        }
+      },
       "user_work_mode": {
         "name": "Mode de Fonctionnement",
         "state": {
@@ -2967,13 +3042,13 @@
         "name": "Marge de Sécurité Prévision Solaire"
       },
       "negative_injection_threshold": {
-        "name": "Seuil d'injection négative"
+        "name": "Seuil de prix d'injection négatif"
       },
       "predischarge_reserve_soc": {
-        "name": "Réserve de SOC de pré-décharge"
+        "name": "SOC le plus bas de pré-décharge"
       },
       "predictive_min_soc_floor": {
-        "name": "SOC minimum garanti"
+        "name": "Niveau de SOC minimum garanti"
       },
       "battery_capacity": {
         "name": "Capacité de la Batterie"
@@ -2993,6 +3068,9 @@
       "soc_set": {
         "name": "SOC Cible"
       },
+      "target_soc": {
+        "name": "SOC Cible"
+      },
       "min_soc": {
         "name": "SOC Minimum"
       },
@@ -3000,7 +3078,7 @@
         "name": "Puissance Max. de l'Onduleur"
       },
       "max_price_threshold": {
-        "name": "Prix maximum (charge)"
+        "name": "Plafond de prix de charge"
       },
       "discharge_price_threshold": {
         "name": "Prix plancher de décharge"
@@ -3046,6 +3124,10 @@
           "description": "Dernier jour local exclu. Par défaut, seul le jour de début est exclu."
         }
       }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Utiliser le rendement aller-retour mesuré",
+      "description": "Supprime la valeur fixe du rendement aller-retour : le planificateur utilise de nouveau le rendement mesuré sur vos batteries (0,85 tant qu'aucune batterie n'a assez d'historique). L'éditeur de valeur du tableau de bord l'appelle depuis « Utiliser la mesure »."
     }
   }
 }

@@ -42,7 +42,6 @@ from custom_components.omnibattery.const import (
     DEFAULT_PREDICTIVE_MIN_SOC_FLOOR,
     DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     DEFAULT_PREDISCHARGE_RESERVE_SOC,
-    DEFAULT_ROUND_TRIP_EFFICIENCY,
     DEFAULT_SURPLUS_HOLD_MIN_SAVING,
 )
 
@@ -83,8 +82,7 @@ DEFAULTS = {
     "max_price_threshold_enabled": "off (automatic)",
     "max_price_threshold": "not set (automatic)",
     "min_arbitrage_margin": "0 (losses only)",
-    # 0.85 stored stands for the measured value (energy.effective_round_trip_efficiency)
-    "round_trip_efficiency": f"{DEFAULT_ROUND_TRIP_EFFICIENCY:g} (replaced by the value measured on your batteries once one has 50 cycles)",
+    "round_trip_efficiency": "measured (0.85 until a battery has 50 cycles)",
     "negative_price_charging": "off",
     "price_discharge_control": "off",
     "discharge_price_threshold_enabled": "off (automatic)",
@@ -102,6 +100,7 @@ DEFAULTS = {
     # main switches of the other cards
     "manual_mode": "off",
     "offgrid_mode": "off",
+    "no_pd_mode": "off",
     "charge_delay": "off",
     "hourly_balance": "off",
     "system_power_limits": "off",
@@ -166,9 +165,6 @@ NO_DEFAULT = (
     "system_pd_control_quality",
     "temperature_charge_limit_status",
 )
-# One switch on two cards with opposite sense ("Use PD controller" shows it
-# inverted); each card's own tooltip explains it.
-NO_TOOLTIP = ("no_pd_mode",)
 
 
 def _help(lang):
@@ -204,7 +200,7 @@ def test_every_setting_row_of_the_panel_is_covered():
     panel = PANEL.read_text(encoding="utf-8")
     block = panel[panel.index("const SYS_SECTIONS = [") : panel.index("const SYS_HELP = {")]
     keys = set(re.findall(r'\{ key: "(\w+)"', block))
-    assert keys - set(DEFAULTS) - set(NO_DEFAULT) - set(NO_TOOLTIP) == set()
+    assert keys - set(DEFAULTS) - set(NO_DEFAULT) == set()
 
 
 @pytest.mark.parametrize("lang", LANGS)
@@ -233,9 +229,18 @@ def test_a_per_kwh_default_shows_the_slider_s_unit():
     body = panel[start : panel.index("\n  }", start)]
     assert '.replace("{unit}", unit || "/kWh")' in body
     row = panel[panel.index("// static options-flow help (desktop hover title") :]
-    assert "this._help(item.key, state && state.attributes && state.attributes.unit_of_measurement)" in row[:300]
+    assert "this._help(item.key, state && state.attributes && state.attributes.unit_of_measurement)" in row[:400]
     for lang in LANGS:
         for key in ("surplus_hold_min_saving", "negative_injection_threshold"):
             text = _help(lang)[key]
             assert text.endswith(" {unit}."), (lang, key)
             assert "kWh." not in text.rsplit(LABEL[lang], 1)[-1], (lang, key)
+
+
+def test_an_inverted_row_does_not_show_its_key_s_tooltip():
+    # "Use PD controller" is no_pd_mode shown inverted: the key's "On: No-PD..."
+    # would say the opposite of the switch.
+    panel = PANEL.read_text(encoding="utf-8")
+    assert '{ key: "no_pd_mode", domain: "switch", lk: "itemPdEnable", icon: "mdi:tune", gate: true, gateInvert: true }' in panel
+    row = panel[panel.index("// static options-flow help (desktop hover title") :][:400]
+    assert 'item.gateInvert ? "" : this._help(item.key' in row

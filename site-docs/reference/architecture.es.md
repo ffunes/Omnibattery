@@ -76,6 +76,8 @@ El código compartido lee `coordinator.capabilities`; no debe ramificarse según
 | Control | `hardware_soc_cutoff` | El dispositivo aplica por sí mismo los cortes de estado de carga (SOC) configurados. |
 | Control | `has_force_mode` | El dispositivo expone un modo diferenciado de carga, descarga o reposo forzado. |
 | Control | `has_rs485_control` | Se puede conmutar una compuerta externa de control RS-485 o Modbus. |
+| Control | `supports_power_setpoint` | El dispositivo acepta una orden de potencia con signo. Léelo con `can_take_setpoint()`. |
+| Control | `supports_nom_mode` | El dispositivo no acepta vatios pero puede pasar entre NOM y Manual con `apply_operating_mode()`; `operating_mode_from_data()` lee el modo en que está y `power_sample_time()` fecha su lectura de potencia. |
 | Potencia | `max_charge_power_w`, `max_discharge_power_w` | Envolvente inclusiva de potencia por dispositivo. |
 | Potencia | `min_charge_power_w`, `min_discharge_power_w` | Orden distinta de cero fiable más baja en cada sentido. |
 | Tiempo | `actuator_latency_s` | Tiempo aproximado de respuesta física usado por la protección de cambio de sentido. |

@@ -308,6 +308,9 @@ class DriverTraits:
     fixed_power_envelope: bool = False
     # The battery has a DC PV input that can be left unconnected (Marstek vA/vD).
     optional_dc_pv_input: bool = False
+    # False for a battery that is only read: its stored power limits are not
+    # watts the fleet can be told to move.
+    takes_power_setpoint: bool = True
     # Initial SOC/power config is not written at setup: the device holds it.
     device_owns_initial_config: bool = False
     # Addressed by IP, so its address can drift.
@@ -517,6 +520,40 @@ class DriverCapabilities:
     # configuring it. Read it through ``can_take_setpoint`` below, never raw.
     supports_power_setpoint: bool = True
 
+    # True when the device cannot be given watts but can be switched between its
+    # own zero-on-the-meter regulation (NOM) and standing still (Manual). Only
+    # meaningful with ``supports_power_setpoint=False``. Read it through
+    # ``supports_nom_mode`` below.
+    supports_nom_mode: bool = False
+
+
+class NativeOperatingMode(enum.StrEnum):
+    """The two native modes of a battery that regulates on its own."""
+
+    NOM = "nom"        # keeps its own meter at 0 W
+    MANUAL = "manual"  # regulation off, the battery rests
+
+
+@dataclass(frozen=True)
+class OperatingModeResult:
+    """Outcome of one native mode change.
+
+    ``ok``: the device accepted the write. ``confirmed``: it was also seen in the
+    requested mode; False is normal right after the write on a slow device.
+    """
+
+    ok: bool
+    confirmed: bool
+    requested_mode: NativeOperatingMode
+    effective_mode: Optional[NativeOperatingMode] = None
+    failure_reason: Optional[str] = None
+
+
+def supports_nom_mode(coordinator) -> bool:
+    """Whether this battery can be switched between NOM and Manual."""
+    capabilities = getattr(coordinator, "capabilities", None)
+    return getattr(capabilities, "supports_nom_mode", False) is True
+
 
 def can_take_setpoint(coordinator) -> bool:
     """Whether shared code may command this battery's power at all.
@@ -551,13 +588,18 @@ def has_connected_mppt_pv(coordinator) -> bool:
     ``has_mppt_pv`` remains a hardware capability. Marstek Venus A/D users can
     explicitly declare that their physical MPPT inputs are unused; coordinators
     and test doubles without that installation setting retain the historical
-    capability-based behaviour.
+    capability-based behaviour. The setting only applies where the traits
+    declare an optional DC PV input: hardware whose MPPT inputs are not
+    optional (Zendure 4000 Mix Pro, #942) follows ``has_mppt_pv`` alone, as
+    the coordinator forces ``dc_pv_connected`` False for those brands.
     """
     capabilities = getattr(coordinator, "capabilities", None)
-    return bool(
-        getattr(capabilities, "has_mppt_pv", False)
-        and getattr(coordinator, "dc_pv_connected", True)
-    )
+    if not getattr(capabilities, "has_mppt_pv", False):
+        return False
+    traits = getattr(coordinator, "traits", None)
+    if traits is not None and not getattr(traits, "optional_dc_pv_input", False):
+        return True
+    return bool(getattr(coordinator, "dc_pv_connected", True))
 
 
 def has_solar_production_source(controller) -> bool:
@@ -1061,6 +1103,42 @@ class BatteryDriver(ABC):
     # Entities of this brand were once keyed on host or name instead of
     # device_key, so obsolete ones are looked up under those prefixes too.
     OBSOLETE_ENTITY_LEGACY_PREFIXES: bool = False
+
+    # --- native operating mode (only with ``supports_nom_mode``) ------------
+
+    async def apply_operating_mode(
+        self, mode: NativeOperatingMode, *, read_back: bool = True
+    ) -> OperatingModeResult:
+        """Switch the device's native mode.
+
+        ``read_back`` waits a few seconds for the device to show the mode. The
+        autonomous mode manager passes False and confirms on later cycles.
+        """
+        return OperatingModeResult(
+            ok=False, confirmed=False, requested_mode=mode,
+            failure_reason="unsupported_operating_mode",
+        )
+
+    def operating_mode_from_data(self, data: dict) -> Optional[NativeOperatingMode]:
+        """The native mode the device is in now, or None when it is not known."""
+        return None
+
+    def telemetry_is_back(self) -> bool:
+        """Whether a suspended battery is known to answer again, without asking it.
+
+        Polling a battery that failed repeatedly is suspended for two minutes to
+        spare it. A driver that can tell for free that the readings are back
+        returns True and the suspension ends at once.
+        """
+        return False
+
+    def power_sample_time(self) -> Any:
+        """Identity of the power reading in use, when the source stamps it.
+
+        Two equal answers are one reading seen twice. None: every poll is a
+        reading of its own.
+        """
+        return None
 
     # --- entity definitions (read by the coordinator and the platforms) ----
 

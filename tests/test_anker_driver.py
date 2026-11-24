@@ -51,8 +51,8 @@ def test_capabilities():
     assert caps.has_solar_telemetry is False
     assert caps.has_energy_counters is True
     assert caps.has_daily_energy_counters is False
-    assert caps.max_charge_power_w == 7000
-    assert caps.max_discharge_power_w == 7000
+    assert caps.max_charge_power_w == 14000
+    assert caps.max_discharge_power_w == 14000
     assert caps.min_charge_power_w == 0
     assert caps.min_discharge_power_w == 0
     assert caps.setpoint_confirm_reliable is False
@@ -426,7 +426,7 @@ async def test_read_telemetry_reports_combined_units_7000_w():
 async def test_read_telemetry_caps_readings_above_hw_max():
     client = _fake_client()
     buf = [0] * 51
-    buf[36], buf[37] = encode_int32(9000)
+    buf[36], buf[37] = encode_int32(20000)
     buf[38], buf[39] = encode_int32(3000)
     client.async_read_input_block = AsyncMock(return_value=buf)
     client.async_read_holding_block = AsyncMock(return_value=None)
@@ -434,8 +434,60 @@ async def test_read_telemetry_caps_readings_above_hw_max():
     drv = _driver(client=client)
     snap = await drv.read_telemetry(["max_charge_power", "max_discharge_power"])
 
-    assert snap["max_charge_power"] == 7000
+    assert snap["max_charge_power"] == 14000
     assert snap["max_discharge_power"] == 3000
+
+
+def _cap_buffer(charge_w, discharge_w):
+    buf = [0] * 51
+    buf[36], buf[37] = encode_int32(charge_w)
+    buf[38], buf[39] = encode_int32(discharge_w)
+    return buf
+
+
+@pytest.mark.asyncio
+async def test_published_ceiling_is_highest_reading_clamp_is_live():
+    """Three combined units read 10500 W, then a derated 5138/3608 (#646).
+
+    The published ceiling keeps 10500 (sliders, planner); setpoints follow the
+    live reading. A 0 is a missing answer and changes neither.
+    """
+    client = _fake_client()
+    client.async_read_holding_block = AsyncMock(return_value=None)
+    drv = _driver(client=client)
+    keys = ["max_charge_power", "max_discharge_power"]
+
+    client.async_read_input_block = AsyncMock(return_value=_cap_buffer(10500, 10500))
+    snap = await drv.read_telemetry(keys)
+    assert (snap["max_charge_power"], snap["max_discharge_power"]) == (10500, 10500)
+    assert drv._clamp_net_power(10500) == 10500
+
+    client.async_read_input_block = AsyncMock(return_value=_cap_buffer(5138, 3608))
+    snap = await drv.read_telemetry(keys)
+    assert (snap["max_charge_power"], snap["max_discharge_power"]) == (10500, 10500)
+    assert drv._clamp_net_power(9000) == 5138
+    assert drv._clamp_net_power(-9000) == -3608
+    # The controller allocates against the live value, not the published ceiling.
+    assert (drv.dynamic_charge_limit_w({}), drv.dynamic_discharge_limit_w({})) == (5138, 3608)
+
+    client.async_read_input_block = AsyncMock(return_value=_cap_buffer(0, 0))
+    snap = await drv.read_telemetry(keys)
+    assert (snap["max_charge_power"], snap["max_discharge_power"]) == (10500, 10500)
+    assert drv._clamp_net_power(9000) == 5138
+    assert drv.dynamic_charge_limit_w({}) == 5138
+
+
+@pytest.mark.asyncio
+async def test_published_ceiling_seeds_from_persisted_device_cap():
+    """A restart does not drop the ceiling to the first derated reading."""
+    client = _fake_client()
+    client.async_read_holding_block = AsyncMock(return_value=None)
+    client.async_read_input_block = AsyncMock(return_value=_cap_buffer(5138, 3608))
+    drv = _driver(client=client, rated_charge_w=10500, rated_discharge_w=10500)
+
+    snap = await drv.read_telemetry(["max_charge_power", "max_discharge_power"])
+
+    assert (snap["max_charge_power"], snap["max_discharge_power"]) == (10500, 10500)
 
 
 @pytest.mark.asyncio
@@ -529,9 +581,9 @@ async def test_apply_setpoint_passes_sub_100w_target():
 async def test_apply_setpoint_clamps_to_hw_max():
     client = _fake_client()
     drv = _driver(client=client)
-    result = await drv.apply_setpoint(9000)
-    assert result.net_power_w == 7000
-    client.async_write_registers_int32.assert_awaited_with(10071, -7000)
+    result = await drv.apply_setpoint(20000)
+    assert result.net_power_w == 14000
+    client.async_write_registers_int32.assert_awaited_with(10071, -14000)
 
 
 @pytest.mark.asyncio

@@ -3143,18 +3143,22 @@ class DailyOperationTimelineManager:
         planned_grid: list[str] = []
         visible_grid: list[str] = []
         delay_until: list[str | None] = []
+        # A past quarter shows only what was measured, never the plan (#853).
+        past = self._current_index
         for index, cell in enumerate(self._cells):
             actual_grid.append(cell.actual_grid_charge_decision)
             planned_grid.append(cell.planned_grid_charge_decision)
             visible_grid.append(
                 cell.actual_grid_charge_decision
-                if index <= self._current_index and cell.actual_grid_charge_decision
-                != GRID_CHARGE_NOT_APPLICABLE
+                if index < past
+                or (index == past and cell.actual_grid_charge_decision
+                    != GRID_CHARGE_NOT_APPLICABLE)
                 else cell.planned_grid_charge_decision
             )
             delay_until.append(
                 cell.actual_delay_until
-                if index <= self._current_index and cell.actual_delay_until is not None
+                if index < past
+                or (index == past and cell.actual_delay_until is not None)
                 else cell.planned_delay_until
             )
 
@@ -3255,13 +3259,15 @@ class DailyOperationTimelineManager:
         }
         visible_charge_power = [
             cell.actual_charge_power_w
-            if index <= self._current_index and cell.actual_charge_power_w is not None
+            if index < past
+            or (index == past and cell.actual_charge_power_w is not None)
             else cell.planned_charge_power_w
             for index, cell in enumerate(self._cells)
         ]
         visible_discharge_power = [
             cell.actual_discharge_power_w
-            if index <= self._current_index and cell.actual_discharge_power_w is not None
+            if index < past
+            or (index == past and cell.actual_discharge_power_w is not None)
             else cell.planned_discharge_power_w
             for index, cell in enumerate(self._cells)
         ]
