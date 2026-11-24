@@ -146,7 +146,7 @@ def _build_forecast_lines(context: dict, solar_str: str, consumption_for_horizon
     lines = (
         f"{solar_lines}"
         f"📊 {context['consumption_label']}: {consumption_for_horizon:.2f} kWh\n"
-        f"   Basis: {context['consumption_basis']}\n"
+        f"   🧮 Basis: {context['consumption_basis']}\n"
     )
     overnight_kwh = context.get("overnight_kwh")
     if overnight_kwh is not None and overnight_kwh > 0:
@@ -245,7 +245,7 @@ def format_predictive_notification_message(
             f"⚠️ No solar forecast available — conservative mode\n\n"
             f"🔋 Battery: {avg_soc:.0f}% ({usable_energy:.2f} kWh usable)\n"
             f"📊 {context['consumption_label']}: {consumption_for_horizon:.2f} kWh\n"
-            f"   Basis: {context['consumption_basis']}\n\n"
+            f"   🧮 Basis: {context['consumption_basis']}\n\n"
             f"Grid charging NOT activated."
         )
         return (title, message, PLAN_INFO)
@@ -383,18 +383,28 @@ def _plan_order_lines(orders, now) -> str:
     if not orders:
         return ""
     lines = []
+
+    def _order(label, spans, detail=lambda kw: ""):
+        # One block: inline; several: the label, then one bullet each.
+        items = [f"{_span(a, b, now)}{detail(kw)}" for a, b, kw, _k in spans]
+        if len(items) == 1:
+            lines.append(f"{label}: {items[0]}")
+        else:
+            lines.append(f"{label}:")
+            lines.extend(f"  • {item}" for item in items)
+
     for key, label in (("holds", "🔒 Battery kept for later"), ("exports", "☀️ Solar surplus to export")):
         slots = orders.get(key) or ()
         if slots:
             spans = _blocks((s.start, s.end, None, None) for s in slots)
-            lines.append(f"{label}: " + ", ".join(_span(a, b, now) for a, b, _v, _k in spans))
+            if key == "holds":
+                _order(label, spans)
+            else:
+                lines.append(f"{label}: " + ", ".join(_span(a, b, now) for a, b, _v, _k in spans))
     sales = orders.get("sales") or {}
     if sales:
         spans = _blocks((s.start, s.end, round(float(kw), 1), None) for s, kw in sales.items())
-        lines.append(
-            "💶 Selling to the grid: "
-            + ", ".join(f"{_span(a, b, now)} at {kw:.1f} kW" for a, b, kw, _k in spans)
-        )
+        _order("💶 Selling to the grid", spans, lambda kw: f" at {kw:.1f} kW")
     room = orders.get("room") or {}
     if room:
         spans = _blocks((s.start, s.end, round(float(kw), 1), None) for s, kw in room.items())
@@ -525,7 +535,22 @@ def format_dynamic_pricing_notification(
     if arbitrage_ceiling is not None:
         _suffix = "" if arbitrage_binding else " (not binding)"
         _price_parts.append(f"arbitrage ceiling ≤ {arbitrage_ceiling:.4f} {unit}{_suffix}")
-    price_config_line = ("⚙️ Price thresholds: " + " | ".join(_price_parts) + "\n") if _price_parts else ""
+    price_config_line = ("⚙️ Price thresholds: " + " | ".join(_price_parts)) if _price_parts else ""
+
+    def _footer(charge_power: bool = False, discharge: bool = False) -> str:
+        """Thresholds and power limits as the closing block, after a blank line."""
+        parts = [price_config_line]
+        if charge_power:
+            parts.append(
+                "Max charge power: "
+                + _max_charge_power_str(
+                    max_contracted_power, max_charge_capacity, contracted_label="ICP"
+                )
+            )
+        if discharge:
+            parts.append(_max_discharge_power_line(decision_data).lstrip("\n"))
+        parts = [p for p in parts if p]
+        return "\n\n" + "\n".join(parts) if parts else ""
 
     if schedule is None or not schedule.selected_slots:
         if not decision_data.get("should_charge", False):
@@ -540,12 +565,12 @@ def format_dynamic_pricing_notification(
                 f"{decision_data.get('total_available_kwh', 0):.2f} kWh ≥ "
                 f"{consumption_for_horizon:.2f} kWh needed\n"
                 f"{orders_lines}"
-                f"{price_config_line}"
                 + (
                     "No additional grid charging required."
                     if context["is_remaining"]
                     else "No grid charging required."
                 )
+                + _footer()
             )
         elif decision_data.get("deferred_to_next_day"):
             title = "Predictive Charging: Price Optimization - nothing to charge yet"
@@ -556,8 +581,8 @@ def format_dynamic_pricing_notification(
                 f"{forecast_lines}"
                 f"⚡ Energy needed: {energy_deficit:.2f} kWh\n"
                 f"{orders_lines}\n"
-                f"{price_config_line}"
                 "No grid charging is scheduled now; it is planned again at the next daily evaluation."
+                f"{_footer()}"
             )
         else:
             headline, hint = _no_slots_explanation(
@@ -587,8 +612,8 @@ def format_dynamic_pricing_notification(
                     f"{forecast_lines}"
                     f"🔌 Left to the grid: {imported:.2f} kWh\n"
                     f"{orders_lines}\n"
-                    f"{price_config_line}"
                     f"Storing it now would cost more after the round-trip losses{margin}."
+                    f"{_footer()}"
                 )
             else:
                 message = (
@@ -597,8 +622,8 @@ def format_dynamic_pricing_notification(
                     f"{forecast_lines}"
                     f"⚡ Energy deficit: {energy_deficit:.2f} kWh\n"
                     f"{orders_lines}\n"
-                    f"{price_config_line}"
                     f"{hint}"
+                    f"{_footer()}"
                 )
     else:
         hours_needed = schedule.hours_needed
@@ -639,14 +664,19 @@ def format_dynamic_pricing_notification(
         if optimizer:
             # The optimizer books quarters: one line per run at one price.
             targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
-            slot_lines = "\n".join(
-                f"  • {_span(a, b, now)} → {price:.4f} {unit}"
-                + ("" if kwh is None else f", {kwh:.2f} kWh")
-                for a, b, price, kwh in _blocks(
-                    (s.start, s.end, s.price,
-                     None if s not in targets else float(targets[s]))
-                    for s in schedule.selected_slots
-                )
+            # A blank line before the table so markdown renders it as one.
+            slot_lines = "\n" + "\n".join(
+                ["| Slot | Price | Energy |", "|---|---|---|"]
+                + [
+                    f"| {_span(a, b, now)} | {price:.4f} {unit} | "
+                    + ("—" if kwh is None else f"{kwh:.2f} kWh")
+                    + " |"
+                    for a, b, price, kwh in _blocks(
+                        (s.start, s.end, s.price,
+                         None if s not in targets else float(targets[s]))
+                        for s in schedule.selected_slots
+                    )
+                ]
             )
         if schedule_type == "negative_price":
             title = f"Negative-price charging: {hours_label} selected"
@@ -659,13 +689,8 @@ def format_dynamic_pricing_notification(
                 f"No predictive energy deficit is required.\n\n"
                 f"💰 Most-negative qualifying slots:\n{slot_lines}\n\n"
                 f"Average price: {schedule.average_price:.4f} {unit}\n"
-                f"Estimated cost: ~{schedule.estimated_cost:.2f} {cost_unit}\n"
-                f"{price_config_line}"
-                "Max charge power: " + _max_charge_power_str(
-                    max_contracted_power,
-                    max_charge_capacity,
-                    contracted_label="ICP",
-                )
+                f"Estimated cost: ~{schedule.estimated_cost:.2f} {cost_unit}"
+                + _footer(charge_power=True)
             )
         elif not schedule.charging_needed:
             title = f"Predictive Charging: Price Info - {hours_label} cheapest"
@@ -681,8 +706,8 @@ def format_dynamic_pricing_notification(
                 f"{orders_lines}"
                 f"💰 Cheapest hours today (informational):\n{slot_lines}\n\n"
                 f"Average price: {schedule.average_price:.4f} {unit}\n"
-                f"{price_config_line}"
                 f"No charging will activate."
+                f"{_footer()}"
             )
         else:
             if decision_data.get("floor_active"):
@@ -754,14 +779,8 @@ def format_dynamic_pricing_notification(
                 f"{charge_lines}"
                 f"💰 {selected_label}:\n{slot_lines}\n\n"
                 f"Average price: {schedule.average_price:.4f} {unit}\n"
-                f"Estimated cost: ~{schedule.estimated_cost:.2f} {cost_unit}\n"
-                f"{price_config_line}"
-                "Max charge power: " + _max_charge_power_str(
-                    max_contracted_power,
-                    max_charge_capacity,
-                    contracted_label="ICP",
-                )
-                + _max_discharge_power_line(decision_data)
+                f"Estimated cost: ~{schedule.estimated_cost:.2f} {cost_unit}"
+                + _footer(charge_power=True, discharge=True)
             )
 
     return (title, message, category)

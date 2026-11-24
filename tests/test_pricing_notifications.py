@@ -641,9 +641,9 @@ def test_optimizer_charge_lists_blocks_without_the_old_planner_words():
                 "[flexible]", "[deficit]", "meet each deadline", "of charging needed"):
         assert old not in message
     # Back-to-back quarters at one price are one line, with their energy added up.
-    assert "18:00–18:45 → 0.1000 €/kWh, 1.40 kWh" in message
-    assert "18:45–19:00 → 0.1200 €/kWh, 0.30 kWh" in message
-    assert message.count("→") == 2
+    assert "| 18:00–18:45 | 0.1000 €/kWh | 1.40 kWh |" in message
+    assert "| 18:45–19:00 | 0.1200 €/kWh | 0.30 kWh |" in message
+    assert message.count("→") == 0
 
 
 def _slot_at(minutes, length=15):
@@ -696,8 +696,8 @@ def test_optimizer_price_info_groups_the_cheap_hours_without_tags():
     schedule.purpose_for = lambda _s: "deficit"
     message = notifications.format_dynamic_pricing_notification(
         _decision(planner="optimizer"), schedule, **_DP_CFG)[1]
-    assert "18:00–19:00 → 0.1000 €/kWh" in message
-    assert message.count("→") == 1 and "[deficit]" not in message
+    assert "| 18:00–19:00 | 0.1000 €/kWh |" in message
+    assert message.count("→") == 0 and "[deficit]" not in message
 
 
 # ----------------------------------------------------------------------
@@ -805,10 +805,41 @@ def test_plan_crossing_midnight_lists_chronologically_with_dates():
                   planner="optimizer", deadline_required_kwh=3.0),
         schedule, **{**_DP_CFG, "now": _TUE},
     )
-    lines = [ln for ln in message.splitlines() if "→" in ln]
-    assert [ln.split(" → ")[0].strip("  •") for ln in lines] == [
+    rows = [ln for ln in message.splitlines() if ln.startswith("| ") and "€/kWh" in ln]
+    assert [ln.split(" | ")[0].lstrip("| ") for ln in rows] == [
         "23:00–00:00", "Wed 25 · 00:00–01:00", "Wed 25 · 05:00–06:00",
     ]
+
+
+def _table_plan(with_kwh=True):
+    slots = [_q(24, 23, price=0.0890), _q(25, 0, price=0.0890), _q(25, 5, price=0.0890)]
+    # Equal prices back to back would merge; 23:00 and 00:00 touch, so separate them.
+    slots[0] = _q(24, 22, price=0.0890)
+    schedule = _optimizer_schedule([0.1] * 3, [0.11, 2.03, 1.0])
+    schedule.selected_slots = slots
+    targets = dict(zip(slots, [0.11, 2.03, 1.0])) if with_kwh else {}
+    schedule.slot_energy_targets_kwh = targets
+    schedule.slot_deadlines = {s: None for s in slots}
+    return notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=3.0, planned_grid_charge_kwh=3.0,
+                  planner="optimizer", deadline_required_kwh=3.0),
+        schedule, **{**_DP_CFG, "now": _TUE},
+    )[1]
+
+
+def test_optimizer_charge_slots_are_a_table_in_chronological_order():
+    message = _table_plan()
+    assert (
+        "\n\n| Slot | Price | Energy |\n|---|---|---|\n"
+        "| 22:00–23:00 | 0.0890 €/kWh | 0.11 kWh |\n"
+        "| Wed 25 · 00:00–01:00 | 0.0890 €/kWh | 2.03 kWh |\n"
+        "| Wed 25 · 05:00–06:00 | 0.0890 €/kWh | 1.00 kWh |\n"
+    ) in message
+    assert "•" not in message.split("|---|---|---|")[1].split("\n\n")[0]
+
+
+def test_optimizer_table_dash_without_energy():
+    assert "| 22:00–23:00 | 0.0890 €/kWh | — |" in _table_plan(with_kwh=False)
 
 
 def test_two_nights_of_hold_are_dated_not_duplicated():
@@ -818,7 +849,11 @@ def test_two_nights_of_hold_are_dated_not_duplicated():
         _decision(should_charge=False, planner="optimizer"), None,
         plan_orders=orders, **{**_DP_CFG, "now": _TUE},
     )
-    assert "🔒 Battery kept for later: Wed 25 · 00:00–08:00, Thu 26 · 00:00–08:00" in message
+    assert (
+        "🔒 Battery kept for later:\n"
+        "  • Wed 25 · 00:00–08:00\n"
+        "  • Thu 26 · 00:00–08:00\n"
+    ) in message
 
 
 def test_sale_and_room_of_tomorrow_are_dated_today_is_not():
@@ -830,7 +865,11 @@ def test_sale_and_room_of_tomorrow_are_dated_today_is_not():
         _decision(should_charge=False, planner="optimizer"), None,
         plan_orders=orders, **{**_DP_CFG, "now": _TUE},
     )
-    assert "Selling to the grid: 23:00–00:00 at 2.5 kW, Wed 25 · 01:00–02:00 at 2.5 kW" in message
+    assert (
+        "💶 Selling to the grid:\n"
+        "  • 23:00–00:00 at 2.5 kW\n"
+        "  • Wed 25 · 01:00–02:00 at 2.5 kW\n"
+    ) in message
     assert "Making room for the sun: 22:00–23:00 at 1.2 kW, Thu 26 · 09:00–10:00 at 1.2 kW" in message
 
 
@@ -897,3 +936,77 @@ def test_pre_slot_notification_dates_only_other_days(day, span, at):
     assert f"slot {at} confirmed" in title
     assert f"Slot: {span} @" in message
     assert f"activate at {at}" in message
+
+
+# ----------------------------------------------------------------------
+# Grouped layout (task 3.2)
+# ----------------------------------------------------------------------
+
+
+def test_one_hold_and_one_sale_stay_inline_two_become_lists():
+    one = {"holds": frozenset({_q(24, 23, 1)}), "sales": {_q(25, 20, 1): 1.5}}
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False, planner="optimizer"), None,
+        plan_orders=one, **{**_DP_CFG, "now": _TUE},
+    )
+    assert "🔒 Battery kept for later: 23:00–00:00\n" in message
+    assert "💶 Selling to the grid: Wed 25 · 20:00–21:00 at 1.5 kW\n" in message
+    two = {"sales": {_q(24, 23, 1): 2.5, _q(25, 20, 1): 1.5}}
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False, planner="optimizer"), None,
+        plan_orders=two, **{**_DP_CFG, "now": _TUE},
+    )
+    assert (
+        "💶 Selling to the grid:\n"
+        "  • 23:00–00:00 at 2.5 kW\n"
+        "  • Wed 25 · 20:00–21:00 at 1.5 kW\n"
+    ) in message
+
+
+def test_basis_has_an_emoji_in_the_plan_and_in_safe_mode():
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False), None, **_DP_CFG
+    )
+    assert "   🧮 Basis: " in message
+    _, message, _ = notifications.format_predictive_notification_message(
+        _decision(solar_forecast_kwh=None, should_charge=True), **_CFG
+    )
+    assert "   🧮 Basis: " in message
+
+
+def _optimizer_plan_message():
+    slots = [_q(24, 23, price=0.10), _q(25, 0, price=0.10), _q(25, 5, price=0.12)]
+    schedule = _optimizer_schedule([0.1] * 3, [1.0, 1.0, 1.0])
+    schedule.selected_slots = slots
+    schedule.slot_energy_targets_kwh = dict(zip(slots, [1.0, 1.0, 0.5]))
+    schedule.slot_deadlines = {s: None for s in slots}
+    orders = {
+        "holds": frozenset({_q(25, 0, 8), _q(26, 0, 8)}),
+        "sales": {_q(25, 20, 1): 1.5},
+    }
+    return notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, energy_deficit_kwh=3.0, planned_grid_charge_kwh=2.5,
+                  planner="optimizer", deadline_required_kwh=3.0,
+                  battery_discharge_limit_w=2500),
+        schedule, plan_orders=orders, **{**_DP_CFG, "now": _TUE},
+    )[1]
+
+
+def test_optimizer_plan_ends_with_thresholds_and_power_after_a_blank_line():
+    message = _optimizer_plan_message()
+    assert message.endswith(
+        "\n\n⚙️ Price thresholds: charge ≤ 0.3000 €/kWh | discharge ≥ 0.4500 €/kWh\n"
+        "Max charge power: 3000W (ICP: 5000W, batteries: 3000W)\n"
+        "Max discharge power: 2500W"
+    )
+    assert message.count("Price thresholds") == 1 and "\n\n\n" not in message
+
+
+def test_not_needed_ends_with_thresholds_after_a_blank_line():
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False), None, **_DP_CFG
+    )
+    lines = message.split("\n")
+    assert lines[-1].startswith("⚙️ Price thresholds: ")
+    assert lines[-2] == ""
+    assert lines[-3] == "No grid charging required."
