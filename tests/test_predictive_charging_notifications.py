@@ -35,15 +35,17 @@ from custom_components.omnibattery.const import (
     PREDICTIVE_MODE_TIME_SLOT,
 )
 from custom_components.omnibattery.notifications import (
+    EXECUTION,
     MODES,
     PLAN_CHARGE,
+    PLAN_INFO,
     async_notify,
     load_categories,
 )
 from custom_components.omnibattery.pricing import engine as engine_module
 from custom_components.omnibattery.pricing.engine import PricingManager
 from custom_components.omnibattery.switch import (
-    PredictiveChargingNotificationsSwitch,
+    NotificationCategorySwitch,
     async_setup_entry,
 )
 
@@ -250,11 +252,18 @@ def test_no_schedule_twice_notifies_once(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def _count(added, category):
+    return sum(
+        isinstance(e, NotificationCategorySwitch) and e._category == category
+        for e in added
+    )
+
+
 def _make_switch(entry_data=None):
     hass, calls = _recording_hass()
     controller = SimpleNamespace()
     entry = SimpleNamespace(entry_id="test-entry", data=dict(entry_data or {}))
-    sw = PredictiveChargingNotificationsSwitch(hass, entry, controller)
+    sw = NotificationCategorySwitch(hass, entry, controller, PLAN_CHARGE)
     sw.async_write_ha_state = lambda: None  # not registered with HA
     return sw, controller, entry, calls
 
@@ -304,7 +313,7 @@ def test_muting_through_the_switch_silences_the_engine(monkeypatch):
     manager, controller, engine_calls = _muted_manager(monkeypatch)
     load_categories(manager._hass, {})
     entry = SimpleNamespace(entry_id="test-entry", data={})
-    sw = PredictiveChargingNotificationsSwitch(manager._hass, entry, controller)
+    sw = NotificationCategorySwitch(manager._hass, entry, controller, PLAN_CHARGE)
     sw.async_write_ha_state = lambda: None
 
     asyncio.run(sw.async_turn_off())
@@ -335,7 +344,7 @@ def test_switch_registered_with_the_predictive_master_switch(mode, enabled):
     )
     added: list = []
     asyncio.run(async_setup_entry(hass, entry, lambda ents: added.extend(ents)))
-    assert sum(isinstance(e, PredictiveChargingNotificationsSwitch) for e in added) == 1
+    assert _count(added, PLAN_CHARGE) == 1
 
 
 def test_switch_absent_when_predictive_charging_never_configured():
@@ -346,7 +355,83 @@ def test_switch_absent_when_predictive_charging_never_configured():
     )
     added: list = []
     asyncio.run(async_setup_entry(hass, entry, lambda ents: added.extend(ents)))
-    assert not any(isinstance(e, PredictiveChargingNotificationsSwitch) for e in added)
+    assert _count(added, PLAN_CHARGE) == 0
+
+# ---------------------------------------------------------------------------
+# One switch per category (task 2.3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "category, key",
+    [
+        (PLAN_CHARGE, "predictive_charging_notifications"),
+        (PLAN_INFO, "notify_plan_info"),
+        (EXECUTION, "notify_execution"),
+        (MODES, "notify_modes"),
+    ],
+)
+def test_category_switch_identity(category, key):
+    hass, _ = _recording_hass()
+    entry = SimpleNamespace(entry_id="test-entry", data={})
+    sw = NotificationCategorySwitch(hass, entry, SimpleNamespace(), category)
+    assert sw.translation_key == key
+    assert sw.unique_id == f"marstek_venus_system_{key}"
+    assert sw.entity_id == f"switch.omnibattery_{key}"
+
+
+def _setup(data):
+    controller = SimpleNamespace(weekly_full_charge_enabled=False)
+    entry = SimpleNamespace(entry_id="test-entry", data=data)
+    hass = SimpleNamespace(
+        data={DOMAIN: {"test-entry": {"coordinators": [], "controller": controller}}}
+    )
+    added: list = []
+    asyncio.run(async_setup_entry(hass, entry, lambda ents: added.extend(ents)))
+    return added
+
+
+def test_setup_adds_four_switches_with_predictive_configured():
+    added = _setup({CONF_ENABLE_PREDICTIVE_CHARGING: False})
+    for category in (PLAN_CHARGE, PLAN_INFO, EXECUTION, MODES):
+        assert _count(added, category) == 1
+
+
+def test_setup_adds_only_modes_without_predictive():
+    added = _setup({})
+    assert _count(added, MODES) == 1
+    for category in (PLAN_CHARGE, PLAN_INFO, EXECUTION):
+        assert _count(added, category) == 0
+
+
+def test_turning_off_execution_persists_all_keys_with_others_unchanged():
+    hass, _ = _recording_hass()
+    entry = SimpleNamespace(entry_id="test-entry", data={})
+    load_categories(hass, entry.data)
+    sw = NotificationCategorySwitch(hass, entry, SimpleNamespace(), EXECUTION)
+    sw.async_write_ha_state = lambda: None
+    asyncio.run(sw.async_turn_off())
+    assert sw.is_on is False
+    assert entry.data["notify_execution_enabled"] is False
+    assert entry.data[CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED] is True
+    plan_charge = NotificationCategorySwitch(hass, entry, SimpleNamespace(), PLAN_CHARGE)
+    assert plan_charge.is_on is True
+
+
+def test_inherited_state_visible_in_is_on():
+    hass, _ = _recording_hass()
+    load_categories(hass, {CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED: False})
+    entry = SimpleNamespace(entry_id="test-entry", data={})
+    states = {
+        c: NotificationCategorySwitch(hass, entry, SimpleNamespace(), c).is_on
+        for c in (PLAN_CHARGE, PLAN_INFO, EXECUTION, MODES)
+    }
+    assert states == {
+        PLAN_CHARGE: False,
+        PLAN_INFO: False,
+        EXECUTION: False,
+        MODES: True,
+    }
 
 
 def test_changed_plan_orders_notify_again(monkeypatch):

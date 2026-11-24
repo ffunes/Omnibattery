@@ -63,8 +63,10 @@ from .infra.entity_naming import (
     SYSTEM_UNIQUE_ID_PREFIX,
 )
 from .notifications import (
+    EXECUTION,
     MODES,
     PLAN_CHARGE,
+    PLAN_INFO,
     async_dismiss,
     async_notify,
     async_set_category_enabled,
@@ -152,9 +154,15 @@ async def async_setup_entry(
     # leaving orphaned settings with no toggle (#68).
     if controller and CONF_ENABLE_PREDICTIVE_CHARGING in entry.data:
         entities.append(PredictiveChargingSwitch(hass, entry, controller))
-        # Mute toggle for the evaluation notifications (#141); lives next to the
-        # master switch so it exists on every install that can produce them.
-        entities.append(PredictiveChargingNotificationsSwitch(hass, entry, controller))
+        # Mute toggles for the three predictive-charging notification
+        # categories (#141); next to the master switch so they exist on every
+        # install that can produce them.
+        for category in (PLAN_CHARGE, PLAN_INFO, EXECUTION):
+            entities.append(NotificationCategorySwitch(hass, entry, controller, category))
+
+    # The modes category (manual mode, predictive off, ...) exists without it.
+    if controller:
+        entities.append(NotificationCategorySwitch(hass, entry, controller, MODES))
 
     # Add capacity protection switch (system-level, when configured, regardless of enabled state)
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
@@ -712,37 +720,42 @@ class PredictiveChargingSwitch(SwitchEntity):
         }
 
 
-class PredictiveChargingNotificationsSwitch(SwitchEntity):
-    """Mute or unmute predictive-charging evaluation notifications (#141).
+_NOTIFICATION_SWITCHES = {
+    PLAN_CHARGE: ("predictive_charging_notifications", "mdi:bell-ring-outline"),
+    PLAN_INFO: ("notify_plan_info", "mdi:information-outline"),
+    EXECUTION: ("notify_execution", "mdi:play-circle-outline"),
+    MODES: ("notify_modes", "mdi:bell-cog-outline"),
+}
 
-    ON (default) = the daily/dynamic-pricing evaluation, price-slot start,
-    pre-slot and evening re-evaluation results are posted as persistent
-    notifications, as before.
-    OFF = those notifications are not created. Evaluations, schedules and
-    diagnostics run unchanged; battery alarm, cell-balance and manual-mode
-    notifications are unaffected. Turning it off also dismisses any
-    predictive-charging evaluation notification that is currently shown.
+
+class NotificationCategorySwitch(SwitchEntity):
+    """Mute or unmute one notification category (#141).
+
+    One switch per category; alarms and failures have no switch.
     """
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller, category: str) -> None:
         self.hass = hass
         self.entry = entry
         self.controller = controller
+        self._category = category
+        key, icon = _NOTIFICATION_SWITCHES[category]
         self._attr_has_entity_name = True
-        self._attr_translation_key = "predictive_charging_notifications"
-        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}predictive_charging_notifications"
-        self.entity_id = system_entity_id("switch", "predictive_charging_notifications")
-        self._attr_icon = "mdi:bell-ring-outline"
+        self._attr_translation_key = key
+        self._attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}{key}"
+        self.entity_id = system_entity_id("switch", key)
+        self._attr_icon = icon
         self._attr_should_poll = False
 
     @property
     def is_on(self) -> bool:
-        return category_enabled(self.hass, PLAN_CHARGE)
+        return category_enabled(self.hass, self._category)
 
     async def _set_enabled(self, enabled: bool) -> None:
-        await async_set_category_enabled(self.hass, self.entry, PLAN_CHARGE, enabled)
+        await async_set_category_enabled(self.hass, self.entry, self._category, enabled)
         _LOGGER.info(
-            "Predictive charging notifications %s",
+            "Notifications %s %s",
+            self._category,
             "enabled" if enabled else "muted",
         )
         self.async_write_ha_state()
