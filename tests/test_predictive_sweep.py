@@ -19,6 +19,10 @@ harness, and each run is held to rules that must hold whatever the inputs:
 * I7 holding never makes the plan dearer (#888): the optimizer's objective
   (cost, charge and hold starts) with holds allowed is never above the same
   request's without them, within HOLD_EPS (the lattice's interpolation).
+* I8 the plan never costs more than no plan: the optimizer's objective is
+  never above the cost of the same start with the battery left to itself
+  (``plan_saving``, what the notification reports), within HOLD_EPS. Not
+  with a guaranteed floor or a weekly charge: those are paid for.
 
 A finding listed in ``tests/sweep_known.json`` (key ``"<rule> <case>"``, value
 the reason) is expected; a listed one that no longer shows fails too, so the
@@ -273,6 +277,17 @@ def evaluate_hold(r) -> list[tuple[str, str]]:
     return []
 
 
+def evaluate_saving(r) -> list[tuple[str, str]]:
+    q = r.o.request
+    saving = getattr(r.plan, "plan_saving", None)
+    if saving is None or q.floor_kwh or q.full_by is not None:
+        return []
+    plain = r.plan.optimizer_cost + saving
+    if objective(r.plan) > plain + HOLD_EPS:
+        return [("I8", f"the plan costs {objective(r.plan):.4f}, no plan {plain:.4f}")]
+    return []
+
+
 def evaluate_pair(case, *, daily=False) -> list[tuple[str, str]]:
     findings = []
     runs = {1.0: base_run(case, daily), LOAD_SCALE: run(scenario(case, scale=LOAD_SCALE), daily=daily)}
@@ -320,7 +335,7 @@ SAMPLE = int(os.environ.get("OMNI_SWEEP_SAMPLE") or 1)
 @pytest.mark.parametrize("case", CASES[::SAMPLE], ids=case_id)
 def test_sweep(case):
     check(case_id(case), evaluate_pair(case) + evaluate_stability(case)
-          + evaluate_hold(base_run(case, False)))
+          + evaluate_hold(base_run(case, False)) + evaluate_saving(base_run(case, False)))
 
 
 # The scheduled 00:05 run (DAILY horizon). A zero forecast at 00:05 defers it
@@ -332,5 +347,5 @@ DAILY_CASES = [c for c in CASES if c[6] == "00:05" and SOLAR[c[5]] > 0]
 @pytest.mark.parametrize("case", DAILY_CASES[::SAMPLE], ids=case_id)
 def test_sweep_daily(case):
     findings = (evaluate_pair(case, daily=True) + evaluate_stability(case, daily=True)
-                + evaluate_hold(base_run(case, True)))
+                + evaluate_hold(base_run(case, True)) + evaluate_saving(base_run(case, True)))
     check("daily " + case_id(case), findings)
