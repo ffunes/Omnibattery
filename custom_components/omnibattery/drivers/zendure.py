@@ -214,6 +214,12 @@ _AC_MODE_DISCHARGE = 2
 _DEEP_STANDBY_AFTER_S = 15 * 60
 _DEEP_STANDBY_PAYLOAD = {"smartMode": 0, "outputLimit": 0, "inputLimit": 0}
 
+# The firmware turns the status LEDs off after a while (seen on hw: on at 30 min,
+# off by ~78) while the report keeps lampSwitch=1. Re-writing lampSwitch=1 with
+# smartMode=1 lights them again without a flash write (hw 2026-11-24).
+# ponytail: fixed period under the shortest seen on-time; tune if LEDs still drop.
+_LAMP_REFRESH_S = 20 * 60
+
 # socSet / minSoc are deci-percent on the device (1000 = 100.0%), unlike the
 # whole-percent entity definitions and the rest of the integration. Converted on
 # read (÷10) and write (×10). Confirmed on a 2400 AC+: writing socSet=100 set the
@@ -556,6 +562,8 @@ class ZendureLocalDriver(BatteryDriver):
         self._pv_in = False
         # Monotonic start of the current held-idle stretch (#633), None if not idle.
         self._idle_since: float | None = None
+        # Monotonic time of the last status-LED refresh, None until the first poll.
+        self._lamp_refreshed_at: float | None = None
         self._sn: Optional[str] = None  # populated from first GET response
         self._product: Optional[str] = None  # device model from the report root
         self._model = model
@@ -738,6 +746,7 @@ class ZendureLocalDriver(BatteryDriver):
 
         snapshot = self._snapshot_from_report(data)
         await self._maybe_deep_standby(data.get("properties", {}))
+        await self._maybe_refresh_lamp(data.get("properties", {}))
 
         if keys is not None:
             # max_charge_power is a control attribute (it drives PD allocation),
@@ -787,6 +796,29 @@ class ZendureLocalDriver(BatteryDriver):
         self._idle_since = None
         if await self._post_write(dict(_DEEP_STANDBY_PAYLOAD)):
             _LOGGER.info("Zendure %s: idle 15 min, full standby", self._base_url)
+
+    async def _maybe_refresh_lamp(self, props: dict) -> None:
+        """Re-assert lampSwitch=1 every 20 min so the firmware keeps the LEDs lit.
+
+        Skipped while the user has them off, in smartMode=0 (full standby or a
+        #882 off-grid charge: a smartMode=1 write would undo either) and with
+        the off-grid port on.
+        """
+        if (
+            self._shutting_down
+            or props.get("lampSwitch") != 1
+            or props.get("smartMode") != 1
+            or self._offgrid_port_on
+        ):
+            return
+        now = time.monotonic()
+        if self._lamp_refreshed_at is None:
+            self._lamp_refreshed_at = now
+            return
+        if now - self._lamp_refreshed_at < _LAMP_REFRESH_S:
+            return
+        self._lamp_refreshed_at = now
+        await self._post_write({"lampSwitch": 1, "smartMode": 1})
 
     def _snapshot_from_report(self, data: dict) -> TelemetrySnapshot:
         """Map a /properties/report payload to a logical-key snapshot.
