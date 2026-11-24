@@ -1056,86 +1056,39 @@ def test_not_needed_ends_with_thresholds_after_a_blank_line():
 
 
 # ----------------------------------------------------------------------
-# Estimated saving against buying the energy when it is used (task 3.4)
+# The plan's estimated saving against the battery with no plan
 # ----------------------------------------------------------------------
 
-_FIRST = _DAY  # the first charge slot starts here
+_SAVING = "Estimated saving of the plan: ~{} € (against using the battery with no plan)"
 
 
-def _saving_message(*, deliveries, charged=2.0, planned=None, eff=0.81, cost=0.30,
-                    schedule_type="deficit", weekly=False, **decision):
+def test_saving_line_closes_a_charge_plan_after_its_table():
     schedule = _optimizer_schedule([0.10, 0.10, 0.10, 0.12], [0.5, 0.5, 0.4, 0.3])
-    # The energy the cost pays for (``charged``), whatever the plan says in total.
-    schedule.slot_cost_energy_kwh = dict(
-        zip(schedule.selected_slots, [charged * f for f in (0.25, 0.25, 0.25, 0.25)])
-    )
-    planned = charged if planned is None else planned
-    schedule.estimated_cost = cost
-    schedule.schedule_type = schedule_type
     _, message, _ = notifications.format_dynamic_pricing_notification(
-        _decision(should_charge=True, planned_grid_charge_kwh=planned,
-                  **{"planner": "optimizer", **decision}),
-        schedule, **_DP_CFG, house_delivery=deliveries,
-        round_trip_efficiency=eff, weekly=weekly,
+        _decision(should_charge=True, planned_grid_charge_kwh=1.7, planner="optimizer"),
+        schedule, plan_saving=0.248, **_DP_CFG,
     )
-    return message
+    # A blank line keeps the text off the table's last row.
+    assert "| **Total** | 0.1035 €/kWh | 1.70 kWh | ~0.40 € |\n\n" + _SAVING.format("0.25") in message
 
 
-def _after(minutes, kwh, price):
-    return (_FIRST + timedelta(minutes=minutes), kwh, price)
+def test_saving_line_shows_on_a_plan_that_only_holds():
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False, planner="optimizer"), None,
+        plan_orders={"holds": frozenset({_slot_at(60)})}, plan_saving=0.05, **_DP_CFG,
+    )
+    assert "| 🔒 19:00–19:15 | 0.3000 €/kWh |\n\n" + _SAVING.format("0.05") in message
 
 
-def test_saving_line_hand_computed_case():
-    # E = 2.0 * 0.81 = 1.62 kWh. The quarter ending before the first charge
-    # slot (0.5 kWh at 0.10) is ignored. Delivered after it: 1.0 + 0.62 = 1.62,
-    # reference = (1.0*0.30 + 0.62*0.40) / 1.62 = 0.548 / 1.62 = 0.33827.
-    # valued = min(1.62, 1.62); alternative = 0.548 -> "~0.55";
-    # saving = 0.548 - 0.30 = 0.248 -> "~0.25".
-    message = _saving_message(deliveries=(
-        _after(-15, 0.5, 0.10), _after(300, 1.0, 0.30), _after(315, 0.62, 0.40),
-    ))
-    line = "Buying the charged energy when it is used: ~0.55 €. Estimated saving: ~0.25 €"
-    # The rows share out the 0.30 the saving is measured against (the cost
-    # energy, 0.5 kWh a slot, not the targets), and a blank line keeps the
-    # text off the table's last row.
-    assert "| **Total** | 0.1035 €/kWh | 1.70 kWh | ~0.30 € |\n\n" + line in message
-
-
-def test_saving_line_ignores_deferred_energy():
-    # The plan charges 3.0 kWh, 1.0 of it deferred to tomorrow's slots, which
-    # the 2.0 kWh cost does not pay for: E = 2.0 * 0.81 = 1.62, not 3.0 * 0.81.
-    # Same figures as the hand-computed case: alternative ~0.55, saving ~0.25.
-    # Deliveries are doubled (3.24 kWh, same 0.33827 reference) so that using
-    # 3.0 would value 2.43 kWh (0.82) and fail.
-    message = _saving_message(planned=3.0, deferred_grid_charge_kwh=1.0, deliveries=(
-        _after(-15, 0.5, 0.10), _after(300, 1.0, 0.30), _after(315, 0.62, 0.40),
-        _after(330, 1.0, 0.30), _after(345, 0.62, 0.40),
-    ))
-    assert "Buying the charged energy when it is used: ~0.55 €. Estimated saving: ~0.25 €" in message
-
-
-def test_saving_line_values_only_what_is_discharged():
-    # E = 1.62 but only 0.5 kWh at 0.50 is delivered: alternative = 0.25
-    # (not 1.62 * 0.50), saving = 0.25 - 0.10 = 0.15.
-    message = _saving_message(cost=0.10, deliveries=(_after(60, 0.5, 0.50),))
-    assert "Buying the charged energy when it is used: ~0.25 €. Estimated saving: ~0.15 €" in message
-
-
-@pytest.mark.parametrize("kwargs", [
-    {"planner": "old"},
-    {"floor_active": True},
-    {"weekly": True},
-    {"schedule_type": "negative_price"},
-    {"schedule_type": "combined"},
-    {"cost": 0.60},  # alternative 0.548 < cost: no saving
-    {"cost": 0.548},  # saving rounds to 0.00
-    {"deliveries": ()},
-    {"deliveries": (_after(-15, 1.62, 0.90),)},  # nothing after the first slot
-], ids=["old-planner", "floor", "weekly", "negative", "combined", "loss",
-        "zero", "no-delivery", "all-before"])
-def test_saving_line_hidden(kwargs):
-    kwargs = {"deliveries": (_after(300, 1.0, 0.30), _after(315, 0.62, 0.40)), **kwargs}
-    assert "Estimated saving" not in _saving_message(**kwargs)
+@pytest.mark.parametrize("planner, saving", [
+    ("optimizer", None), ("optimizer", 0.004), ("optimizer", -0.30), ("old", 0.25),
+], ids=["unknown", "under-a-cent", "loss", "old-planner"])
+def test_saving_line_hidden(planner, saving):
+    _, message, _ = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=False, planner=planner), None,
+        plan_orders={"holds": frozenset({_slot_at(60)})}, plan_saving=saving, **_DP_CFG,
+    )
+    assert "Estimated saving" not in message
 
 
 # ----------------------------------------------------------------------

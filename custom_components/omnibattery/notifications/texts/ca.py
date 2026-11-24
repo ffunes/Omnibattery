@@ -134,10 +134,9 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Franja més barata: {start} a {price:.4f} {unit} "
         "(sostre {ceiling:.4f} {unit}).\n{hint}"
     ),
-    # --- plan.py: _savings_line ---
+    # --- plan.py: _plan_order_lines, its last line ---
     "plan.savings": (
-        "Comprar l'energia carregada quan es consumeix: ~{alternative:.2f} {cost_unit}. "
-        "Estalvi estimat: ~{saving:.2f} {cost_unit}"
+        "Estalvi estimat del pla: ~{saving:.2f} {cost_unit} (respecte a fer servir la bateria sense pla)"
     ),
     # --- plan.py: format_dynamic_pricing_notification ---
     "plan.price.charge": "càrrega ≤ {price:.4f} {unit}",

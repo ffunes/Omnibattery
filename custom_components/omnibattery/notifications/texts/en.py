@@ -139,10 +139,9 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Cheapest slot: {start} at {price:.4f} {unit} "
         "(ceiling {ceiling:.4f} {unit}).\n{hint}"
     ),
-    # --- plan.py: _savings_line ---
+    # --- plan.py: _plan_order_lines, its last line ---
     "plan.savings": (
-        "Buying the charged energy when it is used: ~{alternative:.2f} {cost_unit}. "
-        "Estimated saving: ~{saving:.2f} {cost_unit}"
+        "Estimated saving of the plan: ~{saving:.2f} {cost_unit} (against using the battery with no plan)"
     ),
     # --- plan.py: format_dynamic_pricing_notification ---
     "plan.price.charge": "charge ≤ {price:.4f} {unit}",

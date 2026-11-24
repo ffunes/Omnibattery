@@ -137,10 +137,9 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Tramo más barato: {start} a {price:.4f} {unit} "
         "(techo {ceiling:.4f} {unit}).\n{hint}"
     ),
-    # --- plan.py: _savings_line ---
+    # --- plan.py: _plan_order_lines, its last line ---
     "plan.savings": (
-        "Comprar la energía cargada cuando se use: ~{alternative:.2f} {cost_unit}. "
-        "Ahorro estimado: ~{saving:.2f} {cost_unit}"
+        "Ahorro estimado del plan: ~{saving:.2f} {cost_unit} (frente a usar la batería sin plan)"
     ),
     # --- plan.py: format_dynamic_pricing_notification ---
     "plan.price.charge": "carga ≤ {price:.4f} {unit}",

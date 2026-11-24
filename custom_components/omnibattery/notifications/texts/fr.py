@@ -133,10 +133,9 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "Créneau le moins cher : {start} à {price:.4f} {unit} "
         "(plafond {ceiling:.4f} {unit}).\n{hint}"
     ),
-    # --- plan.py: _savings_line ---
+    # --- plan.py: _plan_order_lines, its last line ---
     "plan.savings": (
-        "Acheter l'énergie chargée au moment de son utilisation : ~{alternative:.2f} {cost_unit}. "
-        "Économie estimée : ~{saving:.2f} {cost_unit}"
+        "Économie estimée du plan : ~{saving:.2f} {cost_unit} (par rapport à la batterie sans plan)"
     ),
     # --- plan.py: format_dynamic_pricing_notification ---
     "plan.price.charge": "charge ≤ {price:.4f} {unit}",

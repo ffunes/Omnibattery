@@ -497,7 +497,7 @@ def test_changed_room_orders_notify_again(monkeypatch):
     assert len(_creates(calls)) == 2
 
 
-def test_engine_hands_the_published_house_delivery_to_the_formatter(monkeypatch):
+def test_engine_hands_the_published_plan_saving_to_the_formatter(monkeypatch):
     manager, controller, _calls = _muted_manager(monkeypatch)
     seen = {}
 
@@ -509,22 +509,19 @@ def test_engine_hands_the_published_house_delivery_to_the_formatter(monkeypatch)
     manager._surplus_hold_enabled = lambda: False
     manager._store_eval_projection = lambda plan: None
     manager._now = lambda: datetime(2999, 1, 1, 18, 0)
-    delivery = ((datetime(2999, 1, 1, 19, 0), 1.0, 0.3),)
     quarters = ((datetime(2999, 1, 1, 19, 0), datetime(2999, 1, 1, 19, 15), "hold", 0.3, 0.2),)
-    plan = SimpleNamespace(house_delivery=delivery, quarter_actions=quarters)
+    plan = SimpleNamespace(plan_saving=0.25, quarter_actions=quarters)
 
     manager._publish_plan_holds(plan, {"planner": "other"})
-    assert controller._dp_plan_house_delivery is None
+    assert controller._dp_plan_saving is None
     assert controller._dp_plan_quarters is None
 
     manager._publish_plan_holds(plan, {"planner": "optimizer"})
-    assert controller._dp_plan_house_delivery == delivery
+    assert controller._dp_plan_saving == 0.25
     asyncio.run(manager._send_dynamic_pricing_notification(decision_data={}, schedule=None))
-    assert seen["house_delivery"] == delivery
+    assert seen["plan_saving"] == 0.25
     assert seen["plan_orders"]["quarters"] == quarters
-    assert seen["weekly"] is False
-    assert seen["round_trip_efficiency"] is not None
 
     manager._clear_plan_orders()
-    assert controller._dp_plan_house_delivery is None
+    assert controller._dp_plan_saving is None
     assert controller._dp_plan_quarters is None
