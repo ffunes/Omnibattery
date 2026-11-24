@@ -1278,3 +1278,38 @@ async def test_new_setpoint_restarts_idle_count(monkeypatch):
     clock[0] += 60
     await drv.read_telemetry()          # stale idle echo: count restarts, no standby
     assert not _standby_posts(session)
+
+
+# ---------------------------------------------------------------------------
+# status LED refresh (firmware turns the LEDs off, report keeps lampSwitch=1)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("props", "fires"), [
+    ({}, True),
+    ({"lampSwitch": 0}, False),           # user turned them off
+    ({"smartMode": 0}, False),            # full standby / #882 charge
+    ({"gridOffMode": 1}, False),          # off-grid port on (#882)
+])
+async def test_lamp_refresh_every_20_min(monkeypatch, props, fires):
+    clock = [1000.0]
+    monkeypatch.setattr(
+        "custom_components.omnibattery.drivers.zendure.time.monotonic", lambda: clock[0]
+    )
+    report = {**_REPORT, "properties": {
+        **_REPORT["properties"], "lampSwitch": 1, "smartMode": 1, "gridOffMode": 2, **props,
+    }}
+    session = _session(get_data=report)
+    drv = _driver(session=session)
+
+    def lamp_posts():
+        return [c for c in session.post.call_args_list
+                if c.kwargs["json"]["properties"] == {"lampSwitch": 1, "smartMode": 1}]
+
+    await drv.read_telemetry()          # first poll only starts the count
+    clock[0] += 19 * 60
+    await drv.read_telemetry()
+    assert not lamp_posts()
+    clock[0] += 60
+    await drv.read_telemetry()
+    assert len(lamp_posts()) == (1 if fires else 0)
