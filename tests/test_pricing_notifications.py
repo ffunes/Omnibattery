@@ -840,6 +840,7 @@ def test_optimizer_charge_slots_are_a_table_in_chronological_order():
 
 def test_optimizer_table_dash_without_energy_and_spanish_header():
     assert "| 22:00–23:00 | 0.0890 €/kWh | — |" in _table_plan(with_kwh=False)
+    assert "| Tramo | Precio | Energía |" in _table_plan(lang="es")
 
 
 def test_two_nights_of_hold_are_dated_not_duplicated():
