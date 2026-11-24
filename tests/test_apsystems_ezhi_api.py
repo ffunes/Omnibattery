@@ -112,9 +112,10 @@ def test_output_data_converts_sign_and_types():
     assert t["soc"] == 64.0
     assert t["solar_power_w"] == 120.5
     assert t["charged_kwh"] == 100.5 and t["discharged_kwh"] == 90.0
-    sign = -1 if api.TELEMETRY_POSITIVE_IS_DISCHARGE else 1
-    assert t["battery_power_w"] == sign * 700
-    assert t["ac_power_w"] == sign * 690
+    cell = -1 if api.TELEMETRY_POSITIVE_IS_DISCHARGE else 1
+    port = -1 if api.AC_PORT_POSITIVE_IS_DISCHARGE else 1
+    assert t["battery_power_w"] == cell * 700
+    assert t["ac_power_w"] == port * 690
 
 
 def test_output_data_missing_fields_are_none():
@@ -134,6 +135,53 @@ def test_set_power_sends_inverted_value_and_returns_it():
     sent = run(api.EzhiApiClient(s, "h").set_power(500))
     assert sent == -500
     assert s.calls[-1][1] == {"p": -500}
+
+
+# ------------------------------------------------------------ AC port, /getPower
+def test_ac_port_already_uses_the_contract_sign():
+    """Official EZHI manual: ogP negative = output power (delivered to the grid), so a
+    500 W discharge command reads as -500 W with no inversion."""
+    assert api.AC_PORT_POSITIVE_IS_DISCHARGE is False
+    assert api.ac_to_contract(-500) == -500
+    assert api.ac_to_contract(300) == 300
+
+
+def test_setpoint_to_contract_is_inverse_of_contract_to_setpoint():
+    for watts in (-1200, -500, 0, 1, 500, 1200):
+        assert api.setpoint_to_contract(api.contract_to_setpoint(watts)) == watts
+
+
+def test_get_power_known_field():
+    s = FakeSession({"/getPower": ok({"power": "500"})})
+    r = run(api.EzhiApiClient(s, "h").get_power())
+    assert r == {"wire_w": 500, "setpoint_w": -500}
+
+
+def test_get_power_single_numeric_field_fallback():
+    s = FakeSession({"/getPower": ok({"limit_w": 300, "note": "x"})})
+    r = run(api.EzhiApiClient(s, "h").get_power())
+    assert r["wire_w"] == 300
+
+
+def test_get_power_unrecognised_answer_is_none_not_error():
+    s = FakeSession({"/getPower": ok({"a": "x", "b": "y"})})
+    r = run(api.EzhiApiClient(s, "h").get_power())
+    assert r == {"wire_w": None, "setpoint_w": None}
+
+
+def test_get_power_transport_error_raises():
+    s = FakeSession({"/getPower": FakeResp({}, status=500)})
+    with pytest.raises(api.EzhiError):
+        run(api.EzhiApiClient(s, "h").get_power())
+
+
+def test_real_capture_parses():
+    real = {"batSoc": "29.0", "batSoh": "100", "batTemp": "3.2", "devTemp": "10.2", "pvP": "111", "batP": "111",
+            "batCTE": "4.6421", "batDTE": "3.8480", "ogP": "0"}
+    s = FakeSession({"/getOutputData": FakeResp({"data": real, "batS": "2", "deviceId": "D", "message": "SUCCESS"})})
+    t = run(api.EzhiApiClient(s, "h").get_output_data())
+    assert t["battery_power_w"] == 111 and t["ac_power_w"] == 0 and t["solar_power_w"] == 111
+    assert t["soh"] == 100.0 and t["battery_temp"] == 3.2 and t["charged_kwh"] == 4.6421 and t["discharged_kwh"] == 3.848
 
 
 # -------------------------------------------------------------------- errors
