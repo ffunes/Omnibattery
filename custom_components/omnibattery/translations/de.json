@@ -1682,7 +1682,16 @@
         "name": "Prädiktives Laden"
       },
       "predictive_charging_notifications": {
-        "name": "Benachrichtigungen Prädiktives Laden"
+        "name": "Benachrichtigungen: Plan mit Laden"
+      },
+      "notify_plan_info": {
+        "name": "Benachrichtigungen: Plan-Info"
+      },
+      "notify_execution": {
+        "name": "Benachrichtigungen: Ausführung"
+      },
+      "notify_modes": {
+        "name": "Benachrichtigungen: Modi"
       },
       "vacation_mode": {
         "name": "Urlaubsmodus"

@@ -1677,7 +1677,16 @@
         "name": "Predictive Charging"
       },
       "predictive_charging_notifications": {
-        "name": "Predictive Charging Notifications"
+        "name": "Notifications: Charge Plan"
+      },
+      "notify_plan_info": {
+        "name": "Notifications: Plan Info"
+      },
+      "notify_execution": {
+        "name": "Notifications: Execution"
+      },
+      "notify_modes": {
+        "name": "Notifications: Modes"
       },
       "vacation_mode": {
         "name": "Vacation Mode"
