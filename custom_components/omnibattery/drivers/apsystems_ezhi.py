@@ -17,6 +17,7 @@ from typing import Optional
 import aiohttp
 
 from .base import (
+    DELIVERED_AC_POWER_KEY,
     BatteryDriver,
     DriverCapabilities,
     DriverContext,
@@ -27,11 +28,6 @@ from .base import (
 )
 from .apsystems_ezhi_api import MAX_POWER_W, EzhiApiClient, EzhiError
 from .apsystems_ezhi_flow import EZHI_SETUP
-
-try:  # the shared key zendure.py / anker.py publish the AC-port power under
-    from .base import DELIVERED_AC_POWER_KEY
-except ImportError:  # TODO(PR): import from where zendure.py imports it
-    DELIVERED_AC_POWER_KEY = "ac_delivered_power"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +41,7 @@ SENSOR_DEFINITIONS = [
     {"key": "solar_power", "name": "Solar Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "high", "enabled_by_default": True},
     {"key": DELIVERED_AC_POWER_KEY, "name": "AC Delivered Power", "unit": "W", "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0, "scan_interval": "high", "enabled_by_default": True},
     {"key": "internal_temperature", "name": "Internal Temperature", "unit": "°C", "device_class": "temperature", "state_class": "measurement", "scale": 1, "precision": 1, "scan_interval": "medium", "enabled_by_default": True},
+    {"key": "battery_soh", "name": "State of Health", "unit": "%", "state_class": "measurement", "scale": 1, "precision": 0, "icon": "mdi:battery-heart-variant", "category": "diagnostic", "scan_interval": "low", "enabled_by_default": True},
     {"key": "device_temperature", "name": "Inverter Temperature", "unit": "°C", "device_class": "temperature", "state_class": "measurement", "scale": 1, "precision": 1, "category": "diagnostic", "scan_interval": "medium", "enabled_by_default": False},
     {"key": "total_charging_energy", "name": "Total Charging Energy", "unit": "kWh", "device_class": "energy", "state_class": "total_increasing", "scale": 1, "precision": 3, "scan_interval": "low", "enabled_by_default": True},
     {"key": "total_discharging_energy", "name": "Total Discharging Energy", "unit": "kWh", "device_class": "energy", "state_class": "total_increasing", "scale": 1, "precision": 3, "scan_interval": "low", "enabled_by_default": True},
@@ -54,9 +51,10 @@ SENSOR_DEFINITIONS = [
 _POWER_KEYS = frozenset({"battery_soc", "battery_power", "power_setpoint", "solar_power", DELIVERED_AC_POWER_KEY})
 _DIAG_KEYS = frozenset({"internal_temperature", "device_temperature"})
 _ENERGY_KEYS = frozenset({"total_charging_energy", "total_discharging_energy"})
+_HEALTH_KEYS = frozenset({"battery_soh"})
 # Served by one /getOutputData request
-_OUTPUT_KEYS = frozenset({"battery_soc", "battery_power", "solar_power", DELIVERED_AC_POWER_KEY}) | _DIAG_KEYS | _ENERGY_KEYS
-_ALL_KEYS = _POWER_KEYS | _DIAG_KEYS | _ENERGY_KEYS | {"software_version"}
+_OUTPUT_KEYS = frozenset({"battery_soc", "battery_power", "solar_power", DELIVERED_AC_POWER_KEY}) | _DIAG_KEYS | _ENERGY_KEYS | _HEALTH_KEYS
+_ALL_KEYS = _POWER_KEYS | _DIAG_KEYS | _ENERGY_KEYS | _HEALTH_KEYS | {"software_version"}
 
 
 class ApsystemsEzhiDriver(BatteryDriver):
@@ -123,6 +121,10 @@ class ApsystemsEzhiDriver(BatteryDriver):
             has_daily_energy_counters=False,
             cycles_from_discharge_only=True,
             lifetime_counters_ac=False,
+            # PV feeds the AC port directly, so AC power minus cell power is not
+            # a conversion loss: the plane-based efficiency would read ~100 %.
+            # Fall back to the cumulative charge/discharge counters instead.
+            independent_power_planes=False,
             has_nominal_capacity=False,  # capacity lives in the stored config
             has_solar_telemetry=True,  # pvP: independent aggregate PV input
             actuator_latency_s=2.0,
@@ -131,7 +133,7 @@ class ApsystemsEzhiDriver(BatteryDriver):
             # Temperatures come from the same /getOutputData request as the power
             # keys, so they are polled with them at no extra cost.
             ReadGroup("high", tuple(sorted(_POWER_KEYS | _DIAG_KEYS))),
-            ReadGroup("low", tuple(sorted(_ENERGY_KEYS | {"software_version"}))),
+            ReadGroup("low", tuple(sorted(_ENERGY_KEYS | _HEALTH_KEYS | {"software_version"}))),
         ]
 
     # ------------------------------------------------------------- identity
@@ -228,12 +230,15 @@ class ApsystemsEzhiDriver(BatteryDriver):
             answered = True
             snapshot.update({
                 "battery_soc": t["soc"],
+                "battery_soh": t["soh"],                     # batSoh, % state of health
                 "battery_power": t["battery_power_w"],       # cell, +charge / -discharge
                 DELIVERED_AC_POWER_KEY: t["ac_power_w"],     # on-grid port, same sign
                 "solar_power": t["solar_power_w"],
-                # shared key, as for the other brands: the battery's temperature (batTemp)
+                # The panel's Temperature row and thermal protection both read
+                # internal_temperature, which for the EZHI is the battery (batTemp),
+                # like Anker's alias. The inverter (devTemp) is a separate diagnostic.
                 "internal_temperature": t["battery_temp"],
-                "device_temperature": t["device_temp"],     # inverter (devTemp), diagnostic
+                "device_temperature": t["device_temp"],
                 "total_charging_energy": t["charged_kwh"],      # lifetime kWh
                 "total_discharging_energy": t["discharged_kwh"],  # lifetime kWh
             })

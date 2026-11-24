@@ -56,9 +56,9 @@ def setpoint_to_contract(wire_watts: float) -> float:
     return -wire_watts if SETPOINT_POSITIVE_IS_DISCHARGE else wire_watts
 
 
-# Candidate field names of the /getPower answer (EZ1-family naming first). The
-# real name is unconfirmed; if none matches, a single numeric field is used.
-_SETPOINT_KEYS = ("maxPower", "power", "p", "setPower")
+# The manual's /getPower answer is {"data": {"power": "800"}} (W, the on-grid setting).
+# If a firmware names it differently, a single numeric field is used.
+_SETPOINT_KEYS = ("power",)
 
 
 def _extract_setpoint(data: dict[str, Any]) -> float | None:
@@ -141,7 +141,7 @@ class EzhiApiClient:
     async def get_output_data(self) -> dict[str, Any]:
         """Return live telemetry already converted to the Omnibattery contract.
 
-        Keys: soc (%), battery_power_w (cell power, +charge/-discharge),
+        Keys: soc (%), soh (% state of health), battery_power_w (cell power, +charge/-discharge),
         ac_power_w (on-grid AC port power, same sign convention; this is what
         /setPower controls), solar_power_w (>=0), battery_temp,
         device_temp, charged_kwh, discharged_kwh. Missing values are None.
@@ -151,6 +151,7 @@ class EzhiApiClient:
         og_p = _num(d.get("ogP"))
         return {
             "soc": _num(d.get("batSoc")),
+            "soh": _num(d.get("batSoh")),
             "battery_power_w": None if bat_p is None else telemetry_to_contract(bat_p),
             "ac_power_w": None if og_p is None else ac_to_contract(og_p),
             "solar_power_w": _num(d.get("pvP")),
