@@ -257,6 +257,7 @@ from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
 from .infra.device_lookup import get_entry_device
+from .notifications import HEALTH, async_dismiss, async_notify
 from .tracking.hourly_balance import HourlyBalanceManager
 from .tracking.non_responsive_tracker import NonResponsiveTracker
 from .tracking.daily_timeline import (
@@ -12075,11 +12076,7 @@ async def _dismiss_legacy_active_balance_notifications(
                 )
 
     for notification_id in notification_ids:
-        await hass.services.async_call(
-            "persistent_notification",
-            "dismiss",
-            {"notification_id": notification_id},
-        )
+        await async_dismiss(hass, notification_id)
 
 
 async def _async_migrate_legacy_active_balance(
@@ -12224,21 +12221,19 @@ async def _async_migrate_legacy_active_balance(
             battery["manual_set_charge_power"] = 0
             battery["manual_set_discharge_power"] = 0
             data_changed = True
-            await hass.services.async_call(
-                "persistent_notification",
-                "create",
-                {
-                    "notification_id": (
-                        f"{NOTIFICATION_ID_PREFIX}active_balance_migration_"
-                        f"{coordinator.device_key}"
-                    ),
-                    "title": f"{coordinator.name}: active balance migration paused",
-                    "message": (
-                        "The old integrated active-balance run could not be migrated "
-                        f"safely ({err}). The battery is held in manual mode at 0 W. "
-                        "Keep it available and reload Omnibattery to retry."
-                    ),
-                },
+            await async_notify(
+                hass,
+                HEALTH,
+                (
+                    f"{NOTIFICATION_ID_PREFIX}active_balance_migration_"
+                    f"{coordinator.device_key}"
+                ),
+                f"{coordinator.name}: active balance migration paused",
+                (
+                    "The old integrated active-balance run could not be migrated "
+                    f"safely ({err}). The battery is held in manual mode at 0 W. "
+                    "Keep it available and reload Omnibattery to retry."
+                ),
             )
             _LOGGER.error(
                 "[%s] Could not migrate integrated active-balance state; "

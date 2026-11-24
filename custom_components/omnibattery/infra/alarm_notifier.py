@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 
 from ..const import NOTIFICATION_ID_PREFIX
 from ..drivers.base import DriverAlarm
+from ..notifications import HEALTH, async_dismiss, async_notify
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,10 +39,9 @@ class AlarmNotifier:
         if new:
             await self._send(alarms, new)
         elif self._previous and not current:
-            await self._hass.services.async_call(
-                "persistent_notification",
-                "dismiss",
-                {"notification_id": f"{NOTIFICATION_ID_PREFIX}battery_alarm_{self._device_name}"},
+            await async_dismiss(
+                self._hass,
+                f"{NOTIFICATION_ID_PREFIX}battery_alarm_{self._device_name}",
             )
 
         self._previous = current
@@ -81,14 +81,12 @@ class AlarmNotifier:
         message = "\n".join(sections)
         title = f"{header_emoji} Battery {severity}: {self._device_name}"
 
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "title": title,
-                "message": message,
-                "notification_id": f"{NOTIFICATION_ID_PREFIX}battery_alarm_{self._device_name}",
-            },
+        await async_notify(
+            self._hass,
+            HEALTH,
+            f"{NOTIFICATION_ID_PREFIX}battery_alarm_{self._device_name}",
+            title,
+            message,
         )
         log_conditions = ", ".join(all_faults + all_alarms)
         _LOGGER.warning("[%s] Battery %s — %s", self._device_name, severity.lower(), log_conditions)

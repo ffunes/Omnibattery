@@ -12,6 +12,7 @@ from custom_components.omnibattery.control.weekly_full_charge import (
 )
 
 _MOD = "custom_components.omnibattery.control.weekly_full_charge"
+_GATEWAY_PN = "custom_components.omnibattery.notifications.gateway.persistent_notification"
 # 2026-11-15 is a Sunday, the configured weekly day.
 _NOON = datetime(2026, 11, 15, 12, 0)
 _BATTERY = SimpleNamespace(data={"battery_soc": 60, "battery_total_energy": 5.0})  # 2 kWh to 100%
@@ -41,7 +42,7 @@ def _run(manager, solar_kwh, now=_NOON, source="remaining"):
     with (
         patch(f"{_MOD}.dt_util.now", return_value=now),
         patch(f"{_MOD}.read_remaining_solar_kwh", return_value=forecast),
-        patch(f"{_MOD}.persistent_notification", notify),
+        patch(_GATEWAY_PN, notify),
     ):
         manager.update_solar_outlook([_BATTERY])
     return notify
@@ -92,7 +93,7 @@ def test_predictive_on_flags_without_notifying():
 def test_clear_drops_verdict_and_dismisses_notification():
     manager, ctrl = _setup()
     _run(manager, 2.5)
-    with patch(f"{_MOD}.persistent_notification") as notify:
+    with patch(_GATEWAY_PN) as notify:
         manager._clear_solar_outlook()
     assert "solar_sufficient" not in ctrl._weekly_charge_status
     notify.async_dismiss.assert_called_once()
@@ -135,7 +136,7 @@ async def test_switching_the_feature_off_mid_run_drops_the_verdict():
     ctrl._weekly_charge_needs_restore = False
     manager.tick_bms_cutoff = lambda: None
 
-    with patch(f"{_MOD}.persistent_notification") as notify:
+    with patch(_GATEWAY_PN) as notify:
         await manager.handle_registers()
 
     assert "solar_sufficient" not in ctrl._weekly_charge_status

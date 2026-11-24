@@ -11,6 +11,7 @@ from homeassistant.helpers.storage import Store
 
 from ..control.pack_soc import pack_cell_deltas, worst_pack_delta
 from ..drivers.base import BalanceBaseline
+from ..notifications import HEALTH, async_notify
 from ..const import (
     BALANCE_HISTORY_MAX,
     BALANCE_NOTIFY_COOLDOWN_DAYS,
@@ -554,12 +555,4 @@ class BalanceMonitor:
         return "red"
 
     async def _notify(self, notification_id: str, title: str, message: str) -> None:
-        await self._hass.services.async_call(
-            "persistent_notification",
-            "create",
-            {
-                "notification_id": notification_id,
-                "title": title,
-                "message": message,
-            },
-        )
+        await async_notify(self._hass, HEALTH, notification_id, title, message)
