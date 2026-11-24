@@ -568,18 +568,12 @@ def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> s
         )
     if orders.get("solar_delay"):
         lines.append(translate(lang, "plan.orders.solar_delay"))
-    # Each run with the battery empty: the house buys from the grid. One row
-    # per run, at its average price.
-    runs = []
-    for a, b, price, kwh in sorted(_quarter_rows(orders, "empty")):
-        if runs and runs[-1][1] == a:
-            runs[-1] = (runs[-1][0], b, runs[-1][2] + price * kwh, runs[-1][3] + kwh)
-        else:
-            runs.append((a, b, price * kwh, kwh))
-    if runs:
+    # The battery empty: the house buys from the grid. One row per price, as
+    # one average over a night hides which part of it is the dear one.
+    empty = _bought(_quarter_rows(orders, "empty"))
+    if empty:
         lines += ["", translate(lang, "plan.orders.empty"), ""] + _table(
-            [(a, b, cost / kwh if kwh else None, kwh, cost) for a, b, cost, kwh in runs],
-            now, lang, unit,
+            empty, now, lang, unit
         ) + [""]
     return "".join(line + "\n" for line in lines)
 

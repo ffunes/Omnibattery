@@ -1694,8 +1694,91 @@ class ConsumptionTracker:
             "legacy_consumption", self._async_backfill_legacy_history
         )
         self.start_solar_profile_backfill()
+        self._backfill_coordinator.submit(
+            "solar_margin", self._async_backfill_solar_forecast_history
+        )
 
         await asyncio.sleep(0)
+
+    async def _async_backfill_solar_forecast_history(self, token: BackfillToken) -> bool:
+        """Fill the learned margin's missing days from the Recorder.
+
+        Without it the margin stays at the default for the first week. A day's
+        forecast is the forecast sensor's last value in its first hour (no sun
+        yet, so the remaining figure is the whole day's); its sun is the top
+        of the Daily Solar Energy sensor. Days the Recorder no longer holds,
+        or whose forecast did not update in that hour, are left out.
+        """
+        from homeassistant.helpers import entity_registry as er
+
+        from ..solar_forecast import _state_kwh, get_configured_solar_forecast_sensor
+
+        ctrl = self._controller
+        forecast_entity = get_configured_solar_forecast_sensor(
+            ctrl, "remaining"
+        ) or get_configured_solar_forecast_sensor(ctrl, "today")
+        actual_entity = er.async_get(self._hass).async_get_entity_id(
+            "sensor", DOMAIN, "marstek_venus_system_daily_solar_energy"
+        )
+        if not forecast_entity or not actual_entity:
+            return False
+        history = self._solar_forecast_history
+        known = {record.get("date") for record in history}
+        configured_timezone = getattr(
+            getattr(self._hass, "config", None), "time_zone", None
+        )
+        local_tz = dt_util.get_time_zone(configured_timezone) or dt_util.UTC
+        today = self._now_for_backfill().date()
+        added = 0
+        for day in self._recent_history_days(SOLAR_MARGIN_HISTORY_DAYS, before=today):
+            if day.isoformat() in known:
+                continue
+            if not token.is_valid():
+                return False
+            day_start = local_day_bounds(day, local_tz)[0]
+            forecast = None
+            for state in await self._query_recorder_day(token, forecast_entity, day) or ():
+                updated = getattr(state, "last_updated", None)
+                # After the day started: the state carried over from the day
+                # before is stamped at the start itself.
+                if (
+                    isinstance(updated, datetime)
+                    and day_start < updated < day_start + timedelta(hours=1)
+                    and _state_kwh(state) is not None
+                ):
+                    forecast = _state_kwh(state)
+            if forecast is None:
+                continue
+            # Again without the carried-over state: it is yesterday's total.
+            produced = [
+                _state_kwh(state)
+                for state in await self._query_recorder_day(token, actual_entity, day) or ()
+                if isinstance(getattr(state, "last_updated", None), datetime)
+                and state.last_updated > day_start
+                and _state_kwh(state) is not None
+            ]
+            if not produced:
+                continue
+            history.append({
+                "date": day.isoformat(),
+                "forecast_kwh": round(forecast, 4),
+                "actual_kwh": round(max(produced), 4),
+                # ponytail: the Recorder does not say whether the sun was held back.
+                "curtailed_h": 0.0,
+                "full": True,
+            })
+            added += 1
+        if not token.is_valid():
+            return False
+        if added:
+            history.sort(key=lambda record: str(record.get("date")))
+            del history[:-SOLAR_MARGIN_HISTORY_DAYS]
+            refresh_solar_safety_margin(ctrl)
+            self.save_daily_energy()
+            _LOGGER.info(
+                "Solar safety margin: %d day(s) restored from the Recorder", added
+            )
+        return bool(added)
 
     async def _async_backfill_legacy_history(self, token: BackfillToken) -> bool:
         """Rebuild the legacy daily history under the shared Recorder queue."""
