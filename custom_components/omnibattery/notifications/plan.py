@@ -415,14 +415,18 @@ def format_predictive_notification_message(
 
 
 def _blocks(rows):
-    """Back-to-back ``(start, end, value, kwh)`` rows with one value, as one row."""
+    """Back-to-back ``(start, end, value, *sums)`` rows with one value, as one
+    row with each of ``sums`` added up (None stays None)."""
     out = []
-    for start, end, value, kwh in sorted(rows, key=lambda row: row[0]):
+    for start, end, value, *sums in sorted(rows, key=lambda row: row[0]):
         if out and out[-1][1] == start and out[-1][2] == value:
-            first, _end, _value, total = out[-1]
-            out[-1] = (first, end, value, None if total is None else total + (kwh or 0.0))
+            first, _end, _value, *totals = out[-1]
+            out[-1] = (first, end, value, *(
+                None if total is None else total + (add or 0.0)
+                for total, add in zip(totals, sums)
+            ))
         else:
-            out.append((start, end, value, kwh))
+            out.append((start, end, value, *sums))
     return out
 
 
@@ -468,19 +472,45 @@ def _charge_span(slot, charges):
     return min(a for a, _b in inside), max(b for _a, b in inside)
 
 
+def _bought(rows):
+    """``(start, end, price, kWh)`` rows the house buys from the grid, with
+    their cost (price x kWh) as a fifth value."""
+    return [
+        (a, b, price, kwh, None if kwh is None else price * kwh)
+        for a, b, price, kwh in rows
+    ]
+
+
 def _table(rows, now, lang, unit) -> list:
-    """``(start, end, price, kWh|None)`` rows as a markdown table, lines."""
-    return [translate(lang, "plan.table.header"), "|---|---|---|"] + [
-        translate(
+    """``(start, end, price, kWh|None, cost|None)`` rows as a markdown table,
+    lines. Several rows with a cost close with a total: the energy, its
+    average price and the cost."""
+    cost_unit = unit.split("/")[0]  # "€/kWh" → "€", "CHF" → "CHF"
+
+    def _row(span, price, kwh, cost):
+        return translate(
             lang,
             "plan.table.row",
-            span=_span(a, b, now, lang),
-            price=price,
-            unit=unit,
+            span=span,
+            price="—" if price is None else translate(lang, "plan.table.price", price=price, unit=unit),
             energy="—" if kwh is None else translate(lang, "plan.table.kwh", kwh=kwh),
+            cost="—" if cost is None else translate(lang, "plan.table.cost", cost=cost, cost_unit=cost_unit),
         )
-        for a, b, price, kwh in _blocks(rows)
+
+    blocks = _blocks(rows)
+    lines = [translate(lang, "plan.table.header"), "|---|---|---|---|"] + [
+        _row(_span(a, b, now, lang), price, kwh, cost) for a, b, price, kwh, cost in blocks
     ]
+    if len(blocks) > 1 and any(cost is not None for *_rest, cost in blocks):
+        known = [(p, kwh) for _a, _b, p, kwh, _c in blocks if kwh is not None]
+        energy = sum(kwh for _p, kwh in known)
+        lines.append(_row(
+            translate(lang, "plan.table.total"),
+            sum(p * kwh for p, kwh in known) / energy if energy > 0 else None,
+            energy if known else None,
+            sum(cost for *_rest, cost in blocks if cost is not None),
+        ))
+    return lines
 
 
 def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> str:
@@ -506,9 +536,9 @@ def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> s
 
     # The holds as a table, by quarter when the plan gave them (a slot that
     # charges and then holds is held only after its charge).
-    holds = _quarter_rows(orders, "hold") if orders.get("quarters") else [
+    holds = _bought(_quarter_rows(orders, "hold") if orders.get("quarters") else [
         (s.start, s.end, s.price, None) for s in orders.get("holds") or ()
-    ]
+    ])
     if holds:
         # Blank lines around it, or markdown does not render it as a table.
         lines += [translate(lang, "plan.orders.holds"), ""] + _table(holds, now, lang, unit) + [""]
@@ -538,29 +568,19 @@ def _plan_order_lines(orders, now, lang: str = "en", unit: str = "€/kWh") -> s
         )
     if orders.get("solar_delay"):
         lines.append(translate(lang, "plan.orders.solar_delay"))
-    # Each run with the battery empty: the house buys from the grid.
+    # Each run with the battery empty: the house buys from the grid. One row
+    # per run, at its average price.
     runs = []
     for a, b, price, kwh in sorted(_quarter_rows(orders, "empty")):
         if runs and runs[-1][1] == a:
             runs[-1] = (runs[-1][0], b, runs[-1][2] + price * kwh, runs[-1][3] + kwh)
         else:
             runs.append((a, b, price * kwh, kwh))
-    items = [
-        translate(
-            lang,
-            "plan.orders.empty_item",
-            span=_span(a, b, now, lang),
-            kwh=kwh,
-            price=cost / kwh,
-            unit=unit,
-        )
-        for a, b, cost, kwh in runs
-    ]
-    if len(items) == 1:
-        lines.append(translate(lang, "plan.orders.empty_one", item=items[0]))
-    elif items:
-        lines.append(translate(lang, "plan.orders.empty_many"))
-        lines.extend(translate(lang, "plan.orders.bullet", item=item) for item in items)
+    if runs:
+        lines += ["", translate(lang, "plan.orders.empty"), ""] + _table(
+            [(a, b, cost / kwh if kwh else None, kwh, cost) for a, b, cost, kwh in runs],
+            now, lang, unit,
+        ) + [""]
     return "".join(line + "\n" for line in lines)
 
 
@@ -930,17 +950,41 @@ def format_dynamic_pricing_notification(
             )
             for s in sorted(schedule.selected_slots, key=lambda s: s.start)
         )
+        table_costs = False
         if optimizer:
             # The optimizer books quarters: one line per run at one price.
             targets = getattr(schedule, "slot_energy_targets_kwh", {}) or {}
+            # Each slot's share of the estimated cost (it includes the charging
+            # losses), by the energy that cost pays for.
+            paid = getattr(schedule, "slot_cost_energy_kwh", None) or targets
+            paid = {s: float(paid[s]) for s in schedule.selected_slots if s in paid}
+            weight = sum(s.price * kwh for s, kwh in paid.items())
+            # ponytail: prices of both signs that cancel out leave no shares.
+            share = float(schedule.estimated_cost) / weight if abs(weight) > 1e-9 else None
+            # The table then carries the price and the cost: no text lines.
+            table_costs = share is not None
             # A blank line before the table so markdown renders it as one.
             slot_lines = "\n" + "\n".join(_table(
                 [
-                    (*spans[s], s.price, None if s not in targets else float(targets[s]))
+                    (
+                        *spans[s],
+                        s.price,
+                        None if s not in targets else float(targets[s]),
+                        None if share is None or s not in paid else s.price * paid[s] * share,
+                    )
                     for s in schedule.selected_slots
                 ],
                 now, lang, unit,
             ))
+        # The table carries the price and the cost, with a total for several rows.
+        cost_lines = "" if table_costs else (
+            "\n\n"
+            + translate(lang, "plan.pricing.average_price", price=schedule.average_price, unit=unit)
+            + "\n"
+            + translate(
+                lang, "plan.pricing.estimated_cost", cost=schedule.estimated_cost, cost_unit=cost_unit
+            )
+        )
         if schedule_type == "negative_price":
             title = translate(lang, "plan.pricing.negative.title", hours=hours_label)
             opportunity_energy = float(
@@ -954,15 +998,8 @@ def format_dynamic_pricing_notification(
                 + translate(lang, "plan.pricing.negative.no_deficit")
                 + "\n\n"
                 + translate(lang, "plan.pricing.negative.header")
-                + f"\n{slot_lines}\n\n"
-                + translate(lang, "plan.pricing.average_price", price=schedule.average_price, unit=unit)
-                + "\n"
-                + translate(
-                    lang,
-                    "plan.pricing.estimated_cost",
-                    cost=schedule.estimated_cost,
-                    cost_unit=cost_unit,
-                )
+                + f"\n{slot_lines}"
+                + cost_lines
                 + _footer(charge_power=True)
             )
         elif not schedule.charging_needed:
@@ -985,8 +1022,7 @@ def format_dynamic_pricing_notification(
                 + f"{orders_lines}"
                 + translate(lang, "plan.pricing.info.header")
                 + f"\n{slot_lines}\n\n"
-                + translate(lang, "plan.pricing.average_price", price=schedule.average_price, unit=unit)
-                + "\n"
+                + ("" if table_costs else translate(lang, "plan.pricing.average_price", price=schedule.average_price, unit=unit) + "\n")
                 + translate(lang, "plan.pricing.info.footer")
                 + f"{_footer()}"
             )
@@ -1099,16 +1135,14 @@ def format_dynamic_pricing_notification(
                 + f"{forecast_lines}"
                 + f"{charge_lines}"
                 + translate(lang, "plan.pricing.slots_header", label=selected_label)
-                + f"\n{slot_lines}\n\n"
-                + translate(lang, "plan.pricing.average_price", price=schedule.average_price, unit=unit)
-                + "\n"
-                + translate(
-                    lang,
-                    "plan.pricing.estimated_cost",
-                    cost=schedule.estimated_cost,
-                    cost_unit=cost_unit,
+                + f"\n{slot_lines}"
+                + cost_lines
+                # A blank line after the table, or the text joins its last row.
+                + (
+                    ("\n" if cost_lines else "\n\n") + savings_line.rstrip()
+                    if savings_line
+                    else ""
                 )
-                + (f"\n{savings_line.rstrip()}" if savings_line else "")
                 # The holds and the empty battery come after the charge they follow.
                 + (f"\n\n{orders_lines.rstrip()}" if orders_lines else "")
                 + _footer(charge_power=True, discharge=True)

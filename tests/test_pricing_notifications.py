@@ -641,8 +641,12 @@ def test_optimizer_charge_lists_blocks_without_the_old_planner_words():
                 "[flexible]", "[deficit]", "meet each deadline", "of charging needed"):
         assert old not in message
     # Back-to-back quarters at one price are one line, with their energy added up.
-    assert "| 18:00–18:45 | 0.1000 €/kWh | 1.40 kWh |" in message
-    assert "| 18:45–19:00 | 0.1200 €/kWh | 0.30 kWh |" in message
+    # Each row carries its share of the 0.40 cost, by price x energy
+    # (0.14 and 0.036 of 0.176); the total row replaces the two text lines.
+    assert "| 18:00–18:45 | 0.1000 €/kWh | 1.40 kWh | ~0.32 € |" in message
+    assert "| 18:45–19:00 | 0.1200 €/kWh | 0.30 kWh | ~0.08 € |" in message
+    assert "| **Total** | 0.1035 €/kWh | 1.70 kWh | ~0.40 € |" in message
+    assert "Average price" not in message and "Estimated cost" not in message
     assert message.count("→") == 0
 
 
@@ -668,8 +672,8 @@ def test_optimizer_plan_without_charge_still_names_its_orders():
     assert "NOT needed" in title
     assert (
         "🔒 Battery kept for later (the house buys from the grid):\n\n"
-        "| Slot | Price | Energy |\n|---|---|---|\n"
-        "| 19:00–19:30 | 0.3000 €/kWh | — |\n\n"
+        "| Slot | Price | Energy | Cost |\n|---|---|---|---|\n"
+        "| 19:00–19:30 | 0.3000 €/kWh | — | — |\n\n"
     ) in message
     assert "Selling to the grid: 20:00–20:30 at 2.5 kW" in message
     assert "Solar surplus to export: 10:00–11:00" in message
@@ -809,7 +813,8 @@ def test_plan_crossing_midnight_lists_chronologically_with_dates():
                   planner="optimizer", deadline_required_kwh=3.0),
         schedule, **{**_DP_CFG, "now": _TUE},
     )
-    rows = [ln for ln in message.splitlines() if ln.startswith("| ") and "€/kWh" in ln]
+    rows = [ln for ln in message.splitlines()
+            if ln.startswith("| ") and "€/kWh" in ln and "Total" not in ln]
     assert [ln.split(" | ")[0].lstrip("| ") for ln in rows] == [
         "23:00–00:00", "Wed 25 · 00:00–01:00", "Wed 25 · 05:00–06:00",
     ]
@@ -834,17 +839,40 @@ def _table_plan(lang="en", with_kwh=True):
 def test_optimizer_charge_slots_are_a_table_in_chronological_order():
     message = _table_plan()
     assert (
-        "\n\n| Slot | Price | Energy |\n|---|---|---|\n"
-        "| 22:00–23:00 | 0.0890 €/kWh | 0.11 kWh |\n"
-        "| Wed 25 · 00:00–01:00 | 0.0890 €/kWh | 2.03 kWh |\n"
-        "| Wed 25 · 05:00–06:00 | 0.0890 €/kWh | 1.00 kWh |\n"
+        "\n\n| Slot | Price | Energy | Cost |\n|---|---|---|---|\n"
+        "| 22:00–23:00 | 0.0890 €/kWh | 0.11 kWh | ~0.01 € |\n"
+        "| Wed 25 · 00:00–01:00 | 0.0890 €/kWh | 2.03 kWh | ~0.26 € |\n"
+        "| Wed 25 · 05:00–06:00 | 0.0890 €/kWh | 1.00 kWh | ~0.13 € |\n"
+        "| **Total** | 0.0890 €/kWh | 3.14 kWh | ~0.40 € |\n\n"
     ) in message
-    assert "•" not in message.split("|---|---|---|")[1].split("\n\n")[0]
+    assert "•" not in message.split("|---|---|---|---|")[1].split("\n\n")[0]
+
+
+def test_a_slot_the_cost_pays_for_without_a_target_has_a_cost_and_no_energy():
+    # A weekly-charge slot: cost energy, no plan target. Slots the schedule
+    # dropped do not take a share: the rows add up to the estimated cost.
+    slots = [_q(24, 22, price=0.10), _q(25, 5, price=0.20)]
+    schedule = _optimizer_schedule([0.1] * 2, [1.0, 1.0])
+    schedule.selected_slots = slots
+    schedule.slot_energy_targets_kwh = {slots[0]: 1.0}
+    schedule.slot_cost_energy_kwh = {slots[0]: 1.0, slots[1]: 1.0, _q(25, 9, price=0.5): 4.0}
+    schedule.slot_deadlines = {s: None for s in slots}
+    schedule.estimated_cost = 0.33
+    message = notifications.format_dynamic_pricing_notification(
+        _decision(should_charge=True, planned_grid_charge_kwh=2.0, planner="optimizer"),
+        schedule, **{**_DP_CFG, "now": _TUE},
+    )[1]
+    assert "| 22:00–23:00 | 0.1000 €/kWh | 1.00 kWh | ~0.11 € |" in message
+    assert "| Wed 25 · 05:00–06:00 | 0.2000 €/kWh | — | ~0.22 € |" in message
+    assert "| **Total** | 0.1000 €/kWh | 1.00 kWh | ~0.33 € |" in message
 
 
 def test_optimizer_table_dash_without_energy_and_spanish_header():
-    assert "| 22:00–23:00 | 0.0890 €/kWh | — |" in _table_plan(with_kwh=False)
-    assert "| Tramo | Precio | Energía |" in _table_plan(lang="es")
+    # Without energy there is no cost to share out: the text lines stay.
+    bare = _table_plan(with_kwh=False)
+    assert "| 22:00–23:00 | 0.0890 €/kWh | — | — |" in bare
+    assert "Total" not in bare and "Estimated cost: ~0.40 €" in bare
+    assert "| Tramo | Precio | Energía | Coste |" in _table_plan(lang="es")
 
 
 def test_two_nights_of_hold_are_dated_not_duplicated():
@@ -855,8 +883,8 @@ def test_two_nights_of_hold_are_dated_not_duplicated():
         plan_orders=orders, **{**_DP_CFG, "now": _TUE},
     )
     assert (
-        "| Wed 25 · 00:00–08:00 | 0.1000 €/kWh | — |\n"
-        "| Thu 26 · 00:00–08:00 | 0.1000 €/kWh | — |\n"
+        "| Wed 25 · 00:00–08:00 | 0.1000 €/kWh | — | — |\n"
+        "| Thu 26 · 00:00–08:00 | 0.1000 €/kWh | — | — |\n"
     ) in message
 
 
@@ -953,7 +981,7 @@ def test_one_sale_stays_inline_two_become_a_list():
         _decision(should_charge=False, planner="optimizer"), None,
         plan_orders=one, **{**_DP_CFG, "now": _TUE},
     )
-    assert "| 23:00–00:00 | 0.1000 €/kWh | — |\n" in message
+    assert "| 23:00–00:00 | 0.1000 €/kWh | — | — |\n" in message
     assert "💶 Selling to the grid: Wed 25 · 20:00–21:00 at 1.5 kW\n" in message
     two = {"sales": {_q(24, 23, 1): 2.5, _q(25, 20, 1): 1.5}}
     _, message, _ = notifications.format_dynamic_pricing_notification(
@@ -1056,9 +1084,10 @@ def test_saving_line_hand_computed_case():
         _after(-15, 0.5, 0.10), _after(300, 1.0, 0.30), _after(315, 0.62, 0.40),
     ))
     line = "Buying this energy when it is used: ~0.55 €. Estimated saving: ~0.25 €"
-    assert line in message
-    assert message.index("Estimated cost") < message.index(line)
-    assert message.split("Estimated cost")[1].split("\n")[1] == line
+    # The rows share out the 0.30 the saving is measured against (the cost
+    # energy, 0.5 kWh a slot, not the targets), and a blank line keeps the
+    # text off the table's last row.
+    assert "| **Total** | 0.1035 €/kWh | 1.70 kWh | ~0.30 € |\n\n" + line in message
 
 
 def test_saving_line_ignores_deferred_energy():
@@ -1147,6 +1176,7 @@ def _screenshot_message(lang="en"):
     schedule.slot_energy_targets_kwh = {slot: 0.31}
     schedule.slot_deadlines = {slot: None}
     schedule.average_price = 0.0890
+    schedule.estimated_cost = 0.03
     orders = {
         "holds": frozenset({slot}),
         "quarters": (
@@ -1168,8 +1198,12 @@ def _screenshot_message(lang="en"):
 def test_a_slot_that_charges_one_quarter_shows_that_quarter_then_the_hold():
     title, message, _ = _screenshot_message()
     assert title.endswith("- 0.25h selected")
-    assert "| Wed 25 · 07:00–07:15 | 0.0890 €/kWh | 0.31 kWh |" in message
-    assert "| Wed 25 · 07:15–08:00 | 0.0890 €/kWh | 0.32 kWh |" in message
+    assert "| Wed 25 · 07:00–07:15 | 0.0890 €/kWh | 0.31 kWh | ~0.03 € |" in message
+    # One row is its own total; it still replaces the two text lines.
+    assert "Total" not in message
+    assert "Average price" not in message and "Estimated cost" not in message
+    # The hold: what the house buys meanwhile, 0.32 kWh x 0.089.
+    assert "| Wed 25 · 07:15–08:00 | 0.0890 €/kWh | 0.32 kWh | ~0.03 € |" in message
     assert "07:00–08:00" not in message
     assert "\n\n\n" not in message
 
@@ -1178,8 +1212,13 @@ def test_the_plan_says_when_the_battery_runs_empty_and_at_what_price():
     message = _screenshot_message()[1]
     # 0.3 kWh at 0.20 and 0.1 at 0.10: 0.4 kWh at 0.175 on average.
     assert (
-        "🪫 Battery empty: Wed 25 · 21:30–22:00, 0.40 kWh from the grid at 0.1750 €/kWh on average\n"
+        "\n\n🪫 Battery empty (the house buys from the grid):\n\n"
+        "| Slot | Price | Energy | Cost |\n|---|---|---|---|\n"
+        "| Wed 25 · 21:30–22:00 | 0.1750 €/kWh | 0.40 kWh | ~0.07 € |\n\n"
     ) in message
-    assert "🪫 Batería vacía: mié 25 · 21:30–22:00, 0.40 kWh de red a 0.1750 €/kWh de media" in (
-        _screenshot_message("es")[1]
-    )
+    assert "\n\n\n" not in message
+    assert (
+        "🪫 Batería vacía (la casa compra de la red):\n\n"
+        "| Tramo | Precio | Energía | Coste |\n|---|---|---|---|\n"
+        "| mié 25 · 21:30–22:00 | 0.1750 €/kWh | 0.40 kWh | ~0.07 € |\n"
+    ) in _screenshot_message("es")[1]
