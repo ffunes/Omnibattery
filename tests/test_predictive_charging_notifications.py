@@ -18,6 +18,7 @@ Run without the Home Assistant runtime: stub hass/entry/controller objects.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from collections import namedtuple
 import re
 from pathlib import Path
@@ -494,3 +495,32 @@ def test_changed_room_orders_notify_again(monkeypatch):
 
     asyncio.run(_run())
     assert len(_creates(calls)) == 2
+
+
+def test_engine_hands_the_published_house_delivery_to_the_formatter(monkeypatch):
+    manager, controller, _calls = _muted_manager(monkeypatch)
+    seen = {}
+
+    def _capture(*a, **k):
+        seen.update(k)
+        return ("title", "message", PLAN_CHARGE)
+
+    monkeypatch.setattr(engine_module.notifications, "format_dynamic_pricing_notification", _capture)
+    manager._surplus_hold_enabled = lambda: False
+    manager._store_eval_projection = lambda plan: None
+    manager._now = lambda: datetime(2999, 1, 1, 18, 0)
+    delivery = ((datetime(2999, 1, 1, 19, 0), 1.0, 0.3),)
+    plan = SimpleNamespace(house_delivery=delivery)
+
+    manager._publish_plan_holds(plan, {"planner": "other"})
+    assert controller._dp_plan_house_delivery is None
+
+    manager._publish_plan_holds(plan, {"planner": "optimizer"})
+    assert controller._dp_plan_house_delivery == delivery
+    asyncio.run(manager._send_dynamic_pricing_notification(decision_data={}, schedule=None))
+    assert seen["house_delivery"] == delivery
+    assert seen["weekly"] is False
+    assert seen["round_trip_efficiency"] is not None
+
+    manager._clear_plan_orders()
+    assert controller._dp_plan_house_delivery is None

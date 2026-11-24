@@ -3852,6 +3852,7 @@ class PricingManager:
         no order of a plan it replaced."""
         controller = self._controller
         controller._dp_plan_holds = None
+        controller._dp_plan_house_delivery = None
         controller._dp_plan_weekly_holds = None
         controller._dp_weekly_full_at = None
         controller._dp_plan_exports = None
@@ -3879,6 +3880,11 @@ class PricingManager:
         planned, and nothing is held (D2)."""
         self._controller._dp_plan_holds = (
             frozenset(getattr(plan, "holds", None) or ())
+            if decision_data.get("planner") == "optimizer"
+            else None
+        )
+        self._controller._dp_plan_house_delivery = (
+            tuple(getattr(plan, "house_delivery", ()) or ())
             if decision_data.get("planner") == "optimizer"
             else None
         )
@@ -6086,6 +6092,9 @@ class PricingManager:
             max_charge_capacity=self._planning_charge_capacity(),
             plan_orders=orders,
             arbitrage_margin=getattr(controller, "min_arbitrage_margin", None),
+            house_delivery=getattr(controller, "_dp_plan_house_delivery", None) or (),
+            round_trip_efficiency=effective_round_trip_efficiency(controller)[0],
+            weekly=getattr(controller, "_dp_plan_weekly_holds", None) is not None,
             now=self._now(),
         )
         targets = getattr(schedule, "slot_energy_targets_kwh", None) or {}

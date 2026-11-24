@@ -490,6 +490,36 @@ def _no_slots_explanation(
     return ("Charging needed but no valid price slots found", hint)
 
 
+def _savings_line(
+    *,
+    house_delivery,
+    first_charge_start: datetime,
+    charged_kwh: float,
+    round_trip_efficiency: float,
+    charge_cost: float,
+    cost_unit: str,
+) -> str:
+    """What buying the charged energy when the house uses it would cost, and
+    the saving against the charge. An estimate over the plan: only what the
+    plan discharges inside its horizon is valued. Empty when no saving."""
+    later = [
+        (kwh, price) for end, kwh, price in house_delivery if end > first_charge_start
+    ]
+    delivered = sum(kwh for kwh, _ in later)
+    if delivered <= 0:
+        return ""
+    reference = sum(kwh * price for kwh, price in later) / delivered
+    valued = min(float(charged_kwh) * float(round_trip_efficiency), delivered)
+    alternative = valued * reference
+    saving = alternative - float(charge_cost)
+    if round(saving, 2) <= 0:
+        return ""
+    return (
+        f"Buying this energy when it is used: ~{alternative:.2f} {cost_unit}. "
+        f"Estimated saving: ~{saving:.2f} {cost_unit}\n"
+    )
+
+
 def format_dynamic_pricing_notification(
     decision_data: dict,
     schedule,
@@ -502,6 +532,9 @@ def format_dynamic_pricing_notification(
     max_charge_capacity,
     plan_orders=None,
     arbitrage_margin=None,
+    house_delivery=(),
+    round_trip_efficiency=None,
+    weekly=False,
     now: datetime,
 ) -> tuple[str, str, str]:
     """Format dynamic pricing evaluation notification.
@@ -773,6 +806,28 @@ def format_dynamic_pricing_notification(
                     )
                     + f"{orders_lines}\n"
                 )
+            savings_line = ""
+            # Only the energy the cost pays for: the plan's deferred (tomorrow)
+            # charge is in planned_grid_charge but not in estimated_cost.
+            cost_energy = sum(
+                (getattr(schedule, "slot_cost_energy_kwh", None) or {}).values()
+            ) or sum((getattr(schedule, "slot_energy_targets_kwh", None) or {}).values())
+            if (
+                optimizer
+                and cost_energy > 0
+                and round_trip_efficiency is not None
+                and not decision_data.get("floor_active")
+                and not weekly
+                and schedule_type not in ("negative_price", "combined")
+            ):
+                savings_line = _savings_line(
+                    house_delivery=house_delivery,
+                    first_charge_start=min(s.start for s in schedule.selected_slots),
+                    charged_kwh=cost_energy,
+                    round_trip_efficiency=round_trip_efficiency,
+                    charge_cost=schedule.estimated_cost,
+                    cost_unit=cost_unit,
+                )
             message = (
                 f"🔋 Battery: {avg_soc:.0f}% ({usable_energy:.2f} kWh usable)\n"
                 f"{forecast_lines}"
@@ -780,6 +835,7 @@ def format_dynamic_pricing_notification(
                 f"💰 {selected_label}:\n{slot_lines}\n\n"
                 f"Average price: {schedule.average_price:.4f} {unit}\n"
                 f"Estimated cost: ~{schedule.estimated_cost:.2f} {cost_unit}"
+                + (f"\n{savings_line.rstrip()}" if savings_line else "")
                 + _footer(charge_power=True, discharge=True)
             )
 
