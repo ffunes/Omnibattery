@@ -676,9 +676,10 @@ def test_optimizer_plan_without_charge_still_names_its_orders():
     )
     assert "NOT needed" in title
     assert (
-        "🔒 Battery kept for later (the house buys from the grid)\n\n"
+        "🗓️ Plan by slot:\n\n"
         "| Slot | Price |\n|---|---|\n"
         "| 🔒 19:00–19:30 | 0.3000 €/kWh |\n\n"
+        "Legend:\n🔒 Battery kept for later (the house buys from the grid)\n\n"
     ) in message
     assert (
         "💶 Selling to the grid:\n\n| Slot | Power |\n|---|---|\n"
@@ -1059,7 +1060,7 @@ def test_not_needed_ends_with_thresholds_after_a_blank_line():
 # The plan's estimated saving against the battery with no plan
 # ----------------------------------------------------------------------
 
-_SAVING = "Estimated saving of the plan: ~{} € (against using the battery with no plan)"
+_SAVING = "💰 Estimated saving of the plan: ~{} € (against using the battery with no plan)"
 
 
 def test_saving_line_closes_a_charge_plan_after_its_table():
@@ -1068,8 +1069,11 @@ def test_saving_line_closes_a_charge_plan_after_its_table():
         _decision(should_charge=True, planned_grid_charge_kwh=1.7, planner="optimizer"),
         schedule, plan_saving=0.248, **_DP_CFG,
     )
-    # A blank line keeps the text off the table's last row.
-    assert "| **Total** | 0.1035 €/kWh | 1.70 kWh | ~0.40 € |\n\n" + _SAVING.format("0.25") in message
+    # After the table and its legend, a blank line apart.
+    assert (
+        "| **Total** | 0.1035 €/kWh | 1.70 kWh | ~0.40 € |\n\n"
+        "Legend:\n🔌 Grid charge\n\n" + _SAVING.format("0.25")
+    ) in message
 
 
 def test_saving_line_shows_on_a_plan_that_only_holds():
@@ -1077,7 +1081,11 @@ def test_saving_line_shows_on_a_plan_that_only_holds():
         _decision(should_charge=False, planner="optimizer"), None,
         plan_orders={"holds": frozenset({_slot_at(60)})}, plan_saving=0.05, **_DP_CFG,
     )
-    assert "| 🔒 19:00–19:15 | 0.3000 €/kWh |\n\n" + _SAVING.format("0.05") in message
+    assert (
+        "| 🔒 19:00–19:15 | 0.3000 €/kWh |\n\n"
+        "Legend:\n🔒 Battery kept for later (the house buys from the grid)\n\n"
+        + _SAVING.format("0.05")
+    ) in message
 
 
 @pytest.mark.parametrize("planner, saving", [
@@ -1180,19 +1188,20 @@ def test_the_plan_says_when_the_battery_runs_empty_and_at_what_price():
     # One row per price (0.3 kWh at 0.20, 0.1 at 0.10). The total closes the
     # one table: all the plan buys, 1.03 kWh for 0.03 + 0.03 + 0.06 + 0.01.
     assert (
-        "\n\n🔌 Grid charge\n"
-        "🔒 Battery kept for later (the house buys from the grid)\n"
-        "🪫 Battery empty (the house buys from the grid)\n\n"
+        "\n\n🗓️ Plan by slot:\n\n"
         "| Slot | Price | Energy | Cost |\n|---|---|---|---|\n"
     ) in message
     assert (
         "| 🪫 Wed 25 · 21:30–21:45 | 0.2000 €/kWh | 0.30 kWh | ~0.06 € |\n"
         "| 🪫 Wed 25 · 21:45–22:00 | 0.1000 €/kWh | 0.10 kWh | ~0.01 € |\n"
         "| **Total** | 0.1224 €/kWh | 1.03 kWh | ~0.13 € |\n\n"
+        "Legend:\n🔌 Grid charge\n"
+        "🔒 Battery kept for later (the house buys from the grid)\n"
+        "🪫 Battery empty (the house buys from the grid)\n\n"
     ) in message
     assert "\n\n\n" not in message
     assert (
-        "🪫 Batería vacía (la casa compra de la red)\n\n"
+        "🗓️ Plan por tramos:\n\n"
         "| Tramo | Precio | Energía | Coste |\n|---|---|---|---|\n"
         "| 🔌 mié 25 · 07:00–07:15 | 0.0890 €/kWh | 0.31 kWh | ~0.03 € |\n"
     ) in _screenshot_message("es")[1]

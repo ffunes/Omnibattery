@@ -537,10 +537,13 @@ def _plan_order_lines(
         if rows
     ]
     if bought:
-        # What each icon means, then the table; blank lines around it, or
-        # markdown does not render it as a table.
+        # The table under its title, then what each icon means; blank lines
+        # around the table, or markdown does not render it as one.
+        lines += [translate(lang, "plan.orders.title"), ""]
+        lines += _table({icon: rows for icon, _key, rows in bought}, now, lang, unit) + [""]
+        lines.append(translate(lang, "plan.orders.legend"))
         lines += [f"{icon} {translate(lang, f'plan.orders.{key}')}" for icon, key, _rows in bought]
-        lines += [""] + _table({icon: rows for icon, _key, rows in bought}, now, lang, unit) + [""]
+        lines.append("")
         if note:
             lines += [note, ""]
     exports = orders.get("exports") or ()

@@ -71,7 +71,10 @@ TEXTS: dict[str, str | dict[str, str]] = {
     # --- plan.py: day prefix, clock and span ---
     "plan.day_prefix": "{day} {date} · ",
     # --- plan.py: _plan_order_lines ---
-    # The legend of the one table; plan.py puts each row's icon in front.
+    # The one table's title, then its legend (under the table); plan.py
+    # puts each row's icon in front.
+    "plan.orders.title": "🗓️ Pla per franges:",
+    "plan.orders.legend": "Llegenda:",
     "plan.orders.charge": "Càrrega de xarxa",
     "plan.orders.holds": "Bateria reservada per a més tard (la casa compra de la xarxa)",
     "plan.orders.empty": "Bateria buida (la casa compra de la xarxa)",
@@ -136,7 +139,7 @@ TEXTS: dict[str, str | dict[str, str]] = {
     ),
     # --- plan.py: _plan_order_lines, its last line ---
     "plan.savings": (
-        "Estalvi estimat del pla: ~{saving:.2f} {cost_unit} (respecte a fer servir la bateria sense pla)"
+        "💰 Estalvi estimat del pla: ~{saving:.2f} {cost_unit} (respecte a fer servir la bateria sense pla)"
     ),
     # --- plan.py: format_dynamic_pricing_notification ---
     "plan.price.charge": "càrrega ≤ {price:.4f} {unit}",
