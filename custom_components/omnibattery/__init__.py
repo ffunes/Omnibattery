@@ -256,7 +256,7 @@ from .control.surplus_price_hold import SurplusPriceHoldManager
 from .infra.coordinator import MarstekVenusDataUpdateCoordinator
 from .infra.mac_tracking import publishable_macs
 from .infra.device_lookup import get_entry_device
-from .notifications import HEALTH, async_dismiss, async_notify, load_categories
+from .notifications import HEALTH, async_dismiss, async_notify, load_categories, text
 from .tracking.hourly_balance import HourlyBalanceManager
 from .tracking.non_responsive_tracker import NonResponsiveTracker
 from .tracking.daily_timeline import (
@@ -12223,12 +12223,8 @@ async def _async_migrate_legacy_active_balance(
                     f"{NOTIFICATION_ID_PREFIX}active_balance_migration_"
                     f"{coordinator.device_key}"
                 ),
-                f"Active Balance: migration paused ({coordinator.name})",
-                (
-                    "The old integrated active-balance run could not be migrated "
-                    f"safely ({err}). The battery is held in manual mode at 0 W. "
-                    "Keep it available and reload Omnibattery to retry."
-                ),
+                text(hass, "migration.title", name=coordinator.name),
+                text(hass, "migration.message", error=err),
             )
             _LOGGER.error(
                 "[%s] Could not migrate integrated active-balance state; "

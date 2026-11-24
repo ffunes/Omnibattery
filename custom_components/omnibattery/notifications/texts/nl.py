@@ -308,4 +308,58 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "gemigreerd ({error}). De batterij blijft in handmatige modus op 0 W. "
         "Houd hem beschikbaar en laad Omnibattery opnieuw om het nog eens te proberen."
     ),
+    # --- driver notices: control paused, firmware, settings, pacing ---
+    "battery_control.paused_title": "Batterijaansturing gepauzeerd: {name}",
+    "battery_control.realtime_mode_required": (
+        "Omnibattery heeft de aansturing van **{name}** gepauzeerd, omdat de "
+        "batterij niet in de modus **Realtime** staat.\n\n"
+        "Open de app van de batterij en zet de werkmodus op Realtime. Omnibattery neemt "
+        "de aansturing dan vanzelf weer over."
+    ),
+    "battery_control.handover_failed": (
+        "Omnibattery kon de aansturing van **{name}** niet overnemen: de batterij "
+        "bevestigde geen stand-by na een stopopdracht. Omnibattery blijft de "
+        "batterij volgen en probeert het vanzelf opnieuw."
+    ),
+    "battery_control.unknown_model": (
+        "**{name}** meldt modelcode `{model}`, die Omnibattery nog niet ondersteunt. "
+        "De batterij wordt gevolgd, maar niet aangestuurd. Meld de modelcode graag, "
+        "zodat die kan worden toegevoegd."
+    ),
+    "battery_control.firmware_title": "Batterijfirmware-update aanbevolen: {name}",
+    "battery_control.firmware": (
+        "**{name}** draait firmware `{firmware}`. De fabrikant raadt voor de lokale API "
+        "minimaal `{minimum}` aan. Uitlezen werkt; werk de batterij bij in de "
+        "bijbehorende app als de aansturing niet goed werkt."
+    ),
+    "battery_control.setting_title": "Batterij-instelling niet toegepast: {name}",
+    "battery_control.setting_failed": (
+        "Omnibattery kon het {setting} van **{name}** niet op {value} zetten. De "
+        "batterij houdt haar huidige waarde, en Omnibattery toont en gebruikt die "
+        "waarde weer. Probeer het later opnieuw, of wijzig het in de app van de batterij."
+    ),
+    "battery_control.min_soc": "minimale SOC",
+    "battery_control.max_charge_power": "maximale laadvermogen",
+    "battery_control.max_discharge_power": "maximale ontlaadvermogen",
+    "battery_control.throttled_title": "Batterij traag: {name}",
+    "battery_control.throttled": (
+        "**{name}** reageert traag of niet, dus Omnibattery wacht nu {interval:.0f}s "
+        "tussen verzoeken. Mogelijk vraagt iets anders de batterij ook uit, zoals een "
+        "andere Home Assistant-integratie, of is de netwerkverbinding zwak."
+    ),
+    "battery_control.official": (
+        "\n\nDe officiële integratie van de fabrikant vraagt deze batterij ook uit. "
+        "Omnibattery is bedoeld als vervanging: schakel die integratie voor "
+        "dit apparaat uit, zodat de batterij haar verzoeken niet hoeft te delen. De "
+        "bediening van die integratie (werkmodus, ontlaadlimiet, terugleverlimiet) "
+        "schrijft bovendien naar het flashgeheugen van de batterij zodra je die gebruikt."
+    ),
+    "battery_control.slower": (
+        "\n\nGebeurt dit vaker, zet de verzoeksnelheid van **{name}** dan een stap "
+        "lager, op **{speed}**: kies in Instellingen → Apparaten & diensten bij "
+        "Omnibattery voor Opnieuw configureren."
+    ),
+    "battery_control.speed_fast": "Snel (2s)",
+    "battery_control.speed_normal": "Normaal (3s)",
+    "battery_control.speed_conservative": "Conservatief (5s)",
 }

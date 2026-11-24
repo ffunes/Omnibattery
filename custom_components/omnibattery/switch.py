@@ -71,6 +71,7 @@ from .notifications import (
     async_notify,
     async_set_category_enabled,
     category_enabled,
+    text,
 )
 from .pricing.engine import DynamicPricingEvaluationHorizon
 
@@ -681,14 +682,14 @@ class PredictiveChargingSwitch(SwitchEntity):
         new_data[CONF_PREDICTIVE_CHARGING_OVERRIDDEN] = True
         self.hass.config_entries.async_update_entry(self.entry, data=new_data)
         if was_grid_charging_active:
-            message = "Predictive grid charging has been paused. Turn the switch back on to resume."
+            message = text(self.hass, "switch.override.paused")
         else:
-            message = "Predictive charging is now disabled. It will not activate when the time slot becomes active."
+            message = text(self.hass, "switch.override.disabled")
         await async_notify(
             self.hass,
             MODES,
             f"{NOTIFICATION_ID_PREFIX}predictive_charging_override",
-            "Predictive Charging: disabled",
+            text(self.hass, "switch.override.title"),
             message,
         )
         _LOGGER.info("Predictive charging disabled (overridden)")
@@ -1651,17 +1652,8 @@ class ManualModeSwitch(SwitchEntity):
             self.hass,
             MODES,
             f"{NOTIFICATION_ID_PREFIX}manual_mode_active",
-            "Manual Mode: active",
-            (
-                "Automatic charge/discharge control is paused. "
-                "All batteries have been set to idle (0W). "
-                "You can now manually control each battery using the "
-                "'Set Forcible Charge/Discharge Power' controls, or — "
-                "for batteries whose own integration offers more "
-                "operating modes — select another mode there without "
-                "OmniBattery reverting it.\n\n"
-                "Turn off Manual Mode to resume automatic control."
-            ),
+            text(self.hass, "switch.manual.title"),
+            text(self.hass, "switch.manual.message"),
         )
         self.async_write_ha_state()
 

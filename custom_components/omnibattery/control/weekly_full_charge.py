@@ -34,7 +34,7 @@ from ..const import (
     WEEKDAY_MAP,
 )
 from ..drivers.base import InverterStatus, can_take_setpoint
-from ..notifications import MODES, dismiss, notify
+from ..notifications import MODES, dismiss, notify, text
 from ..solar_forecast import read_remaining_solar_kwh
 
 if TYPE_CHECKING:
@@ -522,13 +522,12 @@ class WeeklyFullChargeManager:
             ctrl.hass,
             MODES,
             _OUTLOOK_NOTIFICATION_ID,
-            "Weekly Full Charge: not enough solar",
-            (
-                f"Today's remaining solar ({net_kwh:.1f} kWh after home consumption) "
-                f"will not cover the {needed_kwh:.1f} kWh still needed to reach 100%. "
-                "With Predictive Charging off, the weekly full charge does not charge "
-                "from the grid. Enable Predictive Charging, or let an automation act on "
-                "the solar_sufficient attribute of the Weekly Full Charge sensor."
+            text(ctrl.hass, "weekly.title"),
+            text(
+                ctrl.hass,
+                "weekly.not_enough_solar",
+                net=net_kwh,
+                needed=needed_kwh,
             ),
         )
 

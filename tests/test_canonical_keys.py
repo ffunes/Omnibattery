@@ -146,6 +146,7 @@ async def test_every_driver_declares_the_default_baseline(brand, version):
 
 def test_the_monitor_reads_the_baseline_of_the_driver():
     monitor = BalanceMonitor.__new__(BalanceMonitor)
+    monitor._hass = None  # texts read hass.config.language; None falls back to English
     tight = BalanceBaseline(offset_mv=0, yellow_mv=20, orange_mv=40, red_mv=60)
     assert monitor._status_for_delta(50, tight) == "orange"
     assert monitor._status_for_delta(50, DEFAULT_BALANCE_BASELINE) == "green"

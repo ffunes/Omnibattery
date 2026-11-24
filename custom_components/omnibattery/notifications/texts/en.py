@@ -312,4 +312,59 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "safely ({error}). The battery is held in manual mode at 0 W. "
         "Keep it available and reload Omnibattery to retry."
     ),
+    # --- driver notices: control paused, firmware, settings, pacing ---
+    "battery_control.paused_title": "Battery control paused: {name}",
+    "battery_control.realtime_mode_required": (
+        "Omnibattery paused control of **{name}** because the battery is not in "
+        "**Realtime** mode.\n\n"
+        "Open the battery's app and set the working mode to Realtime. Omnibattery "
+        "then resumes control automatically."
+    ),
+    "battery_control.handover_failed": (
+        "Omnibattery could not take control of **{name}**: the battery did not "
+        "confirm standby after a stop command. It keeps monitoring and retries "
+        "automatically."
+    ),
+    "battery_control.unknown_model": (
+        "**{name}** reports model code `{model}`, which Omnibattery does not "
+        "support yet. It is monitored, but not controlled. Please report the model "
+        "code so it can be added."
+    ),
+    "battery_control.firmware_title": "Battery firmware update recommended: {name}",
+    "battery_control.firmware": (
+        "**{name}** runs firmware `{firmware}`. The manufacturer recommends at least "
+        "`{minimum}` for the local API. Monitoring works; update the battery in "
+        "its app if control misbehaves."
+    ),
+    "battery_control.setting_title": "Battery setting not applied: {name}",
+    "battery_control.setting_failed": (
+        "Omnibattery could not set the {setting} of **{name}** to {value}. The "
+        "battery keeps its current value, and Omnibattery shows and uses that "
+        "value again. Try again later, or change it in the battery's app."
+    ),
+    "battery_control.min_soc": "minimum SOC",
+    "battery_control.max_charge_power": "maximum charge power",
+    "battery_control.max_discharge_power": "maximum discharge power",
+    "battery_control.throttled_title": "Battery slow: {name}",
+    "battery_control.throttled": (
+        "**{name}** answers slowly or not at all, so Omnibattery now waits "
+        "{interval:.0f}s between requests. Something else may be polling the battery "
+        "too, such as another Home Assistant integration, or its network connection "
+        "may be weak."
+    ),
+    "battery_control.official": (
+        "\n\nThe manufacturer's official integration is also polling this battery. "
+        "Omnibattery is meant to replace it: disable that integration for "
+        "this device to free the battery's request budget. Its controls (energy "
+        "mode, discharge limit, feed-in limit) also write to the battery's flash "
+        "memory whenever they are used."
+    ),
+    "battery_control.slower": (
+        "\n\nIf this keeps happening, lower the request speed of **{name}** one step, "
+        "to **{speed}**: in Settings → Devices & services, choose Reconfigure on "
+        "Omnibattery."
+    ),
+    "battery_control.speed_fast": "Fast (2s)",
+    "battery_control.speed_normal": "Normal (3s)",
+    "battery_control.speed_conservative": "Conservative (5s)",
 }

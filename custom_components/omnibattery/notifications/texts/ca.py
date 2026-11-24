@@ -309,4 +309,61 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "de manera segura ({error}). La bateria es manté en mode manual a 0 W. "
         "Mantén-la disponible i recarrega Omnibattery per tornar-ho a provar."
     ),
+    # --- driver notices: control paused, firmware, settings, pacing ---
+    "battery_control.paused_title": "Control de bateria en pausa: {name}",
+    "battery_control.realtime_mode_required": (
+        "Omnibattery ha posat en pausa el control de **{name}** perquè la bateria "
+        "no està en mode **Realtime**.\n\n"
+        "Obre l'app de la bateria i posa el mode de treball en Realtime. Omnibattery "
+        "reprèn el control automàticament."
+    ),
+    "battery_control.handover_failed": (
+        "Omnibattery no ha pogut prendre el control de **{name}**: la bateria no "
+        "ha confirmat el mode d'espera després d'una ordre d'aturada. Continua "
+        "monitorant-la i ho reintenta automàticament."
+    ),
+    "battery_control.unknown_model": (
+        "**{name}** indica el codi de model `{model}`, que Omnibattery encara no "
+        "suporta. Es monitora, però no es controla. Comunica el codi de model "
+        "perquè es pugui afegir."
+    ),
+    "battery_control.firmware_title": "Actualització de firmware de la bateria recomanada: {name}",
+    "battery_control.firmware": (
+        "**{name}** fa servir el firmware `{firmware}`. El fabricant recomana almenys "
+        "`{minimum}` per a l'API local. La monitorització funciona; actualitza la "
+        "bateria a la seva app si el control falla."
+    ),
+    "battery_control.setting_title": "Ajust de bateria no aplicat: {name}",
+    "battery_control.setting_failed": (
+        "Omnibattery no ha pogut ajustar «{setting}» de **{name}** a {value}. La "
+        "bateria conserva el seu valor actual, i Omnibattery torna a mostrar i fer "
+        "servir aquest valor. Torna-ho a provar més tard, o canvia'l a l'app "
+        "de la bateria."
+    ),
+    "battery_control.min_soc": "SOC mínim",
+    "battery_control.max_charge_power": "potència màxima de càrrega",
+    "battery_control.max_discharge_power": "potència màxima de descàrrega",
+    "battery_control.throttled_title": "Bateria lenta: {name}",
+    "battery_control.throttled": (
+        "**{name}** respon lentament o no respon, així que Omnibattery espera "
+        "ara {interval:.0f}s entre peticions. Pot ser que una altra cosa estigui "
+        "consultant també la bateria, com una altra integració de Home Assistant, "
+        "o que la seva connexió de xarxa sigui feble."
+    ),
+    "battery_control.official": (
+        "\n\nLa integració oficial del fabricant també està consultant aquesta "
+        "bateria. Omnibattery està pensada per substituir-la: desactiva aquesta "
+        "integració per a aquest dispositiu i alliberaràs el pressupost "
+        "de peticions de la bateria. Els seus controls (mode d'energia, límit de "
+        "descàrrega, límit d'injecció) a més escriuen a la memòria flash de la "
+        "bateria cada vegada que es fan servir."
+    ),
+    "battery_control.slower": (
+        "\n\nSi continua passant, baixa un esglaó la velocitat de peticions de "
+        "**{name}**, a **{speed}**: a Paràmetres → Dispositius i serveis, tria "
+        "Reconfigura a Omnibattery."
+    ),
+    "battery_control.speed_fast": "Ràpida (2s)",
+    "battery_control.speed_normal": "Normal (3s)",
+    "battery_control.speed_conservative": "Conservadora (5s)",
 }

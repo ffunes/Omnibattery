@@ -311,4 +311,61 @@ TEXTS: dict[str, str | dict[str, str]] = {
         "migriert werden ({error}). Die Batterie bleibt im manuellen Modus bei 0 W. "
         "Halte sie verfügbar und lade Omnibattery neu, um es erneut zu versuchen."
     ),
+    # --- driver notices: control paused, firmware, settings, pacing ---
+    "battery_control.paused_title": "Batteriesteuerung pausiert: {name}",
+    "battery_control.realtime_mode_required": (
+        "Omnibattery hat die Steuerung von **{name}** pausiert, weil sich die "
+        "Batterie nicht im Modus **Realtime** befindet.\n\n"
+        "Öffne die App der Batterie und stelle den Betriebsmodus auf Realtime. "
+        "Omnibattery übernimmt die Steuerung dann automatisch wieder."
+    ),
+    "battery_control.handover_failed": (
+        "Omnibattery konnte die Steuerung von **{name}** nicht übernehmen: Die "
+        "Batterie hat nach einem Stoppbefehl keinen Standby bestätigt. Die "
+        "Überwachung läuft weiter, und es wird automatisch erneut versucht."
+    ),
+    "battery_control.unknown_model": (
+        "**{name}** meldet den Modellcode `{model}`, den Omnibattery noch nicht "
+        "unterstützt. Die Batterie wird überwacht, aber nicht gesteuert. Bitte "
+        "melde den Modellcode, damit er ergänzt werden kann."
+    ),
+    "battery_control.firmware_title": "Batterie-Firmware-Update empfohlen: {name}",
+    "battery_control.firmware": (
+        "**{name}** läuft mit der Firmware `{firmware}`. Der Hersteller empfiehlt für die "
+        "lokale API mindestens `{minimum}`. Die Überwachung funktioniert; "
+        "aktualisiere die Batterie in ihrer App, falls die Steuerung "
+        "Probleme macht."
+    ),
+    "battery_control.setting_title": "Batterieeinstellung nicht übernommen: {name}",
+    "battery_control.setting_failed": (
+        "Omnibattery konnte „{setting}“ von **{name}** nicht auf {value} setzen. Die "
+        "Batterie behält ihren aktuellen Wert, und Omnibattery zeigt und verwendet "
+        "diesen Wert wieder. Versuche es später erneut oder ändere ihn in der "
+        "App der Batterie."
+    ),
+    "battery_control.min_soc": "Minimaler SOC",
+    "battery_control.max_charge_power": "Maximale Ladeleistung",
+    "battery_control.max_discharge_power": "Maximale Entladeleistung",
+    "battery_control.throttled_title": "Batterie langsam: {name}",
+    "battery_control.throttled": (
+        "**{name}** antwortet langsam oder gar nicht, deshalb wartet Omnibattery "
+        "jetzt {interval:.0f}s zwischen den Anfragen. Möglicherweise fragt noch "
+        "etwas anderes die Batterie ab, etwa eine andere Home-Assistant-Integration, "
+        "oder ihre Netzwerkverbindung ist schwach."
+    ),
+    "battery_control.official": (
+        "\n\nDie offizielle Integration des Herstellers fragt diese Batterie ebenfalls ab. "
+        "Omnibattery ist als Ersatz gedacht: Deaktiviere diese Integration "
+        "für dieses Gerät, damit sich die Batterie ihr Anfragebudget nicht teilen "
+        "muss. Deren Bedienelemente (Energiemodus, Entladelimit, Einspeiselimit) "
+        "schreiben außerdem bei jeder Nutzung in den Flash-Speicher der Batterie."
+    ),
+    "battery_control.slower": (
+        "\n\nWenn das öfter passiert, senke die Anfragegeschwindigkeit von "
+        "**{name}** um eine Stufe auf **{speed}**: Wähle unter Einstellungen → "
+        "Geräte & Dienste bei Omnibattery „Neu konfigurieren“."
+    ),
+    "battery_control.speed_fast": "Schnell (2s)",
+    "battery_control.speed_normal": "Normal (3s)",
+    "battery_control.speed_conservative": "Konservativ (5s)",
 }
