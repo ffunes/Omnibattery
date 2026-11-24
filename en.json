@@ -1,0 +1,3037 @@
+{
+  "issues": {
+    "recorder_excluded_sensors": {
+      "title": "Sensors excluded from Recorder",
+      "description": "Recorder excludes these sensors used by Omnibattery to recover solar and household consumption profiles: {sensors}. Include them in Recorder by adjusting its include/exclude rules, then restart Home Assistant to apply the configuration. The warning clears automatically once they are included. Missing past samples cannot be recovered; live learning and existing stored profiles continue to work."
+    },
+    "indevolt_flash_writes_paused": {
+      "title": "Indevolt setting writes paused to protect the battery: {name}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Turn Indevolt setting writes back on",
+            "description": "Omnibattery has written the minimum SOC and power limits of **{name}** {allowance} times in the past year, so it paused writing them. This is a safety net, not a limit on you: it keeps an automation or script that changes these settings too often from quietly wearing out the battery's flash memory, which wears a little with every write. Changes made in the Indevolt app are still picked up.\n\nCheck your automations and scripts for anything that changes these settings often. Then confirm here to turn writing back on; a new allowance of {allowance} writes starts. If the changes were intended, just confirm."
+          }
+        },
+        "abort": {
+          "battery_unavailable": "The battery is not loaded right now. Try again once Omnibattery is connected to it."
+        }
+      }
+    },
+    "excluded_device_ev_type": {
+      "title": "Mark your EV charger among excluded devices",
+      "description": "The new energy-flow diagram (switch it on with the button in the flow card header) draws EV chargers on their own cable, next to the car. Omnibattery cannot tell which excluded device is the EV charger, so until you mark it, its power is shown on the other excluded-devices cable (the outdoor unit) and the EV cable stays empty. Open Options → Excluded devices and save your devices again, ticking \"EV charger\" on the charger (leave it unticked on the others). This only affects how the diagram is drawn, not battery control. The notice disappears once the devices have been saved."
+    },
+    "battery_not_delivering": {
+      "title": "Battery {battery} is not delivering power",
+      "description": "{battery} has been accepting charge/discharge commands without delivering power for {minutes} minutes ({reason}). Omnibattery keeps it out of the pool and retries it every {cooldown} minutes, so the rest of the fleet covers the house meanwhile. The battery itself or its connection needs attention: check that it is not sitting in standby under its own app's control, and that the connection is not saturated. Switching Manual Battery Control on and off again for that battery often restores it."
+    },
+    "nom_manual_unconfirmed": {
+      "title": "{battery} could not be stopped",
+      "description": "Omnibattery asked {battery} to go to Manual and it does not show that mode, so it may still be charging or discharging on its own. A grid charge of the other batteries goes ahead anyway: the worst case is that {battery} discharges into it. Omnibattery keeps trying and this notice clears by itself once the battery shows Manual. Check that the integration that reads {battery} is working and that its mode entity can be changed by hand."
+    },
+    "nom_restore_failed": {
+      "title": "{battery} does not go back to NOM",
+      "description": "You chose NOM for {battery} and several tries to switch it have failed, so it stays in Manual and does nothing. Omnibattery keeps trying and this notice clears by itself. Check that the integration that reads {battery} is working and that its mode entity can be changed by hand."
+    },
+    "nom_telemetry_lost": {
+      "title": "The power of {battery} cannot be read",
+      "description": "{battery} is set to NOM but Omnibattery has had no reading of its power for several minutes, so it is being held in Manual. While Manual is not confirmed either, the other batteries do not discharge: they might be feeding a charge nobody can see. Check the integration that reads {battery}. Everything goes back to normal by itself when the reading returns."
+    },
+    "nom_cross_charge": {
+      "title": "{battery} keeps discharging into another battery",
+      "description": "At least three times in the last hour {battery} was discharging while another battery was charging, and it had to be stopped. Energy moved between batteries is paid for twice. Look for something else that commands one of them: the schedule of the battery's own app, an automation, or two regulators with different targets on the same meter."
+    },
+    "configured_sensor_missing": {
+      "title": "Configured sensor no longer exists",
+      "description": "Omnibattery is configured with {sensors}, which does not exist in Home Assistant. Every feature that reads it is inactive. The stored reference is kept on purpose, because the entity picker cannot show an entity that is gone and would otherwise clear your setting silently: open Options → Sensors and pick a replacement, or clear the field once the entity is back."
+    },
+    "dead_main_sensor": {
+      "title": "Grid power sensor has stopped publishing",
+      "description": "The configured grid sensor {sensor} has not published a reading for {minutes} minutes. Omnibattery cannot regulate without it, so it has stopped automatic control: every battery under automatic control is set to 0W (the last command was {power}W) and predictive grid charging is paused. Manual mode and manual time slots are left as they are. Automatic control resumes by itself as soon as {sensor} publishes a valid reading again. Note that a sensor frozen on a valid value looks perfectly healthy in Home Assistant: check that {sensor} still updates, and that the integration or bridge behind it has not wedged."
+    },
+    "dead_main_sensor_since_start": {
+      "title": "Grid power sensor has not reported since the restart",
+      "description": "The configured grid sensor {sensor} has not published a valid reading in the {minutes} minutes since Home Assistant started. Omnibattery cannot regulate without it. If Home Assistant did not shut down cleanly, a battery can still be running its last command from before the restart, so Omnibattery has stopped automatic control: every battery under automatic control is set to 0W and predictive grid charging is paused. Manual mode and manual time slots are left as they are. Automatic control starts by itself as soon as {sensor} publishes a valid reading. Check that {sensor} exists and updates, and that the integration or device behind it came back after the restart."
+    },
+    "slow_main_sensor": {
+      "title": "Grid power sensor updates too slowly",
+      "description": "The configured grid sensor {sensor} updates about every {observed_interval} seconds. Updates every {warning_interval} seconds or more are slower than recommended and may reduce regulation quality. Omnibattery still follows the latest reading until it is more than {stale_limit} seconds old. Use a faster sensor if you need tighter real-time control."
+    },
+    "planner_fallback": {
+      "title": "Charge planner fell back to cheapest-hour selection",
+      "description": "The chronological charge planner failed ({error}). Predictive charging keeps working, but it now books the cheapest hours without knowing when the energy is needed, so it may charge at odd times. Please report it on GitHub with the integration's diagnostics. This message clears itself once the planner works again."
+    },
+    "price_data_unusable": {
+      "title": "Price data unusable",
+      "description": "Omnibattery could not parse usable price slots from {sensor} for over {minutes} minutes (status: {status}). Price-aware charging is inactive: dynamic-pricing scheduling and the price-aware charge-delay release fall back to their no-price behaviour. Check that the sensor is available and that its price attribute is a list of entries; a template sensor must emit ISO-8601 timestamps, because a rendered Python datetime cannot be converted back into a list."
+    },
+    "solar_forecast_unusable": {
+      "title": "Solar forecast unusable",
+      "description": "The configured solar forecast sensor {sensor} has been unavailable or unreadable for over {minutes} minutes. Omnibattery keeps running, but every feature that depends on the forecast is now blind: the charge delay unlocks for the rest of the day, grid-charge decisions assume no sun at all and may book grid slots you do not need, and remaining-solar estimates read as 0 kWh. Check the sensor or the integration that provides it."
+    },
+    "solar_forecast_remaining_recommended": {
+      "title": "Use a remaining solar forecast",
+      "description": "{sensor} is a legacy whole-day solar forecast. Omnibattery still supports it, but past forecast errors can make intraday decisions inaccurate. Configure the provider's \"remaining today\" forecast sensor in Omnibattery options for a more accurate remaining-solar calculation."
+    },
+    "three_phase_sensor_degraded": {
+      "title": "Three-phase protection is running blind on {phase}",
+      "description": "The current sensor {sensor} for {phase} has been unreadable for several minutes ({reason}). Charging on that phase is blocked and its discharge is held at the last measured value, because cutting it would push that phase's current up instead of down. Check that the sensor still reports, and that it reports periodically rather than only when its value changes."
+    },
+    "three_phase_manual_mode": {
+      "title": "Three-phase protection can be bypassed by manual commands",
+      "description": "Three-phase protection is enabled, but manual register or manual time-slot commands can write directly to a battery without the automatic phase envelope. Keep those commands within the configured phase limits."
+    }
+  },
+  "config": {
+    "step": {
+      "migrate_legacy": {
+        "title": "Migrate from Marstek Venus",
+        "description": "Found {count} existing Marstek Venus configuration(s). Migrating to Omnibattery keeps all your entities, history and settings intact. Continue?"
+      },
+      "user": {
+        "title": "Configure Omnibattery",
+        "description": "Select the sensor that measures grid import/export power. Optionally, configure the solar forecast sensor for advanced features.",
+        "data": {
+          "consumption_sensor": "Grid consumption sensor",
+          "offgrid_power_sensor": "Off-grid power sensor (optional)",
+          "offgrid_meter_inverted": "Off-grid meter sign inverted",
+          "solar_forecast_sensor": "Whole-day solar forecast sensor (legacy)",
+          "solar_forecast_remaining_sensor": "Solar forecast remaining today sensor (recommended)",
+          "solar_production_sensor": "Solar production sensor (optional)",
+          "meter_inverted": "Inverted meter sign",
+          "max_contracted_power": "Maximum grid import (W)",
+          "three_phase_enabled": "Enable three-phase current protection"
+        },
+        "data_description": {
+          "consumption_sensor": "Real-time sensor for imported (+) or exported (-) grid power. Updates every 1-2 seconds are recommended. Slower sensors are accepted, but delayed readings reduce regulation quality; the latest reading is followed for up to 65 seconds.",
+          "offgrid_power_sensor": "Separate W/kW meter for the backed-up circuit. It must differ from the normal grid sensor. Configuring it exposes a software switch that selects this source for control and statistics; it does not enable the battery's physical off-grid/EPS port.",
+          "offgrid_meter_inverted": "Enable when the off-grid sensor uses the opposite convention: positive = export and negative = consumption. This setting applies only while off-grid meter mode is active.",
+          "solar_forecast_sensor": "Legacy sensor providing the whole-day solar forecast. Existing installations can keep using it during the transition; prefer Remaining Today for new configurations.",
+          "solar_forecast_remaining_sensor": "Sensor providing solar production still expected today in kWh. Saving it replaces the legacy whole-day forecast and it is never reduced by production already measured.",
+          "solar_production_sensor": "Real-time PV production power sensor (W/kW) from an external inverter not wired through the battery MPPT inputs. Used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your panels feed the battery MPPT directly.",
+          "meter_inverted": "Enable this option if your meter uses the opposite convention: positive = export, negative = import. The unit (W/kW) is detected automatically.",
+          "max_contracted_power": "Most power you want to draw from the grid, in watts: your contracted power (ICP) or, with a capacity tariff, your monthly peak. Grid charging stays under it, and the battery covers the house above it.",
+          "three_phase_enabled": "Optional safety envelope for three-phase installations. Configure one signed RMS current sensor in A, one fuse-size limit in A and the physical battery phase for each circuit in the next step."
+        }
+      },
+      "three_phase": {
+        "title": "Three-phase current protection",
+        "description": "Configure one signed RMS current sensor and one fuse-size limit in amperes for each phase you want to protect. Leave both fields empty for unused phases. Sensors must be distinct Home Assistant sensor entities with A or mA units; positive means grid import and negative means grid export.",
+        "data": {
+          "phase_1_current_sensor": "L1 grid current sensor",
+          "phase_2_current_sensor": "L2 grid current sensor",
+          "phase_3_current_sensor": "L3 grid current sensor",
+          "phase_1_fuse_size": "L1 fuse size (A)",
+          "phase_2_fuse_size": "L2 fuse size (A)",
+          "phase_3_fuse_size": "L3 fuse size (A)"
+        },
+        "data_description": {
+          "phase_1_current_sensor": "Real-time signed RMS current on physical phase L1. Positive import, negative export; A and mA are accepted.",
+          "phase_2_current_sensor": "Real-time signed RMS current on physical phase L2. Positive import, negative export; A and mA are accepted.",
+          "phase_3_current_sensor": "Real-time signed RMS current on physical phase L3. Positive import, negative export; A and mA are accepted.",
+          "phase_1_fuse_size": "Fuse rating/current limit for L1 in amperes. Enter a value below the nameplate rating to leave margin for latency and transient peaks.",
+          "phase_2_fuse_size": "Fuse rating/current limit for L2 in amperes. Enter a value below the nameplate rating to leave margin for latency and transient peaks.",
+          "phase_3_fuse_size": "Fuse rating/current limit for L3 in amperes. Enter a value below the nameplate rating to leave margin for latency and transient peaks."
+        }
+      },
+      "phase_assignments": {
+        "title": "Battery {battery_num} phase assignment",
+        "description": "Select the physical AC phase where {battery_name} is connected, or choose Unassigned if it is not connected to a protected phase. Omnibattery cannot discover this wiring automatically.",
+        "data": {
+          "battery_phase": "Physical battery phase"
+        }
+      },
+      "batteries": {
+        "title": "Number of batteries",
+        "description": "How many batteries do you have installed?",
+        "data": {
+          "num_batteries": "Number of batteries"
+        }
+      },
+      "battery_brand": {
+        "title": "Battery {battery_num} — Brand",
+        "description": "Select the brand and type of battery {battery_num}.",
+        "data": {
+          "brand": "Brand"
+        },
+        "data_description": {
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
+        }
+      },
+      "battery_connection": {
+        "title": "Configure battery {battery_num} — Connection (Marstek)",
+        "description": "Enter connection details and battery model for battery {battery_num}.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID",
+          "battery_version": "Battery Model",
+          "serial_port": "Serial port (Modbus RTU)",
+          "rs485_gateway": "Reached through an RS485 gateway"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the battery on your local network. Leave empty if you use a serial port.",
+          "port": "Modbus port (usually 502)",
+          "slave_id": "Modbus slave/unit id (default 1). Change only when a Modbus proxy maps several batteries to one IP:port using distinct slave ids.",
+          "battery_version": "Select your battery model version. Ev2 for older models, Ev3 for newer models with updated register map, A (Venus A) or D (Venus D) for hybrid inverter models",
+          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP.",
+          "rs485_gateway": "Tick when the Modbus TCP connection goes to an RS485 gateway (Elfin EW11, USB-RS485 bridge, ...) instead of the battery's own TCP port. The wait between messages only exists in the battery's TCP server, so dropping it to 30 ms makes polling roughly three times faster on a Venus Ev3/A/D. The wait is applied per battery: on a gateway shared by several batteries the bus carries that many times the traffic, so untick it again if reads start failing or timing out. Leave off when you connect straight to the battery's IP."
+        }
+      },
+      "battery_connection_zendure": {
+        "title": "Configure battery {battery_num} — Connection (Zendure)",
+        "description": "Enter connection details for the Zendure SolarFlow battery {battery_num}. Keep HEMS disabled in the Zendure app for Omnibattery control.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Zendure device on your local network",
+          "port": "HTTP port (default 80)"
+        }
+      },
+      "battery_connection_hoymiles": {
+        "title": "Configure battery {battery_num} — Connection (Hoymiles)",
+        "description": "Enable MQTT Service in S-Miles Home and point it to Home Assistant's configured MQTT broker before continuing.",
+        "data": {"name": "Name", "device_id": "MQTT device ID", "hoymiles_model": "Battery model"},
+        "data_description": {"device_id": "Hoymiles MQTT device ID, for example MSA-280024341346.", "hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."}
+      },
+      "battery_connection_esphome": {
+        "title": "Configure battery {battery_num} — Connection (LilyGo/ESPHome)",
+        "description": "Select the ESPHome device (LilyGo RS485 bridge) that exposes Marstek battery {battery_num}. It must run the marstek-lilygo-rs485 firmware with the stock entity names.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome device"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "esphome_device": "The LilyGo T-CAN485 device flashed with the Marstek ESPHome firmware"
+        }
+      },
+      "battery_connection_generic_ha": {
+        "title": "Configure battery {battery_num} — Home Assistant entities",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
+        "data": {
+          "name": "Name",
+          "ha_soc_entity": "State of charge sensor",
+          "ha_power_entity": "Battery power sensor",
+          "ha_power_positive_is": "Power sign convention",
+          "ha_charge_energy_entities": "Charged energy counters",
+          "ha_discharge_energy_entity": "Discharged energy counter",
+          "ha_target_soc_entity": "Target state of charge",
+          "ha_mode_entity": "Operating mode entity",
+          "ha_stale_after_s": "Treat telemetry as lost after"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
+          "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
+          "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
+          "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Battery {battery_num} — operating mode",
+        "description": "Which state of {entity} means that the battery regulates on its own, and which one means that it rests? Battery {battery_num} starts in Manual; you change it later with its Operating mode select.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zero on the meter)",
+          "ha_mode_manual_option": "Manual (the battery rests)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "The battery charges and discharges by itself to keep its meter at 0 W",
+          "ha_mode_manual_option": "The battery neither charges nor discharges"
+        }
+      },
+      "battery_limits": {
+        "title": "Configure battery {battery_num} — Limits",
+        "description": "Enter power and SOC limits for battery {battery_num}.",
+        "data": {
+          "max_charge_power": "Maximum charge power (W)",
+          "max_discharge_power": "Maximum discharge power (W)",
+          "max_soc": "Maximum SOC (%)",
+          "min_soc": "Minimum SOC (%)",
+          "charge_hysteresis_percent": "Charge hysteresis (%)",
+          "full_charge_voltage_taper_enabled": "Enable 100% charge voltage taper",
+          "battery_capacity_kwh": "Battery nominal capacity (kWh)",
+          "battery_phase": "Physical battery phase",
+          "dc_pv_connected": "Solar panels are connected directly to this battery",
+          "track_mac": "Re-find this battery by its MAC address if its IP address changes",
+          "mac": "MAC Address"
+        },
+        "data_description": {
+          "max_charge_power": "Maximum power allowed to charge the battery",
+          "max_discharge_power": "Maximum power allowed to discharge the battery",
+          "max_soc": "Maximum state of charge - battery won't charge above this value",
+          "min_soc": "Minimum state of charge - battery won't discharge below this value",
+          "charge_hysteresis_percent": "Always on (minimum 2%). After reaching the top, the battery won't charge again until SOC drops to (Max SOC − hysteresis). Ex: Max SOC 100% with 2% = no charge until 98%.",
+          "full_charge_voltage_taper_enabled": "When the target is 100%, limit charge to 200 W from 3.48 V max cell voltage. Venus E models stop at 3.60 V to measure imbalance after 60 seconds; Venus A/D with coupled packs keep charging at 200 W until the BMS cuts off.",
+          "battery_capacity_kwh": "Nominal usable capacity of the battery pack. Used to calculate stored energy and efficiency from SOC. Set 0 for automatic detection from supported battery models/packs. Enter a positive value to override detection or if the packs are unknown. Sessy requires its actual capacity.",
+          "battery_phase": "Physical AC phase (L1/L2/L3) where this battery is wired, or Unassigned when it is outside the protected phase layout. An unassigned battery is outside the three-phase envelope and continues normal automatic operation.",
+          "dc_pv_connected": "Venus A/D only. Enable this when solar panels are wired to the battery's MPPT inputs. Disable it when those inputs are unused so battery power remains based on AC power without adding MPPT production.",
+          "track_mac": "The MAC address is the battery's permanent hardware address: unlike the IP address above, it never changes. Home Assistant uses it to find the battery again and update the IP address by itself. Behind a Wi-Fi-to-LAN bridge or a powerline adapter the address you see is the adapter's own, shared with everything behind it, so tracking only works while a single battery sits behind that adapter.",
+          "mac": "Permanent hardware address of the interface the battery uses on your network. Take it from your router's device list: a battery can report a different MAC than the one its wired interface actually uses. Filled in automatically when Home Assistant's DHCP cache is available."
+        }
+      },
+      "time_slots": {
+        "title": "Time slots",
+        "description": "Do you want to configure time slots? Each slot can independently control when batteries are allowed to charge or discharge. Without slots, they operate at all times.",
+        "data": {
+          "configure_time_slots": "Configure time slots"
+        }
+      },
+      "add_time_slot": {
+        "title": "Time slot {slot_num}",
+        "description": "Define when and how the batteries are allowed to operate. The ticks control each direction, SOC and power. Manual mode forces an exact power, bypassing the PD algorithm.",
+        "data": {
+          "start_time": "Start time",
+          "end_time": "End time",
+          "days": "Days of the week",
+          "battery_scope": "Target battery",
+          "allow_charge": "Allow charge",
+          "allow_discharge": "Allow discharge",
+          "soc_override_enabled": "Override slot SOC max/min",
+          "power_override_enabled": "Override slot max charge/discharge power",
+          "mode": "Operation mode"
+        },
+        "data_description": {
+          "start_time": "Slot start time (24h). Midnight crossing supported.",
+          "end_time": "Slot end time (24h).",
+          "days": "Days when this slot applies.",
+          "battery_scope": "Select 'all' to apply to every battery, or pick a specific one.",
+          "allow_charge": "If checked, charge is allowed during the slot. If NO slot allows charge, charge is unrestricted by default.",
+          "allow_discharge": "If checked, discharge is allowed during the slot. If NO slot allows discharge, discharge is unrestricted by default.",
+          "soc_override_enabled": "If checked, the slot overrides the battery's max/min SOC inside the window.",
+          "power_override_enabled": "If checked, the slot limits or forces the max power.",
+          "mode": "PD: the predictive algorithm caps power using the slot value. Manual: forced discharge or charge at the configured power."
+        }
+      },
+      "add_time_slot_details": {
+        "title": "Slot {slot_num} details",
+        "description": "Configure SOC and/or power limits per battery. Every battery has its own sliders. Mapping: {battery_map}. SOC min range: 12–30%. SOC max range: 80–100%. Power range: 100 W up to each battery’s hardware max.",
+        "data": {
+          "battery_1__soc_min": "Battery 1 — Min SOC (%)",
+          "battery_1__soc_max": "Battery 1 — Max SOC (%)",
+          "battery_1__max_charge_power_w": "Battery 1 — Max charge power",
+          "battery_1__max_discharge_power_w": "Battery 1 — Max discharge power",
+          "battery_2__soc_min": "Battery 2 — Min SOC (%)",
+          "battery_2__soc_max": "Battery 2 — Max SOC (%)",
+          "battery_2__max_charge_power_w": "Battery 2 — Max charge power",
+          "battery_2__max_discharge_power_w": "Battery 2 — Max discharge power",
+          "battery_3__soc_min": "Battery 3 — Min SOC (%)",
+          "battery_3__soc_max": "Battery 3 — Max SOC (%)",
+          "battery_3__max_charge_power_w": "Battery 3 — Max charge power",
+          "battery_3__max_discharge_power_w": "Battery 3 — Max discharge power",
+          "battery_4__soc_min": "Battery 4 — Min SOC (%)",
+          "battery_4__soc_max": "Battery 4 — Max SOC (%)",
+          "battery_4__max_charge_power_w": "Battery 4 — Max charge power",
+          "battery_4__max_discharge_power_w": "Battery 4 — Max discharge power",
+          "battery_5__soc_min": "Battery 5 — Min SOC (%)",
+          "battery_5__soc_max": "Battery 5 — Max SOC (%)",
+          "battery_5__max_charge_power_w": "Battery 5 — Max charge power",
+          "battery_5__max_discharge_power_w": "Battery 5 — Max discharge power",
+          "battery_6__soc_min": "Battery 6 — Min SOC (%)",
+          "battery_6__soc_max": "Battery 6 — Max SOC (%)",
+          "battery_6__max_charge_power_w": "Battery 6 — Max charge power",
+          "battery_6__max_discharge_power_w": "Battery 6 — Max discharge power",
+          "battery_7__soc_min": "Battery 7 — Min SOC (%)",
+          "battery_7__soc_max": "Battery 7 — Max SOC (%)",
+          "battery_7__max_charge_power_w": "Battery 7 — Max charge power",
+          "battery_7__max_discharge_power_w": "Battery 7 — Max discharge power",
+          "battery_8__soc_min": "Battery 8 — Min SOC (%)",
+          "battery_8__soc_max": "Battery 8 — Max SOC (%)",
+          "battery_8__max_charge_power_w": "Battery 8 — Max charge power",
+          "battery_8__max_discharge_power_w": "Battery 8 — Max discharge power",
+          "battery_9__soc_min": "Battery 9 — Min SOC (%)",
+          "battery_9__soc_max": "Battery 9 — Max SOC (%)",
+          "battery_9__max_charge_power_w": "Battery 9 — Max charge power",
+          "battery_9__max_discharge_power_w": "Battery 9 — Max discharge power",
+          "battery_10__soc_min": "Battery 10 — Min SOC (%)",
+          "battery_10__soc_max": "Battery 10 — Max SOC (%)",
+          "battery_10__max_charge_power_w": "Battery 10 — Max charge power",
+          "battery_10__max_discharge_power_w": "Battery 10 — Max discharge power"
+        }
+      },
+      "add_more_slots": {
+        "title": "Add more time slots",
+        "description": "You currently have {current_slots} configured slot(s). You can add up to {max_slots} slots in total.",
+        "data": {
+          "add_more": "Add another time slot"
+        }
+      },
+      "excluded_devices": {
+        "title": "Special Device Management",
+        "description": "Configure devices with special management: you can EXCLUDE devices that should NOT be powered by battery, or ADD devices that SHOULD be powered by battery even if they're not in the home consumption sensor.",
+        "data": {
+          "configure_excluded_devices": "Configure special devices"
+        }
+      },
+      "add_excluded_device": {
+        "title": "Special Device {device_num}",
+        "description": "Configure how the battery should manage this device.",
+        "data": {
+          "power_sensor": "Device power sensor",
+          "activity_sensor": "Device active / EV charging sensor",
+          "included_in_consumption": "Consumption is included in home consumption sensor",
+          "allow_solar_surplus": "Allow to use solar surplus (do not charge battery)",
+          "dynamic_power_control": "Device has dynamic power control",
+          "cover_home_when_active": "Cover home while device is active",
+          "ev_charger_no_telemetry": "EV charger without power telemetry",
+          "is_ev_charger": "EV charger (flow diagram only)",
+          "remaining_demand_sensor": "Expected remaining demand (kWh)",
+          "remaining_demand_presence_sensor": "Presence entity for the remaining demand (optional)"
+        },
+        "data_description": {
+          "power_sensor": "Numeric power sensor (W) for the device. Optional for EV chargers without power telemetry; existing configurations that stored the charging-state sensor here remain supported.",
+          "activity_sensor": "State or binary sensor that becomes 'on' or reports 'Charging'/'Cargando' when the device requests power. Required for Dynamic Power Control and for a new EV charger without power telemetry.",
+          "included_in_consumption": "✓ CHECKED = Home sensor ALREADY includes this device → Battery will NOT power it (excluded). ✗ UNCHECKED = Home sensor doesn't see it → Battery WILL power it (additional)",
+          "allow_solar_surplus": "If checked, the device will be able to consume energy directly from solar panels (surplus) without the battery trying to compensate. Recommended for high consumption devices like EV chargers.",
+          "dynamic_power_control": "Enable for devices that automatically adjust their own demand from the grid meter, such as a solar-surplus wallbox. If an activity sensor is configured, Omnibattery yields before power appears; otherwise it reacts to the power sensor. It then uses genuine leftover export.",
+          "cover_home_when_active": "Requires Solar Surplus and a solar-production sensor. The battery may cover the home's own load while this device is active; only the device's grid share stays excluded.",
+          "ev_charger_no_telemetry": "✓ CHECKED = Use the Activity / EV charging sensor instead of numeric power telemetry. Existing configurations that placed this state sensor in Device power sensor continue to work. When charging is detected, the battery pauses for 5 minutes; afterwards it may only charge from solar surplus and never discharges for the EV.",
+          "is_ev_charger": "Tick it if this device is an electric-vehicle charger. It is used only by the animated energy-flow diagram, to draw the device on the EV charger cable instead of the excluded-devices cable. It does not change how the battery manages the device.",
+          "remaining_demand_sensor": "Optional. Sensor reporting the energy (kWh) this device still expects to consume today, for example sensor.evcc_[loadpoint]_charge_remaining_energy. Predictive charging then reserves that much of the remaining solar forecast for the device instead of assuming the battery receives it. Only used when 'Consumption is included in home consumption sensor' is checked. Devices marked 'EV charger without power telemetry' are skipped: their energy is already inside the consumption forecast, so reserving it would count it twice.",
+          "remaining_demand_presence_sensor": "Only count the expected remaining demand while this entity reports the device as present: on, true, home, connected, plugged or present. Leave empty to always count it. Point it at your charger's connected entity when the upstream keeps reporting a demand with nothing plugged in: evcc reports the energy to the vehicle's SOC target whether or not a car is there, and reserving solar for an absent car takes it from the battery for nothing. An unavailable or unknown entity counts as absent, so a broken sensor stops reserving rather than reserving for a device that may not be there."
+        }
+      },
+      "add_more_excluded_devices": {
+        "title": "Add more excluded devices",
+        "description": "You currently have {current_devices} excluded device(s). You can add up to {max_devices} devices total.",
+        "data": {
+          "add_more": "Add another excluded device"
+        }
+      },
+      "predictive_charging": {
+        "title": "Predictive Grid Charging",
+        "description": "Do you want to enable intelligent grid charging? This feature allows charging batteries from the grid during off-peak hours when today's solar forecast is insufficient.",
+        "data": {
+          "configure_predictive_charging": "Configure predictive charging"
+        }
+      },
+      "predictive_charging_mode": {
+        "title": "Predictive Charging Mode",
+        "description": "Select how the system decides when to charge from the grid.",
+        "data": {
+          "predictive_charging_mode": "Charging mode"
+        },
+        "data_description": {
+          "predictive_charging_mode": "Time Slot: charge during a fixed nightly window. Dynamic Pricing: automatically select the cheapest hours from a price sensor. Real-Time Price: activate charging instantly whenever the current price is below a threshold — no scheduling needed."
+        }
+      },
+      "predictive_charging_config": {
+        "title": "Predictive Charging — Time Slot",
+        "description": "Configure when and how to charge batteries from the grid based on solar forecast. You can set up to 3 charging windows — fill only window 1 to keep a single window, or add windows 2 and 3 as needed.",
+        "data": {
+          "start_time": "Window 1 — start time (off-peak tariff)",
+          "end_time": "Window 1 — end time (off-peak tariff)",
+          "days": "Window 1 — days of the week",
+          "start_time_2": "Window 2 — start time (optional)",
+          "end_time_2": "Window 2 — end time (optional)",
+          "days_2": "Window 2 — days of the week",
+          "start_time_3": "Window 3 — start time (optional)",
+          "end_time_3": "Window 3 — end time (optional)",
+          "days_3": "Window 3 — days of the week",
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
+        },
+        "data_description": {
+          "start_time": "Start time of charging window (e.g., 01:00, off-peak tariff)",
+          "end_time": "End time of charging window (e.g., 06:00)",
+          "days": "Days when grid charging is allowed. For a window that crosses midnight, each selected day runs its early-morning part (until the end time) and its night part (from the start time).",
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "dynamic_pricing_config": {
+        "title": "Predictive Charging — Dynamic Pricing",
+        "description": "Configure the electricity price sensor and parameters for automatic cheap-hour selection.",
+        "data": {
+          "price_integration_type": "Price integration",
+          "price_sensor": "Electricity price sensor",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
+          "zonneplan_export_bonus_enabled": "Apply Zonneplan export bonus",
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
+        },
+        "data_description": {
+          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
+          "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
+          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus. Has no effect unless the effective export price integration is Zonneplan.",
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "realtime_price_config": {
+        "title": "Predictive Charging — Real-Time Price",
+        "description": "Configure the price sensor and threshold. The system reads the current price every few seconds and starts or stops grid charging immediately — no daily schedule needed.",
+        "data": {
+          "price_sensor": "Electricity price sensor",
+          "average_price_sensor": "Daily average price sensor (optional)",
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
+        },
+        "data_description": {
+          "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
+          "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "weekly_full_charge": {
+        "title": "Weekly Full Charge",
+        "description": "Do you want to enable weekly full battery charge for cell balancing? This feature charges batteries to 100% once per week to balance the cells.",
+        "data": {
+          "configure_weekly_full_charge": "Configure weekly full charge"
+        }
+      },
+      "weekly_full_charge_config": {
+        "title": "Weekly Full Charge Configuration",
+        "description": "Select the day of the week when batteries should charge to 100% for cell balancing. After reaching 100%, the system reverts to your configured maximum charge limit.",
+        "data": {
+          "weekly_full_charge_day": "Day of the week"
+        },
+        "data_description": {
+          "weekly_full_charge_day": "Day when batteries will charge to 100% regardless of configured max SOC. This helps balance battery cells."
+        }
+      },
+      "charge_delay": {
+        "title": "Solar charge delay",
+        "description": "Enable solar charge delay? This delays battery charging until the solar energy balance indicates it's needed, exporting excess solar to grid in the meantime.",
+        "data": {
+          "configure_charge_delay": "Configure charge delay"
+        }
+      },
+      "charge_delay_config": {
+        "title": "Charge delay configuration",
+        "description": "Configure the safety margin and solar forecast sensor for the charge delay.",
+        "data": {
+          "delay_safety_margin_h": "Safety margin (hours)",
+          "delay_soc_setpoint_enabled": "Enable minimum SOC before delay",
+          "delay_soc_setpoint": "Minimum SOC (%)",
+          "solar_forecast_sensor": "Solar forecast sensor"
+        },
+        "data_description": {
+          "delay_safety_margin_h": "Hours before sunset by which charging must be complete. Higher values unlock charging earlier.",
+          "delay_soc_setpoint_enabled": "When enabled, the battery charges freely up to the configured SOC; above it the solar delay activates.",
+          "delay_soc_setpoint": "The SOC the battery must reach before the solar delay kicks in. Minimum is 12 % — the Venus battery minimum discharge SOC.",
+          "solar_forecast_sensor": "Sensor providing solar production forecast in kWh (e.g., Solcast). Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "temp_charge_limit": {
+        "title": "Temperature charge limit",
+        "description": "Reduce charge power when a battery gets hot? Above a temperature limit charging is throttled proportionally and restored as the battery cools.",
+        "data": {
+          "configure_temp_charge_limit": "Configure temperature charge limit"
+        }
+      },
+      "temp_charge_limit_config": {
+        "title": "Temperature charge limit configuration",
+        "description": "Set the temperature at which charging starts to throttle, the band over which it ramps down, and the minimum charge power (as a percentage of normal).",
+        "data": {
+          "temp_charge_limit_c": "Temperature limit (°C)",
+          "temp_charge_limit_band_c": "Ramp band (°C)",
+          "temp_charge_limit_floor_pct": "Minimum charge power (%)",
+          "temp_limit_apply_discharge": "Also throttle discharge"
+        },
+        "data_description": {
+          "temp_charge_limit_c": "Charging runs at full power at or below this temperature; above it the derate begins.",
+          "temp_charge_limit_band_c": "Temperature range above the limit over which charge power ramps down to the minimum.",
+          "temp_charge_limit_floor_pct": "Charge power at the limit plus the band, as a percentage of the normal charge ceiling. 0% stops charging entirely when very hot.",
+          "temp_limit_apply_discharge": "Apply the same temperature derate to discharge power. Discharge tolerates heat better, so this shares the charge threshold as a compromise; mainly it keeps discharge under the BMS hard cutoff."
+        }
+      },
+      "capacity_protection": {
+        "title": "Peak Shaving Mode",
+        "description": "When enabled, if battery SOC drops below a threshold, the battery keeps its remaining charge for peaks: it stops covering ordinary consumption and only covers the load above the Maximum grid import.",
+        "data": {
+          "configure_capacity_protection": "Enable peak shaving"
+        }
+      },
+      "capacity_protection_config": {
+        "title": "Peak Shaving Configuration",
+        "description": "Set the SOC threshold below which the battery keeps its remaining charge for peaks and only covers consumption above the Maximum grid import.",
+        "data": {
+          "capacity_protection_soc_threshold": "SOC Threshold (%)"
+        },
+        "data_description": {
+          "capacity_protection_soc_threshold": "When average battery SOC drops below this value, the battery stops covering ordinary consumption and only covers the load above the Maximum grid import."
+        }
+      },
+      "hourly_balance": {
+        "title": "Hourly Net Balance",
+        "description": "Enable hourly net balance control? This feature tracks grid import/export per hour and automatically adjusts the battery setpoint to achieve a target net energy balance.\n\n⚠️ **This feature is only useful in Spain**, under the hourly surplus-compensation scheme (Royal Decree 244/2019), where grid surplus is settled hour by hour. In markets with feed-in tariffs or annual net metering it provides no benefit and may cause lost export revenue and unnecessary battery cycling.\n\nDetected Home Assistant country: **{country}**.",
+        "data": {
+          "configure_hourly_balance": "Configure hourly net balance"
+        }
+      },
+      "pd_advanced": {
+        "title": "Advanced PD Controller Parameters",
+        "description": "Configure advanced PD controller parameters for expert tuning of battery charge/discharge behavior. Only modify these if you understand PID control theory. Default values work well for most installations.",
+        "data": {
+          "configure_pd_advanced": "Configure advanced PD controller parameters"
+        }
+      },
+      "pd_advanced_config": {
+        "title": "PD Controller Configuration",
+        "description": "Tune the Proportional-Derivative controller that manages battery power adjustments.",
+        "data": {
+          "pd_kp": "Kp - Proportional Gain",
+          "pd_kd": "Kd - Derivative Gain",
+          "pd_deadband": "Deadband (W)",
+          "pd_max_power_change": "Max Power Change per Cycle (W)",
+          "pd_direction_hysteresis": "Direction Hysteresis (W)",
+          "pd_min_charge_power": "Minimum Charge Power (W)",
+          "pd_min_discharge_power": "Minimum Discharge Power (W)",
+          "pd_target_grid_power": "Target Grid Power (W)",
+          "enable_system_power_limits": "Enable system power limits",
+          "system_max_charge_power": "System Max Charge Power (W)",
+          "system_max_discharge_power": "System Max Discharge Power (W)"
+        },
+        "data_description": {
+          "pd_kp": "Responsiveness to grid imbalance. Higher values = faster response but risk of overshoot. Range: 0.1-2.0, default: 0.65",
+          "pd_kd": "Damping to prevent oscillation. Higher values = smoother transitions but slower settling. Range: 0.0-2.0, default: 0.5",
+          "pd_deadband": "Grid power tolerance around zero. Prevents micro-adjustments to minor fluctuations. Range: 0-200W, default: 40W",
+          "pd_max_power_change": "Maximum battery power change per control cycle (2.5s). Prevents abrupt commands. Range: 100-2000W, default: 800W",
+          "pd_direction_hysteresis": "Power threshold required to switch between charging and discharging. Prevents rapid direction changes. Range: 0-200W, default: 60W",
+          "pd_min_charge_power": "Minimum power for charging. Below this threshold, the controller stays idle instead of charging at low power. 0 = disabled.",
+          "pd_min_discharge_power": "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
+          "pd_target_grid_power": "Grid power setpoint the controller regulates to. Positive = import from grid (battery charges), negative = export to grid (battery discharges), 0 = net zero. The export range follows your total configured battery power, narrowed by the system power limits when enabled; the import range reaches your contracted power when it is set, since the house draws from the same meter. Default: 0 W.",
+          "enable_system_power_limits": "When enabled, the two sliders below cap the combined charge/discharge power of all active batteries.",
+          "system_max_charge_power": "Optional cap for combined charge power across all active batteries. 0 = disabled; per-battery limits still apply.",
+          "system_max_discharge_power": "Optional cap for combined discharge power across all active batteries. 0 = disabled; per-battery limits still apply."
+        }
+      },
+      "hourly_balance_config": {
+        "title": "Hourly Balance Configuration",
+        "description": "Configure the target net energy balance and control parameters. The system will adjust battery power to achieve the target Wh balance each hour.",
+        "data": {
+          "hourly_balance_target_net_wh": "Target net balance (kWh)",
+          "hourly_balance_max_offset_w": "Maximum offset (W)",
+          "hourly_balance_deadband_wh": "Net balance tolerance (kWh)",
+          "hourly_balance_hysteresis_w": "Offset hysteresis (W)"
+        },
+        "data_description": {
+          "hourly_balance_target_net_wh": "Target net energy balance per hour. 0 = net zero (default). Positive = allow import, negative = target export.",
+          "hourly_balance_max_offset_w": "Maximum power offset the controller can apply. The slider ceiling is the combined discharge power of all configured batteries.",
+          "hourly_balance_deadband_wh": "Tolerance band around the target. No correction is applied when the net balance is within ±N kWh of the target. 0 = exact correction.",
+          "hourly_balance_hysteresis_w": "Minimum change in offset required before a new correction is applied. Prevents micro-adjustments every cycle. 0 = apply every cycle. Default: 15 W."
+        }
+      },
+      "reconfigure_battery": {
+        "title": "Reconfigure battery {battery_num} — Connection (Marstek)",
+        "description": "Update connection details for battery {battery_num}. Power limits, SOC limits and all other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID",
+          "battery_version": "Battery Model",
+          "serial_port": "Serial port (Modbus RTU)",
+          "rs485_gateway": "Reached through an RS485 gateway"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "New IP address of the battery on your local network. Leave empty if you use a serial port.",
+          "port": "Modbus port (usually 502)",
+          "slave_id": "Modbus slave/unit id (default 1). Change only when a Modbus proxy maps several batteries to one IP:port using distinct slave ids.",
+          "battery_version": "Select your battery model version",
+          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP.",
+          "rs485_gateway": "Tick when the Modbus TCP connection goes to an RS485 gateway (Elfin EW11, USB-RS485 bridge, ...) instead of the battery's own TCP port. The wait between messages only exists in the battery's TCP server, so dropping it to 30 ms makes polling roughly three times faster on a Venus Ev3/A/D. The wait is applied per battery: on a gateway shared by several batteries the bus carries that many times the traffic, so untick it again if reads start failing or timing out. Leave off when you connect straight to the battery's IP."
+        }
+      },
+      "reconfigure_battery_zendure": {
+        "title": "Reconfigure battery {battery_num} — Connection (Zendure)",
+        "description": "Update connection details for the Zendure SolarFlow battery {battery_num}. All other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "New IP address of the Zendure SolarFlow on your local network",
+          "port": "HTTP port (default 80)"
+        }
+      },
+      "reconfigure_battery_apsystems_ezhi": {
+        "title": "Reconfigure battery {battery_num}: APsystems EZHI",
+        "description": "Enable Local Mode in the AP EasyPower app first, then enter the IP address of the EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP address",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP address of the EZHI on your network."
+        }
+      },
+      "reconfigure_battery_sessy": {
+        "title": "Reconfigure battery {battery_num} — Connection (Sessy)",
+        "description": "Update connection details for the Sessy battery {battery_num}. All other settings are preserved.",
+        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
+        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+      },
+      "reconfigure_battery_indevolt": {
+        "title": "Reconfigure battery {battery_num} — Connection (Indevolt)",
+        "description": "Update connection details for Indevolt battery {battery_num}. All other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Indevolt battery on your local network",
+          "port": "HTTP port of the local API (default 8080)"
+        }
+      },
+      "reconfigure_battery_indevolt_request_speed": {
+        "title": "Reconfigure battery {battery_num} — Request speed (Indevolt)",
+        "description": "A higher request speed lets your battery react sooner to meter changes, which can improve net zero. The options:\n\n- **Conservative** (5s) is Indevolt's recommendation and the default. It suits a meter that updates every 5s, the usual rate in Home Assistant: a faster speed won't make the battery react sooner with such a meter.\n- **Normal** (3s) suits a meter that updates every 3s.\n- **Fast** (2s) suits a meter that updates every 2s. With a meter that updates every second it is the safe choice: the battery then gets a new command at most every 2s.\n- **Maximum** (1s) sends a command up to every second and no longer waits 1s between requests, which is below Indevolt's documented minimum. It only helps with a meter that updates every second; with a slower meter, pick **Fast**. With **Maximum**, also set PD Min Cycle Interval to 0 when every battery in Omnibattery is an Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Request speed"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Every speed faster than 5s is at your own risk: you are responsible for checking that your battery, Home Assistant and network can keep up. On the device page, Request interval (effective) should keep matching your choice, and Read latency (P95) and Write latency (P95) should stay well below 1s.\n\nFeel free to try it: when the battery answers slowly or not at all, Omnibattery's Indevolt driver automatically steps back to a calmer pace until the response time has recovered."
+        }
+      },
+      "reconfigure_battery_anker": {
+        "title": "Reconfigure battery {battery_num} — Connection (Anker)",
+        "description": "Update connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "New IP address shown in the Anker app under Third-Party Control",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      },
+          "reconfigure_battery_huawei_slave": {
+            "title": "Reconfigure battery {battery_num} — Which inverter?",
+            "description": "{count} inverters with a battery answered on this bus. Pick the one this battery belongs to.",
+            "data": {
+              "slave_id": "Inverter"
+            }
+          },
+        "reconfigure_battery_huawei": {
+          "title": "Reconfigure battery {battery_num} — Connection (Huawei)",
+          "description": "Update the Modbus access and the Huawei Solar battery device for battery {battery_num}. All other settings are preserved.",
+          "data": {
+            "name": "Name",
+            "host": "IP Address",
+            "port": "Modbus Port",
+            "slave_id": "Modbus slave id (leave empty to search)",
+            "huawei_battery_device": "Huawei Solar battery device",
+            "huawei_direct_write": "Direct Modbus writes"
+          },
+          "data_description": {
+            "name": "Descriptive name to identify this battery",
+            "host": "Address of the Modbus proxy or inverter Omnibattery reads from",
+            "port": "Modbus TCP port (default 502)",
+            "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.",
+            "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.",
+            "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."
+          }
+        },
+      "reconfigure_battery_hoymiles": {
+        "title": "Reconfigure battery {battery_num} — Hoymiles MQTT",
+        "description": "Enter the Hoymiles MQTT device ID; Home Assistant manages the broker and Omnibattery detects the model.",
+        "data": {"name": "Name", "device_id": "MQTT device ID", "hoymiles_model": "Battery model"},
+        "data_description": {"hoymiles_model": "Use automatic discovery unless the device publishes an incorrect or generic model."}
+      },
+      "reconfigure_battery_esphome": {
+        "title": "Reconfigure battery {battery_num} — Connection (LilyGo/ESPHome)",
+        "description": "Update the ESPHome device for Marstek battery {battery_num}. All other settings are preserved.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome device"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "esphome_device": "The LilyGo T-CAN485 device flashed with the Marstek ESPHome firmware"
+        }
+      },
+      "reconfigure_battery_generic_ha": {
+        "title": "Reconfigure battery {battery_num} — Home Assistant entities",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
+        "data": {
+          "name": "Name",
+          "ha_soc_entity": "State of charge sensor",
+          "ha_power_entity": "Battery power sensor",
+          "ha_power_positive_is": "Power sign convention",
+          "ha_charge_energy_entities": "Charged energy counters",
+          "ha_discharge_energy_entity": "Discharged energy counter",
+          "ha_target_soc_entity": "Target state of charge",
+          "ha_mode_entity": "Operating mode entity",
+          "ha_stale_after_s": "Treat telemetry as lost after"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
+          "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
+          "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
+          "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
+        }
+      },
+      "restore_backup": {
+        "title": "Restore previous configuration",
+        "description": "Found a saved backup of {count} previous configuration(s) (connection, options and tuning). Restore it to recover everything without setting it up again? Your entities and history reconnect automatically.",
+        "data": {
+          "restore": "Restore previous configuration"
+        }
+      },
+      "battery_connection_apsystems_ezhi": {
+        "title": "Battery {battery_num}: APsystems EZHI",
+        "description": "Enable Local Mode in the AP EasyPower app first, then enter the IP address of the EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP address",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP address of the EZHI on your network."
+        }
+      },
+      "battery_connection_sessy": {
+        "title": "Configure battery {battery_num} — Connection (Sessy)",
+        "description": "Enter the connection details and the local credentials printed on the Sessy dongle for battery {battery_num}.",
+        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
+        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+      },
+      "battery_connection_indevolt": {
+        "title": "Configure battery {battery_num} — Connection (Indevolt)",
+        "description": "Enter the IP address of Indevolt battery {battery_num}. In the Indevolt app, enable the local API with the **HTTP** protocol (not HTTP Digest). Omnibattery controls the battery only in **Realtime** mode, which you select in the Indevolt app; it never changes the mode itself.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Indevolt battery on your local network",
+          "port": "HTTP port of the local API (default 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Configure battery {battery_num} — Request speed (Indevolt)",
+        "description": "A higher request speed lets your battery react sooner to meter changes, which can improve net zero. The options:\n\n- **Conservative** (5s) is Indevolt's recommendation and the default. It suits a meter that updates every 5s, the usual rate in Home Assistant: a faster speed won't make the battery react sooner with such a meter.\n- **Normal** (3s) suits a meter that updates every 3s.\n- **Fast** (2s) suits a meter that updates every 2s. With a meter that updates every second it is the safe choice: the battery then gets a new command at most every 2s.\n- **Maximum** (1s) sends a command up to every second and no longer waits 1s between requests, which is below Indevolt's documented minimum. It only helps with a meter that updates every second; with a slower meter, pick **Fast**. With **Maximum**, also set PD Min Cycle Interval to 0 when every battery in Omnibattery is an Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Request speed"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Every speed faster than 5s is at your own risk: you are responsible for checking that your battery, Home Assistant and network can keep up. On the device page, Request interval (effective) should keep matching your choice, and Read latency (P95) and Write latency (P95) should stay well below 1s.\n\nFeel free to try it: when the battery answers slowly or not at all, Omnibattery's Indevolt driver automatically steps back to a calmer pace until the response time has recovered."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Battery {battery_num} — Realtime mode required",
+        "description": "The battery is not in Realtime mode. Setup continues and Omnibattery monitors the battery, but it controls the battery only once you select **Realtime** in the Indevolt app. Control then starts automatically."
+      },
+      "battery_connection_huawei": {
+        "title": "Configure battery {battery_num} — Connection (Huawei)",
+        "description": "Omnibattery reads this battery over Modbus and sends its set-points through the Huawei Solar integration, so it needs both: a Modbus endpoint and the battery device. Point the Modbus address at a Modbus proxy rather than straight at the inverter — the Huawei Solar integration already holds a connection to it.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
+        "data": {"name": "Name", "host": "IP Address", "port": "Modbus Port", "slave_id": "Modbus slave id (leave empty to search)", "huawei_battery_device": "Huawei Solar battery device", "huawei_direct_write": "Direct Modbus writes"},
+        "data_description": {"name": "Descriptive name to identify this battery", "host": "Address of the Modbus proxy or inverter Omnibattery reads from", "port": "Modbus TCP port (default 502)", "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.", "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.", "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."}
+      },
+      "battery_connection_huawei_slave": {
+        "title": "Configure battery {battery_num} — Choose inverter",
+        "description": "{count} inverters with a battery answered on this Modbus endpoint. Huawei inverters can be cascaded — pick the one this battery belongs to. For a second battery, add another entry with the other slave id.",
+        "data": {"slave_id": "Inverter"}
+      },
+      "battery_connection_anker": {
+        "title": "Configure battery {battery_num} — Connection (Anker)",
+        "description": "Enter connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address shown in the Anker app under Third-Party Control",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "That does not look like a MAC address. Six pairs of hexadecimal digits are expected, for example dc:04:5a:14:6b:33.",
+      "cannot_connect": "Cannot connect to the battery. Check the IP address and that the battery is accessible on the network.",
+      "hoymiles_no_power_ctrl": "This MQTT device ID publishes telemetry but no power control. In a paired Hoymiles system only the master can be controlled: add the master's device ID once, not the slave.",
+      "indevolt_http_digest": "The battery asks for a password: its local API is set to HTTP Digest. Select HTTP in the Indevolt app and try again.",
+      "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
+      "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
+      "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
+      "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
+      "esphome_entities_missing": "The selected ESPHome device is missing required entities: {missing}. Make sure it runs the marstek-lilygo-rs485 firmware with the stock entity names.",
+      "generic_ha_entities_missing": "Omnibattery could not read these entities: {missing}. Pick entities that exist and currently report a number.",
+      "generic_ha_mode_same": "NOM and Manual must be two different states.",
+      "generic_ha_mode_unreadable": "Omnibattery could not list this entity's options. Pick a select or a switch that is available now.",
+      "sensor_not_found": "Solar forecast sensor does not exist. Verify the sensor is available.",
+      "invalid_unit": "Solar forecast sensor must have 'kWh' or 'Wh' as unit.",
+      "solar_production_sensor_not_found": "Solar production sensor does not exist. Verify the sensor is available.",
+      "solar_production_invalid_unit": "Solar production sensor must have 'W' or 'kW' as unit.",
+      "solar_production_sensor_circular": "A solar sensor created by OmniBattery cannot be reused as an external solar production input.",
+      "offgrid_sensor_must_differ": "The off-grid power sensor must differ from the normal grid sensor.",
+      "offgrid_sensor_not_found": "The off-grid power sensor does not exist or is unavailable.",
+      "offgrid_sensor_invalid_unit": "The off-grid power sensor must have 'W' or 'kW' as unit.",
+      "phase_sensors_must_differ": "Each phase must use a different current sensor.",
+      "phase_sensor_not_found": "The phase current sensor does not exist or is unavailable.",
+      "phase_sensor_invalid_domain": "The phase current source must be a sensor entity.",
+      "phase_sensor_invalid_unit": "The phase current sensor must have 'A' or 'mA' as unit.",
+      "phase_limit_must_be_positive": "The phase fuse size must be a positive finite value in amperes.",
+      "phase_sensor_and_limit_required": "Set both the phase current sensor and its fuse size, or leave both fields empty.",
+      "battery_phase_required": "Select the physical phase for this battery.",
+      "incomplete_window": "Each extra charging window needs both a start and an end time. Fill both, or leave both empty to skip it.",
+      "overlapping_slots": "This time slot overlaps with an existing one for the same battery. Adjust the times, days, or battery scope.",
+      "midnight_crossing": "Start time must be before end time. For overnight periods, create two separate slots (e.g., 22:00-23:59 and 00:00-06:00).",
+      "slot_does_nothing": "The slot must allow at least one direction (charge or discharge).",
+      "manual_requires_power": "Manual mode requires the power override tick to be enabled.",
+      "manual_requires_single_direction": "Manual mode forces a single direction: tick either Allow charge or Allow discharge, not both.",
+      "no_price_data": "Selected sensor is not a supported price source. Nord Pool: select an entity from the official integration or a HACS sensor with `raw_today`. PVPC: needs `price_00h` … `price_23h`. CKW: needs a `prices` list. EPEX: needs a `data` list. ENTSO-e: needs a `prices_today` list.",
+      "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
+      "energyzero_unavailable": "The EnergyZero integration is not installed, or its `energyzero.get_energy_prices` service is unavailable. Install and configure EnergyZero first.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "discharge_below_charge": "The discharge price floor cannot be below the maximum (charge) price threshold. Set it equal or higher, or leave it empty to reuse the charge threshold.",
+      "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
+      "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
+      "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."
+    },
+    "abort": {
+      "ip_updated": "The battery's IP address changed; the connection was updated automatically.",
+      "candidate_silent": "A new IP address was announced for this battery, but nothing answered there; the connection was left unchanged.",
+      "no_tracked_battery": "No configured battery is tracked by this device's MAC address.",
+      "already_configured": "This integration is already configured.",
+      "reconfigure_successful": "Battery connection settings updated successfully.",
+      "no_legacy_entries": "No legacy Marstek Venus configuration was found to migrate.",
+      "migration_successful": "Migrated {count} configuration(s) to Omnibattery. Your entities, history and settings were preserved.",
+      "restore_successful": "Restored {count} configuration(s). Your entities, history and settings were recovered."
+    }
+  },
+  "options": {
+    "step": {
+      "remove_battery": {
+        "title": "Remove a battery",
+        "description": "Choose the battery to remove. Its device and entities are deleted and the integration reloads.",
+        "data": {
+          "battery": "Battery"
+        }
+      },
+      "init": {
+        "title": "Reconfigure Omnibattery",
+        "description": "Select which section you want to configure.",
+        "menu_options": {
+          "sensors": "Sensors",
+          "batteries": "Batteries",
+          "time_slots": "Time slots",
+          "excluded_devices": "Excluded devices",
+          "predictive_charging": "Predictive charging",
+          "weekly_full_charge": "Weekly full charge",
+          "charge_delay": "Solar charge delay",
+          "temp_charge_limit": "Temperature charge limit",
+          "capacity_protection": "Capacity protection",
+          "hourly_balance": "Hourly net balance",
+          "pd_advanced": "PD controller (advanced)"
+        }
+      },
+      "sensors": {
+        "title": "Sensors",
+        "description": "Configure the sensors used by the integration.",
+        "data": {
+          "consumption_sensor": "Grid consumption sensor",
+          "offgrid_power_sensor": "Off-grid power sensor (optional)",
+          "offgrid_meter_inverted": "Off-grid meter sign inverted",
+          "solar_forecast_sensor": "Whole-day solar forecast sensor (legacy)",
+          "solar_forecast_remaining_sensor": "Solar forecast remaining today sensor (recommended)",
+          "solar_production_sensor": "Solar production sensor (optional)",
+          "meter_inverted": "Inverted meter sign",
+          "max_contracted_power": "Maximum grid import (W)",
+          "three_phase_enabled": "Enable three-phase current protection"
+        },
+        "data_description": {
+          "consumption_sensor": "Real-time sensor for imported (+) or exported (-) grid power. Updates every 1-2 seconds are recommended. Slower sensors are accepted, but delayed readings reduce regulation quality; the latest reading is followed for up to 65 seconds.",
+          "offgrid_power_sensor": "Separate W/kW meter for the backed-up circuit. It must differ from the normal grid sensor. Configuring it exposes a software switch that selects this source for control and statistics; it does not enable the battery's physical off-grid/EPS port.",
+          "offgrid_meter_inverted": "Enable when the off-grid sensor uses the opposite convention: positive = export and negative = consumption. This setting applies only while off-grid meter mode is active.",
+          "solar_forecast_sensor": "Legacy sensor providing the whole-day solar forecast. Existing installations can keep using it during the transition; prefer Remaining Today for new configurations.",
+          "solar_forecast_remaining_sensor": "Sensor providing solar production still expected today in kWh. Saving it replaces the legacy whole-day forecast and it is never reduced by production already measured.",
+          "solar_production_sensor": "Real-time PV production power sensor (W/kW) from an external inverter not wired through the battery MPPT inputs. Used to show the Solar node in the dashboard energy-flow diagram. Leave empty if your panels feed the battery MPPT directly.",
+          "meter_inverted": "Enable this option if your meter uses the opposite convention: positive = export, negative = import. The unit (W/kW) is detected automatically.",
+          "max_contracted_power": "Most power you want to draw from the grid, in watts: your contracted power (ICP) or, with a capacity tariff, your monthly peak. Grid charging stays under it, and the battery covers the house above it.",
+          "three_phase_enabled": "Optional safety envelope for three-phase installations. Configure one signed RMS current sensor in A, one fuse-size limit in A and the physical battery phase for each circuit in the next step."
+        }
+      },
+      "three_phase": {
+        "title": "Three-phase current protection",
+        "description": "Configure one signed RMS current sensor and one fuse-size limit in amperes for each phase you want to protect. Leave both fields empty for unused phases. Sensors must be distinct Home Assistant sensor entities with A or mA units; positive means grid import and negative means grid export.",
+        "data": {
+          "phase_1_current_sensor": "L1 grid current sensor",
+          "phase_2_current_sensor": "L2 grid current sensor",
+          "phase_3_current_sensor": "L3 grid current sensor",
+          "phase_1_fuse_size": "L1 fuse size (A)",
+          "phase_2_fuse_size": "L2 fuse size (A)",
+          "phase_3_fuse_size": "L3 fuse size (A)"
+        },
+        "data_description": {
+          "phase_1_current_sensor": "Real-time signed RMS current on physical phase L1. Positive import, negative export; A and mA are accepted.",
+          "phase_2_current_sensor": "Real-time signed RMS current on physical phase L2. Positive import, negative export; A and mA are accepted.",
+          "phase_3_current_sensor": "Real-time signed RMS current on physical phase L3. Positive import, negative export; A and mA are accepted.",
+          "phase_1_fuse_size": "Fuse rating/current limit for L1 in amperes. Enter a value below the nameplate rating to leave margin for latency and transient peaks.",
+          "phase_2_fuse_size": "Fuse rating/current limit for L2 in amperes. Enter a value below the nameplate rating to leave margin for latency and transient peaks.",
+          "phase_3_fuse_size": "Fuse rating/current limit for L3 in amperes. Enter a value below the nameplate rating to leave margin for latency and transient peaks."
+        }
+      },
+      "phase_assignments": {
+        "title": "Battery {battery_num} phase assignment",
+        "description": "Select the physical AC phase where {battery_name} is connected, or choose Unassigned if it is not connected to a protected phase. Omnibattery cannot discover this wiring automatically.",
+        "data": {
+          "battery_phase": "Physical battery phase"
+        }
+      },
+      "batteries": {
+        "title": "Batteries",
+        "description": "Add or modify batteries, or remove a specific one.",
+        "menu_options": {
+          "battery_count": "Add / modify batteries",
+          "remove_battery": "Remove a battery"
+        }
+      },
+      "battery_count": {
+        "title": "Number of batteries",
+        "description": "Modify the number of batteries. If you reduce the number, the last configured batteries will be removed.",
+        "data": {
+          "num_batteries": "Number of batteries"
+        }
+      },
+      "battery_brand": {
+        "title": "Battery {battery_num} — Brand",
+        "description": "Select the brand and type of battery {battery_num}.",
+        "data": {
+          "brand": "Brand"
+        },
+        "data_description": {
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS must be disabled for Omnibattery control). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
+        }
+      },
+      "battery_connection": {
+        "title": "Configure battery {battery_num} — Connection (Marstek)",
+        "description": "Modify connection details and battery model for battery {battery_num}.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID",
+          "battery_version": "Battery Model",
+          "serial_port": "Serial port (Modbus RTU)",
+          "rs485_gateway": "Reached through an RS485 gateway"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the battery on your local network. Leave empty if you use a serial port.",
+          "port": "Modbus port (usually 502)",
+          "slave_id": "Modbus slave/unit id (default 1). Change only when a Modbus proxy maps several batteries to one IP:port using distinct slave ids.",
+          "battery_version": "Select your battery model version. Ev2 for older models, Ev3 for newer models with updated register map, A (Venus A) or D (Venus D) for hybrid inverter models",
+          "serial_port": "USB-RS485 adapter path, e.g. /dev/ttyUSB0 or COM3. Fill this instead of the IP address to use Modbus RTU over serial; leave empty for TCP.",
+          "rs485_gateway": "Tick when the Modbus TCP connection goes to an RS485 gateway (Elfin EW11, USB-RS485 bridge, ...) instead of the battery's own TCP port. The wait between messages only exists in the battery's TCP server, so dropping it to 30 ms makes polling roughly three times faster on a Venus Ev3/A/D. The wait is applied per battery: on a gateway shared by several batteries the bus carries that many times the traffic, so untick it again if reads start failing or timing out. Leave off when you connect straight to the battery's IP."
+        }
+      },
+      "battery_connection_zendure": {
+        "title": "Configure battery {battery_num} — Connection (Zendure)",
+        "description": "Modify connection details for the Zendure SolarFlow battery {battery_num}. Keep HEMS disabled in the Zendure app for Omnibattery control.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Zendure device on your local network",
+          "port": "HTTP port (default 80)"
+        }
+      },
+      "battery_connection_esphome": {
+        "title": "Configure battery {battery_num} — Connection (LilyGo/ESPHome)",
+        "description": "Select the ESPHome device (LilyGo RS485 bridge) that exposes Marstek battery {battery_num}. It must run the marstek-lilygo-rs485 firmware with the stock entity names.",
+        "data": {
+          "name": "Name",
+          "esphome_device": "ESPHome device"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "esphome_device": "The LilyGo T-CAN485 device flashed with the Marstek ESPHome firmware"
+        }
+      },
+      "battery_connection_generic_ha": {
+        "title": "Configure battery {battery_num} — Home Assistant entities",
+        "description": "Point Omnibattery at the entities another integration already publishes for battery {battery_num}. Omnibattery reads this battery and never sets its power: state of charge and power are what make the household-consumption calculation correct.",
+        "data": {
+          "name": "Name",
+          "ha_soc_entity": "State of charge sensor",
+          "ha_power_entity": "Battery power sensor",
+          "ha_power_positive_is": "Power sign convention",
+          "ha_charge_energy_entities": "Charged energy counters",
+          "ha_discharge_energy_entity": "Discharged energy counter",
+          "ha_target_soc_entity": "Target state of charge",
+          "ha_mode_entity": "Operating mode entity",
+          "ha_stale_after_s": "Treat telemetry as lost after"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "ha_soc_entity": "A sensor reporting this battery's state of charge in percent",
+          "ha_power_entity": "A sensor reporting charge and discharge power, in W or kW",
+          "ha_power_positive_is": "Whether the sensor counts charging or discharging as positive. Check it while the battery is charging: Kostal and several others report charging as negative",
+          "ha_charge_energy_entities": "Optional lifetime counters, in Wh, kWh or MWh. Pick several when the source splits them, for example charging from solar and from the grid; they are added together",
+          "ha_discharge_energy_entity": "Optional lifetime discharged energy, in Wh, kWh or MWh. Without it, energy is derived from the measured power",
+          "ha_target_soc_entity": "Optional writable target or minimum state of charge. It appears as a Target SOC number you can set yourself; Omnibattery never writes it on its own",
+          "ha_mode_entity": "Optional select or switch of the source integration that chooses whether the battery regulates its own meter to zero (NOM) or rests. With it, Omnibattery can stop the battery during a grid charge or while an excluded device runs. It never sets its power",
+          "ha_stale_after_s": "How long the source integration may stay silent before this battery is treated as unreachable. Raise it for a slow poller. Silence while the battery rests does not count"
+        }
+      },
+      "battery_mode_generic_ha": {
+        "title": "Battery {battery_num} — operating mode",
+        "description": "Which state of {entity} means that the battery regulates on its own, and which one means that it rests? Battery {battery_num} starts in Manual; you change it later with its Operating mode select.",
+        "data": {
+          "ha_mode_nom_option": "NOM (zero on the meter)",
+          "ha_mode_manual_option": "Manual (the battery rests)"
+        },
+        "data_description": {
+          "ha_mode_nom_option": "The battery charges and discharges by itself to keep its meter at 0 W",
+          "ha_mode_manual_option": "The battery neither charges nor discharges"
+        }
+      },
+      "battery_limits": {
+        "title": "Configure battery {battery_num} — Limits",
+        "description": "Modify power and SOC limits for battery {battery_num}.",
+        "data": {
+          "max_charge_power": "Maximum charge power (W)",
+          "max_discharge_power": "Maximum discharge power (W)",
+          "max_soc": "Maximum SOC (%)",
+          "min_soc": "Minimum SOC (%)",
+          "charge_hysteresis_percent": "Charge hysteresis (%)",
+          "full_charge_voltage_taper_enabled": "Enable 100% charge voltage taper",
+          "battery_capacity_kwh": "Battery nominal capacity (kWh)",
+          "battery_phase": "Physical battery phase",
+          "dc_pv_connected": "Solar panels are connected directly to this battery",
+          "track_mac": "Re-find this battery by its MAC address if its IP address changes",
+          "mac": "MAC Address"
+        },
+        "data_description": {
+          "max_charge_power": "Maximum power allowed to charge the battery",
+          "max_discharge_power": "Maximum power allowed to discharge the battery",
+          "max_soc": "Maximum state of charge",
+          "min_soc": "Minimum state of charge",
+          "charge_hysteresis_percent": "Always on (minimum 2%). After reaching the top, the battery won't charge again until SOC drops to (Max SOC − hysteresis). Ex: Max SOC 100% with 2% = no charge until 98%.",
+          "full_charge_voltage_taper_enabled": "When the target is 100%, limit charge to 200 W from 3.48 V max cell voltage. Venus E models stop at 3.60 V to measure imbalance after 60 seconds; Venus A/D with coupled packs keep charging at 200 W until the BMS cuts off.",
+          "battery_capacity_kwh": "Nominal usable capacity of the battery pack. Used to calculate stored energy and efficiency from SOC. Set 0 for automatic detection from supported battery models/packs. Enter a positive value to override detection or if the packs are unknown. Sessy requires its actual capacity.",
+          "battery_phase": "Physical AC phase (L1/L2/L3) where this battery is wired, or Unassigned when it is outside the protected phase layout. An unassigned battery is outside the three-phase envelope and continues normal automatic operation.",
+          "dc_pv_connected": "Venus A/D only. Enable this when solar panels are wired to the battery's MPPT inputs. Disable it when those inputs are unused so battery power remains based on AC power without adding MPPT production.",
+          "track_mac": "The MAC address is the battery's permanent hardware address: unlike the IP address above, it never changes. Home Assistant uses it to find the battery again and update the IP address by itself. Behind a Wi-Fi-to-LAN bridge or a powerline adapter the address you see is the adapter's own, shared with everything behind it, so tracking only works while a single battery sits behind that adapter.",
+          "mac": "Permanent hardware address of the interface the battery uses on your network. Take it from your router's device list: a battery can report a different MAC than the one its wired interface actually uses. Filled in automatically when Home Assistant's DHCP cache is available."
+        }
+      },
+      "time_slots": {
+        "title": "Time slots",
+        "description": "Do you want to reconfigure time slots? Each slot can independently control charge and discharge. If unchecked, all slots will be removed (batteries will operate at all times).",
+        "data": {
+          "configure_time_slots": "Configure time slots"
+        }
+      },
+      "add_time_slot": {
+        "title": "Time slot {slot_num}",
+        "description": "Define when and how the batteries are allowed to operate. The ticks control each direction, SOC and power. Manual mode forces an exact power, bypassing the PD algorithm.",
+        "data": {
+          "start_time": "Start time",
+          "end_time": "End time",
+          "days": "Days of the week",
+          "battery_scope": "Target battery",
+          "allow_charge": "Allow charge",
+          "allow_discharge": "Allow discharge",
+          "soc_override_enabled": "Override slot SOC max/min",
+          "power_override_enabled": "Override slot max charge/discharge power",
+          "mode": "Operation mode"
+        },
+        "data_description": {
+          "start_time": "Slot start time (24h). Midnight crossing supported.",
+          "end_time": "Slot end time (24h).",
+          "days": "Days when this slot applies.",
+          "battery_scope": "Select 'all' to apply to every battery, or pick a specific one.",
+          "allow_charge": "If checked, charge is allowed during the slot. If NO slot allows charge, charge is unrestricted by default.",
+          "allow_discharge": "If checked, discharge is allowed during the slot. If NO slot allows discharge, discharge is unrestricted by default.",
+          "soc_override_enabled": "If checked, the slot overrides the battery's max/min SOC inside the window.",
+          "power_override_enabled": "If checked, the slot limits or forces the max power.",
+          "mode": "PD: the predictive algorithm caps power using the slot value. Manual: forced discharge or charge at the configured power."
+        }
+      },
+      "add_time_slot_details": {
+        "title": "Slot {slot_num} details",
+        "description": "Configure SOC and/or power limits per battery. Every battery has its own sliders. Mapping: {battery_map}. SOC min range: 12–30%. SOC max range: 80–100%. Power range: 100 W up to each battery’s hardware max.",
+        "data": {
+          "battery_1__soc_min": "Battery 1 — Min SOC (%)",
+          "battery_1__soc_max": "Battery 1 — Max SOC (%)",
+          "battery_1__max_charge_power_w": "Battery 1 — Max charge power",
+          "battery_1__max_discharge_power_w": "Battery 1 — Max discharge power",
+          "battery_2__soc_min": "Battery 2 — Min SOC (%)",
+          "battery_2__soc_max": "Battery 2 — Max SOC (%)",
+          "battery_2__max_charge_power_w": "Battery 2 — Max charge power",
+          "battery_2__max_discharge_power_w": "Battery 2 — Max discharge power",
+          "battery_3__soc_min": "Battery 3 — Min SOC (%)",
+          "battery_3__soc_max": "Battery 3 — Max SOC (%)",
+          "battery_3__max_charge_power_w": "Battery 3 — Max charge power",
+          "battery_3__max_discharge_power_w": "Battery 3 — Max discharge power",
+          "battery_4__soc_min": "Battery 4 — Min SOC (%)",
+          "battery_4__soc_max": "Battery 4 — Max SOC (%)",
+          "battery_4__max_charge_power_w": "Battery 4 — Max charge power",
+          "battery_4__max_discharge_power_w": "Battery 4 — Max discharge power",
+          "battery_5__soc_min": "Battery 5 — Min SOC (%)",
+          "battery_5__soc_max": "Battery 5 — Max SOC (%)",
+          "battery_5__max_charge_power_w": "Battery 5 — Max charge power",
+          "battery_5__max_discharge_power_w": "Battery 5 — Max discharge power",
+          "battery_6__soc_min": "Battery 6 — Min SOC (%)",
+          "battery_6__soc_max": "Battery 6 — Max SOC (%)",
+          "battery_6__max_charge_power_w": "Battery 6 — Max charge power",
+          "battery_6__max_discharge_power_w": "Battery 6 — Max discharge power",
+          "battery_7__soc_min": "Battery 7 — Min SOC (%)",
+          "battery_7__soc_max": "Battery 7 — Max SOC (%)",
+          "battery_7__max_charge_power_w": "Battery 7 — Max charge power",
+          "battery_7__max_discharge_power_w": "Battery 7 — Max discharge power",
+          "battery_8__soc_min": "Battery 8 — Min SOC (%)",
+          "battery_8__soc_max": "Battery 8 — Max SOC (%)",
+          "battery_8__max_charge_power_w": "Battery 8 — Max charge power",
+          "battery_8__max_discharge_power_w": "Battery 8 — Max discharge power",
+          "battery_9__soc_min": "Battery 9 — Min SOC (%)",
+          "battery_9__soc_max": "Battery 9 — Max SOC (%)",
+          "battery_9__max_charge_power_w": "Battery 9 — Max charge power",
+          "battery_9__max_discharge_power_w": "Battery 9 — Max discharge power",
+          "battery_10__soc_min": "Battery 10 — Min SOC (%)",
+          "battery_10__soc_max": "Battery 10 — Max SOC (%)",
+          "battery_10__max_charge_power_w": "Battery 10 — Max charge power",
+          "battery_10__max_discharge_power_w": "Battery 10 — Max discharge power"
+        }
+      },
+      "add_more_slots": {
+        "title": "Add more time slots",
+        "description": "You have {current_slots} configured slot(s). You can add up to {max_slots} in total.",
+        "data": {
+          "add_more": "Add another time slot"
+        }
+      },
+      "excluded_devices": {
+        "title": "Special Device Management",
+        "description": "Configure devices with special management: you can EXCLUDE devices that should NOT be powered by battery, or ADD devices that SHOULD be powered by battery even if they're not in the home consumption sensor.",
+        "data": {
+          "configure_excluded_devices": "Configure special devices"
+        }
+      },
+      "add_excluded_device": {
+        "title": "Special Device {device_num}",
+        "description": "Configure how the battery should manage this device.",
+        "data": {
+          "power_sensor": "Device power sensor",
+          "activity_sensor": "Device active / EV charging sensor",
+          "included_in_consumption": "Consumption is included in home consumption sensor",
+          "allow_solar_surplus": "Allow to use solar surplus (do not charge battery)",
+          "dynamic_power_control": "Device has dynamic power control",
+          "cover_home_when_active": "Cover home while device is active",
+          "ev_charger_no_telemetry": "EV charger without power telemetry",
+          "is_ev_charger": "EV charger (flow diagram only)",
+          "remaining_demand_sensor": "Expected remaining demand (kWh)",
+          "remaining_demand_presence_sensor": "Presence entity for the remaining demand (optional)"
+        },
+        "data_description": {
+          "power_sensor": "Numeric power sensor (W) for the device. Optional for EV chargers without power telemetry; existing configurations that stored the charging-state sensor here remain supported.",
+          "activity_sensor": "State or binary sensor that becomes 'on' or reports 'Charging'/'Cargando' when the device requests power. Required for Dynamic Power Control and for a new EV charger without power telemetry.",
+          "included_in_consumption": "✓ CHECKED = Home sensor ALREADY includes this device → Battery will NOT power it (excluded). ✗ UNCHECKED = Home sensor doesn't see it → Battery WILL power it (additional)",
+          "allow_solar_surplus": "If checked, the device will be able to consume energy directly from solar panels (surplus) without the battery trying to compensate. Recommended for high consumption devices like EV chargers.",
+          "dynamic_power_control": "Enable for devices that automatically adjust their own demand from the grid meter, such as a solar-surplus wallbox. If an activity sensor is configured, Omnibattery yields before power appears; otherwise it reacts to the power sensor. It then uses genuine leftover export.",
+          "cover_home_when_active": "Requires Solar Surplus and a solar-production sensor. The battery may cover the home's own load while this device is active; only the device's grid share stays excluded.",
+          "ev_charger_no_telemetry": "✓ CHECKED = Use the Activity / EV charging sensor instead of numeric power telemetry. Existing configurations that placed this state sensor in Device power sensor continue to work. When charging is detected, the battery pauses for 5 minutes; afterwards it may only charge from solar surplus and never discharges for the EV.",
+          "is_ev_charger": "Tick it if this device is an electric-vehicle charger. It is used only by the animated energy-flow diagram, to draw the device on the EV charger cable instead of the excluded-devices cable. It does not change how the battery manages the device.",
+          "remaining_demand_sensor": "Optional. Sensor reporting the energy (kWh) this device still expects to consume today, for example sensor.evcc_[loadpoint]_charge_remaining_energy. Predictive charging then reserves that much of the remaining solar forecast for the device instead of assuming the battery receives it. Only used when 'Consumption is included in home consumption sensor' is checked. Devices marked 'EV charger without power telemetry' are skipped: their energy is already inside the consumption forecast, so reserving it would count it twice.",
+          "remaining_demand_presence_sensor": "Only count the expected remaining demand while this entity reports the device as present: on, true, home, connected, plugged or present. Leave empty to always count it. Point it at your charger's connected entity when the upstream keeps reporting a demand with nothing plugged in: evcc reports the energy to the vehicle's SOC target whether or not a car is there, and reserving solar for an absent car takes it from the battery for nothing. An unavailable or unknown entity counts as absent, so a broken sensor stops reserving rather than reserving for a device that may not be there."
+        }
+      },
+      "add_more_excluded_devices": {
+        "title": "Add more excluded devices",
+        "description": "You have {current_devices} excluded device(s). You can add up to {max_devices} in total.",
+        "data": {
+          "add_more": "Add another excluded device"
+        }
+      },
+      "predictive_charging": {
+        "title": "Predictive Grid Charging",
+        "description": "Do you want to enable intelligent grid charging? This feature allows charging batteries from the grid during off-peak hours when today's solar forecast is insufficient.",
+        "data": {
+          "configure_predictive_charging": "Configure predictive charging"
+        }
+      },
+      "predictive_charging_mode": {
+        "title": "Predictive Charging Mode",
+        "description": "Select how the system decides when to charge from the grid.",
+        "data": {
+          "predictive_charging_mode": "Charging mode"
+        },
+        "data_description": {
+          "predictive_charging_mode": "Time Slot: charge during a fixed nightly window. Dynamic Pricing: automatically select the cheapest hours from a price sensor. Real-Time Price: activate charging instantly whenever the current price is below a threshold — no scheduling needed."
+        }
+      },
+      "predictive_charging_config": {
+        "title": "Predictive Charging — Time Slot",
+        "description": "Configure when and how to charge batteries from the grid based on solar forecast. You can set up to 3 charging windows — fill only window 1 to keep a single window, or add windows 2 and 3 as needed.",
+        "data": {
+          "start_time": "Window 1 — start time (off-peak tariff)",
+          "end_time": "Window 1 — end time (off-peak tariff)",
+          "days": "Window 1 — days of the week",
+          "start_time_2": "Window 2 — start time (optional)",
+          "end_time_2": "Window 2 — end time (optional)",
+          "days_2": "Window 2 — days of the week",
+          "start_time_3": "Window 3 — start time (optional)",
+          "end_time_3": "Window 3 — end time (optional)",
+          "days_3": "Window 3 — days of the week",
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
+        },
+        "data_description": {
+          "start_time": "Start time of charging window (e.g., 01:00, off-peak tariff)",
+          "end_time": "End time of charging window (e.g., 06:00)",
+          "days": "Days when grid charging is allowed. For a window that crosses midnight, each selected day runs its early-morning part (until the end time) and its night part (from the start time).",
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "dynamic_pricing_config": {
+        "title": "Predictive Charging — Dynamic Pricing",
+        "description": "Configure the electricity price sensor and parameters for automatic cheap-hour selection.",
+        "data": {
+          "price_integration_type": "Price integration",
+          "price_sensor": "Electricity price sensor",
+          "export_price_sensor": "Export/feed-in price sensor (optional)",
+          "export_price_integration_type": "Export price integration (optional)",
+          "zonneplan_export_bonus_enabled": "Apply Zonneplan export bonus",
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
+        },
+        "data_description": {
+          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
+          "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
+          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
+          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
+          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus. Has no effect unless the effective export price integration is Zonneplan.",
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "realtime_price_config": {
+        "title": "Predictive Charging — Real-Time Price",
+        "description": "Configure the price sensor and threshold. The system reads the current price every few seconds and starts or stops grid charging immediately — no daily schedule needed.",
+        "data": {
+          "price_sensor": "Electricity price sensor",
+          "average_price_sensor": "Daily average price sensor (optional)",
+          "solar_forecast_sensor": "Solar forecast sensor (kWh)"
+        },
+        "data_description": {
+          "price_sensor": "Sensor whose state is the current electricity price (e.g. sensor.esios_pvpc, sensor.nordpool_kwh_es_eur_3_10_0). Any sensor that exposes the current period price as its state works.",
+          "average_price_sensor": "If provided, this sensor's state is used as the threshold instead of the fixed value above — useful when your price integration already exposes a daily average. Leave empty to use the fixed threshold.",
+          "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "weekly_full_charge": {
+        "title": "Weekly Full Charge",
+        "description": "Do you want to enable weekly full battery charge for cell balancing? This feature charges batteries to 100% once per week to balance the cells.",
+        "data": {
+          "configure_weekly_full_charge": "Configure weekly full charge"
+        }
+      },
+      "weekly_full_charge_config": {
+        "title": "Weekly Full Charge Configuration",
+        "description": "Select the day of the week when batteries should charge to 100% for cell balancing. After reaching 100%, the system reverts to your configured maximum charge limit.",
+        "data": {
+          "weekly_full_charge_day": "Day of the week"
+        },
+        "data_description": {
+          "weekly_full_charge_day": "Day when batteries will charge to 100% regardless of configured max SOC. This helps balance battery cells."
+        }
+      },
+      "charge_delay": {
+        "title": "Solar charge delay",
+        "description": "Enable solar charge delay? This delays battery charging until the solar energy balance indicates it's needed, exporting excess solar to grid in the meantime.",
+        "data": {
+          "configure_charge_delay": "Configure charge delay"
+        }
+      },
+      "charge_delay_config": {
+        "title": "Charge delay configuration",
+        "description": "Configure the safety margin and solar forecast sensor for the charge delay.",
+        "data": {
+          "delay_safety_margin_h": "Safety margin (hours)",
+          "delay_soc_setpoint_enabled": "Enable minimum SOC before delay",
+          "delay_soc_setpoint": "Minimum SOC (%)",
+          "solar_forecast_sensor": "Solar forecast sensor"
+        },
+        "data_description": {
+          "delay_safety_margin_h": "Hours before sunset by which charging must be complete. Higher values unlock charging earlier.",
+          "delay_soc_setpoint_enabled": "When enabled, the battery charges freely up to the configured SOC; above it the solar delay activates.",
+          "delay_soc_setpoint": "The SOC the battery must reach before the solar delay kicks in. Minimum is 12 % — the Venus battery minimum discharge SOC.",
+          "solar_forecast_sensor": "Sensor providing solar production forecast in kWh (e.g., Solcast). Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "temp_charge_limit": {
+        "title": "Temperature charge limit",
+        "description": "Reduce charge power when a battery gets hot? Above a temperature limit charging is throttled proportionally and restored as the battery cools.",
+        "data": {
+          "configure_temp_charge_limit": "Configure temperature charge limit"
+        }
+      },
+      "temp_charge_limit_config": {
+        "title": "Temperature charge limit configuration",
+        "description": "Set the temperature at which charging starts to throttle, the band over which it ramps down, and the minimum charge power (as a percentage of normal).",
+        "data": {
+          "temp_charge_limit_c": "Temperature limit (°C)",
+          "temp_charge_limit_band_c": "Ramp band (°C)",
+          "temp_charge_limit_floor_pct": "Minimum charge power (%)",
+          "temp_limit_apply_discharge": "Also throttle discharge"
+        },
+        "data_description": {
+          "temp_charge_limit_c": "Charging runs at full power at or below this temperature; above it the derate begins.",
+          "temp_charge_limit_band_c": "Temperature range above the limit over which charge power ramps down to the minimum.",
+          "temp_charge_limit_floor_pct": "Charge power at the limit plus the band, as a percentage of the normal charge ceiling. 0% stops charging entirely when very hot.",
+          "temp_limit_apply_discharge": "Apply the same temperature derate to discharge power. Discharge tolerates heat better, so this shares the charge threshold as a compromise; mainly it keeps discharge under the BMS hard cutoff."
+        }
+      },
+      "capacity_protection": {
+        "title": "Capacity Protection Mode",
+        "description": "When enabled, if battery SOC drops below a threshold, the battery keeps its remaining charge for peaks: it stops covering ordinary consumption and only covers the load above the Maximum grid import.",
+        "data": {
+          "configure_capacity_protection": "Enable capacity protection"
+        }
+      },
+      "capacity_protection_config": {
+        "title": "Capacity Protection Configuration",
+        "description": "Set the SOC threshold below which the battery keeps its remaining charge for peaks and only covers consumption above the Maximum grid import.",
+        "data": {
+          "capacity_protection_soc_threshold": "SOC Threshold (%)"
+        },
+        "data_description": {
+          "capacity_protection_soc_threshold": "When average battery SOC drops below this value, the battery stops covering ordinary consumption and only covers the load above the Maximum grid import."
+        }
+      },
+      "pd_advanced": {
+        "title": "Advanced PD Controller Parameters",
+        "description": "Configure advanced PD controller parameters for expert tuning of battery charge/discharge behavior. Only modify these if you understand PID control theory. Default values work well for most installations.",
+        "data": {
+          "configure_pd_advanced": "Configure advanced PD controller parameters"
+        }
+      },
+      "pd_advanced_config": {
+        "title": "PD Controller Configuration",
+        "description": "Tune the Proportional-Derivative controller that manages battery power adjustments. Changes will apply after integration reload.",
+        "data": {
+          "pd_kp": "Kp - Proportional Gain",
+          "pd_kd": "Kd - Derivative Gain",
+          "pd_deadband": "Deadband (W)",
+          "pd_max_power_change": "Max Power Change per Cycle (W)",
+          "pd_direction_hysteresis": "Direction Hysteresis (W)",
+          "pd_min_charge_power": "Minimum Charge Power (W)",
+          "pd_min_discharge_power": "Minimum Discharge Power (W)",
+          "pd_target_grid_power": "Target Grid Power (W)",
+          "enable_system_power_limits": "Enable system power limits",
+          "system_max_charge_power": "System Max Charge Power (W)",
+          "system_max_discharge_power": "System Max Discharge Power (W)"
+        },
+        "data_description": {
+          "pd_kp": "Responsiveness to grid imbalance. Higher values = faster response but risk of overshoot. Range: 0.1-2.0, default: 0.65",
+          "pd_kd": "Damping to prevent oscillation. Higher values = smoother transitions but slower settling. Range: 0.0-2.0, default: 0.5",
+          "pd_deadband": "Grid power tolerance around zero. Prevents micro-adjustments to minor fluctuations. Higher values reduce sensitivity. Range: 0-200W, default: 40W",
+          "pd_max_power_change": "Maximum battery power change per control cycle (2.5s). Prevents abrupt commands. Lower values = smoother but slower. Range: 100-2000W, default: 800W",
+          "pd_direction_hysteresis": "Power threshold required to switch between charging and discharging. Prevents rapid direction changes. Range: 0-200W, default: 60W",
+          "pd_min_charge_power": "Minimum power for charging. Below this threshold, the controller stays idle instead of charging at low power. 0 = disabled.",
+          "pd_min_discharge_power": "Minimum power for discharging. Below this threshold, the controller stays idle instead of discharging at low power. 0 = disabled.",
+          "pd_target_grid_power": "Grid power setpoint the controller regulates to. Positive = import from grid (battery charges), negative = export to grid (battery discharges), 0 = net zero. The export range follows your total configured battery power, narrowed by the system power limits when enabled; the import range reaches your contracted power when it is set, since the house draws from the same meter. Default: 0 W.",
+          "enable_system_power_limits": "When enabled, the two sliders below cap the combined charge/discharge power of all active batteries.",
+          "system_max_charge_power": "Optional cap for combined charge power across all active batteries. 0 = disabled; per-battery limits still apply.",
+          "system_max_discharge_power": "Optional cap for combined discharge power across all active batteries. 0 = disabled; per-battery limits still apply."
+        }
+      },
+      "hourly_balance": {
+        "title": "Hourly Net Balance",
+        "description": "Enable hourly net balance control? This feature tracks grid import/export per hour and automatically adjusts the battery setpoint to achieve a target net energy balance.\n\n⚠️ **This feature is only useful in Spain**, under the hourly surplus-compensation scheme (Royal Decree 244/2019), where grid surplus is settled hour by hour. In markets with feed-in tariffs or annual net metering it provides no benefit and may cause lost export revenue and unnecessary battery cycling.\n\nDetected Home Assistant country: **{country}**.",
+        "data": {
+          "configure_hourly_balance": "Configure hourly net balance"
+        }
+      },
+      "hourly_balance_config": {
+        "title": "Hourly Balance Configuration",
+        "description": "Configure the target net energy balance and control parameters. The system will adjust battery power to achieve the target Wh balance each hour.",
+        "data": {
+          "hourly_balance_target_net_wh": "Target net balance (kWh)",
+          "hourly_balance_max_offset_w": "Maximum offset (W)",
+          "hourly_balance_deadband_wh": "Net balance tolerance (kWh)",
+          "hourly_balance_hysteresis_w": "Offset hysteresis (W)"
+        },
+        "data_description": {
+          "hourly_balance_target_net_wh": "Target net energy balance per hour. 0 = net zero (default). Positive = allow import, negative = target export.",
+          "hourly_balance_max_offset_w": "Maximum power offset the controller can apply. The slider ceiling is the combined discharge power of all configured batteries.",
+          "hourly_balance_deadband_wh": "Tolerance band around the target. No correction is applied when the net balance is within ±N kWh of the target. 0 = exact correction.",
+          "hourly_balance_hysteresis_w": "Minimum change in offset required before a new correction is applied. Prevents micro-adjustments every cycle. 0 = apply every cycle. Default: 15 W."
+        }
+      },
+      "battery_connection_apsystems_ezhi": {
+        "title": "Battery {battery_num}: APsystems EZHI",
+        "description": "Enable Local Mode in the AP EasyPower app first, then enter the IP address of the EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP address",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP address of the EZHI on your network."
+        }
+      },
+      "battery_connection_sessy": {
+        "title": "Configure battery {battery_num} — Connection (Sessy)",
+        "description": "Modify the connection details and local dongle credentials for the Sessy battery {battery_num}.",
+        "data": {"name": "Name", "host": "IP Address", "port": "HTTP Port", "username": "Username", "password": "Password"},
+        "data_description": {"name": "Descriptive name to identify this battery", "host": "IP address of the Sessy device on your local network", "port": "HTTP port (default 80)", "username": "Local username printed on the Sessy dongle", "password": "Local password printed on the Sessy dongle"}
+      },
+      "battery_connection_indevolt": {
+        "title": "Configure battery {battery_num} — Connection (Indevolt)",
+        "description": "Modify the connection details of Indevolt battery {battery_num}.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "HTTP Port"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address of the Indevolt battery on your local network",
+          "port": "HTTP port of the local API (default 8080)"
+        }
+      },
+      "indevolt_request_speed": {
+        "title": "Configure battery {battery_num} — Request speed (Indevolt)",
+        "description": "A higher request speed lets your battery react sooner to meter changes, which can improve net zero. The options:\n\n- **Conservative** (5s) is Indevolt's recommendation and the default. It suits a meter that updates every 5s, the usual rate in Home Assistant: a faster speed won't make the battery react sooner with such a meter.\n- **Normal** (3s) suits a meter that updates every 3s.\n- **Fast** (2s) suits a meter that updates every 2s. With a meter that updates every second it is the safe choice: the battery then gets a new command at most every 2s.\n- **Maximum** (1s) sends a command up to every second and no longer waits 1s between requests, which is below Indevolt's documented minimum. It only helps with a meter that updates every second; with a slower meter, pick **Fast**. With **Maximum**, also set PD Min Cycle Interval to 0 when every battery in Omnibattery is an Indevolt.",
+        "data": {
+          "indevolt_request_speed": "Request speed"
+        },
+        "data_description": {
+          "indevolt_request_speed": "Every speed faster than 5s is at your own risk: you are responsible for checking that your battery, Home Assistant and network can keep up. On the device page, Request interval (effective) should keep matching your choice, and Read latency (P95) and Write latency (P95) should stay well below 1s.\n\nFeel free to try it: when the battery answers slowly or not at all, Omnibattery's Indevolt driver automatically steps back to a calmer pace until the response time has recovered."
+        }
+      },
+      "indevolt_mode_notice": {
+        "title": "Battery {battery_num} — Realtime mode required",
+        "description": "The battery is not in Realtime mode. Setup continues and Omnibattery monitors the battery, but it controls the battery only once you select **Realtime** in the Indevolt app. Control then starts automatically."
+      },
+      "battery_connection_huawei": {
+        "title": "Configure battery {battery_num} — Connection (Huawei)",
+        "description": "Modify the Modbus endpoint and the Huawei Solar battery device used for battery {battery_num}.\n\nA Huawei inverter accepts only ONE Modbus connection at a time. If anything else talks to it besides Omnibattery — the Huawei Solar integration, evcc, another system — you need a Modbus proxy in front that fans the connection out to several clients, for example {proxy_url}. Enter the proxy's address and port instead of the inverter's. The slave id is searched for automatically when the one entered does not answer.",
+        "data": {"name": "Name", "host": "IP Address", "port": "Modbus Port", "slave_id": "Modbus slave id (leave empty to search)", "huawei_battery_device": "Huawei Solar battery device", "huawei_direct_write": "Direct Modbus writes"},
+        "data_description": {"name": "Descriptive name to identify this battery", "host": "Address of the Modbus proxy or inverter Omnibattery reads from", "port": "Modbus TCP port (default 502)", "slave_id": "Unit id of the inverter — not of the energy manager or a charger. Leave it empty and setup goes looking: it tries the usual ids, identifies each inverter by its model register and takes the one with a battery attached. If several answer — Huawei inverters can be cascaded — a selection step follows. The search takes about 15 seconds.", "huawei_battery_device": "Only needed when direct Modbus writes are off, in which case set-points go through the Huawei Solar integration's services. With direct writes, leave it empty.", "huawei_direct_write": "Write set-points as Modbus registers instead of calling the Huawei Solar integration's services. Same register sequence, but without the detour through the service layer or the wait on that integration's communication lock. Off by default — enable it once the proven path is working."}
+      },
+      "battery_connection_huawei_slave": {
+        "title": "Configure battery {battery_num} — Choose inverter",
+        "description": "{count} inverters with a battery answered on this Modbus endpoint. Huawei inverters can be cascaded — pick the one this battery belongs to. For a second battery, add another entry with the other slave id.",
+        "data": {"slave_id": "Inverter"}
+      },
+      "battery_connection_anker": {
+        "title": "Configure battery {battery_num} — Connection (Anker)",
+        "description": "Modify connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
+        "data": {
+          "name": "Name",
+          "host": "IP Address",
+          "port": "Modbus Port",
+          "slave_id": "Modbus Slave ID"
+        },
+        "data_description": {
+          "name": "Descriptive name to identify this battery",
+          "host": "IP address shown in the Anker app under Third-Party Control",
+          "port": "Modbus TCP port (default 502)",
+          "slave_id": "Modbus slave/unit id (default 1)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "That does not look like a MAC address. Six pairs of hexadecimal digits are expected, for example dc:04:5a:14:6b:33.",
+      "cannot_connect": "Cannot connect to the battery. Check the IP address and that the battery is accessible on the network.",
+      "hoymiles_no_power_ctrl": "This MQTT device ID publishes telemetry but no power control. In a paired Hoymiles system only the master can be controlled: add the master's device ID once, not the slave.",
+      "indevolt_http_digest": "The battery asks for a password: its local API is set to HTTP Digest. Select HTTP in the Indevolt app and try again.",
+      "no_battery": "Inverter reached, but it reports no battery. Check that the LUNA2000 is attached and the Modbus slave ID points at the inverter.",
+      "huawei_device_required": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services, and those address it by device. Either pick the device or enable direct writes.",
+      "huawei_solar_missing": "Without direct Modbus writes, Omnibattery controls the battery through the Huawei Solar integration's services — but that integration is not set up here. Install and configure it via HACS, or enable direct writes.",
+      "huawei_device_mismatch": "The chosen battery device belongs to a different inverter than the Modbus address points at. With cascaded inverters the readings would come from one unit while the commands landed on another. Check the device and the slave id.",
+      "esphome_entities_missing": "The selected ESPHome device is missing required entities: {missing}. Make sure it runs the marstek-lilygo-rs485 firmware with the stock entity names.",
+      "generic_ha_entities_missing": "Omnibattery could not read these entities: {missing}. Pick entities that exist and currently report a number.",
+      "generic_ha_mode_same": "NOM and Manual must be two different states.",
+      "generic_ha_mode_unreadable": "Omnibattery could not list this entity's options. Pick a select or a switch that is available now.",
+      "sensor_not_found": "Solar forecast sensor does not exist. Verify the sensor is available.",
+      "invalid_unit": "Solar forecast sensor must have 'kWh' or 'Wh' as unit.",
+      "solar_production_sensor_not_found": "Solar production sensor does not exist. Verify the sensor is available.",
+      "solar_production_invalid_unit": "Solar production sensor must have 'W' or 'kW' as unit.",
+      "solar_production_sensor_circular": "A solar sensor created by OmniBattery cannot be reused as an external solar production input.",
+      "offgrid_sensor_must_differ": "The off-grid power sensor must differ from the normal grid sensor.",
+      "offgrid_sensor_not_found": "The off-grid power sensor does not exist or is unavailable.",
+      "offgrid_sensor_invalid_unit": "The off-grid power sensor must have 'W' or 'kW' as unit.",
+      "phase_sensors_must_differ": "Each phase must use a different current sensor.",
+      "phase_sensor_not_found": "The phase current sensor does not exist or is unavailable.",
+      "phase_sensor_invalid_domain": "The phase current source must be a sensor entity.",
+      "phase_sensor_invalid_unit": "The phase current sensor must have 'A' or 'mA' as unit.",
+      "phase_limit_must_be_positive": "The phase fuse size must be a positive finite value in amperes.",
+      "phase_sensor_and_limit_required": "Set both the phase current sensor and its fuse size, or leave both fields empty.",
+      "battery_phase_required": "Select the physical phase for this battery.",
+      "incomplete_window": "Each extra charging window needs both a start and an end time. Fill both, or leave both empty to skip it.",
+      "overlapping_slots": "This time slot overlaps with an existing one for the same battery. Adjust the times, days, or battery scope.",
+      "midnight_crossing": "Start time must be before end time. For overnight periods, create two separate slots (e.g., 22:00-23:59 and 00:00-06:00).",
+      "slot_does_nothing": "The slot must allow at least one direction (charge or discharge).",
+      "manual_requires_power": "Manual mode requires the power override tick to be enabled.",
+      "manual_requires_single_direction": "Manual mode forces a single direction: tick either Allow charge or Allow discharge, not both.",
+      "no_price_data": "Selected sensor is not a supported price source. Nord Pool: select an entity from the official integration or a HACS sensor with `raw_today`. PVPC: needs `price_00h` … `price_23h`. CKW: needs a `prices` list. EPEX: needs a `data` list. ENTSO-e: needs a `prices_today` list.",
+      "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
+      "energyzero_unavailable": "The EnergyZero integration is not installed, or its `energyzero.get_energy_prices` service is unavailable. Install and configure EnergyZero first.",
+      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
+      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "discharge_below_charge": "The discharge price floor cannot be below the maximum (charge) price threshold. Set it equal or higher, or leave it empty to reuse the charge threshold.",
+      "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
+      "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
+      "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."
+    }
+  },
+  "selector": {
+    "generic_ha_power_sign": {
+      "options": {
+        "charge": "Positive values mean charging",
+        "discharge": "Positive values mean discharging"
+      }
+    },
+    "indevolt_request_speed": {
+      "options": {
+        "maximum": "Maximum: 1s",
+        "fast": "Fast: 2s",
+        "normal": "Normal: 3s",
+        "conservative": "Conservative: 5s (default, recommended by Indevolt)"
+      }
+    },
+    "hoymiles_model": {
+      "options": {
+        "auto": "Auto-detect (recommended)",
+        "ms_a2": "MS-A2",
+        "hibattery_1920_ac": "HiBattery 1920 AC",
+        "hibattery_4020_x": "HiBattery 4020 X",
+        "hibattery_4020_ac": "HiBattery 4020 AC"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
+      }
+    },
+    "slot_mode": {
+      "options": {
+        "pd": "PD (predictive algorithm)",
+        "manual": "Manual (forced power)"
+      }
+    },
+    "slot_battery_scope": {
+      "options": {
+        "all": "All batteries"
+      }
+    },
+    "battery_phase": {
+      "options": {
+        "unassigned": "Unassigned",
+        "l1": "L1",
+        "l2": "L2",
+        "l3": "L3"
+      }
+    },
+    "predictive_charging_mode": {
+      "options": {
+        "time_slot": "Time Slot (fixed nightly window)",
+        "dynamic_pricing": "Dynamic Pricing (cheapest hours)",
+        "realtime_price": "Real-Time Price (instant threshold)"
+      }
+    },
+    "price_integration_type": {
+      "options": {
+        "nordpool": "Nordpool",
+        "pvpc": "PVPC (Spain – ESIOS REE)",
+        "ckw": "CKW (Switzerland)",
+        "epex": "EPEX Spot (e.g. aWATTar)",
+        "entsoe": "ENTSO-e (Transparency Platform)",
+        "zonneplan": "Zonneplan",
+        "frank_energie": "Frank Energie",
+        "energyzero": "EnergyZero",
+        "tibber": "Tibber (service-based)",
+        "be_electricity_prices": "BE Electricity Prices (Belgium, all-in)"
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "surplus_price_hold": {
+        "name": "Surplus Price Hold"
+      },
+      "primary_feedforward": {
+        "name": "Feed the real demand forward"
+      },
+      "lamp_switch": {
+        "name": "Status LEDs"
+      },
+      "weekly_full_charge_enabled": {
+        "name": "Weekly Full Charge"
+      },
+      "price_discharge_control": {
+        "name": "Price-Based Discharge"
+      },
+      "smart_predischarge": {
+        "name": "Smart Pre-discharge / Anti-curtailment"
+      },
+      "negative_price_charging": {
+        "name": "Negative-price opportunistic charging"
+      },
+      "manual_mode": {
+        "name": "Manual Mode"
+      },
+      "three_phase_protection": {
+        "name": "Three-Phase Current Protection"
+      },
+      "no_pd_mode": {
+        "name": "No-PD Direct Tracking"
+      },
+      "offgrid_mode": {
+        "name": "Off-grid Meter Mode"
+      },
+      "min_soc_floor_enabled": {
+        "name": "Guaranteed Minimum SOC"
+      },
+      "max_price_threshold_enabled": {
+        "name": "Manual Charge Price Ceiling"
+      },
+      "discharge_price_threshold_enabled": {
+        "name": "Manual Discharge Price Floor"
+      },
+      "system_power_limits": {
+        "name": "System Power Limits"
+      },
+      "predictive_charging": {
+        "name": "Predictive Charging"
+      },
+      "predictive_charging_notifications": {
+        "name": "Predictive Charging Notifications"
+      },
+      "vacation_mode": {
+        "name": "Vacation Mode"
+      },
+      "charge_delay": {
+        "name": "Charge Delay"
+      },
+      "delay_soc_setpoint_enabled": {
+        "name": "Charge Delay Target SOC Enabled"
+      },
+      "temp_charge_limit": {
+        "name": "Temperature Charge Limit"
+      },
+      "temp_charge_limit_discharge": {
+        "name": "Temperature Discharge Limit"
+      },
+      "weekly_full_charge_delay": {
+        "name": "Weekly Full Charge: Wait for Charge Delay"
+      },
+      "capacity_protection": {
+        "name": "Peak Shaving"
+      },
+      "grid_import_window_15min": {
+        "name": "Grid Import 15-min Window"
+      },
+      "capacity_protection_excluded_devices": {
+        "name": "Peak Shaving for Excluded Devices"
+      },
+      "backup_function": {
+        "name": "Backup Function"
+      },
+      "rs485_control_mode": {
+        "name": "RS485 Control Mode"
+      },
+      "battery_allow_charge": {
+        "name": "Allow Charge"
+      },
+      "battery_allow_discharge": {
+        "name": "Allow Discharge"
+      },
+      "battery_manual_mode": {
+        "name": "Manual Battery Control"
+      },
+      "full_charge_voltage_taper": {
+        "name": "100% Charge Voltage Taper"
+      },
+      "automation_charging_active": {
+        "name": "External Price Charging"
+      },
+      "excluded_device_enabled": {
+        "name": "{device} – Enabled"
+      },
+      "excluded_device_solar_surplus": {
+        "name": "{device} – Solar Surplus"
+      },
+      "excluded_device_dynamic_power_control": {
+        "name": "{device} – Dynamic Power Control"
+      },
+      "excluded_device_cover_home": {
+        "name": "{device} – Cover Home"
+      },
+      "time_slot": {
+        "name": "Time Slot {slot_number}"
+      },
+      "hourly_balance": {
+        "name": "Net Balance"
+      }
+    },
+    "time": {
+      "automation_charging_end_time": {
+        "name": "External Charging End Time"
+      }
+    },
+    "sensor": {
+      "excluded_device_status": {
+        "name": "{device} – Status",
+        "state": {
+          "paused": "Paused",
+          "unmeasured": "No power reading",
+          "idle": "Idle",
+          "priority": "Priority (yielding)",
+          "solar_surplus": "On solar surplus",
+          "excluded": "Excluded from the battery",
+          "covered": "Covered by the battery"
+        }
+      },
+      "discharge_window": {
+        "name": "Discharge Window",
+        "state": {
+          "no_slots": "No slots",
+          "inactive": "Inactive",
+          "active": "Active"
+        }
+      },
+      "active_batteries": {
+        "name": "Active Batteries"
+      },
+      "three_phase_protection_status": {
+        "name": "Three-Phase Protection Status",
+        "state": {
+          "disabled": "Disabled",
+          "active": "Active",
+          "limiting": "Limiting Batteries",
+          "degraded": "Degraded / Failsafe"
+        }
+      },
+      "system_battery_cell_power": {
+        "name": "System Battery Cell Power"
+      },
+      "system_solar_power": {
+        "name": "Total Solar Power"
+      },
+      "system_daily_solar_energy": {
+        "name": "Daily Solar Production"
+      },
+      "system_daily_home_energy": {
+        "name": "Daily Home Consumption"
+      },
+      "expected_home_consumption_profile": {
+        "name": "Expected Home Consumption Profile"
+      },
+      "consumption_profile_capture": {
+        "name": "Current Consumption Profile Capture"
+      },
+      "daily_operation_timeline": {
+        "name": "Daily Operation Timeline"
+      },
+      "home_consumption": {
+        "name": "Home Consumption"
+      },
+      "system_pd_control_quality": {
+        "name": "PD Control Quality",
+        "state": {
+          "disabled": "Disabled",
+          "stable": "Stable",
+          "oscillating": "Oscillating",
+          "sluggish": "Sluggish",
+          "battery_limited": "Battery limited",
+          "blocked": "Blocked",
+          "collecting_data": "Collecting data"
+        }
+      },
+      "system_daily_grid_import_energy": {
+        "name": "Daily Grid Import"
+      },
+      "system_daily_grid_export_energy": {
+        "name": "Daily Grid Export"
+      },
+      "non_responsive_batteries": {
+        "name": "Non-Responsive Batteries"
+      },
+      "integration_status": {
+        "name": "Integration Status",
+        "state": {
+          "initializing": "Initializing",
+          "manual": "Manual Mode",
+          "grid_charging": "Charging from Grid",
+          "weekly_full_charge": "Weekly Full Charge",
+          "charge_delayed": "Charge Delayed",
+          "surplus_price_hold": "Surplus Exporting (Cheaper Window Ahead)",
+          "price_reserve_hold": "Holding Charge for Dearer Hours",
+          "waiting_for_solar": "Waiting for Solar",
+          "charging_to_setpoint": "Charging to Setpoint",
+          "capacity_protection": "Capacity Protection",
+          "peak_shaving": "Peak Shaving",
+          "capacity_conserving": "Conserving Capacity",
+          "capacity_protection_charging": "Capacity Protection - Charging",
+          "price_discharge_blocked": "Discharge Blocked by Price",
+          "time_slot_floor_hold": "Holding Energy for After the Cheap Slot",
+          "hourly_balance_import": "Hourly Balance - Importing",
+          "hourly_balance_export": "Hourly Balance - Exporting",
+          "hourly_balance_capped": "Hourly Balance - Capped",
+          "hourly_balance_blocked": "Hourly Balance - Blocked",
+          "cell_balance_hold": "Cell Balance Hold",
+          "ev_charger_pause": "EV Charger Pause",
+          "ev_discharge_blocked": "EV Discharge Blocked",
+          "backup_mode": "Backup Mode",
+          "time_slot_manual": "Manual Time Slot",
+          "no_discharge_slot": "No-Discharge Window",
+          "no_charge_slot": "No-Charge Window",
+          "charging": "Charging",
+          "discharging": "Discharging",
+          "balanced": "Standby"
+        }
+      },
+      "weekly_full_charge": {
+        "name": "Weekly Full Charge",
+        "state": {
+          "idle": "Idle",
+          "disabled": "Disabled",
+          "charging": "Charging to 100%",
+          "complete": "Complete"
+        }
+      },
+      "charge_delay_status": {
+        "name": "Charge Delay",
+        "state": {
+          "idle": "Idle",
+          "disabled": "Disabled",
+          "waiting_for_solar": "Waiting for solar",
+          "delayed": "Delayed",
+          "charging_allowed": "Charging allowed",
+          "skipped_full_charge_day": "Skipped – Full charge day",
+          "charging_to_setpoint": "Charging to setpoint",
+          "planned": "Planned by the optimizer"
+        }
+      },
+      "high_price_discharge_status": {
+        "name": "High-Price Sale Status",
+        "state": {
+          "disabled": "Disabled",
+          "invalid_configuration": "Invalid configuration",
+          "no_data": "No data",
+          "blocked": "Blocked",
+          "waiting": "Waiting",
+          "active": "Active"
+        }
+      },
+      "battery_soc": {
+        "name": "Battery SOC"
+      },
+      "battery_soh": {
+        "name": "Battery State of Health (SoH)"
+      },
+      "battery_soc_pack_1": {
+        "name": "Battery SOC Pack 1"
+      },
+      "battery_soc_pack_2": {
+        "name": "Battery SOC Pack 2"
+      },
+      "battery_soc_pack_3": {
+        "name": "Battery SOC Pack 3"
+      },
+      "battery_soc_pack_4": {
+        "name": "Battery SOC Pack 4"
+      },
+      "battery_soc_pack_5": {
+        "name": "Battery SOC Pack 5"
+      },
+      "battery_soc_pack_6": {
+        "name": "Battery SOC Pack 6"
+      },
+      "battery_soc_pack_7": {
+        "name": "Battery SOC Pack 7"
+      },
+      "max_cell_voltage_pack_1": {
+        "name": "Max Cell Voltage Pack 1"
+      },
+      "min_cell_voltage_pack_1": {
+        "name": "Min Cell Voltage Pack 1"
+      },
+      "max_cell_voltage_pack_2": {
+        "name": "Max Cell Voltage Pack 2"
+      },
+      "min_cell_voltage_pack_2": {
+        "name": "Min Cell Voltage Pack 2"
+      },
+      "max_cell_voltage_pack_3": {
+        "name": "Max Cell Voltage Pack 3"
+      },
+      "min_cell_voltage_pack_3": {
+        "name": "Min Cell Voltage Pack 3"
+      },
+      "max_cell_voltage_pack_4": {
+        "name": "Max Cell Voltage Pack 4"
+      },
+      "min_cell_voltage_pack_4": {
+        "name": "Min Cell Voltage Pack 4"
+      },
+      "max_cell_voltage_pack_5": {
+        "name": "Max Cell Voltage Pack 5"
+      },
+      "min_cell_voltage_pack_5": {
+        "name": "Min Cell Voltage Pack 5"
+      },
+      "max_cell_voltage_pack_6": {
+        "name": "Max Cell Voltage Pack 6"
+      },
+      "min_cell_voltage_pack_6": {
+        "name": "Min Cell Voltage Pack 6"
+      },
+      "max_cell_voltage_pack_7": {
+        "name": "Max Cell Voltage Pack 7"
+      },
+      "min_cell_voltage_pack_7": {
+        "name": "Min Cell Voltage Pack 7"
+      },
+      "battery_total_energy": {
+        "name": "Battery Total Energy"
+      },
+      "battery_power": {
+        "name": "Battery Power"
+      },
+      "max_charge_power": {
+        "name": "Max Charge Power"
+      },
+      "max_discharge_power": {
+        "name": "Max Discharge Power"
+      },
+      "device_temperature": {
+        "name": "Inverter Temperature"
+      },
+      "internal_temperature": {
+        "name": "Internal Temperature"
+      },
+      "internal_mos1_temperature": {
+        "name": "Internal MOS1 Temperature"
+      },
+      "internal_mos2_temperature": {
+        "name": "Internal MOS2 Temperature"
+      },
+      "max_cell_temperature": {
+        "name": "Max Cell Temperature"
+      },
+      "min_cell_temperature": {
+        "name": "Min Cell Temperature"
+      },
+      "ac_power": {
+        "name": "AC Power"
+      },
+      "total_charging_energy": {
+        "name": "Total Charging Energy"
+      },
+      "total_discharging_energy": {
+        "name": "Total Discharging Energy"
+      },
+      "pv_total_generation": {
+        "name": "PV Total Generation"
+      },
+      "total_daily_charging_energy": {
+        "name": "Total Daily Charging Energy"
+      },
+      "total_daily_discharging_energy": {
+        "name": "Total Daily Discharging Energy"
+      },
+      "inverter_state": {
+        "name": "Inverter State"
+      },
+      "battery_status": {
+        "name": "Battery Status"
+      },
+      "operating_mode": {
+        "name": "Operating Mode"
+      },
+      "battery_voltage": {
+        "name": "Battery Voltage"
+      },
+      "max_cell_voltage": {
+        "name": "Max Cell Voltage"
+      },
+      "min_cell_voltage": {
+        "name": "Min Cell Voltage"
+      },
+      "cell_voltage_delta": {
+        "name": "Cell Voltage Delta"
+      },
+      "fault_status": {
+        "name": "Fault Status"
+      },
+      "alarm_status": {
+        "name": "Alarm Status"
+      },
+      "ac_offgrid_power": {
+        "name": "AC Offgrid Power"
+      },
+      "mppt1_power": {
+        "name": "MPPT1 Power"
+      },
+      "mppt2_power": {
+        "name": "MPPT2 Power"
+      },
+      "mppt3_power": {
+        "name": "MPPT3 Power"
+      },
+      "mppt4_power": {
+        "name": "MPPT4 Power"
+      },
+      "solar_power": {
+        "name": "Solar Power"
+      },
+      "battery_cell_power": {
+        "name": "Battery Cell Power"
+      },
+      "round_trip_efficiency_total": {
+        "name": "Lifetime Efficiency"
+      },
+      "stored_energy": {
+        "name": "Stored Energy"
+      },
+      "system_soc": {
+        "name": "System SOC"
+      },
+      "system_charge_power": {
+        "name": "System Charge Power"
+      },
+      "system_discharge_power": {
+        "name": "System Discharge Power"
+      },
+      "system_total_energy": {
+        "name": "System Total Energy"
+      },
+      "system_stored_energy": {
+        "name": "System Stored Energy"
+      },
+      "system_daily_charging_energy": {
+        "name": "System Daily Charging Energy"
+      },
+      "system_daily_discharging_energy": {
+        "name": "System Daily Discharging Energy"
+      },
+      "system_daily_grid_at_min_soc_energy": {
+        "name": "Grid at Min SOC"
+      },
+      "system_alarm_status": {
+        "name": "System Alarm Status"
+      },
+      "device_name": {
+        "name": "Device Name"
+      },
+      "sn_code": {
+        "name": "Serial Number"
+      },
+      "software_version": {
+        "name": "Software Version"
+      },
+      "energy_mode": {
+        "name": "Working Mode"
+      },
+      "control_status": {
+        "name": "Control Status",
+        "state": {
+          "active": "Active",
+          "starting": "Taking control",
+          "realtime_mode_required": "Paused: not in Realtime mode",
+          "not_configured": "Monitoring only",
+          "telemetry_stale": "Paused: no recent data",
+          "soc_calibration": "Paused: SOC calibration",
+          "handover_failed": "Paused: takeover failed",
+          "unknown_model": "Monitoring only: unknown model"
+        }
+      },
+      "native_min_soc": {
+        "name": "Battery Reserve"
+      },
+      "realtime_power": {
+        "name": "Realtime Command Power"
+      },
+      "realtime_target_soc": {
+        "name": "Realtime Target SOC"
+      },
+      "grid_charging_allowed": {
+        "name": "Grid Charging"
+      },
+      "inverter_battery_temperature": {
+        "name": "Inverter Battery Temperature"
+      },
+      "transformer_temperature": {
+        "name": "Transformer Temperature"
+      },
+      "request_interval": {
+        "name": "Request Interval (Effective)"
+      },
+      "ac_input_power": {
+        "name": "AC Input Power"
+      },
+      "ac_output_power": {
+        "name": "AC Output Power"
+      },
+      "bypass_power": {
+        "name": "Bypass Power"
+      },
+      "indevolt_meter_power": {
+        "name": "Indevolt Meter Power"
+      },
+      "solar_output_power": {
+        "name": "Solar Output Power"
+      },
+      "total_ac_input_energy": {
+        "name": "Total AC Input Energy"
+      },
+      "total_ac_output_energy": {
+        "name": "Total AC Output Energy"
+      },
+      "off_grid_output_energy": {
+        "name": "Off-Grid Output Energy"
+      },
+      "bypass_input_energy": {
+        "name": "Bypass Input Energy"
+      },
+      "daily_solar_energy": {
+        "name": "Daily Solar Energy"
+      },
+      "total_solar_energy": {
+        "name": "Total Solar Energy"
+      },
+      "feed_in_limit": {
+        "name": "Feed-in Limit"
+      },
+      "grid_voltage": {
+        "name": "Grid Voltage"
+      },
+      "grid_frequency": {
+        "name": "Grid Frequency"
+      },
+      "remaining_charging_time": {
+        "name": "Remaining Charging Time"
+      },
+      "remaining_discharging_time": {
+        "name": "Remaining Discharging Time"
+      },
+      "realtime_command": {
+        "name": "Realtime Command",
+        "state": {
+          "standby": "Standby",
+          "charging": "Charging",
+          "discharging": "Discharging"
+        }
+      },
+      "device_mode": {
+        "name": "Device Mode",
+        "state": {
+          "cluster_main": "Cluster (main)",
+          "cluster_sub": "Cluster (sub)",
+          "standalone": "Standalone"
+        }
+      },
+      "operating_status": {
+        "name": "Operating Status",
+        "state": {
+          "powered_off": "Powered off",
+          "sleep": "Sleep",
+          "starting": "Starting",
+          "mppt_operating": "MPPT operating",
+          "current_limiting": "Current limiting",
+          "shutting_down": "Shutting down",
+          "inverter_fault": "Inverter fault",
+          "standby": "Standby",
+          "grid_charging": "Grid charging",
+          "grid_discharging": "Grid discharging",
+          "off_grid_charging": "Off-grid charging",
+          "off_grid_discharging": "Off-grid discharging",
+          "low_battery_charging": "Low-battery charging",
+          "deep_sleep": "Deep sleep",
+          "scheduled_full_charge": "Scheduled full charge",
+          "off_grid_deep_sleep": "Off-grid deep sleep"
+        }
+      },
+      "full_charge_interval": {
+        "name": "Forced Full Charge Interval"
+      },
+      "full_charge_time": {
+        "name": "Forced Full Charge Time"
+      },
+      "highest_cell_voltage": {
+        "name": "Highest Cell Voltage"
+      },
+      "lowest_cell_voltage": {
+        "name": "Lowest Cell Voltage"
+      },
+      "pv1_power": {
+        "name": "PV1 Power"
+      },
+      "pv1_current": {
+        "name": "PV1 Current"
+      },
+      "pv2_power": {
+        "name": "PV2 Power"
+      },
+      "pv2_current": {
+        "name": "PV2 Current"
+      },
+      "pv3_power": {
+        "name": "PV3 Power"
+      },
+      "pv3_current": {
+        "name": "PV3 Current"
+      },
+      "pv4_power": {
+        "name": "PV4 Power"
+      },
+      "pv4_current": {
+        "name": "PV4 Current"
+      },
+      "inverter_battery_soc": {
+        "name": "Inverter Battery SOC"
+      },
+      "inverter_battery_cycles": {
+        "name": "Inverter Battery Cycles"
+      },
+      "inverter_battery_mos_temperature": {
+        "name": "Inverter Battery MOS Temperature"
+      },
+      "inverter_battery_voltage": {
+        "name": "Inverter Battery Voltage"
+      },
+      "inverter_battery_current": {
+        "name": "Inverter Battery Current"
+      },
+      "inverter_battery_serial_number": {
+        "name": "Inverter Battery Serial Number"
+      },
+      "expansion_battery_1_soc": {
+        "name": "Expansion Battery 1 SOC"
+      },
+      "expansion_battery_1_cycles": {
+        "name": "Expansion Battery 1 Cycles"
+      },
+      "expansion_battery_1_mos_temperature": {
+        "name": "Expansion Battery 1 MOS Temperature"
+      },
+      "expansion_battery_1_voltage": {
+        "name": "Expansion Battery 1 Voltage"
+      },
+      "expansion_battery_1_current": {
+        "name": "Expansion Battery 1 Current"
+      },
+      "expansion_battery_1_serial_number": {
+        "name": "Expansion Battery 1 Serial Number"
+      },
+      "expansion_battery_2_soc": {
+        "name": "Expansion Battery 2 SOC"
+      },
+      "expansion_battery_2_cycles": {
+        "name": "Expansion Battery 2 Cycles"
+      },
+      "expansion_battery_2_mos_temperature": {
+        "name": "Expansion Battery 2 MOS Temperature"
+      },
+      "expansion_battery_2_voltage": {
+        "name": "Expansion Battery 2 Voltage"
+      },
+      "expansion_battery_2_current": {
+        "name": "Expansion Battery 2 Current"
+      },
+      "expansion_battery_2_serial_number": {
+        "name": "Expansion Battery 2 Serial Number"
+      },
+      "expansion_battery_3_soc": {
+        "name": "Expansion Battery 3 SOC"
+      },
+      "expansion_battery_3_cycles": {
+        "name": "Expansion Battery 3 Cycles"
+      },
+      "expansion_battery_3_mos_temperature": {
+        "name": "Expansion Battery 3 MOS Temperature"
+      },
+      "expansion_battery_3_voltage": {
+        "name": "Expansion Battery 3 Voltage"
+      },
+      "expansion_battery_3_current": {
+        "name": "Expansion Battery 3 Current"
+      },
+      "expansion_battery_3_serial_number": {
+        "name": "Expansion Battery 3 Serial Number"
+      },
+      "expansion_battery_4_soc": {
+        "name": "Expansion Battery 4 SOC"
+      },
+      "expansion_battery_4_cycles": {
+        "name": "Expansion Battery 4 Cycles"
+      },
+      "expansion_battery_4_mos_temperature": {
+        "name": "Expansion Battery 4 MOS Temperature"
+      },
+      "expansion_battery_4_voltage": {
+        "name": "Expansion Battery 4 Voltage"
+      },
+      "expansion_battery_4_current": {
+        "name": "Expansion Battery 4 Current"
+      },
+      "expansion_battery_4_serial_number": {
+        "name": "Expansion Battery 4 Serial Number"
+      },
+      "expansion_battery_5_soc": {
+        "name": "Expansion Battery 5 SOC"
+      },
+      "expansion_battery_5_cycles": {
+        "name": "Expansion Battery 5 Cycles"
+      },
+      "expansion_battery_5_mos_temperature": {
+        "name": "Expansion Battery 5 MOS Temperature"
+      },
+      "expansion_battery_5_voltage": {
+        "name": "Expansion Battery 5 Voltage"
+      },
+      "expansion_battery_5_current": {
+        "name": "Expansion Battery 5 Current"
+      },
+      "expansion_battery_5_serial_number": {
+        "name": "Expansion Battery 5 Serial Number"
+      },
+      "request_speed": {
+        "name": "Request Speed",
+        "state": {
+          "maximum": "Maximum (1s)",
+          "fast": "Fast (2s)",
+          "normal": "Normal (3s)",
+          "conservative": "Conservative (5s)"
+        }
+      },
+      "read_latency": {
+        "name": "Read Latency (P95)"
+      },
+      "write_latency": {
+        "name": "Write Latency (P95)"
+      },
+      "request_failures": {
+        "name": "Request Failures"
+      },
+      "flash_writes": {
+        "name": "Flash Writes"
+      },
+      "expansion_battery_1_temperature": {
+        "name": "Expansion Battery 1 Temperature"
+      },
+      "expansion_battery_2_temperature": {
+        "name": "Expansion Battery 2 Temperature"
+      },
+      "expansion_battery_3_temperature": {
+        "name": "Expansion Battery 3 Temperature"
+      },
+      "expansion_battery_4_temperature": {
+        "name": "Expansion Battery 4 Temperature"
+      },
+      "expansion_battery_5_temperature": {
+        "name": "Expansion Battery 5 Temperature"
+      },
+      "pv1_voltage": {
+        "name": "PV1 Voltage"
+      },
+      "pv2_voltage": {
+        "name": "PV2 Voltage"
+      },
+      "pv3_voltage": {
+        "name": "PV3 Voltage"
+      },
+      "pv4_voltage": {
+        "name": "PV4 Voltage"
+      },
+      "pack1_firmware_version": {
+        "name": "Battery Pack 1 Firmware"
+      },
+      "pack2_firmware_version": {
+        "name": "Battery Pack 2 Firmware"
+      },
+      "pack3_firmware_version": {
+        "name": "Battery Pack 3 Firmware"
+      },
+      "pack1_serial_number": {
+        "name": "Battery Pack 1 Serial Number"
+      },
+      "pack2_serial_number": {
+        "name": "Battery Pack 2 Serial Number"
+      },
+      "pack3_serial_number": {
+        "name": "Battery Pack 3 Serial Number"
+      },
+      "backup_function": {
+        "name": "Backup Function"
+      },
+      "inverter_software_version": {
+        "name": "Inverter Firmware"
+      },
+      "grid_power": {
+        "name": "Grid Power"
+      },
+      "inverter_ac_power": {
+        "name": "Inverter AC Power"
+      },
+      "charging_cutoff_capacity": {
+        "name": "Charging Cutoff"
+      },
+      "discharging_cutoff_capacity": {
+        "name": "Discharging Cutoff"
+      },
+      "hardware_reserve_soc": {
+        "name": "Backup Power SOC"
+      },
+      "user_work_mode": {
+        "name": "Work Mode"
+      },
+      "inverter_max_power": {
+        "name": "Inverter Max Power"
+      },
+      "inverter_rated_power": {
+        "name": "Inverter Rated Power"
+      },
+      "power_module_serial_number": {
+        "name": "Power Module Serial Number"
+      },
+      "power_module_firmware_version": {
+        "name": "Power Module Firmware"
+      },
+      "inverter_serial_number": {
+        "name": "Inverter Serial Number"
+      },
+      "battery_runtime_estimate": {
+        "name": "Battery Runtime Estimate"
+      },
+      "bms_version": {
+        "name": "BMS Version"
+      },
+      "ems_version": {
+        "name": "EMS Version"
+      },
+      "vms_version": {
+        "name": "VMS Version"
+      },
+      "comm_module_firmware": {
+        "name": "Comm Module Firmware"
+      },
+      "esp_ip": {
+        "name": "ESPHome IP"
+      },
+      "esp_ssid": {
+        "name": "ESPHome SSID"
+      },
+      "esp_version": {
+        "name": "ESP Version"
+      },
+      "mac_address": {
+        "name": "MAC Address"
+      },
+      "wifi_signal_strength": {
+        "name": "WiFi Signal Strength"
+      },
+      "esp_wifi_signal_strength": {
+        "name": "ESP WiFi Signal Strength"
+      },
+      "bt_status": {
+        "name": "BT Status"
+      },
+      "power_restriction": {
+        "name": "Power Restriction"
+      },
+      "battery_cycle_count": {
+        "name": "Battery Cycle Count"
+      },
+      "balancing_mode": {
+        "name": "Balancing Mode"
+      },
+      "battery_cycle_count_calc": {
+        "name": "Battery Cycle Count (Calc)"
+      },
+      "cell_delta": {
+        "name": "Balance - Cell Delta (at 100%)"
+      },
+      "balance_status": {
+        "name": "Balance - Status",
+        "state": {
+          "green": "Balanced",
+          "yellow": "Minor imbalance",
+          "orange": "Moderate imbalance",
+          "red": "High imbalance",
+          "unknown": "Unknown"
+        }
+      },
+      "delta_trend": {
+        "name": "Balance - Trend",
+        "state": {
+          "rising": "Rising",
+          "stable": "Stable",
+          "falling": "Falling",
+          "unknown": "Unknown"
+        }
+      },
+      "last_balance_read": {
+        "name": "Balance - Last Reading"
+      },
+      "delta_avg_4w": {
+        "name": "Balance - Delta Average (4 readings)"
+      },
+      "balance_neto": {
+        "name": "Net Balance",
+        "state": {
+          "idle": "Idle",
+          "out_of_slot": "Out of Slot",
+          "capped": "Capped",
+          "compensating_import": "Compensating Import",
+          "compensating_export": "Compensating Export",
+          "compensation_stopped": "Compensation Stopped"
+        }
+      },
+      "remain_discharge_time": {
+        "name": "Remaining Discharge Time"
+      },
+      "fault_level": {
+        "name": "Fault Level"
+      },
+      "ac_mode": {
+        "name": "AC Mode"
+      },
+      "pack_count": {
+        "name": "Battery Pack Count"
+      },
+      "output_limit": {
+        "name": "Output Limit"
+      },
+      "input_limit": {
+        "name": "Input Limit"
+      }
+    },
+    "binary_sensor": {
+      "indevolt_meter_connected": {
+        "name": "Indevolt Meter Connected"
+      },
+      "capacity_protection_active": {
+        "name": "Peak Shaving Active"
+      },
+      "predictive_charging_active": {
+        "name": "Predictive Charging Active"
+      },
+      "curtailment_status": {
+        "name": "Smart Pre-discharge Status"
+      },
+      "surplus_price_hold_status": {
+        "name": "Surplus Price Hold Status"
+      },
+      "temperature_charge_limit_status": {
+        "name": "Temperature Charge Limit Status"
+      },
+      "discharge_reserve_status": {
+        "name": "Discharge Reserve Status"
+      },
+      "wifi_status": {
+        "name": "WiFi Status"
+      },
+      "cloud_status": {
+        "name": "Cloud Status"
+      },
+      "esp_wifi_status": {
+        "name": "ESP WiFi Status"
+      },
+      "pll_abnormal_restart": {
+        "name": "PLL Abnormal Restart"
+      },
+      "overtemperature_limit": {
+        "name": "Overtemperature Limit"
+      },
+      "low_temperature_limit": {
+        "name": "Low Temperature Limit"
+      },
+      "fan_abnormal_warning": {
+        "name": "Fan Abnormal Warning"
+      },
+      "low_battery_soc_warning": {
+        "name": "Low Battery SOC Warning"
+      },
+      "output_overcurrent_warning": {
+        "name": "Output Overcurrent Warning"
+      },
+      "abnormal_line_sequence_detection": {
+        "name": "Abnormal Line Sequence Detection"
+      },
+      "wifi_abnormal": {
+        "name": "WiFi Abnormal"
+      },
+      "ble_abnormal": {
+        "name": "BLE Abnormal"
+      },
+      "network_abnormal": {
+        "name": "Network Abnormal"
+      },
+      "ct_connection_abnormal": {
+        "name": "CT Connection Abnormal"
+      },
+      "grid_overvoltage": {
+        "name": "Grid Overvoltage"
+      },
+      "grid_undervoltage": {
+        "name": "Grid Undervoltage"
+      },
+      "grid_overfrequency": {
+        "name": "Grid Overfrequency"
+      },
+      "grid_underfrequency": {
+        "name": "Grid Underfrequency"
+      },
+      "grid_peak_voltage_abnormal": {
+        "name": "Grid Peak Voltage Abnormal"
+      },
+      "current_dcover": {
+        "name": "Current Dcover"
+      },
+      "voltage_dcover": {
+        "name": "Voltage Dcover"
+      },
+      "bat_overvoltage": {
+        "name": "BAT Overvoltage"
+      },
+      "bat_undervoltage": {
+        "name": "BAT Undervoltage"
+      },
+      "bat_overcurrent": {
+        "name": "BAT Overcurrent"
+      },
+      "bat_low_soc": {
+        "name": "BAT Low SOC"
+      },
+      "bat_communication_failure": {
+        "name": "BAT Communication Failure"
+      },
+      "bms_protect": {
+        "name": "BMS Protect"
+      },
+      "balancing_mode": {
+        "name": "Balancing Mode"
+      },
+      "charge_hysteresis": {
+        "name": "Charge Hysteresis"
+      }
+    },
+    "select": {
+      "force_mode": {
+        "name": "Force Mode"
+      },
+      "battery_phase": {
+        "name": "Battery Phase",
+        "state": {
+          "unassigned": "Unassigned",
+          "l1": "L1",
+          "l2": "L2",
+          "l3": "L3"
+        }
+      },
+      "autonomous_operating_mode": {
+        "name": "Operating Mode",
+        "state": {
+          "nom": "NOM (zero on the meter)",
+          "manual": "Manual (no action)"
+        },
+        "state_attributes": {
+          "status": {
+            "name": "Status",
+            "state": {
+              "manual": "Manual",
+              "nom_active": "NOM active",
+              "nom_pending": "NOM about to resume",
+              "nom_suspended_excluded_load": "NOM suspended: excluded device running",
+              "nom_suspended_grid_charge": "NOM suspended: grid charge",
+              "nom_suspended_global_manual": "NOM suspended: global manual mode",
+              "nom_suspended_cross_charge": "NOM suspended: it discharged into another battery",
+              "nom_suspended_import_cap": "NOM suspended: its charge went over the import cap",
+              "nom_suspended_grid_target": "NOM suspended: importing or exporting on purpose",
+              "degraded": "Mode or power cannot be confirmed"
+            }
+          }
+        }
+      },
+      "grid_reverse": {
+        "name": "Energy Export",
+        "state": {
+          "disabled": "Disabled",
+          "allowed": "Allowed",
+          "forbidden": "Forbidden"
+        }
+      },
+      "grid_off_mode": {
+        "name": "Off-Grid Mode",
+        "state": {
+          "normal": "Normal",
+          "economy": "Economy",
+          "off": "Off"
+        }
+      },
+      "user_work_mode": {
+        "name": "User Work Mode",
+        "state": {
+          "manual": "Manual",
+          "anti_feed": "Self Consumption",
+          "trade_mode": "AI Optimization"
+        }
+      },
+      "weekly_full_charge_day": {
+        "name": "Weekly Full Charge Day",
+        "state": {
+          "monday": "Monday",
+          "tuesday": "Tuesday",
+          "wednesday": "Wednesday",
+          "thursday": "Thursday",
+          "friday": "Friday",
+          "saturday": "Saturday",
+          "sunday": "Sunday"
+        }
+      },
+      "charge_priority": {
+        "name": "Charge priority",
+        "state": {
+          "automatic": "Automatic (by hours to full)"
+        }
+      },
+      "primary_battery": {
+        "name": "Primary battery",
+        "state": {
+          "automatic": "Automatic (fullest first)"
+        }
+      },
+      "high_price_sale": {
+        "name": "High-Price Sale",
+        "state": {
+          "off": "Off",
+          "surplus": "Surplus only",
+          "surplus_arbitrage": "Surplus + arbitrage (buy back later)"
+        }
+      },
+      "pd_tuning_profile": {
+        "name": "PD Tuning Profile",
+        "state": {
+          "very_smooth": "Very Smooth",
+          "smooth": "Smooth",
+          "balanced": "Balanced",
+          "aggressive": "Aggressive",
+          "very_aggressive": "Very Aggressive",
+          "custom": "Custom"
+        }
+      }
+    },
+    "number": {
+      "surplus_hold_min_saving": {
+        "name": "Surplus Hold Minimum Saving"
+      },
+      "excluded_device_exclusion_pct": {
+        "name": "{device} – Exclusion %"
+      },
+      "set_charge_power": {
+        "name": "Set Charge Power"
+      },
+      "set_discharge_power": {
+        "name": "Set Discharge Power"
+      },
+      "max_charge_power": {
+        "name": "Max Charge Power"
+      },
+      "max_discharge_power": {
+        "name": "Max Discharge Power"
+      },
+      "charging_cutoff_capacity": {
+        "name": "Charging Cutoff Capacity"
+      },
+      "discharging_cutoff_capacity": {
+        "name": "Discharging Cutoff Capacity"
+      },
+      "charge_to_soc": {
+        "name": "Charge To SOC"
+      },
+      "pd_controller_kp": {
+        "name": "PD Kp"
+      },
+      "pd_controller_kd": {
+        "name": "PD Kd"
+      },
+      "pd_controller_deadband": {
+        "name": "PD Deadband"
+      },
+      "pd_controller_max_power_change": {
+        "name": "PD Max Power Change"
+      },
+      "pd_controller_direction_hysteresis": {
+        "name": "PD Direction Hysteresis"
+      },
+      "pd_min_charge_power": {
+        "name": "PD Min Charge Power"
+      },
+      "pd_min_discharge_power": {
+        "name": "PD Min Discharge Power"
+      },
+      "pd_relay_cooldown": {
+        "name": "PD Relay Cooldown"
+      },
+      "pd_min_cycle_interval": {
+        "name": "PD Min Cycle Interval"
+      },
+      "no_pd_command_delay": {
+        "name": "No-PD Command Delay"
+      },
+      "pd_target_grid_power": {
+        "name": "PD Target Grid Power"
+      },
+      "system_max_charge_power": {
+        "name": "System Max Charge Power"
+      },
+      "system_max_discharge_power": {
+        "name": "System Max Discharge Power"
+      },
+      "max_contracted_power": {
+        "name": "Maximum Grid Import"
+      },
+      "capacity_protection_soc_threshold": {
+        "name": "Peak Shaving SOC Threshold"
+      },
+      "delay_safety_margin_min": {
+        "name": "Charge Delay Margin"
+      },
+      "charge_delay_balance_deadband_kwh": {
+        "name": "Charge Delay Balance Deadband"
+      },
+      "delay_soc_setpoint": {
+        "name": "Charge Delay SOC Setpoint"
+      },
+      "temp_charge_limit_c": {
+        "name": "Temperature Charge Limit"
+      },
+      "temp_charge_limit_band_c": {
+        "name": "Temperature Charge Limit Band"
+      },
+      "temp_charge_limit_floor_pct": {
+        "name": "Temperature Charge Limit Floor"
+      },
+      "charge_hysteresis_percent": {
+        "name": "Charge Hysteresis Percent"
+      },
+      "battery_capacity": {
+        "name": "Battery Capacity"
+      },
+      "predictive_safety_margin_pct": {
+        "name": "Solar Forecast Safety Margin"
+      },
+      "predictive_min_soc_floor": {
+        "name": "Guaranteed Minimum SOC Level"
+      },
+      "hourly_balance_target_net_wh": {
+        "name": "Hourly Balance Target"
+      },
+      "hourly_balance_max_offset_w": {
+        "name": "Hourly Balance Max Offset"
+      },
+      "hourly_balance_deadband_wh": {
+        "name": "Hourly Balance Deadband"
+      },
+      "hourly_balance_hysteresis_w": {
+        "name": "Hourly Balance Hysteresis"
+      },
+      "soc_set": {
+        "name": "Target SOC"
+      },
+      "target_soc": {
+        "name": "Target SOC"
+      },
+      "min_soc": {
+        "name": "Minimum SOC"
+      },
+      "inverse_max_power": {
+        "name": "Max Inverter Output"
+      },
+      "max_price_threshold": {
+        "name": "Charge Price Ceiling"
+      },
+      "discharge_price_threshold": {
+        "name": "Discharge Price Floor"
+      },
+      "min_arbitrage_margin": {
+        "name": "Minimum Arbitrage Margin"
+      },
+      "round_trip_efficiency": {
+        "name": "Round-Trip Efficiency"
+      },
+      "negative_injection_threshold": {
+        "name": "Negative Feed-in Price Threshold"
+      },
+      "predischarge_reserve_soc": {
+        "name": "Pre-discharge Lowest SOC"
+      }
+    },
+    "button": {
+      "reset_device": {
+        "name": "Reset Device"
+      },
+      "reevaluate_dynamic_pricing": {
+        "name": "Re-evaluate Predictive Charging"
+      }
+    }
+  },
+  "exceptions": {
+    "exclude_days_invalid_range": {
+      "message": "The end date cannot be earlier than the start date."
+    },
+    "exclude_days_too_old": {
+      "message": "Consumption learning only keeps the last {days} days, so an older day can no longer be excluded."
+    },
+    "manual_control_required": {
+      "message": "{battery} is under automatic control, so Force Mode and the charge/discharge setpoints are rewritten every control cycle. Enable Manual Mode (system-wide or for this battery) before commanding it directly."
+    }
+  },
+  "services": {
+    "exclude_consumption_days": {
+      "name": "Exclude consumption days",
+      "description": "Keeps whole local days out of the learned consumption, for a day that does not represent the household: a meter outage, a one-off event, a stay away from home. Physical energy counters and history are untouched; only learning ignores the days. The exclusion is persisted, so a later Recorder backfill cannot bring the days back.",
+      "fields": {
+        "start_date": {
+          "name": "Start date",
+          "description": "First local day to exclude."
+        },
+        "end_date": {
+          "name": "End date",
+          "description": "Last local day to exclude. Defaults to the start date, excluding a single day."
+        }
+      }
+    },
+    "use_measured_round_trip_efficiency": {
+      "name": "Use measured round-trip efficiency",
+      "description": "Drops a fixed Round-Trip Efficiency, so the planner uses the efficiency measured on your batteries again (0.85 until a battery has enough history). The dashboard's value editor calls it from “Use measured”."
+    }
+  }
+}
