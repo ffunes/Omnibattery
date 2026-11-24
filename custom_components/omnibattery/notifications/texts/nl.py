@@ -44,16 +44,14 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.sufficient": "✓ Voldoende energie voor {horizon}",
     "plan.no_more_charging": "Geen extra laden vanaf het net nodig.",
     "plan.no_charging": "Geen laden vanaf het net nodig.",
-    "plan.max_charge_power": "Maximaal laadvermogen: {power}",
-    # --- plan.py: _max_charge_power_str / _max_discharge_power_line ---
-    "plan.power.contracted": "contractvermogen: {power:g}W",
-    "plan.power.icp": "ICP: {power:g}W",
-    "plan.power.batteries": "batterijen: {power:g}W",
-    "plan.power.summary": "{limit:g}W ({parts})",
-    "plan.max_discharge": "Maximaal ontlaadvermogen: {limit:g}W",
-    "plan.max_discharge_carried": (
-        "Maximaal ontlaadvermogen: {limit:g}W (belasting daarboven komt van het net: "
-        "{carried:.2f} kWh, niet meegerekend in het laden)"
+    # --- plan.py: _limits_table (the power limits the plan used) ---
+    "plan.power.header": "Maximaal vermogen",
+    "plan.power.charge": "Laden",
+    "plan.power.discharge": "Ontladen",
+    "plan.power.contracted": "{power:g}W (contractvermogen)",
+    "plan.power.batteries": "{power:g}W (batterijen)",
+    "plan.power.carried": (
+        "Belasting boven het maximale ontlaadvermogen komt van het net: {carried:.2f} kWh, niet meegerekend in het laden"
     ),
     # --- plan.py: format_predictive_notification_message ---
     "plan.safe.title": "Voorspellend laden: veilige modus",

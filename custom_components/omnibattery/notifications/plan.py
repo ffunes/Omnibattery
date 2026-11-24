@@ -218,48 +218,40 @@ def _horizon_text(context: dict, *, with_for: bool = False, lang: str = "en") ->
 
 
 def _max_charge_power_str(
-    max_contracted_power,
-    max_charge_capacity=None,
-    *,
-    icp: bool = False,
-    lang: str = "en",
+    max_contracted_power, max_charge_capacity=None, *, lang: str = "en"
 ) -> str:
-    """Render the effective grid-charge ceiling and the limits behind it."""
-    limits = [max_contracted_power]
-    parts = [
-        translate(
-            lang,
-            "plan.power.icp" if icp else "plan.power.contracted",
-            power=max_contracted_power,
-        )
-    ]
-    if max_charge_capacity is not None:
-        limits.append(max_charge_capacity)
-        parts.append(translate(lang, "plan.power.batteries", power=max_charge_capacity))
-    return translate(lang, "plan.power.summary", limit=min(limits), parts=", ".join(parts))
+    """The grid-charge ceiling and which limit sets it (the lower one)."""
+    if max_charge_capacity is not None and max_charge_capacity < max_contracted_power:
+        return translate(lang, "plan.power.batteries", power=max_charge_capacity)
+    return translate(lang, "plan.power.contracted", power=max_contracted_power)
 
 
-def _max_discharge_power_line(decision_data: dict, lang: str = "en") -> str:
-    """Discharge limit the planner capped the battery drain at, if known.
-
-    House load above it comes from the grid, so the planned grid charge
-    leaves it out.
+def _discharge_limit(decision_data: dict) -> tuple[float, float] | None:
+    """Discharge limit (W) the planner capped the battery drain at, if known,
+    and the house load above it (kWh): that comes from the grid, so the
+    planned grid charge leaves it out.
     """
     try:
         limit = float(decision_data.get("battery_discharge_limit_w"))
     except (TypeError, ValueError):
-        return ""
+        return None
     if not math.isfinite(limit):
-        return ""
+        return None
     try:
         carried = float(decision_data.get("grid_carried_load_kwh") or 0.0)
     except (TypeError, ValueError):
         carried = 0.0
-    if carried >= 0.005:
-        return "\n" + translate(
-            lang, "plan.max_discharge_carried", limit=limit, carried=carried
-        )
-    return "\n" + translate(lang, "plan.max_discharge", limit=limit)
+    return limit, carried
+
+
+def _limits_table(rows, lang: str = "en") -> str:
+    """``(name, value)`` power limits as a table (``plan.power.<name>``)."""
+    if not rows:
+        return ""
+    return "\n".join(
+        [f"| {translate(lang, 'plan.power.header')} | |", "|---|---|"]
+        + [f"| {translate(lang, f'plan.power.{name}')} | {value} |" for name, value in rows]
+    )
 
 
 def format_predictive_notification_message(
@@ -378,8 +370,9 @@ def format_predictive_notification_message(
         + "\n\n"
         + _build_forecast_lines(context, decision_data, lang, *charge_rows)
         + "\n"
-        + f"{timing_line}"
-        + translate(lang, "plan.max_charge_power", power=power_str)
+        # A blank line before the table so markdown renders it as one.
+        + f"{timing_line}\n"
+        + _limits_table([("charge", power_str)], lang)
     )
 
     return (title, message, category)
@@ -734,21 +727,21 @@ def format_dynamic_pricing_notification(
 
     def _footer(charge_power: bool = False, discharge: bool = False) -> str:
         """Thresholds and power limits as the closing block, after a blank line."""
-        parts = [price_config_line]
+        rows = []
+        note = ""
         if charge_power:
-            parts.append(
-                translate(
-                    lang,
-                    "plan.max_charge_power",
-                    power=_max_charge_power_str(
-                        max_contracted_power, max_charge_capacity, icp=True, lang=lang
-                    ),
-                )
-            )
-        if discharge:
-            parts.append(_max_discharge_power_line(decision_data, lang).lstrip("\n"))
-        parts = [p for p in parts if p]
-        return "\n\n" + "\n".join(parts) if parts else ""
+            rows.append((
+                "charge",
+                _max_charge_power_str(max_contracted_power, max_charge_capacity, lang=lang),
+            ))
+        limit = _discharge_limit(decision_data) if discharge else None
+        if limit:
+            rows.append(("discharge", f"{limit[0]:g}W"))
+            if limit[1] >= 0.005:
+                note = translate(lang, "plan.power.carried", carried=limit[1])
+        # Blank lines around the table, or markdown joins the text to it.
+        parts = [p for p in (price_config_line, _limits_table(rows, lang), note) if p]
+        return "\n\n" + "\n\n".join(parts) if parts else ""
 
     if schedule is None or not schedule.selected_slots:
         if not decision_data.get("should_charge", False):
