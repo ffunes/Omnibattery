@@ -2885,7 +2885,11 @@ class PricingManager:
                     getattr(self._controller, "predischarge_reserve_soc", 0.0)
                 ),
                 headroom_margin_pct=float(
-                    getattr(self._controller, "_predictive_safety_margin_pct", 0.0)
+                    getattr(
+                        self._controller,
+                        "_solar_headroom_margin_pct",
+                        getattr(self._controller, "_predictive_safety_margin_pct", 0.0),
+                    )
                     or 0.0
                 ),
                 charge_power_w=self._planning_charge_capacity(),

@@ -874,6 +874,12 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
                 "round_trip_efficiency_source": effective_round_trip_efficiency(
                     self.controller
                 )[1],
+                "solar_safety_margin_pct_used": getattr(
+                    self.controller, "_predictive_safety_margin_pct", None
+                ),
+                "solar_safety_margin_source": getattr(
+                    self.controller, "_predictive_safety_margin_source", None
+                ),
                 "chronological_plan_reason": _chronological_value(
                     "chronological_plan_reason"
                 ),

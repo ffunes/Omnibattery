@@ -11,6 +11,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .pricing.calculations import solar_forecast_shortfalls
 from .const import (
     CONFIG_NUMBER_DEFINITIONS,
     DYNAMIC_BOUNDS_SYSTEM_POWER,
@@ -22,6 +23,7 @@ from .const import (
     CONF_DISCHARGE_PRICE_THRESHOLD_ENABLED,
     effective_price_threshold,
     CONF_MIN_ARBITRAGE_MARGIN,
+    CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
     CONF_ROUND_TRIP_EFFICIENCY,
     DEFAULT_ROUND_TRIP_EFFICIENCY,
     MIN_ROUND_TRIP_EFFICIENCY,
@@ -533,7 +535,10 @@ class ConfigNumberEntity(NumberEntity):
         self._attr_native_step = definition["step"]
         self._attr_mode = NumberMode.SLIDER
         self._attr_entity_category = EntityCategory.CONFIG
-        self._attr_should_poll = False
+        # The solar safety margin follows a learned value until one is set
+        # (like the efficiency): polled, as that value moves with the days.
+        self._follows_learned = definition["key"] == CONF_PREDICTIVE_SAFETY_MARGIN_PCT
+        self._attr_should_poll = self._follows_learned
         self._scale = definition.get("scale", 1)
 
     async def async_added_to_hass(self) -> None:
@@ -569,9 +574,42 @@ class ConfigNumberEntity(NumberEntity):
 
     @property
     def native_value(self):
-        """Return the current value from config_entry.data, in display units."""
+        """Return the current value from config_entry.data, in display units.
+
+        Without a stored safety margin the slider shows what the planner
+        uses: the learned one, or the default while there are too few days.
+        """
         raw = self.entry.data.get(self._key, self._definition["default"])
+        if self._follows_learned and self._key not in self.entry.data:
+            raw = getattr(self._controller(), "_predictive_safety_margin_pct", raw)
         return raw / self._scale
+
+    def _controller(self):
+        return (
+            (getattr(self.hass, "data", None) or {}).get(DOMAIN, {})
+            .get(getattr(self.entry, "entry_id", None), {})
+            .get("controller")
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict | None:
+        """For the safety margin: whether it follows the learned value."""
+        if not self._follows_learned:
+            return None
+        uses_default = self._key not in self.entry.data
+        controller = self._controller()
+        source = getattr(controller, "_predictive_safety_margin_source", "default")
+        tracker = getattr(controller, "_consumption_tracker", None)
+        return {
+            "uses_default": uses_default,
+            # "measured" tags the panel slider; "default" while there is no history.
+            "default_kind": source if uses_default else None,
+            # Shown with a fixed value too, to compare before letting go of it.
+            "learned_pct": getattr(controller, "_predictive_safety_margin_learned_pct", None),
+            "learned_days": len(
+                solar_forecast_shortfalls(getattr(tracker, "_solar_forecast_history", None))
+            ),
+        }
 
     async def async_set_native_value(self, value: float) -> None:
         """Update the value in config_entry.data and hot-reload controller."""

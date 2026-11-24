@@ -195,7 +195,6 @@ from .const import (
     CONF_METER_INVERTED,
     CONF_PREDICTIVE_SAFETY_MARGIN_KWH,
     CONF_PREDICTIVE_SAFETY_MARGIN_PCT,
-    DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT,
     CONF_PREDICTIVE_MIN_SOC_FLOOR,
     DEFAULT_PREDICTIVE_MIN_SOC_FLOOR,
@@ -1347,9 +1346,9 @@ class ChargeDischargeController:
         )
         # Share of the forecast sun each planner gives up (see
         # pricing.calculations.solar_safety_margin_kwh).
-        self._predictive_safety_margin_pct: float = config_entry.data.get(
-            CONF_PREDICTIVE_SAFETY_MARGIN_PCT, DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT
-        )
+        # The stored value, else the learned one (refreshed again once the
+        # tracker has loaded its history and every time a day closes).
+        calculations.refresh_solar_safety_margin(self)
         self._predictive_min_soc_floor: float = config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
         # Backward-compat default: if the key is absent but floor > 0 was stored, keep it active.
         self._predictive_min_soc_floor_enabled: bool = config_entry.data.get(
@@ -3431,7 +3430,7 @@ class ChargeDischargeController:
         old_curtailment_config = (
             self.negative_injection_threshold,
             self.predischarge_reserve_soc,
-            self._predictive_safety_margin_pct,
+            self._solar_headroom_margin_pct,
         )
         old_negative_price_enabled = self.negative_price_charging_enabled
         # Update weekly full charge settings; reset completion state if day changed
@@ -3506,9 +3505,7 @@ class ChargeDischargeController:
         self._weekly_full_charge_skip_delay = self.config_entry.data.get(
             CONF_WEEKLY_FULL_CHARGE_SKIP_DELAY, DEFAULT_WEEKLY_FULL_CHARGE_SKIP_DELAY
         )
-        self._predictive_safety_margin_pct = self.config_entry.data.get(
-            CONF_PREDICTIVE_SAFETY_MARGIN_PCT, DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT
-        )
+        calculations.refresh_solar_safety_margin(self)
         self._predictive_min_soc_floor = self.config_entry.data.get(CONF_PREDICTIVE_MIN_SOC_FLOOR, DEFAULT_PREDICTIVE_MIN_SOC_FLOOR)
         self._predictive_min_soc_floor_enabled = self.config_entry.data.get(CONF_ENABLE_MIN_SOC_FLOOR, self._predictive_min_soc_floor_enabled)
         self._charge_delay_status["soc_setpoint"] = self._delay_soc_setpoint if self._delay_soc_setpoint_enabled else None
@@ -3553,7 +3550,7 @@ class ChargeDischargeController:
         new_curtailment_config = (
             self.negative_injection_threshold,
             self.predischarge_reserve_soc,
-            self._predictive_safety_margin_pct,
+            self._solar_headroom_margin_pct,
         )
         new_negative_price_enabled = self.negative_price_charging_enabled
         old_surplus_hold_config = (
@@ -12241,6 +12238,7 @@ async def _async_migrate_legacy_active_balance(
 
 SERVICE_EXCLUDE_CONSUMPTION_DAYS = "exclude_consumption_days"
 SERVICE_USE_MEASURED_ROUND_TRIP_EFFICIENCY = "use_measured_round_trip_efficiency"
+SERVICE_USE_MEASURED_SOLAR_SAFETY_MARGIN = "use_measured_solar_safety_margin"
 ATTR_START_DATE = "start_date"
 ATTR_END_DATE = "end_date"
 
@@ -12311,6 +12309,25 @@ def _async_register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_USE_MEASURED_ROUND_TRIP_EFFICIENCY,
         _async_use_measured_round_trip_efficiency,
+    )
+
+    async def _async_use_measured_solar_safety_margin(call: ServiceCall) -> None:
+        """Drop a fixed solar safety margin: the learned one applies again.
+
+        Same way back as the efficiency: the panel's value editor calls it.
+        """
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if CONF_PREDICTIVE_SAFETY_MARGIN_PCT not in entry.data:
+                continue
+            data = dict(entry.data)
+            data.pop(CONF_PREDICTIVE_SAFETY_MARGIN_PCT)
+            hass.config_entries.async_update_entry(entry, data=data)
+            _LOGGER.info("Solar safety margin follows the learned value again")
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_USE_MEASURED_SOLAR_SAFETY_MARGIN,
+        _async_use_measured_solar_safety_margin,
     )
 
 
@@ -13193,6 +13210,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _async_unregister_frontend_panel(hass)
         hass.services.async_remove(DOMAIN, SERVICE_EXCLUDE_CONSUMPTION_DAYS)
         hass.services.async_remove(DOMAIN, SERVICE_USE_MEASURED_ROUND_TRIP_EFFICIENCY)
+        hass.services.async_remove(DOMAIN, SERVICE_USE_MEASURED_SOLAR_SAFETY_MARGIN)
 
     return unload_ok
 

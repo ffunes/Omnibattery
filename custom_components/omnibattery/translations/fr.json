@@ -3005,6 +3005,10 @@
     "use_measured_round_trip_efficiency": {
       "name": "Utiliser le rendement aller-retour mesuré",
       "description": "Supprime la valeur fixe du rendement aller-retour : le planificateur utilise de nouveau le rendement mesuré sur vos batteries (0,85 tant qu'aucune batterie n'a assez d'historique). L'éditeur de valeur du tableau de bord l'appelle depuis « Utiliser la mesure »."
+    },
+    "use_measured_solar_safety_margin": {
+      "name": "Utiliser la marge de sécurité solaire apprise",
+      "description": "Supprime la valeur fixe de la marge de sécurité de la prévision solaire : le planificateur utilise à nouveau la marge apprise sur les 14 derniers jours (10 % tant qu'il n'y a pas 7 jours). L'éditeur de valeur du tableau de bord l'appelle depuis « Utiliser la mesure »."
     }
   }
 }

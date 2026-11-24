@@ -3005,6 +3005,10 @@
     "use_measured_round_trip_efficiency": {
       "name": "Fer servir l'eficiència de cicle complet mesurada",
       "description": "Elimina el valor fix de l'eficiència de cicle complet: el planificador torna a fer servir l'eficiència mesurada a les teves bateries (0,85 fins que una bateria tingui prou historial). L'editor de valor del panell la crida des de «Fer servir la mesurada»."
+    },
+    "use_measured_solar_safety_margin": {
+      "name": "Fer servir el marge de seguretat solar après",
+      "description": "Elimina el valor fix del marge de seguretat de la previsió solar: el planificador torna a fer servir el marge après dels últims 14 dies (10 % fins a tenir 7 dies). L'editor de valor del panell la crida des de «Fer servir la mesurada»."
     }
   }
 }

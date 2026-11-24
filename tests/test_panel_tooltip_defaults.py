@@ -40,7 +40,6 @@ from custom_components.omnibattery.const import (
     DEFAULT_TEMP_CHARGE_LIMIT_FLOOR_PCT,
     DEFAULT_NEGATIVE_INJECTION_THRESHOLD,
     DEFAULT_PREDICTIVE_MIN_SOC_FLOOR,
-    DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT,
     DEFAULT_PREDISCHARGE_RESERVE_SOC,
     DEFAULT_SURPLUS_HOLD_MIN_SAVING,
 )
@@ -79,7 +78,7 @@ DEFAULTS = {
     "notify_plan_info": "same as Charge plan",
     "notify_execution": "same as Charge plan",
     "notify_modes": "on",
-    "predictive_safety_margin_pct": _pct(DEFAULT_PREDICTIVE_SAFETY_MARGIN_PCT),
+    "predictive_safety_margin_pct": "learned (10 % until there are 7 days)",
     "min_soc_floor_enabled": "off",
     "predictive_min_soc_floor": _pct(DEFAULT_PREDICTIVE_MIN_SOC_FLOOR),
     "max_price_threshold_enabled": "off (automatic)",
