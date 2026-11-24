@@ -138,9 +138,7 @@
       "phase_assignments": {
         "title": "Phasenzuordnung Batterie {battery_num}",
         "description": "Wählen Sie die physische Phase, an die {battery_name} angeschlossen ist, oder Nicht zugewiesen, wenn keine geschützte Phase verwendet wird.",
-        "data": {
-          "battery_phase": "Physische Batteriephase"
-        }
+        "data": {"battery_phase": "Physische Batteriephase"}
       },
       "batteries": {
         "title": "Anzahl der Batterien",
@@ -198,15 +196,8 @@
       "battery_connection_hoymiles": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (Hoymiles)",
         "description": "Aktivieren Sie MQTT Service in S-Miles Home und verwenden Sie den in Home Assistant konfigurierten MQTT-Broker.",
-        "data": {
-          "name": "Name",
-          "device_id": "MQTT-Geräte-ID",
-          "hoymiles_model": "Batteriemodell"
-        },
-        "data_description": {
-          "device_id": "Hoymiles MQTT-ID, zum Beispiel MSA-280024341346.",
-          "hoymiles_model": "Verwenden Sie die automatische Erkennung, sofern das Gerät kein falsches oder generisches Modell veröffentlicht."
-        }
+        "data": {"name": "Name", "device_id": "MQTT-Geräte-ID", "hoymiles_model": "Batteriemodell"},
+        "data_description": {"device_id": "Hoymiles MQTT-ID, zum Beispiel MSA-280024341346.", "hoymiles_model": "Verwenden Sie die automatische Erkennung, sofern das Gerät kein falsches oder generisches Modell veröffentlicht."}
       },
       "battery_connection_esphome": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (LilyGo/ESPHome)",
@@ -671,37 +662,23 @@
           "port": "HTTP-Port (Standard 80)"
         }
       },
+      "reconfigure_battery_apsystems_ezhi": {
+        "title": "Batterie {battery_num} neu konfigurieren: APsystems EZHI",
+        "description": "Aktiviere zuerst den lokalen Modus in der AP-EasyPower-App und gib dann die IP-Adresse des EZHI ein.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP-Adresse des EZHI in deinem Netzwerk."
+        }
+      },
       "reconfigure_battery_sessy": {
         "title": "Batterie {battery_num} neu konfigurieren — Verbindung (Sessy)",
         "description": "Aktualisieren Sie die Verbindungsdaten für die Sessy-Batterie {battery_num}. Alle übrigen Einstellungen bleiben erhalten.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "HTTP-Port",
-          "username": "Benutzername",
-          "password": "Passwort"
-        },
-        "data_description": {
-          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
-          "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk",
-          "port": "HTTP-Port (Standard 80)",
-          "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername",
-          "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"
-        }
-      },
-      "reconfigure_battery_apsystems_ezhi": {
-        "title": "Batterie {battery_num} neu konfigurieren — Verbindung (APsystems EZHI)",
-        "description": "Aktualisieren Sie die Verbindungsdaten für die APsystems EZHI-Batterie {battery_num}. Alle übrigen Einstellungen bleiben erhalten.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "HTTP-Port"
-        },
-        "data_description": {
-          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
-          "host": "IP-Adresse des APsystems EZHI-Geräts im lokalen Netzwerk",
-          "port": "HTTP-Port (Standard 80)"
-        }
+        "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
+        "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
       "reconfigure_battery_indevolt": {
         "title": "Batterie {battery_num} neu konfigurieren — Verbindung (Indevolt)",
@@ -743,44 +720,38 @@
           "slave_id": "Modbus slave/unit id (default 1)"
         }
       },
-      "reconfigure_battery_huawei_slave": {
-        "title": "Batterie {battery_num} neu konfigurieren — Welcher Wechselrichter?",
-        "description": "An diesem Bus haben {count} Wechselrichter mit Batterie geantwortet. Wähle den, zu dem diese Batterie gehört.",
-        "data": {
-          "slave_id": "Wechselrichter"
-        }
-      },
-      "reconfigure_battery_huawei": {
-        "title": "Batterie {battery_num} neu konfigurieren — Verbindung (Huawei)",
-        "description": "Modbus-Zugang und Huawei-Solar-Batteriegerät für Batterie {battery_num} ändern. Alle übrigen Einstellungen bleiben erhalten.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "Modbus-Port",
-          "slave_id": "Modbus-Slave-ID (leer lassen zum Suchen)",
-          "huawei_battery_device": "Huawei-Solar-Batteriegerät",
-          "huawei_direct_write": "Direkte Modbus-Schreibzugriffe"
+          "reconfigure_battery_huawei_slave": {
+            "title": "Batterie {battery_num} neu konfigurieren — Welcher Wechselrichter?",
+            "description": "An diesem Bus haben {count} Wechselrichter mit Batterie geantwortet. Wähle den, zu dem diese Batterie gehört.",
+            "data": {
+              "slave_id": "Wechselrichter"
+            }
+          },
+        "reconfigure_battery_huawei": {
+          "title": "Batterie {battery_num} neu konfigurieren — Verbindung (Huawei)",
+          "description": "Modbus-Zugang und Huawei-Solar-Batteriegerät für Batterie {battery_num} ändern. Alle übrigen Einstellungen bleiben erhalten.",
+          "data": {
+            "name": "Name",
+            "host": "IP-Adresse",
+            "port": "Modbus-Port",
+            "slave_id": "Modbus-Slave-ID (leer lassen zum Suchen)",
+            "huawei_battery_device": "Huawei-Solar-Batteriegerät",
+            "huawei_direct_write": "Direkte Modbus-Schreibzugriffe"
+          },
+          "data_description": {
+            "name": "Sprechender Name für diese Batterie",
+            "host": "Adresse des Modbus-Proxys oder Wechselrichters, von dem Omnibattery liest",
+            "port": "Modbus-TCP-Port (Standard 502)",
+            "slave_id": "Unit-ID des Wechselrichters — nicht die der EMMA oder einer Wallbox. Leer lassen, dann sucht die Einrichtung sie selbst: sie fragt die üblichen IDs ab, erkennt jeden Wechselrichter an seinem Modellregister und übernimmt den, an dem eine Batterie hängt. Melden sich mehrere — Huawei-Wechselrichter lassen sich kaskadieren — kommt ein Auswahlschritt. Die Suche dauert etwa 15 Sekunden.",
+            "huawei_battery_device": "Nur nötig, wenn direkte Modbus-Schreibzugriffe ausgeschaltet sind — dann laufen die Sollwerte über die Dienste der Huawei-Solar-Integration. Mit direkten Schreibzugriffen bleibt das Feld leer.",
+            "huawei_direct_write": "Sollwerte direkt als Modbus-Register schreiben statt über die Dienste der Huawei-Solar-Integration. Dieselbe Registerfolge, aber ohne Umweg über die Dienstschicht und ohne Wartezeit an deren Kommunikationssperre. Standardmäßig aus — erst einschalten, wenn der bewährte Weg läuft."
+          }
         },
-        "data_description": {
-          "name": "Sprechender Name für diese Batterie",
-          "host": "Adresse des Modbus-Proxys oder Wechselrichters, von dem Omnibattery liest",
-          "port": "Modbus-TCP-Port (Standard 502)",
-          "slave_id": "Unit-ID des Wechselrichters — nicht die der EMMA oder einer Wallbox. Leer lassen, dann sucht die Einrichtung sie selbst: sie fragt die üblichen IDs ab, erkennt jeden Wechselrichter an seinem Modellregister und übernimmt den, an dem eine Batterie hängt. Melden sich mehrere — Huawei-Wechselrichter lassen sich kaskadieren — kommt ein Auswahlschritt. Die Suche dauert etwa 15 Sekunden.",
-          "huawei_battery_device": "Nur nötig, wenn direkte Modbus-Schreibzugriffe ausgeschaltet sind — dann laufen die Sollwerte über die Dienste der Huawei-Solar-Integration. Mit direkten Schreibzugriffen bleibt das Feld leer.",
-          "huawei_direct_write": "Sollwerte direkt als Modbus-Register schreiben statt über die Dienste der Huawei-Solar-Integration. Dieselbe Registerfolge, aber ohne Umweg über die Dienstschicht und ohne Wartezeit an deren Kommunikationssperre. Standardmäßig aus — erst einschalten, wenn der bewährte Weg läuft."
-        }
-      },
       "reconfigure_battery_hoymiles": {
         "title": "Batterie {battery_num} neu konfigurieren — Hoymiles MQTT",
         "description": "Geben Sie die Hoymiles MQTT-Geräte-ID ein; Home Assistant verwaltet den Broker und Omnibattery erkennt das Modell.",
-        "data": {
-          "name": "Name",
-          "device_id": "MQTT-Geräte-ID",
-          "hoymiles_model": "Batteriemodell"
-        },
-        "data_description": {
-          "hoymiles_model": "Verwenden Sie die automatische Erkennung, sofern das Gerät kein falsches oder generisches Modell veröffentlicht."
-        }
+        "data": {"name": "Name", "device_id": "MQTT-Geräte-ID", "hoymiles_model": "Batteriemodell"},
+        "data_description": {"hoymiles_model": "Verwenden Sie die automatische Erkennung, sofern das Gerät kein falsches oder generisches Modell veröffentlicht."}
       },
       "reconfigure_battery_esphome": {
         "title": "Batterie {battery_num} neu konfigurieren — Verbindung (LilyGo/ESPHome)",
@@ -827,37 +798,23 @@
           "restore": "Vorherige Konfiguration wiederherstellen"
         }
       },
+      "battery_connection_apsystems_ezhi": {
+        "title": "Batterie {battery_num}: APsystems EZHI",
+        "description": "Aktiviere zuerst den lokalen Modus in der AP-EasyPower-App und gib dann die IP-Adresse des EZHI ein.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP-Adresse des EZHI in deinem Netzwerk."
+        }
+      },
       "battery_connection_sessy": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (Sessy)",
         "description": "Geben Sie die Verbindungsdaten und die auf dem Sessy-Dongle aufgedruckten lokalen Zugangsdaten für Batterie {battery_num} ein.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "HTTP-Port",
-          "username": "Benutzername",
-          "password": "Passwort"
-        },
-        "data_description": {
-          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
-          "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk",
-          "port": "HTTP-Port (Standard 80)",
-          "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername",
-          "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"
-        }
-      },
-      "battery_connection_apsystems_ezhi": {
-        "title": "Batterie {battery_num} konfigurieren — Verbindung (APsystems EZHI)",
-        "description": "Geben Sie die Verbindungsdaten und die auf dem APsystems EZHI-Dongle aufgedruckten lokalen Zugangsdaten für Batterie {battery_num} ein.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "HTTP-Port"
-        },
-        "data_description": {
-          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
-          "host": "IP-Adresse des APsystems EZHI-Geräts im lokalen Netzwerk",
-          "port": "HTTP-Port (Standard 80)"
-        }
+        "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
+        "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
       "battery_connection_indevolt": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (Indevolt)",
@@ -890,29 +847,13 @@
       "battery_connection_huawei": {
         "title": "Batterie {battery_num} einrichten — Verbindung (Huawei)",
         "description": "Omnibattery liest diese Batterie über Modbus und schickt die Sollwerte über die Huawei-Solar-Integration. Deshalb werden beide Angaben gebraucht: ein Modbus-Zugang und das Batteriegerät. Trage als Modbus-Adresse besser einen Modbus-Proxy ein statt des Wechselrichters selbst — die Huawei-Solar-Integration hält dort bereits eine Verbindung.\n\nEin Huawei-Wechselrichter nimmt jeweils nur EINE Modbus-Verbindung an. Wenn außer Omnibattery noch etwas anderes darauf zugreift — etwa die Huawei-Solar-Integration, evcc oder ein anderes System — brauchst du einen Modbus-Proxy davor, der die Verbindung auf mehrere Clients aufteilt, zum Beispiel {proxy_url}. Trage dann Adresse und Port des Proxys ein statt die des Wechselrichters. Die Slave-ID wird automatisch gesucht, wenn die eingetragene nicht antwortet.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "Modbus-Port",
-          "slave_id": "Modbus-Slave-ID (leer lassen zum Suchen)",
-          "huawei_battery_device": "Huawei-Solar-Batteriegerät",
-          "huawei_direct_write": "Direkte Modbus-Schreibzugriffe"
-        },
-        "data_description": {
-          "name": "Sprechender Name für diese Batterie",
-          "host": "Adresse des Modbus-Proxys oder Wechselrichters, von dem Omnibattery liest",
-          "port": "Modbus-TCP-Port (Standard 502)",
-          "slave_id": "Unit-ID des Wechselrichters — nicht die der EMMA oder einer Wallbox. Leer lassen, dann sucht die Einrichtung sie selbst: sie fragt die üblichen IDs ab, erkennt jeden Wechselrichter an seinem Modellregister und übernimmt den, an dem eine Batterie hängt. Melden sich mehrere — Huawei-Wechselrichter lassen sich kaskadieren — kommt ein Auswahlschritt. Die Suche dauert etwa 15 Sekunden.",
-          "huawei_battery_device": "Nur nötig, wenn direkte Modbus-Schreibzugriffe ausgeschaltet sind — dann laufen die Sollwerte über die Dienste der Huawei-Solar-Integration. Mit direkten Schreibzugriffen bleibt das Feld leer.",
-          "huawei_direct_write": "Sollwerte direkt als Modbus-Register schreiben statt über die Dienste der Huawei-Solar-Integration. Dieselbe Registerfolge, aber ohne Umweg über die Dienstschicht und ohne Wartezeit an deren Kommunikationssperre. Standardmäßig aus — erst einschalten, wenn der bewährte Weg läuft."
-        }
+        "data": {"name": "Name", "host": "IP-Adresse", "port": "Modbus-Port", "slave_id": "Modbus-Slave-ID (leer lassen zum Suchen)", "huawei_battery_device": "Huawei-Solar-Batteriegerät", "huawei_direct_write": "Direkte Modbus-Schreibzugriffe"},
+        "data_description": {"name": "Sprechender Name für diese Batterie", "host": "Adresse des Modbus-Proxys oder Wechselrichters, von dem Omnibattery liest", "port": "Modbus-TCP-Port (Standard 502)", "slave_id": "Unit-ID des Wechselrichters — nicht die der EMMA oder einer Wallbox. Leer lassen, dann sucht die Einrichtung sie selbst: sie fragt die üblichen IDs ab, erkennt jeden Wechselrichter an seinem Modellregister und übernimmt den, an dem eine Batterie hängt. Melden sich mehrere — Huawei-Wechselrichter lassen sich kaskadieren — kommt ein Auswahlschritt. Die Suche dauert etwa 15 Sekunden.", "huawei_battery_device": "Nur nötig, wenn direkte Modbus-Schreibzugriffe ausgeschaltet sind — dann laufen die Sollwerte über die Dienste der Huawei-Solar-Integration. Mit direkten Schreibzugriffen bleibt das Feld leer.", "huawei_direct_write": "Sollwerte direkt als Modbus-Register schreiben statt über die Dienste der Huawei-Solar-Integration. Dieselbe Registerfolge, aber ohne Umweg über die Dienstschicht und ohne Wartezeit an deren Kommunikationssperre. Standardmäßig aus — erst einschalten, wenn der bewährte Weg läuft."}
       },
       "battery_connection_huawei_slave": {
         "title": "Batterie {battery_num} einrichten — Wechselrichter wählen",
         "description": "Auf diesem Modbus-Zugang haben {count} Wechselrichter mit Batterie geantwortet. Huawei-Wechselrichter lassen sich kaskadieren — wähle den, zu dem diese Batterie gehört. Für eine zweite Batterie legst du einen weiteren Eintrag mit der anderen Slave-ID an.",
-        "data": {
-          "slave_id": "Wechselrichter"
-        }
+        "data": {"slave_id": "Wechselrichter"}
       },
       "battery_connection_anker": {
         "title": "Configure battery {battery_num} — Connection (Anker)",
@@ -1018,9 +959,7 @@
       "phase_assignments": {
         "title": "Phasenzuordnung Batterie {battery_num}",
         "description": "Wählen Sie die physische Phase, an die {battery_name} angeschlossen ist, oder Nicht zugewiesen, wenn keine geschützte Phase verwendet wird.",
-        "data": {
-          "battery_phase": "Physische Batteriephase"
-        }
+        "data": {"battery_phase": "Physische Batteriephase"}
       },
       "init": {
         "title": "Omnibattery neu konfigurieren",
@@ -1553,37 +1492,23 @@
           "hourly_balance_hysteresis_w": "Minimale Änderung des Versatzes, bevor eine neue Korrektur angewendet wird. Verhindert Mikro-Anpassungen jeden Zyklus. 0 = immer anwenden. Standard: 15 W."
         }
       },
+      "battery_connection_apsystems_ezhi": {
+        "title": "Batterie {battery_num}: APsystems EZHI",
+        "description": "Aktiviere zuerst den lokalen Modus in der AP-EasyPower-App und gib dann die IP-Adresse des EZHI ein.",
+        "data": {
+          "name": "Name",
+          "host": "IP-Adresse",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP-Adresse des EZHI in deinem Netzwerk."
+        }
+      },
       "battery_connection_sessy": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (Sessy)",
         "description": "Ändern Sie die Verbindungsdaten und lokalen Dongle-Zugangsdaten für die Sessy-Batterie {battery_num}.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "HTTP-Port",
-          "username": "Benutzername",
-          "password": "Passwort"
-        },
-        "data_description": {
-          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
-          "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk",
-          "port": "HTTP-Port (Standard 80)",
-          "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername",
-          "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"
-        }
-      },
-      "battery_connection_apsystems_ezhi": {
-        "title": "Batterie {battery_num} konfigurieren — Verbindung (APsystems EZHI)",
-        "description": "Ändern Sie die Verbindungsdaten und lokalen Dongle-Zugangsdaten für die APsystems EZHI-Batterie {battery_num}.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "HTTP-Port"
-        },
-        "data_description": {
-          "name": "Beschreibender Name zur Identifizierung dieser Batterie",
-          "host": "IP-Adresse des APsystems EZHI-Geräts im lokalen Netzwerk",
-          "port": "HTTP-Port (Standard 80)"
-        }
+        "data": {"name": "Name", "host": "IP-Adresse", "port": "HTTP-Port", "username": "Benutzername", "password": "Passwort"},
+        "data_description": {"name": "Beschreibender Name zur Identifizierung dieser Batterie", "host": "IP-Adresse des Sessy-Geräts im lokalen Netzwerk", "port": "HTTP-Port (Standard 80)", "username": "Auf dem Sessy-Dongle aufgedruckter lokaler Benutzername", "password": "Auf dem Sessy-Dongle aufgedrucktes lokales Passwort"}
       },
       "battery_connection_indevolt": {
         "title": "Batterie {battery_num} konfigurieren — Verbindung (Indevolt)",
@@ -1616,29 +1541,13 @@
       "battery_connection_huawei": {
         "title": "Batterie {battery_num} einrichten — Verbindung (Huawei)",
         "description": "Modbus-Zugang und Huawei-Solar-Batteriegerät für Batterie {battery_num} ändern.\n\nEin Huawei-Wechselrichter nimmt jeweils nur EINE Modbus-Verbindung an. Wenn außer Omnibattery noch etwas anderes darauf zugreift — etwa die Huawei-Solar-Integration, evcc oder ein anderes System — brauchst du einen Modbus-Proxy davor, der die Verbindung auf mehrere Clients aufteilt, zum Beispiel {proxy_url}. Trage dann Adresse und Port des Proxys ein statt die des Wechselrichters. Die Slave-ID wird automatisch gesucht, wenn die eingetragene nicht antwortet.",
-        "data": {
-          "name": "Name",
-          "host": "IP-Adresse",
-          "port": "Modbus-Port",
-          "slave_id": "Modbus-Slave-ID (leer lassen zum Suchen)",
-          "huawei_battery_device": "Huawei-Solar-Batteriegerät",
-          "huawei_direct_write": "Direkte Modbus-Schreibzugriffe"
-        },
-        "data_description": {
-          "name": "Sprechender Name für diese Batterie",
-          "host": "Adresse des Modbus-Proxys oder Wechselrichters, von dem Omnibattery liest",
-          "port": "Modbus-TCP-Port (Standard 502)",
-          "slave_id": "Unit-ID des Wechselrichters — nicht die der EMMA oder einer Wallbox. Leer lassen, dann sucht die Einrichtung sie selbst: sie fragt die üblichen IDs ab, erkennt jeden Wechselrichter an seinem Modellregister und übernimmt den, an dem eine Batterie hängt. Melden sich mehrere — Huawei-Wechselrichter lassen sich kaskadieren — kommt ein Auswahlschritt. Die Suche dauert etwa 15 Sekunden.",
-          "huawei_battery_device": "Nur nötig, wenn direkte Modbus-Schreibzugriffe ausgeschaltet sind — dann laufen die Sollwerte über die Dienste der Huawei-Solar-Integration. Mit direkten Schreibzugriffen bleibt das Feld leer.",
-          "huawei_direct_write": "Sollwerte direkt als Modbus-Register schreiben statt über die Dienste der Huawei-Solar-Integration. Dieselbe Registerfolge, aber ohne Umweg über die Dienstschicht und ohne Wartezeit an deren Kommunikationssperre. Standardmäßig aus — erst einschalten, wenn der bewährte Weg läuft."
-        }
+        "data": {"name": "Name", "host": "IP-Adresse", "port": "Modbus-Port", "slave_id": "Modbus-Slave-ID (leer lassen zum Suchen)", "huawei_battery_device": "Huawei-Solar-Batteriegerät", "huawei_direct_write": "Direkte Modbus-Schreibzugriffe"},
+        "data_description": {"name": "Sprechender Name für diese Batterie", "host": "Adresse des Modbus-Proxys oder Wechselrichters, von dem Omnibattery liest", "port": "Modbus-TCP-Port (Standard 502)", "slave_id": "Unit-ID des Wechselrichters — nicht die der EMMA oder einer Wallbox. Leer lassen, dann sucht die Einrichtung sie selbst: sie fragt die üblichen IDs ab, erkennt jeden Wechselrichter an seinem Modellregister und übernimmt den, an dem eine Batterie hängt. Melden sich mehrere — Huawei-Wechselrichter lassen sich kaskadieren — kommt ein Auswahlschritt. Die Suche dauert etwa 15 Sekunden.", "huawei_battery_device": "Nur nötig, wenn direkte Modbus-Schreibzugriffe ausgeschaltet sind — dann laufen die Sollwerte über die Dienste der Huawei-Solar-Integration. Mit direkten Schreibzugriffen bleibt das Feld leer.", "huawei_direct_write": "Sollwerte direkt als Modbus-Register schreiben statt über die Dienste der Huawei-Solar-Integration. Dieselbe Registerfolge, aber ohne Umweg über die Dienstschicht und ohne Wartezeit an deren Kommunikationssperre. Standardmäßig aus — erst einschalten, wenn der bewährte Weg läuft."}
       },
       "battery_connection_huawei_slave": {
         "title": "Batterie {battery_num} einrichten — Wechselrichter wählen",
         "description": "Auf diesem Modbus-Zugang haben {count} Wechselrichter mit Batterie geantwortet. Huawei-Wechselrichter lassen sich kaskadieren — wähle den, zu dem diese Batterie gehört. Für eine zweite Batterie legst du einen weiteren Eintrag mit der anderen Slave-ID an.",
-        "data": {
-          "slave_id": "Wechselrichter"
-        }
+        "data": {"slave_id": "Wechselrichter"}
       },
       "battery_connection_anker": {
         "title": "Configure battery {battery_num} — Connection (Anker)",
@@ -1727,12 +1636,7 @@
       }
     },
     "battery_phase": {
-      "options": {
-        "unassigned": "Nicht zugewiesen",
-        "l1": "L1",
-        "l2": "L2",
-        "l3": "L3"
-      }
+      "options": {"unassigned": "Nicht zugewiesen", "l1": "L1", "l2": "L2", "l3": "L3"}
     },
     "weekday": {
       "options": {
@@ -1763,7 +1667,7 @@
         "realtime_price": "Echtzeit-Preis (sofortiger Schwellenwert)"
       }
     },
-    "price_integration_type": {
+      "price_integration_type": {
       "options": {
         "nordpool": "Nordpool",
         "pvpc": "PVPC (Spanien – ESIOS REE)",
@@ -2128,6 +2032,9 @@
       },
       "max_discharge_power": {
         "name": "Max. Entladeleistung"
+      },
+      "device_temperature": {
+        "name": "Wechselrichter-Temperatur"
       },
       "internal_temperature": {
         "name": "Innentemperatur"
