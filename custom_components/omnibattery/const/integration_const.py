@@ -2,7 +2,7 @@
 
 DOMAIN = "omnibattery"
 
-# Prefix for every persistent_notification this integration creates/dismisses.
+# Prefix for every persistent notification this integration creates/dismisses.
 # Lets automations (e.g. the Telegram-forwarding blueprint) reliably select only
 # our notifications by ID. All notification_id values MUST start with this.
 NOTIFICATION_ID_PREFIX = "marstek_venus_"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 
 from custom_components.omnibattery.notifications import gateway
 
@@ -81,3 +82,17 @@ def test_sync_notify_category_off(monkeypatch):
     )
     assert gateway.notify(_FakeHass(), gateway.EXECUTION, "id", "T", "M") is False
     assert calls == []
+
+
+def test_only_gateway_mentions_persistent_notification():
+    """Design rule: no file outside notifications/ touches persistent_notification."""
+    pkg = Path(__file__).resolve().parent.parent / "custom_components" / "omnibattery"
+    gateway_dir = pkg / "notifications"
+    scanned = [p for p in pkg.rglob("*.py") if gateway_dir not in p.parents]
+    assert pkg / "switch.py" in scanned, "scan walked nothing: guard would pass vacuously"
+    offenders = [
+        str(p.relative_to(pkg))
+        for p in scanned
+        if "persistent_notification" in p.read_text(encoding="utf-8")
+    ]
+    assert not offenders, f"persistent_notification outside notifications/: {offenders}"
