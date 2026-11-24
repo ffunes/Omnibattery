@@ -45,9 +45,9 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.no_more_charging": "Kein weiteres Laden aus dem Netz nötig.",
     "plan.no_charging": "Kein Laden aus dem Netz nötig.",
     # --- plan.py: _limits_table (the power limits the plan used) ---
-    "plan.power.header": "Maximale Leistung",
-    "plan.power.charge": "Laden",
-    "plan.power.discharge": "Entladen",
+    "plan.power.header": "⚡ Maximale Leistung",
+    "plan.power.charge": "🔌 Laden",
+    "plan.power.discharge": "🔋 Entladen",
     "plan.power.contracted": "{power:g}W (Max. Netzbezug)",
     "plan.power.batteries": "{power:g}W (Batterien)",
     "plan.power.carried": (

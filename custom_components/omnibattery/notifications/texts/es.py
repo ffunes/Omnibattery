@@ -48,9 +48,9 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.no_more_charging": "No hace falta cargar más de la red.",
     "plan.no_charging": "No hace falta cargar de la red.",
     # --- plan.py: _limits_table (the power limits the plan used) ---
-    "plan.power.header": "Potencia máxima",
-    "plan.power.charge": "Carga",
-    "plan.power.discharge": "Descarga",
+    "plan.power.header": "⚡ Potencia máxima",
+    "plan.power.charge": "🔌 Carga",
+    "plan.power.discharge": "🔋 Descarga",
     "plan.power.contracted": "{power:g}W (Máx. importación de red)",
     "plan.power.batteries": "{power:g}W (Baterías)",
     "plan.power.carried": (

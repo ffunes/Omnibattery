@@ -51,9 +51,9 @@ TEXTS: dict[str, str | dict[str, str]] = {
     "plan.no_more_charging": "No additional grid charging required.",
     "plan.no_charging": "No grid charging required.",
     # --- plan.py: _limits_table (the power limits the plan used) ---
-    "plan.power.header": "Maximum power",
-    "plan.power.charge": "Charge",
-    "plan.power.discharge": "Discharge",
+    "plan.power.header": "⚡ Maximum power",
+    "plan.power.charge": "🔌 Charge",
+    "plan.power.discharge": "🔋 Discharge",
     "plan.power.contracted": "{power:g}W (Max. grid import)",
     "plan.power.batteries": "{power:g}W (batteries)",
     "plan.power.carried": (
