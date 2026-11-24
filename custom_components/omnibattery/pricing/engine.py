@@ -3909,6 +3909,19 @@ class PricingManager:
         self._controller._dp_plan_weekly_holds = (
             frozenset(getattr(plan, "weekly_holds", None) or ()) if weekly_on else None
         )
+        # A guaranteed floor and a weekly charge are paid for; without them a
+        # plan dearer than no plan is a fault of the plan (the sweep's I8).
+        saving = self._controller._dp_plan_saving
+        if (
+            saving is not None
+            and saving < -0.01
+            and not weekly_on
+            and not decision_data.get("floor_active")
+        ):
+            _LOGGER.warning(
+                "Dynamic pricing: the plan costs %.2f more than the battery with no plan",
+                -saving,
+            )
         self._controller._dp_weekly_full_at = (
             getattr(plan, "weekly_full_at", None) if weekly_on else None
         )

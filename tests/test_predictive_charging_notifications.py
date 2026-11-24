@@ -525,3 +525,20 @@ def test_engine_hands_the_published_plan_saving_to_the_formatter(monkeypatch):
     manager._clear_plan_orders()
     assert controller._dp_plan_saving is None
     assert controller._dp_plan_quarters is None
+
+
+@pytest.mark.parametrize("saving, decision, warns", [
+    (-0.05, {}, True),
+    (-0.05, {"floor_active": True}, False),
+    (-0.004, {}, False),
+    (0.30, {}, False),
+], ids=["dearer", "floor-paid-for", "under-a-cent", "saves"])
+def test_a_plan_dearer_than_no_plan_is_logged(monkeypatch, caplog, saving, decision, warns):
+    manager, _controller, _calls = _muted_manager(monkeypatch)
+    manager._surplus_hold_enabled = lambda: False
+    manager._store_eval_projection = lambda plan: None
+    with caplog.at_level("WARNING"):
+        manager._publish_plan_holds(
+            SimpleNamespace(plan_saving=saving), {"planner": "optimizer", **decision})
+    assert ("more than the battery with no plan" in caplog.text) is warns
+
