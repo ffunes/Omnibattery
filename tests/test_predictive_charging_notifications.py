@@ -27,6 +27,7 @@ import pytest
 
 from custom_components.omnibattery.const import (
     CONF_ENABLE_PREDICTIVE_CHARGING,
+    CONF_NOTIFY_PLAN_INFO_ENABLED,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED,
     DOMAIN,
@@ -90,7 +91,7 @@ def test_engine_gate_honours_category_state(entry_data, expected_creates):
         load_categories(hass, entry_data)
     manager = PricingManager(hass, SimpleNamespace())
 
-    sent = asyncio.run(manager._async_create_predictive_notification("T", "M", EVAL_ID))
+    sent = asyncio.run(manager._async_create_predictive_notification("T", "M", EVAL_ID, PLAN_CHARGE))
 
     assert sent is bool(expected_creates)
 
@@ -123,7 +124,7 @@ def _muted_manager(monkeypatch):
         "format_predictive_notification_message",
     ):
         monkeypatch.setattr(
-            engine_module.notifications, name, lambda *a, **k: ("title", "message")
+            engine_module.notifications, name, lambda *a, **k: ("title", "message", PLAN_CHARGE)
         )
     hass, calls = _recording_hass()
     controller = SimpleNamespace(
@@ -163,6 +164,34 @@ def test_every_evaluation_sender_is_muted(monkeypatch):
     assert ids == [EVAL_ID, EVAL_ID, EVAL_ID, EVAL_ID]
 
 
+def test_engine_passes_the_formatter_category_to_the_gateway(monkeypatch):
+    """The category the formatter returns decides whether the send is muted."""
+    manager, _controller, calls = _muted_manager(monkeypatch)
+    monkeypatch.setattr(
+        engine_module.notifications,
+        "format_dynamic_pricing_notification",
+        lambda *a, **k: ("title", "message", PLAN_INFO),
+    )
+
+    async def _send():
+        await manager._send_dynamic_pricing_notification(decision_data={}, schedule=None)
+
+    # PLAN_INFO muted: nothing is created and the plan is not marked as announced.
+    load_categories(manager._hass, {CONF_NOTIFY_PLAN_INFO_ENABLED: False})
+    asyncio.run(_send())
+    assert _creates(calls) == []
+    assert manager._last_dp_notification_key is None
+
+    # PLAN_CHARGE muted but PLAN_INFO on: the same message goes out.
+    load_categories(manager._hass, {
+        CONF_PREDICTIVE_CHARGING_NOTIFICATIONS_ENABLED: False,
+        CONF_NOTIFY_PLAN_INFO_ENABLED: True,
+    })
+    asyncio.run(_send())
+    assert len(_creates(calls)) == 1
+    assert manager._last_dp_notification_key is not None
+
+
 # Re-send only when the plan changes (#690)
 
 
@@ -171,7 +200,7 @@ def _dedupe_manager(monkeypatch, title=lambda: "needed"):
     monkeypatch.setattr(
         engine_module.notifications,
         "format_dynamic_pricing_notification",
-        lambda *a, **k: (title(), "message"),
+        lambda *a, **k: (title(), "message", PLAN_CHARGE),
     )
     load_categories(manager._hass, {})
     return manager, calls

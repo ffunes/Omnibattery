@@ -98,7 +98,7 @@ from . import (
     SLOT_PURPOSE_NEGATIVE_PRICE,
     calculations,
 )
-from ..notifications import PLAN_CHARGE, async_dismiss, async_notify
+from ..notifications import async_dismiss, async_notify
 from ..notifications import plan as notifications
 from .calculations import normalize_price_slots
 from .chronological import (
@@ -6075,7 +6075,7 @@ class PricingManager:
                 slot: kw for slot, (kw, _level) in getattr(self._plan_room(), "orders", {}).items()
             },
         }
-        title, message = notifications.format_dynamic_pricing_notification(
+        title, message, category = notifications.format_dynamic_pricing_notification(
             decision_data,
             schedule,
             unit=self._get_price_unit(),
@@ -6109,12 +6109,12 @@ class PricingManager:
         # notification stays dismissed while the plan does not change.
         # A muted send shows nothing, so it must not count as announced.
         if await self._async_create_predictive_notification(
-            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
         ):
             self._last_dp_notification_key = key
 
     async def _async_create_predictive_notification(
-        self, title: str, message: str, notification_id: str
+        self, title: str, message: str, notification_id: str, category: str
     ) -> bool:
         """Send a predictive-charging notification through the gateway.
 
@@ -6122,7 +6122,7 @@ class PricingManager:
         evaluation itself, its schedule and its diagnostics are unaffected and
         stay visible on the dashboard and sensors.
         """
-        return await async_notify(self._hass, PLAN_CHARGE, notification_id, title, message)
+        return await async_notify(self._hass, category, notification_id, title, message)
 
     def _contracted_charge_ceiling(self) -> float:
         """The configured grid import cap (#506), which also caps grid charging.
@@ -6266,14 +6266,14 @@ class PricingManager:
         if not schedule:
             return
 
-        title, message = notifications.format_slot_start_notification(
+        title, message, category = notifications.format_slot_start_notification(
             slot,
             schedule,
             unit=self._get_price_unit(),
             max_contracted_power=self._controller.max_contracted_power,
         )
         await self._async_create_predictive_notification(
-            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
         )
 
     async def _check_dp_pre_slot_reevaluation(self) -> None:
@@ -6438,13 +6438,13 @@ class PricingManager:
 
         Only called when should_charge=True. Skipped slots are logged silently.
         """
-        title, message = notifications.format_dp_pre_slot_reevaluation_notification(
+        title, message, category = notifications.format_dp_pre_slot_reevaluation_notification(
             slot,
             decision,
             unit=self._get_price_unit(),
         )
         await self._async_create_predictive_notification(
-            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
         )
 
     def _is_evening_reevaluation_time(self) -> bool:
@@ -8872,7 +8872,7 @@ class PricingManager:
             is_daily_evaluation: True when called from daily evaluation in automation_slots mode
         """
         # Format the notification using the notifications.plan helper
-        title, message = notifications.format_predictive_notification_message(
+        title, message, category = notifications.format_predictive_notification_message(
             decision_data,
             is_daily_evaluation,
             max_contracted_power=self._controller.max_contracted_power,
@@ -8882,7 +8882,7 @@ class PricingManager:
 
         # Send the notification
         await self._async_create_predictive_notification(
-            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
+            title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
         )
 
     # =========================================================================

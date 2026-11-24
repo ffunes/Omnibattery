@@ -496,7 +496,7 @@ def test_plan_within_drops_allocations_outside_the_control_slots():
 def test_notification_names_energy_deferred_to_tomorrow():
     from custom_components.omnibattery.notifications import plan as notifications
 
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         {"should_charge": True, "energy_deficit_kwh": 3.0, "deferred_to_next_day": True},
         None,
         unit="EUR/kWh",

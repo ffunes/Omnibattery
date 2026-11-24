@@ -10,6 +10,8 @@ from __future__ import annotations
 from datetime import datetime
 import math
 
+from .gateway import EXECUTION, PLAN_CHARGE, PLAN_INFO
+
 
 def _forecast_notification_context(decision: dict) -> dict:
     """Describe the energy horizon and forecast source consistently."""
@@ -208,7 +210,7 @@ def format_predictive_notification_message(
     max_contracted_power,
     max_charge_capacity,
     charging_time_slot,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Format notification title and message from decision data.
 
     Args:
@@ -216,7 +218,7 @@ def format_predictive_notification_message(
         is_daily_evaluation: True when called from daily evaluation in automation_slots mode
 
     Returns:
-        tuple: (title, message)
+        tuple: (title, message, category)
     """
     from datetime import time as dt_time
 
@@ -245,7 +247,7 @@ def format_predictive_notification_message(
             f"   Basis: {context['consumption_basis']}\n\n"
             f"Grid charging NOT activated."
         )
-        return (title, message)
+        return (title, message, PLAN_INFO)
 
     if decision_data.get("chronological_deferred"):
         shortfall = float(decision_data.get("deadline_shortfall_kwh", 0.0) or 0.0)
@@ -261,7 +263,7 @@ def format_predictive_notification_message(
                 else "The energy is reserved for another configured window.\n"
             )
         )
-        return (title, message)
+        return (title, message, PLAN_INFO)
 
     # Sufficient energy — no charging needed
     if not should_charge:
@@ -279,7 +281,7 @@ def format_predictive_notification_message(
                 else "No grid charging required."
             )
         )
-        return (title, message)
+        return (title, message, PLAN_INFO)
 
     # Charging needed
     try:
@@ -291,9 +293,11 @@ def format_predictive_notification_message(
 
     if is_daily_evaluation:
         title = "Predictive Charging: Expected today"
+        category = PLAN_CHARGE
         timing_line = "⏰ Charging will activate when prices are low\n"
     else:
         title = "Predictive Charging: STARTED"
+        category = EXECUTION
         timing_line = (
             f"⏰ Charging until: {end_time.strftime('%H:%M')}\n"
             if slot_str else "⏰ Charging now from grid\n"
@@ -332,7 +336,7 @@ def format_predictive_notification_message(
         f"Max charge power: {power_str}"
     )
 
-    return (title, message)
+    return (title, message, category)
 
 
 def _blocks(rows):
@@ -465,7 +469,7 @@ def format_dynamic_pricing_notification(
     max_charge_capacity,
     plan_orders=None,
     arbitrage_margin=None,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Format dynamic pricing evaluation notification.
 
     With the 2.0.0 optimizer (``planner == "optimizer"``) the old planner's
@@ -502,6 +506,7 @@ def format_dynamic_pricing_notification(
     if schedule is None or not schedule.selected_slots:
         if not decision_data.get("should_charge", False):
             title = "Predictive Charging: Price Optimization - NOT needed"
+            category = PLAN_INFO
             horizon_text = _horizon_text(context)
             message = (
                 f"✓ Sufficient energy for {horizon_text}\n\n"
@@ -520,6 +525,7 @@ def format_dynamic_pricing_notification(
             )
         elif decision_data.get("deferred_to_next_day"):
             title = "Predictive Charging: Price Optimization - nothing to charge yet"
+            category = PLAN_INFO
             message = (
                 f"✓ The cheapest slots for the energy needed are tomorrow\n\n"
                 f"🔋 Battery: {avg_soc:.0f}% ({usable_energy:.2f} kWh usable)\n"
@@ -534,6 +540,7 @@ def format_dynamic_pricing_notification(
                 decision_data, unit, arbitrage_binding
             )
             plan_reason = decision_data.get("chronological_plan_reason")
+            category = PLAN_INFO
             title = (
                 "Predictive Charging: Price Optimization - Grid import is cheaper"
                 if plan_reason == "cheaper_to_import"
@@ -573,6 +580,7 @@ def format_dynamic_pricing_notification(
         hours_needed = schedule.hours_needed
         n_slots = len(schedule.selected_slots)
         schedule_type = getattr(schedule, "schedule_type", "deficit")
+        category = PLAN_CHARGE
         slots_label = f"{n_slots} slot{'s' if n_slots != 1 else ''}" if n_slots != int(hours_needed) else ""
         hours_label = f"{hours_needed:.1f}h" + (f" ({slots_label})" if slots_label else "")
         title = f"Predictive Charging: Price Optimization - {hours_label} selected"
@@ -637,6 +645,7 @@ def format_dynamic_pricing_notification(
             )
         elif not schedule.charging_needed:
             title = f"Predictive Charging: Price Info - {hours_label} cheapest"
+            category = PLAN_INFO
             horizon_text = _horizon_text(context, with_for=True)
             message = (
                 f"✓ No grid charging needed {horizon_text}\n\n"
@@ -731,7 +740,7 @@ def format_dynamic_pricing_notification(
                 + _max_discharge_power_line(decision_data)
             )
 
-    return (title, message)
+    return (title, message, category)
 
 
 def format_slot_start_notification(
@@ -740,7 +749,7 @@ def format_slot_start_notification(
     *,
     unit: str,
     max_contracted_power,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Format the 'cheap pricing slot started' notification.
 
     ``schedule`` must be non-None (the caller guards on it).
@@ -763,7 +772,7 @@ def format_slot_start_notification(
         f"Slot: {slot.start.strftime('%H:%M')}-{slot.end.strftime('%H:%M')}\n"
         f"{next_slot_str} · {remaining_str}"
     )
-    return (title, message)
+    return (title, message, EXECUTION)
 
 
 def format_dp_pre_slot_reevaluation_notification(
@@ -771,7 +780,7 @@ def format_dp_pre_slot_reevaluation_notification(
     decision: dict,
     *,
     unit: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """Format the pre-slot re-evaluation 'charging still needed' notification."""
     avg_soc = decision.get("avg_soc", 0)
     usable_energy = decision.get("usable_energy_kwh", 0)
@@ -789,4 +798,4 @@ def format_dp_pre_slot_reevaluation_notification(
         f"@ {slot.price:.4f} {unit}\n"
         f"→ Charging will activate at {slot.start.strftime('%H:%M')}"
     )
-    return (title, message)
+    return (title, message, EXECUTION)

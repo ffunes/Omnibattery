@@ -10,6 +10,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
+
+from custom_components.omnibattery.notifications import (
+    EXECUTION,
+    PLAN_CHARGE,
+    PLAN_INFO,
+)
 from custom_components.omnibattery.notifications import plan as notifications
 from custom_components.omnibattery.pricing import PriceSlot
 
@@ -58,7 +65,7 @@ _CFG = dict(max_contracted_power=5000, max_charge_capacity=3000,
 
 
 def test_predictive_safe_mode_when_no_solar():
-    title, message = notifications.format_predictive_notification_message(
+    title, message, _ = notifications.format_predictive_notification_message(
         _decision(solar_forecast_kwh=None, should_charge=True), **_CFG
     )
     assert title == "Predictive Charging: Safe mode"
@@ -66,7 +73,7 @@ def test_predictive_safe_mode_when_no_solar():
 
 
 def test_predictive_not_required():
-    title, message = notifications.format_predictive_notification_message(
+    title, message, _ = notifications.format_predictive_notification_message(
         _decision(should_charge=False), **_CFG
     )
     assert title == "Predictive Charging: Not required"
@@ -74,7 +81,7 @@ def test_predictive_not_required():
 
 
 def test_predictive_started():
-    title, message = notifications.format_predictive_notification_message(
+    title, message, _ = notifications.format_predictive_notification_message(
         _decision(should_charge=True, energy_deficit_kwh=2.0), **_CFG
     )
     assert title == "Predictive Charging: STARTED"
@@ -85,7 +92,7 @@ def test_predictive_started():
 def test_predictive_max_power_is_min_of_contracted_and_batteries():
     # #506: max_contracted_power is the single grid import cap, so the
     # announced max charge power is min(contracted, batteries), no peak limit.
-    _, message = notifications.format_predictive_notification_message(
+    _, message, _ = notifications.format_predictive_notification_message(
         _decision(should_charge=True, energy_deficit_kwh=2.0),
         max_contracted_power=3000,
         max_charge_capacity=3500,
@@ -97,7 +104,7 @@ def test_predictive_max_power_is_min_of_contracted_and_batteries():
 
 def test_predictive_started_reports_the_actual_planned_grid_charge():
     """The notification must match the energy used to calculate the SOC target."""
-    _, message = notifications.format_predictive_notification_message(
+    _, message, _ = notifications.format_predictive_notification_message(
         _decision(
             should_charge=True,
             energy_deficit_kwh=4.63,
@@ -120,7 +127,7 @@ def test_predictive_floor_charge_reports_grid_deficit_not_solar():
     # computes to 0 and solar_surplus is large, but the battery really charges
     # energy_deficit from the grid to reach the floor. Notification must say so
     # and must not claim solar covers it.
-    title, message = notifications.format_predictive_notification_message(
+    title, message, _ = notifications.format_predictive_notification_message(
         _decision(
             should_charge=True,
             solar_forecast_kwh=29.61,
@@ -138,14 +145,14 @@ def test_predictive_floor_charge_reports_grid_deficit_not_solar():
 
 
 def test_predictive_daily_evaluation_expected():
-    title, _ = notifications.format_predictive_notification_message(
+    title, _, _ = notifications.format_predictive_notification_message(
         _decision(should_charge=True, energy_deficit_kwh=2.0), True, **_CFG
     )
     assert title == "Predictive Charging: Expected today"
 
 
 def test_predictive_remaining_fallback_labels_horizon_and_basis():
-    _, message = notifications.format_predictive_notification_message(
+    _, message, _ = notifications.format_predictive_notification_message(
         _decision(
             avg_consumption_kwh=12.15,
             remaining_consumption_kwh=12.15,
@@ -167,7 +174,7 @@ def test_predictive_remaining_fallback_labels_horizon_and_basis():
 def test_predictive_extended_horizon_labels_sunrise_and_overnight_leg():
     """Phase 4: an extended (sunrise) horizon relabels the consumption line
     and adds a separate overnight kWh line."""
-    _, message = notifications.format_predictive_notification_message(
+    _, message, _ = notifications.format_predictive_notification_message(
         _decision(
             avg_consumption_kwh=12.15,
             remaining_consumption_kwh=12.15,
@@ -188,7 +195,7 @@ def test_predictive_extended_horizon_labels_sunrise_and_overnight_leg():
 
 def test_predictive_midnight_horizon_omits_overnight_leg():
     """No extended horizon (or zero overnight leg): keep the current wording."""
-    _, message = notifications.format_predictive_notification_message(
+    _, message, _ = notifications.format_predictive_notification_message(
         _decision(
             avg_consumption_kwh=12.15,
             remaining_consumption_kwh=12.15,
@@ -209,7 +216,7 @@ def test_predictive_midnight_horizon_omits_overnight_leg():
 
 
 def test_predictive_daily_profile_reports_profile_as_basis():
-    _, message = notifications.format_predictive_notification_message(
+    _, message, _ = notifications.format_predictive_notification_message(
         _decision(
             avg_consumption_kwh=16.85,
             consumption_scope="daily_profile",
@@ -235,14 +242,14 @@ _DP_CFG = dict(unit="€/kWh", max_price_threshold=0.30, discharge_price_thresho
 
 
 def test_dynamic_none_schedule_not_needed():
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False), None, **_DP_CFG
     )
     assert title == "Predictive Charging: Price Optimization - NOT needed"
 
 
 def test_dynamic_none_schedule_no_slots():
-    title, _ = notifications.format_dynamic_pricing_notification(
+    title, _, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, energy_deficit_kwh=4.0), None, **_DP_CFG
     )
     assert title == "Predictive Charging: Price Optimization - No slots available"
@@ -250,7 +257,7 @@ def test_dynamic_none_schedule_no_slots():
 
 def test_dynamic_no_slots_blames_the_margin_when_it_binds():
     """Arbitrage ceiling under the static one, so the margin is the cause."""
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, energy_deficit_kwh=4.0), None,
         **{**_DP_CFG, "arbitrage_ceiling": 0.20},
     )
@@ -260,7 +267,7 @@ def test_dynamic_no_slots_blames_the_margin_when_it_binds():
 
 def test_dynamic_no_slots_blames_the_static_ceiling_when_it_binds():
     """Regression: a low static ceiling must not be reported as a margin problem."""
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, energy_deficit_kwh=4.0), None,
         **{**_DP_CFG, "max_price_threshold": 0.10, "arbitrage_ceiling": 0.30},
     )
@@ -270,7 +277,7 @@ def test_dynamic_no_slots_blames_the_static_ceiling_when_it_binds():
 
 
 def test_dynamic_no_slots_without_gate_keeps_original_hint():
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, energy_deficit_kwh=4.0), None, **_DP_CFG
     )
     assert "raise max price threshold" in message
@@ -279,7 +286,7 @@ def test_dynamic_no_slots_without_gate_keeps_original_hint():
 
 def test_dynamic_no_slots_cheaper_to_import_does_not_blame_the_price_sensor():
     """The planner chose grid import over storage: a threshold change won't help."""
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             energy_deficit_kwh=4.0,
@@ -296,7 +303,7 @@ def test_dynamic_no_slots_cheaper_to_import_does_not_blame_the_price_sensor():
 
 
 def test_dynamic_no_slots_deadline_shortfall_explains_timing():
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             energy_deficit_kwh=4.0,
@@ -311,7 +318,7 @@ def test_dynamic_no_slots_deadline_shortfall_explains_timing():
 
 def test_dynamic_no_slots_with_plan_ok_does_not_blame_the_price_sensor():
     """A full battery: the planner found nothing it can store yet."""
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             energy_deficit_kwh=14.97,
@@ -325,7 +332,7 @@ def test_dynamic_no_slots_with_plan_ok_does_not_blame_the_price_sensor():
 
 
 def test_dynamic_no_slots_no_eligible_slots_points_at_price_feed():
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             energy_deficit_kwh=4.0,
@@ -339,7 +346,7 @@ def test_dynamic_no_slots_no_eligible_slots_points_at_price_feed():
 
 
 def test_dynamic_no_slots_price_threshold_names_cheapest_rejected_slot():
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             energy_deficit_kwh=4.0,
@@ -360,7 +367,7 @@ def test_dynamic_no_slots_price_threshold_names_cheapest_rejected_slot():
 
 def test_dynamic_informational_lists_slots():
     schedule = _schedule([0.10, 0.12, 0.11, 0.09], charging_needed=False)
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False), schedule, **_DP_CFG
     )
     assert "Price Info" in title and "cheapest" in title
@@ -373,7 +380,7 @@ def test_dynamic_informational_lists_slots():
 
 def test_dynamic_charging_shows_cost():
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True, estimated_cost=0.75)
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             energy_deficit_kwh=4.55,
@@ -391,13 +398,13 @@ def test_dynamic_charging_shows_cost():
 
 def test_dynamic_floor_charge_names_the_floor_in_title():
     schedule = _schedule([0.089], hours_needed=1.0, charging_needed=True)
-    title, _ = notifications.format_dynamic_pricing_notification(
+    title, _, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, floor_active=True, planned_grid_charge_kwh=1.15),
         schedule,
         **_DP_CFG,
     )
     assert title == "Predictive Charging: Price Optimization + Min SOC floor - 1.0h selected"
-    title, _ = notifications.format_dynamic_pricing_notification(
+    title, _, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, planned_grid_charge_kwh=1.15),
         schedule,
         **_DP_CFG,
@@ -430,7 +437,7 @@ def test_dynamic_extended_plan_names_energy_in_tomorrows_slots():
 
 def test_dynamic_remaining_horizon_does_not_label_remainder_as_daily_average():
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             avg_consumption_kwh=35.52,
@@ -451,7 +458,7 @@ def test_dynamic_remaining_horizon_does_not_label_remainder_as_daily_average():
 def test_dynamic_extended_horizon_labels_sunrise_and_overnight_leg():
     """Phase 4: same horizon relabeling in the price-optimization formatter."""
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             avg_consumption_kwh=35.52,
@@ -471,7 +478,7 @@ def test_dynamic_extended_horizon_labels_sunrise_and_overnight_leg():
 
 def test_dynamic_remaining_profile_scope_is_recognized():
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             avg_consumption_kwh=11.40,
@@ -500,7 +507,7 @@ def test_dynamic_remaining_profile_scope_is_recognized():
 def test_slot_start_notification():
     schedule = _schedule([0.10, 0.12, 0.11])
     first = schedule.selected_slots[0]
-    title, message = notifications.format_slot_start_notification(
+    title, message, _ = notifications.format_slot_start_notification(
         first, schedule, unit="€/kWh", max_contracted_power=5000
     )
     assert title == "Predictive Charging STARTED (0.1000 €/kWh)"
@@ -510,7 +517,7 @@ def test_slot_start_notification():
 
 def test_slot_start_last_slot():
     schedule = _schedule([0.10])
-    title, message = notifications.format_slot_start_notification(
+    title, message, _ = notifications.format_slot_start_notification(
         schedule.selected_slots[0], schedule, unit="€/kWh", max_contracted_power=5000
     )
     assert "Last slot" in message and "No more slots today" in message
@@ -518,7 +525,7 @@ def test_slot_start_last_slot():
 
 def test_dp_pre_slot_reevaluation():
     slot = _slots([0.09])[0]
-    title, message = notifications.format_dp_pre_slot_reevaluation_notification(
+    title, message, _ = notifications.format_dp_pre_slot_reevaluation_notification(
         slot, _decision(energy_deficit_kwh=1.5), unit="€/kWh"
     )
     assert "confirmed" in title
@@ -528,7 +535,7 @@ def test_dp_pre_slot_reevaluation():
 
 def test_dp_pre_slot_reevaluation_recognizes_remaining_fallback():
     slot = _slots([0.09])[0]
-    _, message = notifications.format_dp_pre_slot_reevaluation_notification(
+    _, message, _ = notifications.format_dp_pre_slot_reevaluation_notification(
         slot,
         _decision(
             avg_consumption_kwh=6.25,
@@ -553,7 +560,7 @@ def test_dynamic_no_slots_awaiting_prices_does_not_advise_the_margin():
     Lowering the arbitrage margin cannot help: the slots are valued as soon
     as the next day's prices are out.
     """
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             energy_deficit_kwh=4.0,
@@ -574,7 +581,7 @@ def test_dynamic_shows_the_discharge_limit_the_plan_used():
     """The drain projection is capped at the discharge power; say so, and how
     much of the load the grid carries instead."""
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(
             should_charge=True,
             energy_deficit_kwh=4.0,
@@ -595,7 +602,7 @@ def test_dynamic_shows_the_discharge_limit_the_plan_used():
 
 def test_dynamic_omits_the_discharge_line_without_a_limit():
     schedule = _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True)
-    _, message = notifications.format_dynamic_pricing_notification(
+    _, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, energy_deficit_kwh=4.0, planned_grid_charge_kwh=2.7),
         schedule,
         **_DP_CFG,
@@ -621,7 +628,7 @@ def _optimizer_schedule(prices, kwh):
 
 def test_optimizer_charge_lists_blocks_without_the_old_planner_words():
     schedule = _optimizer_schedule([0.10, 0.10, 0.10, 0.12], [0.5, 0.5, 0.4, 0.3])
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=True, energy_deficit_kwh=9.0, planned_grid_charge_kwh=1.7,
                   planner="optimizer", deadline_required_kwh=9.0),
         schedule, **_DP_CFG,
@@ -651,7 +658,7 @@ ORDERS = {
 
 
 def test_optimizer_plan_without_charge_still_names_its_orders():
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         _decision(should_charge=False, planner="optimizer"), None,
         plan_orders=ORDERS, **_DP_CFG,
     )
@@ -670,7 +677,7 @@ def test_optimizer_plan_without_charge_still_names_its_orders():
 def test_optimizer_cheaper_to_import_is_not_a_warning():
     decision = _decision(should_charge=True, energy_deficit_kwh=4.0, planner="optimizer",
                          chronological_plan_reason="cheaper_to_import", cheaper_to_import_kwh=3.5)
-    title, message = notifications.format_dynamic_pricing_notification(
+    title, message, _ = notifications.format_dynamic_pricing_notification(
         decision, None, arbitrage_margin=0.0, **_DP_CFG)
     assert title.endswith("Grid import is cheaper")
     assert "⚠️" not in message and "Energy deficit" not in message
@@ -688,3 +695,84 @@ def test_optimizer_price_info_groups_the_cheap_hours_without_tags():
         _decision(planner="optimizer"), schedule, **_DP_CFG)[1]
     assert "18:00-19:00 → 0.1000 €/kWh" in message
     assert message.count("→") == 1 and "[deficit]" not in message
+
+
+# ----------------------------------------------------------------------
+# Category returned with every formatted notification (task 2.2)
+# ----------------------------------------------------------------------
+
+def _neg_schedule():
+    schedule = _schedule([-0.05, -0.02], hours_needed=0.5, charging_needed=True)
+    schedule.schedule_type = "negative_price"
+    return schedule
+
+
+_PREDICTIVE_CATEGORY_CASES = [
+    (dict(decision=dict(solar_forecast_kwh=None, should_charge=True)),
+     "Predictive Charging: Safe mode", PLAN_INFO),
+    (dict(decision=dict(should_charge=True, chronological_deferred=True, energy_deficit_kwh=2.0)),
+     "Predictive Charging: Deferred by timeline", PLAN_INFO),
+    (dict(decision=dict(should_charge=False)),
+     "Predictive Charging: Not required", PLAN_INFO),
+    (dict(decision=dict(should_charge=True, energy_deficit_kwh=2.0), daily=True),
+     "Predictive Charging: Expected today", PLAN_CHARGE),
+    (dict(decision=dict(should_charge=True, energy_deficit_kwh=2.0)),
+     "Predictive Charging: STARTED", EXECUTION),
+]
+
+
+@pytest.mark.parametrize(("case", "title", "category"), _PREDICTIVE_CATEGORY_CASES)
+def test_predictive_formatter_returns_branch_category(case, title, category):
+    got_title, _, got_category = notifications.format_predictive_notification_message(
+        _decision(**case["decision"]), case.get("daily", False), **_CFG
+    )
+    assert got_title == title
+    assert got_category == category
+
+
+def _floor_schedule():
+    return _schedule([0.089], hours_needed=1.0, charging_needed=True)
+
+
+_DYNAMIC_CATEGORY_CASES = [
+    (_decision(should_charge=False), lambda: None,
+     "Price Optimization - NOT needed", PLAN_INFO),
+    (_decision(should_charge=True, energy_deficit_kwh=3.0, deferred_to_next_day=True), lambda: None,
+     "Price Optimization - nothing to charge yet", PLAN_INFO),
+    (_decision(should_charge=True, energy_deficit_kwh=4.0,
+               chronological_plan_reason="cheaper_to_import", cheaper_to_import_kwh=3.5), lambda: None,
+     "Price Optimization - Grid import is cheaper", PLAN_INFO),
+    (_decision(should_charge=True, energy_deficit_kwh=4.0,
+               chronological_plan_reason="awaiting_prices", awaiting_prices_kwh=3.5), lambda: None,
+     "Price Optimization - Waiting for prices", PLAN_INFO),
+    (_decision(should_charge=True, energy_deficit_kwh=4.0), lambda: None,
+     "Price Optimization - No slots available", PLAN_INFO),
+    (_decision(should_charge=True), _neg_schedule,
+     "Negative-price charging: ", PLAN_CHARGE),
+    (_decision(should_charge=False), lambda: _schedule([0.10, 0.12], charging_needed=False),
+     "Price Info - ", PLAN_INFO),
+    (_decision(should_charge=True, energy_deficit_kwh=4.55, planned_grid_charge_kwh=1.58),
+     lambda: _schedule([0.10, 0.12], hours_needed=0.5, charging_needed=True),
+     "Price Optimization - ", PLAN_CHARGE),
+    (_decision(should_charge=True, floor_active=True, planned_grid_charge_kwh=1.15), _floor_schedule,
+     "Price Optimization + Min SOC floor - ", PLAN_CHARGE),
+]
+
+
+@pytest.mark.parametrize(("decision", "schedule", "title_part", "category"), _DYNAMIC_CATEGORY_CASES)
+def test_dynamic_formatter_returns_branch_category(decision, schedule, title_part, category):
+    title, _, got_category = notifications.format_dynamic_pricing_notification(
+        decision, schedule(), **_DP_CFG
+    )
+    assert title_part in title
+    assert got_category == category
+
+
+def test_slot_start_and_pre_slot_formatters_are_execution():
+    schedule = _schedule([0.10, 0.12])
+    assert notifications.format_slot_start_notification(
+        schedule.selected_slots[0], schedule, unit="€/kWh", max_contracted_power=5000
+    )[2] == EXECUTION
+    assert notifications.format_dp_pre_slot_reevaluation_notification(
+        _slots([0.09])[0], _decision(energy_deficit_kwh=1.5), unit="€/kWh"
+    )[2] == EXECUTION
