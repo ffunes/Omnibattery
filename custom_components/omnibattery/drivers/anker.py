@@ -329,7 +329,7 @@ class AnkerModbusDriver(BatteryDriver):
     TRAITS = DriverTraits(
         supports_voltage_taper=False, ip_addressed=True, min_soc_range=(0, 20, 10)
     )
-    LABEL = "Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro"
+    LABEL = "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"
     MANUFACTURER = "Anker"
     DEFAULT_MODEL = "Solarbank Max AC"
 
