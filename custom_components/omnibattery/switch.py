@@ -16,7 +16,6 @@ from .const import (
     DOMAIN,
     CONF_CAPACITY_PROTECTION_ENABLED,
     CONF_GRID_IMPORT_WINDOW_15MIN,
-    CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
     CONF_DELAY_SOC_SETPOINT_ENABLED,
     CONF_ENABLE_CHARGE_DELAY,
     CONF_ENABLE_TEMP_CHARGE_LIMIT,
@@ -168,7 +167,6 @@ async def async_setup_entry(
     # Add capacity protection switch (system-level, when configured, regardless of enabled state)
     if controller and CONF_CAPACITY_PROTECTION_ENABLED in entry.data:
         entities.append(CapacityProtectionSwitch(hass, entry, controller))
-        entities.append(CapacityProtectionExcludedDevicesSwitch(hass, entry, controller))
 
     # The grid import cap is always on (#506), so its 15-min window switch is
     # not presence-gated; an absent key means the country default.
@@ -951,62 +949,6 @@ class GridImportWindowSwitch(SwitchEntity):
 
     async def async_turn_off(self, **kwargs) -> None:
         await self._set(False)
-
-
-class CapacityProtectionExcludedDevicesSwitch(SwitchEntity):
-    """Let peak shaving cover only the above-limit part of excluded demand."""
-
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, controller) -> None:
-        """Initialize the excluded-device peak-shaving switch."""
-        self.hass = hass
-        self.entry = entry
-        self.controller = controller
-
-        self._attr_has_entity_name = True
-        self._attr_translation_key = "capacity_protection_excluded_devices"
-        self._attr_unique_id = (
-            f"{SYSTEM_UNIQUE_ID_PREFIX}capacity_protection_excluded_devices"
-        )
-        self.entity_id = system_entity_id(
-            "switch", "capacity_protection_excluded_devices"
-        )
-        self._attr_icon = "mdi:transmission-tower-import"
-        self._attr_should_poll = False
-
-    @property
-    def is_on(self) -> bool:
-        """Return whether excluded-device peak shaving is enabled."""
-        return self.controller.capacity_protection_excluded_devices
-
-    async def _update_enabled(self, enabled: bool) -> None:
-        """Persist and apply the runtime setting."""
-        self.controller.capacity_protection_excluded_devices = enabled
-        new_data = dict(self.entry.data)
-        new_data[CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES] = enabled
-        self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-        _LOGGER.info(
-            "Peak shaving for excluded devices %s",
-            "ENABLED" if enabled else "DISABLED",
-        )
-        self.async_write_ha_state()
-
-    async def async_turn_on(self, **kwargs) -> None:
-        """Enable peak shaving for excluded devices."""
-        await self._update_enabled(True)
-
-    async def async_turn_off(self, **kwargs) -> None:
-        """Disable peak shaving for excluded devices."""
-        await self._update_enabled(False)
-
-    @property
-    def device_info(self):
-        """Return device information for the system."""
-        return {
-            "identifiers": {(DOMAIN, "marstek_venus_system")},
-            "name": "Omnibattery System",
-            "manufacturer": "Omnibattery",
-            "model": "Multi-Battery System",
-        }
 
 
 class ChargeDelaySwitch(SwitchEntity):

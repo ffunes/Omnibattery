@@ -26,7 +26,6 @@ def test_grid_import_cap_supports_20_kw():
 def _controller(*, previous_power: float):
     ctrl = object.__new__(ChargeDischargeController)
     ctrl.capacity_protection_enabled = True
-    ctrl.capacity_protection_excluded_devices = False
     ctrl.capacity_protection_soc_threshold = 25
     ctrl.max_contracted_power = 3000
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), max_soc=100, data={"battery_soc": 24})]
@@ -80,13 +79,10 @@ def test_solar_surplus_charge_remains_allowed():
     assert ctrl._capacity_protection_status["action"] == "charging"
 
 
-@pytest.mark.parametrize("switch", [False, True])
-def test_excluded_devices_cover_only_demand_above_the_cap(switch):
-    # The grid import cap covers excluded devices whatever the switch says
-    # (#506); the switch only matters inside a predictive slot now.
+def test_excluded_devices_cover_only_demand_above_the_cap():
+    # The grid import cap covers excluded devices (#506, #949).
     ctrl = _controller(previous_power=0.0)
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), max_soc=100, data={"battery_soc": 80})]
-    ctrl.capacity_protection_excluded_devices = switch
     ctrl._excluded_included_adjustment = 4000.0
 
     target, sensor = ctrl._apply_capacity_protection(
@@ -103,7 +99,6 @@ def test_excluded_devices_cover_only_demand_above_the_cap(switch):
 def test_excluded_devices_cap_preserves_normal_home_coverage():
     ctrl = _controller(previous_power=-2000.0)
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), max_soc=100, data={"battery_soc": 80})]
-    ctrl.capacity_protection_excluded_devices = True
     ctrl._excluded_included_adjustment = 4000.0
 
     target, sensor = ctrl._apply_capacity_protection(
@@ -118,7 +113,6 @@ def test_excluded_devices_cap_preserves_normal_home_coverage():
 def test_excluded_devices_below_the_cap_keep_normal_exclusion():
     ctrl = _controller(previous_power=0.0)
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), max_soc=100, data={"battery_soc": 80})]
-    ctrl.capacity_protection_excluded_devices = True
     ctrl._excluded_included_adjustment = 2500.0
 
     target, sensor = ctrl._apply_capacity_protection(
@@ -300,3 +294,42 @@ def test_ordinary_threshold_still_releases_at_equality():
     ctrl = _fleet((25, 100), threshold=25)
     assert ctrl._apply_capacity_protection(450, active_target=0)[0] == 0
     assert ctrl._is_capacity_protection_soc_limited() is False
+
+
+async def test_v22_removes_the_excluded_devices_switch():
+    # #949: the switch did nothing outside a planned grid charge; its key and
+    # entity go, so no dead control stays on the panel.
+    from unittest.mock import patch
+
+    from custom_components.omnibattery import async_migrate_entry
+
+    removed = []
+    registry = SimpleNamespace(
+        async_get_entity_id=lambda domain, _d, uid: (
+            "switch.old" if (domain, uid) == (
+                "switch", "marstek_venus_system_capacity_protection_excluded_devices"
+            ) else None
+        ),
+        async_remove=removed.append,
+    )
+    entry = SimpleNamespace(
+        version=21, entry_id="entry", options={},
+        data={"capacity_protection_excluded_devices": True},
+    )
+
+    def update(entry_, *, data, version=None, **_):
+        entry_.data, entry_.version = data, version
+
+    hass = SimpleNamespace(config_entries=SimpleNamespace(
+        async_entries=lambda _d: [], async_update_entry=update,
+    ))
+    with patch.multiple(
+        "homeassistant.helpers.entity_registry",
+        async_get=lambda _h: registry,
+        async_entries_for_config_entry=lambda _r, _e: [],
+    ):
+        assert await async_migrate_entry(hass, entry) is True
+
+    assert entry.version == 22
+    assert "capacity_protection_excluded_devices" not in entry.data
+    assert removed == ["switch.old"]

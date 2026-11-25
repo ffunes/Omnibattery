@@ -26,7 +26,6 @@ def _ctrl(*, cap: float, soc: float = 60, reserve: bool = True, threshold: float
     ctrl = object.__new__(ChargeDischargeController)
     ctrl.max_contracted_power = cap
     ctrl.capacity_protection_enabled = reserve
-    ctrl.capacity_protection_excluded_devices = False
     ctrl.capacity_protection_soc_threshold = threshold
     ctrl.coordinators = [SimpleNamespace(driver=_FakeMarstekDriver(), max_soc=100, data={"battery_soc": soc})]
     ctrl._non_responsive = SimpleNamespace(is_excluded=lambda _c: False)
@@ -218,7 +217,7 @@ async def test_v17_folds_the_peak_limit_into_the_cap(hass, data, expected) -> No
     old = reg.async_get_or_create("number", DOMAIN, LIMIT_UID, config_entry=entry)
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 21
+    assert entry.version == 22
     assert entry.data["max_contracted_power"] == expected
     assert "capacity_protection_limit" not in entry.data
     assert reg.async_get(old.entity_id) is None

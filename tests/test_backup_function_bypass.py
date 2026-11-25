@@ -105,7 +105,7 @@ async def test_v18_drops_the_threshold_and_its_number(hass) -> None:
     )
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 21
+    assert entry.version == 22
     assert entry.data["batteries"] == [{"name": "Venus"}]
     assert reg.async_get(old.entity_id) is None
     assert reg.async_get(kept.entity_id) is not None

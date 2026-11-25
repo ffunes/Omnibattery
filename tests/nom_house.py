@@ -110,7 +110,7 @@ class House:
             primary_feedforward_enabled=False, primary_battery="",
             _setpoint_overrides={}, _setpoint_offsets={},
             capacity_protection_enabled=False, capacity_protection_soc_threshold=30,
-            capacity_protection_excluded_devices=False, max_contracted_power=cap,
+            max_contracted_power=cap,
             _capacity_protection_status={}, _capacity_protection_active=False,
             _excluded_included_adjustment=0.0,
             _global_discharge_blockers={}, _battery_discharge_blockers={},

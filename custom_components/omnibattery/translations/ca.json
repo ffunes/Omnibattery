@@ -1717,9 +1717,6 @@
       "grid_import_window_15min": {
         "name": "Finestra de 15 min d'Importació de Xarxa"
       },
-      "capacity_protection_excluded_devices": {
-        "name": "Reducció de Pics per a Dispositius Exclosos"
-      },
       "backup_function": {
         "name": "Funció de Reserva"
       },

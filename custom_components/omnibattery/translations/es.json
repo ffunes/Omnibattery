@@ -1732,9 +1732,6 @@
       "grid_import_window_15min": {
         "name": "Ventana de 15 min de Importación de Red"
       },
-      "capacity_protection_excluded_devices": {
-        "name": "Reducción de Picos para Dispositivos Excluidos"
-      },
       "backup_function": {
         "name": "Función de Respaldo"
       },

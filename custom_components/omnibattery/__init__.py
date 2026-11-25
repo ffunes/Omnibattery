@@ -1305,9 +1305,6 @@ class ChargeDischargeController:
             self, config_entry.data
         )
         self.capacity_protection_enabled = config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
-        self.capacity_protection_excluded_devices = config_entry.data.get(
-            CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False
-        )
         self.capacity_protection_soc_threshold = config_entry.data.get(CONF_CAPACITY_PROTECTION_SOC_THRESHOLD, DEFAULT_CAPACITY_PROTECTION_SOC)
         self._capacity_protection_active = False  # True while either peak-shaving mode intervenes
         self._excluded_included_adjustment = 0.0  # Tracks excluded device adjustment for included_in_consumption devices
@@ -3601,9 +3598,6 @@ class ChargeDischargeController:
             self, self.config_entry.data
         )
         self.capacity_protection_enabled = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_ENABLED, False)
-        self.capacity_protection_excluded_devices = self.config_entry.data.get(
-            CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False
-        )
         self.capacity_protection_soc_threshold = self.config_entry.data.get(CONF_CAPACITY_PROTECTION_SOC_THRESHOLD, DEFAULT_CAPACITY_PROTECTION_SOC)
 
         if (
@@ -5595,7 +5589,6 @@ class ChargeDischargeController:
             "original_target": original_target,
             "adjusted_target": active_target,
             "soc_threshold": self.capacity_protection_soc_threshold,
-            "excluded_devices_enabled": self.capacity_protection_excluded_devices,
         })
         return active_target, sensor_actual
 
@@ -6801,21 +6794,13 @@ class ChargeDischargeController:
         physical_base_load = (
             sensor_filtered - measured if measured is not None else sensor_filtered
         )
-        excluded_adjustment = float(
-            getattr(self, "_excluded_included_adjustment", 0.0) or 0.0
-        )
-        base_load = (
-            physical_base_load
-            if getattr(self, "capacity_protection_excluded_devices", False)
-            else physical_base_load - excluded_adjustment
-        )
         trigger = max(float(self.deadband), 50.0)
         hard_margin = max(3.0 * trigger, _PREDICTIVE_HARD_LIMIT_MIN_MARGIN_W)
         emergency = physical_base_load > ChargeDischargeController._grid_import_cap_w(self) + hard_margin
         # The house alone above the grid import cap is not an emergency: it only
         # needs the charge handed over, so it is judged against the ordinary
         # trigger and confirmed faster (#683).
-        peak = self.capacity_protection_enabled and base_load > target_power + trigger
+        peak = self.capacity_protection_enabled and physical_base_load > target_power + trigger
 
         if not (emergency or peak):
             self._predictive_hard_limit_samples = 0
@@ -7006,24 +6991,12 @@ class ChargeDischargeController:
         physical_base_load = (
             sensor_filtered - measured if measured is not None else sensor_filtered
         )
-        # Peak Shaving's optional excluded-device switch retains its existing
-        # meaning during a predictive slot.  Contracted-power emergency is
-        # always based on physical import because the meter/ICP sees all loads.
-        excluded_adjustment = float(
-            getattr(self, "_excluded_included_adjustment", 0.0) or 0.0
-        )
-        base_load = (
-            physical_base_load
-            if getattr(self, "capacity_protection_excluded_devices", False)
-            else physical_base_load - excluded_adjustment
-        )
         trigger = max(float(self.deadband), 50.0)
         emergency = physical_base_load > ChargeDischargeController._grid_import_cap_w(self) + trigger
-        peak = self.capacity_protection_enabled and base_load > ceiling + trigger
+        peak = self.capacity_protection_enabled and physical_base_load > ceiling + trigger
         if emergency or peak:
-            # Emergency is always physical: excluded-device policy may reduce
-            # ordinary Peak Shaving, but never the import seen by the ICP.
-            peak_requested = max(0.0, base_load - ceiling) if peak else 0.0
+            # Both read the real meter, excluded devices included (#949).
+            peak_requested = max(0.0, physical_base_load - ceiling) if peak else 0.0
             emergency_requested = (
                 max(0.0, physical_base_load - ChargeDischargeController._grid_import_cap_w(self))
                 if emergency else 0.0
@@ -7056,9 +7029,7 @@ class ChargeDischargeController:
             self.previous_power = 0
             self._set_predictive_protection_status(
                 bool(peak or emergency), self._predictive_protection_reason,
-                estimated_house_load=round(
-                    physical_base_load if emergency else base_load
-                ),
+                estimated_house_load=round(physical_base_load),
             )
             return
 
@@ -11480,8 +11451,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 meant "use the measured value"; that is now the absent key, so
                 the key is dropped and a stored 0.85 from then on is a fixed
                 value.
+    v21 -> v22: the Peak Shaving for excluded devices switch is removed
+                (#949); its key and entity go.
     """
-    if entry.version >= 21:
+    if entry.version >= 22:
         return True
 
     new_data = dict(entry.data)
@@ -11966,12 +11939,31 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "(round-trip efficiency 0.85 now means the measured value only when unset)",
         )
 
+    if entry.version < 22:
+        from homeassistant.helpers import entity_registry as er
+        from .infra.entity_naming import SYSTEM_UNIQUE_ID_PREFIX
+
+        # #949: the grid import cap always counts excluded devices, so their
+        # Peak Shaving switch is gone.
+        new_data.pop(CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, None)
+        ent_reg = er.async_get(hass)
+        entity_id = ent_reg.async_get_entity_id(
+            "switch", DOMAIN,
+            f"{SYSTEM_UNIQUE_ID_PREFIX}{CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES}",
+        )
+        if entity_id:
+            ent_reg.async_remove(entity_id)
+        _LOGGER.info(
+            "Omnibattery: migrated config entry to version 22 "
+            "(Peak Shaving for excluded devices switch removed)",
+        )
+
     hass.config_entries.async_update_entry(
         entry,
         title="Omnibattery",
         data=new_data,
         options=new_options,
-        version=21,
+        version=22,
     )
     return True
 
@@ -12414,7 +12406,6 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
             CONF_DELAY_SOC_SETPOINT_ENABLED,
             CONF_ENABLE_TEMP_CHARGE_LIMIT,
             CONF_CAPACITY_PROTECTION_ENABLED,
-            CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
             CONF_ENABLE_HOURLY_BALANCE,
             CONF_HIGH_PRICE_DISCHARGE_ENABLED,
             CONF_HIGH_PRICE_SURPLUS_EXPORT_ENABLED,

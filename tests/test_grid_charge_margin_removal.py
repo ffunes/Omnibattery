@@ -85,7 +85,7 @@ async def test_v14_drops_the_key_and_deletes_its_entity(hass: HomeAssistant) -> 
     )
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 21
+    assert entry.version == 22
     assert CONF_PREDICTIVE_GRID_CHARGE_MARGIN_PCT not in entry.data
     # Deleted, not left behind unavailable: orphans have rendered as dead
     # duplicate controls on the panel before.
@@ -153,7 +153,7 @@ async def test_v20_deletes_the_kwh_margin_entity(hass: HomeAssistant) -> None:
     )
 
     assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 21
+    assert entry.version == 22
     assert CONF_PREDICTIVE_SAFETY_MARGIN_KWH not in entry.data
     assert CONF_PREDICTIVE_SAFETY_MARGIN_PCT not in entry.data
     assert er.async_get(hass).async_get(number.entity_id) is None

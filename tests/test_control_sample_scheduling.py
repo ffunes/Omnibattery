@@ -871,7 +871,6 @@ def test_predictive_emergency_uses_physical_load_when_excluded_load_is_ignored()
     controller = _predictive_controller(state_holder, writes)
     controller.max_contracted_power = 2000.0
     controller.capacity_protection_enabled = False
-    controller.capacity_protection_excluded_devices = False
     controller._excluded_included_adjustment = 2500.0
     controller._capacity_protection_status = {}
     controller._capacity_protection_active = False

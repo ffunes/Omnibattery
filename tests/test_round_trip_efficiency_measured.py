@@ -172,7 +172,7 @@ async def _migrate(data, version=16):
     entry = SimpleNamespace(version=version, entry_id="entry", data=dict(data), options={})
     with _no_registry():
         assert await async_migrate_entry(hass, entry) is True
-    assert entry.version == 21
+    assert entry.version == 22
     return entry.data
 
 

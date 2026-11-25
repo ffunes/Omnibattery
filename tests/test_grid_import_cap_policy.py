@@ -41,7 +41,6 @@ def _ctrl(*, soc=60, reserve=False):
     ctrl = object.__new__(ChargeDischargeController)
     ctrl.max_contracted_power = CAP
     ctrl.capacity_protection_enabled = reserve
-    ctrl.capacity_protection_excluded_devices = False
     ctrl.capacity_protection_soc_threshold = 20
     ctrl.battery = _Battery(soc)
     ctrl.coordinators = [ctrl.battery]
