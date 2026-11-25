@@ -7,7 +7,7 @@
 - Marstek Venus E and C (v2 and v3), Venus D and Venus A via Modbus TCP, or Venus E v2 through a LilyGo RS485 board running ESPHome
 - Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 3000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 (Local API)
 - Anker SOLIX Solarbank Max AC, XE AC and Solarbank 4 E5000 Pro via Modbus TCP (thanks @wouterbouvy!)
-- Sessy Home Battery (Looking for testers!!!)
+- Sessy Home Battery
 - Hoymiles MS-A2 and HiBattery MQTT models
 - Indevolt SolidFlex 1200, 2000, 3000 and 3600, and PowerFlex 1200, 2000 and 3000 (Local HTTP API)
 - Huawei SUN2000 inverters with LUNA2000 batteries via Modbus TCP
