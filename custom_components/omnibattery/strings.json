@@ -523,7 +523,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Spain)",
-        "description": "Enter the energy price of each period of your contract, taxes included. Periods follow the clock: valle 00–08, punta 10–14 and 18–22, llano the rest; Saturdays and Sundays are valle all day.\n\n**National holidays:** install Home Assistant's **Workday** integration with country **Spain** only (no province, so regional and local holidays are left out) and pick its entity below. Without it only weekends count as valle.",
+        "description": "Enter the energy price of each period of your contract, taxes included. Periods follow the clock: valle 00–08, punta 10–14 and 18–22, llano the rest; Saturdays and Sundays are valle all day.\n\n**National holidays:** install Home Assistant's **Workday** integration with country **Spain** only (no province, so regional and local holidays are left out), add *Viernes Santo* to its **Remove holidays** (its date moves, so 2.0TD does not count it) and pick its entity below. Without it only weekends count as valle.",
         "data": {
           "td20_price_punta": "Punta price (peak)",
           "td20_price_llano": "Llano price (mid)",
@@ -532,7 +532,7 @@
           "td20_workday_entity": "Workday entity (optional)"
         },
         "data_description": {
-          "td20_export_price": "What you are paid per exported kWh (compensación de excedentes). Leave empty if you have no compensation contract; enter 0 if exports earn nothing.",
+          "td20_export_price": "What you are paid per exported kWh (compensación de excedentes). Leave empty if you have no compensation contract.",
           "td20_workday_entity": "Binary sensor of the Workday integration, set up for Spain with no province."
         }
       },
@@ -921,7 +921,7 @@
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
       "energyzero_unavailable": "The EnergyZero integration is not installed, or its `energyzero.get_energy_prices` service is unavailable. Install and configure EnergyZero first.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
       "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
       "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."
@@ -1326,7 +1326,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Spain)",
-        "description": "Enter the energy price of each period of your contract, taxes included. Periods follow the clock: valle 00–08, punta 10–14 and 18–22, llano the rest; Saturdays and Sundays are valle all day.\n\n**National holidays:** install Home Assistant's **Workday** integration with country **Spain** only (no province, so regional and local holidays are left out) and pick its entity below. Without it only weekends count as valle.",
+        "description": "Enter the energy price of each period of your contract, taxes included. Periods follow the clock: valle 00–08, punta 10–14 and 18–22, llano the rest; Saturdays and Sundays are valle all day.\n\n**National holidays:** install Home Assistant's **Workday** integration with country **Spain** only (no province, so regional and local holidays are left out), add *Viernes Santo* to its **Remove holidays** (its date moves, so 2.0TD does not count it) and pick its entity below. Without it only weekends count as valle.",
         "data": {
           "td20_price_punta": "Punta price (peak)",
           "td20_price_llano": "Llano price (mid)",
@@ -1335,7 +1335,7 @@
           "td20_workday_entity": "Workday entity (optional)"
         },
         "data_description": {
-          "td20_export_price": "What you are paid per exported kWh (compensación de excedentes). Leave empty if you have no compensation contract; enter 0 if exports earn nothing.",
+          "td20_export_price": "What you are paid per exported kWh (compensación de excedentes). Leave empty if you have no compensation contract.",
           "td20_workday_entity": "Binary sensor of the Workday integration, set up for Spain with no province."
         }
       },
@@ -1625,7 +1625,7 @@
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
       "energyzero_unavailable": "The EnergyZero integration is not installed, or its `energyzero.get_energy_prices` service is unavailable. Install and configure EnergyZero first.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
       "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
       "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."

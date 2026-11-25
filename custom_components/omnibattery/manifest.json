@@ -4,7 +4,8 @@
   "after_dependencies": [
     "recorder",
     "esphome",
-    "mqtt"
+    "mqtt",
+    "workday"
   ],
   "codeowners": [
     "@ffunes"

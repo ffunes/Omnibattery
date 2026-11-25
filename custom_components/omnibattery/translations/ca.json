@@ -454,7 +454,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Espanya)",
-        "description": "Introdueix el preu de l'energia de cada tram del teu contracte, amb impostos. Els trams segueixen el rellotge: vall 00–08, punta 10–14 i 18–22, pla la resta; dissabtes i diumenges són vall tot el dia.\n\n**Festius nacionals:** instal·la la integració **Workday** de Home Assistant només amb el país **Espanya** (sense província, per deixar fora els festius autonòmics i locals) i tria'n l'entitat a sota. Sense ella només els caps de setmana compten com a vall.",
+        "description": "Introdueix el preu de l'energia de cada tram del teu contracte, amb impostos. Els trams segueixen el rellotge: vall 00–08, punta 10–14 i 18–22, pla la resta; dissabtes i diumenges són vall tot el dia.\n\n**Festius nacionals:** instal·la la integració **Workday** de Home Assistant només amb el país **Espanya** (sense província, per deixar fora els festius autonòmics i locals), afegeix *Viernes Santo* a **Treure festius** (no té data fixa, així que la 2.0TD no el compta) i tria'n l'entitat a sota. Sense ella només els caps de setmana compten com a vall.",
         "data": {
           "td20_price_punta": "Preu punta",
           "td20_price_llano": "Preu pla",
@@ -463,7 +463,7 @@
           "td20_workday_entity": "Entitat Workday (opcional)"
         },
         "data_description": {
-          "td20_export_price": "El que et paguen per cada kWh abocat (compensació d'excedents). Deixa-ho buit si no tens compensació contractada; posa 0 si abocar no es paga.",
+          "td20_export_price": "El que et paguen per cada kWh abocat (compensació d'excedents). Deixa-ho buit si no tens compensació contractada.",
           "td20_workday_entity": "Sensor binari de la integració Workday, configurada per a Espanya sense província."
         }
       },
@@ -925,7 +925,7 @@
       "tibber_unavailable": "La integració Tibber no està instal·lada, o el seu servei `tibber.get_prices` no està disponible. Instal·la i configura Tibber primer.",
       "energyzero_unavailable": "La integració EnergyZero no està instal·lada o el seu servei `energyzero.get_energy_prices` no està disponible. Instal·la i configura EnergyZero primer.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El preu mínim de descàrrega no pot ser inferior al preu màxim (de càrrega). Posa'l igual o superior, o deixa'l buit per reutilitzar el llindar de càrrega.",
       "host_or_serial_required": "Introdueix una adreça IP (TCP) o la ruta d'un port sèrie (Modbus RTU).",
       "missing_power_sensor": "Selecciona un sensor de potència, o activa Carregador VE sense telemetria i selecciona un sensor d'activitat.",
@@ -1335,7 +1335,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Espanya)",
-        "description": "Introdueix el preu de l'energia de cada tram del teu contracte, amb impostos. Els trams segueixen el rellotge: vall 00–08, punta 10–14 i 18–22, pla la resta; dissabtes i diumenges són vall tot el dia.\n\n**Festius nacionals:** instal·la la integració **Workday** de Home Assistant només amb el país **Espanya** (sense província, per deixar fora els festius autonòmics i locals) i tria'n l'entitat a sota. Sense ella només els caps de setmana compten com a vall.",
+        "description": "Introdueix el preu de l'energia de cada tram del teu contracte, amb impostos. Els trams segueixen el rellotge: vall 00–08, punta 10–14 i 18–22, pla la resta; dissabtes i diumenges són vall tot el dia.\n\n**Festius nacionals:** instal·la la integració **Workday** de Home Assistant només amb el país **Espanya** (sense província, per deixar fora els festius autonòmics i locals), afegeix *Viernes Santo* a **Treure festius** (no té data fixa, així que la 2.0TD no el compta) i tria'n l'entitat a sota. Sense ella només els caps de setmana compten com a vall.",
         "data": {
           "td20_price_punta": "Preu punta",
           "td20_price_llano": "Preu pla",
@@ -1344,7 +1344,7 @@
           "td20_workday_entity": "Entitat Workday (opcional)"
         },
         "data_description": {
-          "td20_export_price": "El que et paguen per cada kWh abocat (compensació d'excedents). Deixa-ho buit si no tens compensació contractada; posa 0 si abocar no es paga.",
+          "td20_export_price": "El que et paguen per cada kWh abocat (compensació d'excedents). Deixa-ho buit si no tens compensació contractada.",
           "td20_workday_entity": "Sensor binari de la integració Workday, configurada per a Espanya sense província."
         }
       },
@@ -1634,7 +1634,7 @@
       "tibber_unavailable": "La integració Tibber no està instal·lada, o el seu servei `tibber.get_prices` no està disponible. Instal·la i configura Tibber primer.",
       "energyzero_unavailable": "La integració EnergyZero no està instal·lada o el seu servei `energyzero.get_energy_prices` no està disponible. Instal·la i configura EnergyZero primer.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El preu mínim de descàrrega no pot ser inferior al preu màxim (de càrrega). Posa'l igual o superior, o deixa'l buit per reutilitzar el llindar de càrrega.",
       "host_or_serial_required": "Introdueix una adreça IP (TCP) o la ruta d'un port sèrie (Modbus RTU).",
       "missing_power_sensor": "Selecciona un sensor de potència, o activa Carregador VE sense telemetria i selecciona un sensor d'activitat.",

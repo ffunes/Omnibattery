@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Tarifa 2.0TD (Spain) price provider**: Dynamic Pricing for fixed three-period contracts with no price sensor; enter the punta, llano and valle prices and, optionally, the surplus price. Install Home Assistant's Workday integration (country Spain, no province) so national holidays count as valle.
+- **Tarifa 2.0TD (Spain) price provider**: Dynamic Pricing for fixed three-period contracts with no price sensor; enter the punta, llano and valle prices and, optionally, the surplus price. Install Home Assistant's Workday integration (country Spain, no province, *Viernes Santo* removed) so national holidays count as valle.
 - **APsystems EZHI support** (PR#936): new driver over the EZHI's local HTTP API (enable Local Mode in the AP EasyPower app). Thanks to @funonwheels.
 
 ### Changed

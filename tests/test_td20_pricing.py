@@ -78,7 +78,8 @@ def test_surplus_price_is_a_flat_export_curve():
     assert mgr._has_export_curve()
     exports = mgr.get_future_export_price_slots(datetime(2026, 11, 25, 23, 59))
     assert len(exports) == 12 and {slot.price for slot in exports} == {0.05}
-    # Zero is a real price ("exports earn nothing"), not "unset".
+    # Zero is a real price, not "unset"; unset keeps the no-export-curve
+    # behaviour every other provider has without an export sensor.
     assert manager(controller(td20_export_price=0.0), now)._has_export_curve()
     assert not manager(controller(), now)._has_export_curve()
 

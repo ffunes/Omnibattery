@@ -454,7 +454,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Spanje)",
-        "description": "Vul de energieprijs van elke periode van je contract in, inclusief belastingen. De perioden volgen de klok: valle 00–08, punta 10–14 en 18–22, llano de rest; zaterdag en zondag zijn de hele dag valle.\n\n**Nationale feestdagen:** installeer de Home Assistant-integratie **Workday** met alleen het land **Spanje** (zonder provincie, zodat regionale en lokale feestdagen buiten beschouwing blijven) en kies hieronder de entiteit. Zonder die integratie tellen alleen weekenden als valle.",
+        "description": "Vul de energieprijs van elke periode van je contract in, inclusief belastingen. De perioden volgen de klok: valle 00–08, punta 10–14 en 18–22, llano de rest; zaterdag en zondag zijn de hele dag valle.\n\n**Nationale feestdagen:** installeer de Home Assistant-integratie **Workday** met alleen het land **Spanje** (zonder provincie, zodat regionale en lokale feestdagen buiten beschouwing blijven), voeg *Viernes Santo* toe bij **Feestdagen verwijderen** (wisselende datum, telt niet voor 2.0TD) en kies hieronder de entiteit. Zonder die integratie tellen alleen weekenden als valle.",
         "data": {
           "td20_price_punta": "Prijs punta (piek)",
           "td20_price_llano": "Prijs llano (midden)",
@@ -463,7 +463,7 @@
           "td20_workday_entity": "Workday-entiteit (optioneel)"
         },
         "data_description": {
-          "td20_export_price": "Wat je per teruggeleverde kWh krijgt (compensación de excedentes). Laat leeg als je geen compensatiecontract hebt; vul 0 in als terugleveren niets oplevert.",
+          "td20_export_price": "Wat je per teruggeleverde kWh krijgt (compensación de excedentes). Laat leeg als je geen compensatiecontract hebt.",
           "td20_workday_entity": "Binaire sensor van de Workday-integratie, ingesteld voor Spanje zonder provincie."
         }
       },
@@ -925,7 +925,7 @@
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
       "energyzero_unavailable": "De EnergyZero-integratie is niet geïnstalleerd of de service `energyzero.get_energy_prices` is niet beschikbaar. Installeer en configureer eerst EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
       "host_or_serial_required": "Voer een IP-adres (TCP) of een pad naar een seriële poort (Modbus RTU) in.",
       "missing_power_sensor": "Selecteer een vermogenssensor, of activeer EV-lader zonder telemetrie en selecteer een activiteitssensor.",
@@ -1335,7 +1335,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Spanje)",
-        "description": "Vul de energieprijs van elke periode van je contract in, inclusief belastingen. De perioden volgen de klok: valle 00–08, punta 10–14 en 18–22, llano de rest; zaterdag en zondag zijn de hele dag valle.\n\n**Nationale feestdagen:** installeer de Home Assistant-integratie **Workday** met alleen het land **Spanje** (zonder provincie, zodat regionale en lokale feestdagen buiten beschouwing blijven) en kies hieronder de entiteit. Zonder die integratie tellen alleen weekenden als valle.",
+        "description": "Vul de energieprijs van elke periode van je contract in, inclusief belastingen. De perioden volgen de klok: valle 00–08, punta 10–14 en 18–22, llano de rest; zaterdag en zondag zijn de hele dag valle.\n\n**Nationale feestdagen:** installeer de Home Assistant-integratie **Workday** met alleen het land **Spanje** (zonder provincie, zodat regionale en lokale feestdagen buiten beschouwing blijven), voeg *Viernes Santo* toe bij **Feestdagen verwijderen** (wisselende datum, telt niet voor 2.0TD) en kies hieronder de entiteit. Zonder die integratie tellen alleen weekenden als valle.",
         "data": {
           "td20_price_punta": "Prijs punta (piek)",
           "td20_price_llano": "Prijs llano (midden)",
@@ -1344,7 +1344,7 @@
           "td20_workday_entity": "Workday-entiteit (optioneel)"
         },
         "data_description": {
-          "td20_export_price": "Wat je per teruggeleverde kWh krijgt (compensación de excedentes). Laat leeg als je geen compensatiecontract hebt; vul 0 in als terugleveren niets oplevert.",
+          "td20_export_price": "Wat je per teruggeleverde kWh krijgt (compensación de excedentes). Laat leeg als je geen compensatiecontract hebt.",
           "td20_workday_entity": "Binaire sensor van de Workday-integratie, ingesteld voor Spanje zonder provincie."
         }
       },
@@ -1634,7 +1634,7 @@
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
       "energyzero_unavailable": "De EnergyZero-integratie is niet geïnstalleerd of de service `energyzero.get_energy_prices` is niet beschikbaar. Installeer en configureer eerst EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
       "host_or_serial_required": "Voer een IP-adres (TCP) of een pad naar een seriële poort (Modbus RTU) in.",
       "missing_power_sensor": "Selecteer een vermogenssensor, of activeer EV-lader zonder telemetrie en selecteer een activiteitssensor.",

@@ -454,7 +454,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Spanien)",
-        "description": "Gib den Energiepreis jeder Zeitzone deines Vertrags inklusive Steuern ein. Die Zeitzonen folgen der Uhr: Valle 00–08, Punta 10–14 und 18–22, Llano der Rest; Samstage und Sonntage sind ganztägig Valle.\n\n**Nationale Feiertage:** Installiere die Home-Assistant-Integration **Workday** nur mit dem Land **Spanien** (ohne Provinz, damit regionale und lokale Feiertage außen vor bleiben) und wähle unten ihre Entität. Ohne sie zählen nur Wochenenden als Valle.",
+        "description": "Gib den Energiepreis jeder Zeitzone deines Vertrags inklusive Steuern ein. Die Zeitzonen folgen der Uhr: Valle 00–08, Punta 10–14 und 18–22, Llano der Rest; Samstage und Sonntage sind ganztägig Valle.\n\n**Nationale Feiertage:** Installiere die Home-Assistant-Integration **Workday** nur mit dem Land **Spanien** (ohne Provinz, damit regionale und lokale Feiertage außen vor bleiben), trage *Viernes Santo* unter **Feiertage entfernen** ein (bewegliches Datum, zählt bei 2.0TD nicht) und wähle unten ihre Entität. Ohne sie zählen nur Wochenenden als Valle.",
         "data": {
           "td20_price_punta": "Preis Punta (Spitze)",
           "td20_price_llano": "Preis Llano (Mittel)",
@@ -463,7 +463,7 @@
           "td20_workday_entity": "Workday-Entität (optional)"
         },
         "data_description": {
-          "td20_export_price": "Vergütung pro eingespeister kWh (compensación de excedentes). Leer lassen, wenn du keinen Vergütungsvertrag hast; 0 eintragen, wenn Einspeisung nichts einbringt.",
+          "td20_export_price": "Vergütung pro eingespeister kWh (compensación de excedentes). Leer lassen, wenn du keinen Vergütungsvertrag hast.",
           "td20_workday_entity": "Binärsensor der Workday-Integration, eingerichtet für Spanien ohne Provinz."
         }
       },
@@ -925,7 +925,7 @@
       "tibber_unavailable": "Die Tibber-Integration ist nicht installiert oder ihr Dienst `tibber.get_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst Tibber.",
       "energyzero_unavailable": "Die EnergyZero-Integration ist nicht installiert oder ihr Dienst `energyzero.get_energy_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Die Entlade-Preisuntergrenze darf nicht unter dem maximalen (Lade-)Preis liegen. Setze sie gleich oder höher oder lass sie leer, um den Ladeschwellenwert wiederzuverwenden.",
       "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein.",
       "missing_power_sensor": "Wähle einen Geräte-Leistungssensor oder aktiviere EV-Ladestation ohne Telemetrie und wähle einen Aktivitätssensor.",
@@ -1335,7 +1335,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Spanien)",
-        "description": "Gib den Energiepreis jeder Zeitzone deines Vertrags inklusive Steuern ein. Die Zeitzonen folgen der Uhr: Valle 00–08, Punta 10–14 und 18–22, Llano der Rest; Samstage und Sonntage sind ganztägig Valle.\n\n**Nationale Feiertage:** Installiere die Home-Assistant-Integration **Workday** nur mit dem Land **Spanien** (ohne Provinz, damit regionale und lokale Feiertage außen vor bleiben) und wähle unten ihre Entität. Ohne sie zählen nur Wochenenden als Valle.",
+        "description": "Gib den Energiepreis jeder Zeitzone deines Vertrags inklusive Steuern ein. Die Zeitzonen folgen der Uhr: Valle 00–08, Punta 10–14 und 18–22, Llano der Rest; Samstage und Sonntage sind ganztägig Valle.\n\n**Nationale Feiertage:** Installiere die Home-Assistant-Integration **Workday** nur mit dem Land **Spanien** (ohne Provinz, damit regionale und lokale Feiertage außen vor bleiben), trage *Viernes Santo* unter **Feiertage entfernen** ein (bewegliches Datum, zählt bei 2.0TD nicht) und wähle unten ihre Entität. Ohne sie zählen nur Wochenenden als Valle.",
         "data": {
           "td20_price_punta": "Preis Punta (Spitze)",
           "td20_price_llano": "Preis Llano (Mittel)",
@@ -1344,7 +1344,7 @@
           "td20_workday_entity": "Workday-Entität (optional)"
         },
         "data_description": {
-          "td20_export_price": "Vergütung pro eingespeister kWh (compensación de excedentes). Leer lassen, wenn du keinen Vergütungsvertrag hast; 0 eintragen, wenn Einspeisung nichts einbringt.",
+          "td20_export_price": "Vergütung pro eingespeister kWh (compensación de excedentes). Leer lassen, wenn du keinen Vergütungsvertrag hast.",
           "td20_workday_entity": "Binärsensor der Workday-Integration, eingerichtet für Spanien ohne Provinz."
         }
       },
@@ -1634,7 +1634,7 @@
       "tibber_unavailable": "Die Tibber-Integration ist nicht installiert oder ihr Dienst `tibber.get_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst Tibber.",
       "energyzero_unavailable": "Die EnergyZero-Integration ist nicht installiert oder ihr Dienst `energyzero.get_energy_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Die Entlade-Preisuntergrenze darf nicht unter dem maximalen (Lade-)Preis liegen. Setze sie gleich oder höher oder lass sie leer, um den Ladeschwellenwert wiederzuverwenden.",
       "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein.",
       "missing_power_sensor": "Wähle einen Geräte-Leistungssensor oder aktiviere EV-Ladestation ohne Telemetrie und wähle einen Aktivitätssensor.",

@@ -454,7 +454,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Espagne)",
-        "description": "Saisissez le prix de l'énergie de chaque période de votre contrat, taxes comprises. Les périodes suivent l'horloge : valle 00–08, punta 10–14 et 18–22, llano le reste ; les samedis et dimanches sont valle toute la journée.\n\n**Jours fériés nationaux :** installez l'intégration **Workday** de Home Assistant avec uniquement le pays **Espagne** (sans province, pour exclure les fériés régionaux et locaux) et choisissez son entité ci-dessous. Sans elle, seuls les week-ends comptent comme valle.",
+        "description": "Saisissez le prix de l'énergie de chaque période de votre contrat, taxes comprises. Les périodes suivent l'horloge : valle 00–08, punta 10–14 et 18–22, llano le reste ; les samedis et dimanches sont valle toute la journée.\n\n**Jours fériés nationaux :** installez l'intégration **Workday** de Home Assistant avec uniquement le pays **Espagne** (sans province, pour exclure les fériés régionaux et locaux), ajoutez *Viernes Santo* dans **Supprimer des jours fériés** (date mobile, non comptée par la 2.0TD) et choisissez son entité ci-dessous. Sans elle, seuls les week-ends comptent comme valle.",
         "data": {
           "td20_price_punta": "Prix punta (pointe)",
           "td20_price_llano": "Prix llano (intermédiaire)",
@@ -463,7 +463,7 @@
           "td20_workday_entity": "Entité Workday (optionnel)"
         },
         "data_description": {
-          "td20_export_price": "Ce qui vous est payé par kWh injecté (compensación de excedentes). Laissez vide si vous n'avez pas de contrat de compensation ; saisissez 0 si l'injection ne rapporte rien.",
+          "td20_export_price": "Ce qui vous est payé par kWh injecté (compensación de excedentes). Laissez vide si vous n'avez pas de contrat de compensation.",
           "td20_workday_entity": "Capteur binaire de l'intégration Workday, configurée pour l'Espagne sans province."
         }
       },
@@ -925,7 +925,7 @@
       "tibber_unavailable": "L'intégration Tibber n'est pas installée, ou son service `tibber.get_prices` est indisponible. Installez et configurez d'abord Tibber.",
       "energyzero_unavailable": "L'intégration EnergyZero n'est pas installée ou son service `energyzero.get_energy_prices` n'est pas disponible. Installez et configurez d'abord EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Le prix plancher de décharge ne peut pas être inférieur au prix maximal (de charge). Définissez-le égal ou supérieur, ou laissez-le vide pour réutiliser le seuil de charge.",
       "host_or_serial_required": "Saisissez soit une adresse IP (TCP), soit le chemin d'un port série (Modbus RTU).",
       "missing_power_sensor": "Sélectionnez un capteur de puissance, ou activez Chargeur VE sans télémétrie et sélectionnez un capteur d'activité.",
@@ -1335,7 +1335,7 @@
       },
       "td20_config": {
         "title": "Tarifa 2.0TD (Espagne)",
-        "description": "Saisissez le prix de l'énergie de chaque période de votre contrat, taxes comprises. Les périodes suivent l'horloge : valle 00–08, punta 10–14 et 18–22, llano le reste ; les samedis et dimanches sont valle toute la journée.\n\n**Jours fériés nationaux :** installez l'intégration **Workday** de Home Assistant avec uniquement le pays **Espagne** (sans province, pour exclure les fériés régionaux et locaux) et choisissez son entité ci-dessous. Sans elle, seuls les week-ends comptent comme valle.",
+        "description": "Saisissez le prix de l'énergie de chaque période de votre contrat, taxes comprises. Les périodes suivent l'horloge : valle 00–08, punta 10–14 et 18–22, llano le reste ; les samedis et dimanches sont valle toute la journée.\n\n**Jours fériés nationaux :** installez l'intégration **Workday** de Home Assistant avec uniquement le pays **Espagne** (sans province, pour exclure les fériés régionaux et locaux), ajoutez *Viernes Santo* dans **Supprimer des jours fériés** (date mobile, non comptée par la 2.0TD) et choisissez son entité ci-dessous. Sans elle, seuls les week-ends comptent comme valle.",
         "data": {
           "td20_price_punta": "Prix punta (pointe)",
           "td20_price_llano": "Prix llano (intermédiaire)",
@@ -1344,7 +1344,7 @@
           "td20_workday_entity": "Entité Workday (optionnel)"
         },
         "data_description": {
-          "td20_export_price": "Ce qui vous est payé par kWh injecté (compensación de excedentes). Laissez vide si vous n'avez pas de contrat de compensation ; saisissez 0 si l'injection ne rapporte rien.",
+          "td20_export_price": "Ce qui vous est payé par kWh injecté (compensación de excedentes). Laissez vide si vous n'avez pas de contrat de compensation.",
           "td20_workday_entity": "Capteur binaire de l'intégration Workday, configurée pour l'Espagne sans province."
         }
       },
@@ -1634,7 +1634,7 @@
       "tibber_unavailable": "L'intégration Tibber n'est pas installée, ou son service `tibber.get_prices` est indisponible. Installez et configurez d'abord Tibber.",
       "energyzero_unavailable": "L'intégration EnergyZero n'est pas installée ou son service `energyzero.get_energy_prices` n'est pas disponible. Installez et configurez d'abord EnergyZero.",
       "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve is service-based, so its type cannot be reused for a sensor.",
+      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Le prix plancher de décharge ne peut pas être inférieur au prix maximal (de charge). Définissez-le égal ou supérieur, ou laissez-le vide pour réutiliser le seuil de charge.",
       "host_or_serial_required": "Saisissez soit une adresse IP (TCP), soit le chemin d'un port série (Modbus RTU).",
       "missing_power_sensor": "Sélectionnez un capteur de puissance, ou activez Chargeur VE sans télémétrie et sélectionnez un capteur d'activité.",
