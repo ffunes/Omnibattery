@@ -10,6 +10,7 @@ import logging
 from collections.abc import Mapping
 
 from .anker import AnkerModbusDriver
+from .apsystems_ezhi import ApsystemsEzhiDriver
 from .base import BatteryDriver, DriverTraits
 from .esphome import EsphomeEntityDriver
 from .generic_ha import GenericHaEntityDriver
@@ -19,7 +20,6 @@ from .indevolt import IndevoltDriver
 from .marstek import MarstekModbusDriver
 from .sessy import SessyLocalDriver
 from .zendure import ZendureLocalDriver
-from .apsystems_ezhi import ApsystemsEzhiDriver
 
 _LOGGER = logging.getLogger(__name__)
 

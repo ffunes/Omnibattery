@@ -14,6 +14,7 @@ Choose the route that matches your battery and the way it is connected to Home A
 | Indevolt SolidFlex or PowerFlex | The local API enabled and Realtime mode selected in the Indevolt app | **Indevolt SolidFlex / PowerFlex** | [Indevolt](indevolt.md) |
 | Hoymiles MS-A2 or supported HiBattery | MQTT configured in Home Assistant and the complete device ID | **Hoymiles MQTT** | [Hoymiles MQTT](hoymiles.md) |
 | Huawei SUN2000 with LUNA2000 | A Modbus TCP endpoint and either Huawei Solar or direct Modbus writes | **Huawei SUN2000 + LUNA2000** | [Huawei](huawei.md) |
+| APsystems EZHI | Local Mode enabled in the AP EasyPower app | **APsystems EZHI** | [APsystems EZHI](apsystems-ezhi.md) |
 | Any other battery that another Home Assistant integration already reads | Its state-of-charge and power sensors, and its capacity in kWh | **Other battery via Home Assistant entities** | [Other batteries](generic-ha.md) |
 
 ![Battery brand selector](../../assets/screenshots/configuration/battery-brand-form.png){ width="650" style="display: block; margin: 0 auto;" }
