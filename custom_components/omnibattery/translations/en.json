@@ -658,6 +658,18 @@
           "port": "HTTP port (default 80)"
         }
       },
+      "reconfigure_battery_apsystems_ezhi": {
+        "title": "Reconfigure battery {battery_num}: APsystems EZHI",
+        "description": "Enable Local Mode in the AP EasyPower app first, then enter the IP address of the EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP address",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP address of the EZHI on your network."
+        }
+      },
       "reconfigure_battery_sessy": {
         "title": "Reconfigure battery {battery_num} — Connection (Sessy)",
         "description": "Update connection details for the Sessy battery {battery_num}. All other settings are preserved.",
@@ -780,6 +792,18 @@
         "description": "Found a saved backup of {count} previous configuration(s) (connection, options and tuning). Restore it to recover everything without setting it up again? Your entities and history reconnect automatically.",
         "data": {
           "restore": "Restore previous configuration"
+        }
+      },
+      "battery_connection_apsystems_ezhi": {
+        "title": "Battery {battery_num}: APsystems EZHI",
+        "description": "Enable Local Mode in the AP EasyPower app first, then enter the IP address of the EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP address",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP address of the EZHI on your network."
         }
       },
       "battery_connection_sessy": {
@@ -1460,6 +1484,18 @@
           "hourly_balance_hysteresis_w": "Minimum change in offset required before a new correction is applied. Prevents micro-adjustments every cycle. 0 = apply every cycle. Default: 15 W."
         }
       },
+      "battery_connection_apsystems_ezhi": {
+        "title": "Battery {battery_num}: APsystems EZHI",
+        "description": "Enable Local Mode in the AP EasyPower app first, then enter the IP address of the EZHI.",
+        "data": {
+          "name": "Name",
+          "host": "IP address",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP address of the EZHI on your network."
+        }
+      },
       "battery_connection_sessy": {
         "title": "Configure battery {battery_num} — Connection (Sessy)",
         "description": "Modify the connection details and local dongle credentials for the Sessy battery {battery_num}.",
@@ -1999,6 +2035,9 @@
       },
       "max_discharge_power": {
         "name": "Max Discharge Power"
+      },
+      "device_temperature": {
+        "name": "Inverter Temperature"
       },
       "internal_temperature": {
         "name": "Internal Temperature"

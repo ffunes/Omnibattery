@@ -662,6 +662,18 @@
           "port": "Port HTTP (par défaut 80)"
         }
       },
+      "reconfigure_battery_apsystems_ezhi": {
+        "title": "Reconfigurer la batterie {battery_num} : APsystems EZHI",
+        "description": "Activez d'abord le mode local dans l'application AP EasyPower, puis saisissez l'adresse IP de l'EZHI.",
+        "data": {
+          "name": "Nom",
+          "host": "Adresse IP",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "Adresse IP de l'EZHI sur votre réseau."
+        }
+      },
       "reconfigure_battery_sessy": {
         "title": "Reconfigurer la batterie {battery_num} — Connexion (Sessy)",
         "description": "Mettez à jour les informations de connexion de la batterie Sessy {battery_num}. Tous les autres réglages sont conservés.",
@@ -784,6 +796,18 @@
         "description": "Une sauvegarde de {count} configuration(s) précédente(s) (connexion, options et réglages) a été trouvée. La restaurer pour tout récupérer sans reconfigurer ? Vos entités et votre historique se reconnecteront automatiquement.",
         "data": {
           "restore": "Restaurer la configuration précédente"
+        }
+      },
+      "battery_connection_apsystems_ezhi": {
+        "title": "Batterie {battery_num} : APsystems EZHI",
+        "description": "Activez d'abord le mode local dans l'application AP EasyPower, puis saisissez l'adresse IP de l'EZHI.",
+        "data": {
+          "name": "Nom",
+          "host": "Adresse IP",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "Adresse IP de l'EZHI sur votre réseau."
         }
       },
       "battery_connection_sessy": {
@@ -1468,6 +1492,18 @@
           "hourly_balance_hysteresis_w": "Variation minimale du décalage nécessaire pour appliquer une nouvelle correction. Évite les micro-ajustements à chaque cycle. 0 = appliquer toujours. Par défaut : 15 W."
         }
       },
+      "battery_connection_apsystems_ezhi": {
+        "title": "Batterie {battery_num} : APsystems EZHI",
+        "description": "Activez d'abord le mode local dans l'application AP EasyPower, puis saisissez l'adresse IP de l'EZHI.",
+        "data": {
+          "name": "Nom",
+          "host": "Adresse IP",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "Adresse IP de l'EZHI sur votre réseau."
+        }
+      },
       "battery_connection_sessy": {
         "title": "Configurer la batterie {battery_num} — Connexion (Sessy)",
         "description": "Modifiez les informations de connexion et les identifiants locaux du dongle de la batterie Sessy {battery_num}.",
@@ -2002,6 +2038,9 @@
       },
       "max_discharge_power": {
         "name": "Puissance max. décharge"
+      },
+      "device_temperature": {
+        "name": "Température de l'onduleur"
       },
       "internal_temperature": {
         "name": "Température Interne"

@@ -2,6 +2,10 @@
 
 ## [2.0.0b2] - Unreleased
 
+### Added
+
+- **APsystems EZHI support** (PR#936): new driver over the EZHI's local HTTP API (enable Local Mode in the AP EasyPower app). Thanks to @funonwheels.
+
 ### Changed
 
 - **Notifications are now switchable by category and follow Home Assistant's language**: **Charge plan** (the existing Predictive Charging Notifications switch, now only for plans with a charge), **Plan info**, **Execution** and **Modes** switches, in a new Notifications card in the panel's Control tab. Alarms, faults and cell alerts cannot be muted. Languages: en, es, ca, de, fr, nl.
