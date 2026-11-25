@@ -1,8 +1,8 @@
 """Anker SOLIX Solarbank Modbus TCP driver.
 
-Implements :class:`BatteryDriver` for Solarbank Max AC, Solarbank 4 E5000 Pro,
-and Solarbank XE AC over Modbus TCP (identical register map; identity differs
-only by product code).
+Implements :class:`BatteryDriver` for Solarbank Max AC, Solarbank Max,
+Solarbank 4 E5000 Pro, and Solarbank XE AC over Modbus TCP (identical register
+map; identity differs only by product code).
 
 Register map source of truth (FC03/FC04 batch ranges and write addresses):
 https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/heads/main/custom_components/anker_solix_official/config/8fcbb87c685781b1d70d784a79eb923098955df2aaf199095ce7767bb70b913d.yaml
@@ -10,6 +10,9 @@ https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/he
 
 https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/heads/main/custom_components/anker_solix_official/config/58f0132b5f7979b2cfa43a0eb1fca770053288032386ff6a4da5ed2d72d4ea35.yaml
 (Solarbank 4 E5000 Pro — same map below ``product_info``)
+
+https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/heads/main/custom_components/anker_solix_official/config/482b2e95c3aaf78b871f463a71ba7f4fc87f9181872ac6168a90ad198fa3853a.yaml
+(Solarbank Max, DC-coupled with PV input — same map, different product codes)
 
 Sign conventions:
   Omnibattery net power: +charge / −discharge
@@ -67,20 +70,25 @@ _GLITCH_LATCH_MIN_W = 100
 _ZERO_POWER_GLITCH_POLLS = 3
 _ZERO_POWER_GLITCH_W = 50
 
-# Official product_code_mapping (Max AC YAML + E5000 Pro YAML).
+# Official product_code_mapping (Max AC YAML + E5000 Pro YAML + Max YAML).
 _PRODUCT_LABELS: dict[str, str] = {
     "DN7M": "Solarbank 4 E5000 Pro",
     "DPM4": "Solarbank 4 E5000 Pro",
     "DMWH": "Solarbank Max AC",
     "DMXU": "Solarbank Max AC",
     "E25H": "Solarbank Max AC",
+    "DMY6": "Solarbank Max",
+    "DN9U": "Solarbank Max",
+    "DPTK": "Solarbank Max",
     "DNMS": "Solarbank XE AC",
     "DPP4": "Solarbank XE AC",
     "DNN3": "Solarbank XE AC",
 }
 _MAX_AC_PRODUCT_CODES = frozenset({"DMWH", "DMXU", "E25H"})
+# Solarbank Max: DC-coupled, PV input (MPPT). Official product_code_mapping.
+_MAX_PRODUCT_CODES = frozenset({"DMY6", "DN9U", "DPTK"})
 _XE_AC_PRODUCT_CODES = frozenset({"DNMS", "DPP4", "DNN3"})
-_INDEPENDENT_PV_PRODUCT_CODES = frozenset({"DN7M", "DPM4"})
+_INDEPENDENT_PV_PRODUCT_CODES = frozenset({"DN7M", "DPM4"}) | _MAX_PRODUCT_CODES
 _PV_SOURCE_FIELD_KEYS = frozenset({"pv_power", "third_party_pv_power"})
 _DEFAULT_MODEL_LABEL = "Solarbank Max AC"
 
@@ -314,14 +322,14 @@ def _label_for_product_code(code: Optional[str]) -> str:
 
 
 class AnkerModbusDriver(BatteryDriver):
-    """Modbus TCP driver for Anker SOLIX Solarbank Max AC / 4 E5000 Pro / XE AC."""
+    """Modbus TCP driver for Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro / XE AC."""
 
     BRAND = "anker"
     SETUP = ANKER_SETUP
     TRAITS = DriverTraits(
         supports_voltage_taper=False, ip_addressed=True, min_soc_range=(0, 20, 10)
     )
-    LABEL = "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"
+    LABEL = "Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro"
     MANUFACTURER = "Anker"
     DEFAULT_MODEL = "Solarbank Max AC"
 
@@ -392,6 +400,11 @@ class AnkerModbusDriver(BatteryDriver):
         return self._product_code in _MAX_AC_PRODUCT_CODES
 
     @property
+    def is_solarbank_max(self) -> bool:
+        """Whether the connected unit is a (DC-coupled) Solarbank Max SKU."""
+        return self._product_code in _MAX_PRODUCT_CODES
+
+    @property
     def is_solarbank_xe_ac(self) -> bool:
         """Whether the connected unit is a Solarbank XE AC SKU."""
         return self._product_code in _XE_AC_PRODUCT_CODES
@@ -418,8 +431,9 @@ class AnkerModbusDriver(BatteryDriver):
         The official map uses the same 10002/10004 fields for these AC families,
         but those values are derived from the battery's own AC/P1 calculation on
         Max AC and XE AC. Only the explicitly verified Solarbank 4 E5000 Pro
-        codes are classified as an independent PV source. Unknown SKUs use the
-        external-sensor-only path until a new product is explicitly classified.
+        codes and the DC-coupled Solarbank Max codes are classified as an
+        independent PV source. Unknown SKUs use the external-sensor-only path
+        until a new product is explicitly classified.
         """
         return self._product_code in _INDEPENDENT_PV_PRODUCT_CODES
 
