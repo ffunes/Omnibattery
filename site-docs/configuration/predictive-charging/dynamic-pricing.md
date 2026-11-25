@@ -6,19 +6,21 @@ Dynamic Pricing reads a future price calendar and buys the calculated energy def
 
 **Use it if** your provider publishes today’s and future interval prices and you want Omnibattery to choose when to charge.
 
-**You do not need it if** your tariff has fixed repeating cheap periods; use [Time Slot](time-slot.md). If your source exposes only the price in effect now, use [Real-Time Price](real-time-price.md).
+**You do not need it if** your tariff has fixed repeating cheap periods; use [Time Slot](time-slot.md), unless it is the Spanish **Tarifa 2.0TD**, which has its own three-period source here. If your source exposes only the price in effect now, use [Real-Time Price](real-time-price.md).
 
 ## Before you start
 
-- Configure one supported source: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber**, or **BE Electricity Prices** (Belgium).
-- Select the provider’s current-price entity unless you use Tibber. EnergyZero uses the selected electricity entity to call `energyzero.get_energy_prices`; Tibber uses `tibber.get_prices` and needs no price sensor.
+- Configure one supported source: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber**, **BE Electricity Prices** (Belgium), or **Tarifa 2.0TD** (Spain, fixed-price three-period contract).
+- Select the provider’s current-price entity unless you use Tibber. EnergyZero uses the selected electricity entity to call `energyzero.get_energy_prices`; Tibber uses `tibber.get_prices` and needs no price sensor. Tarifa 2.0TD needs none either: its prices are typed by hand.
+- **Tarifa 2.0TD (Spain) only:** install Home Assistant’s [Workday](https://www.home-assistant.io/integrations/workday/) integration and set it up with country **Spain** only, with no province. Omnibattery uses it to treat national holidays as valle all day; without it only Saturdays and Sundays are.
 - A solar forecast is optional. A remaining-energy forecast improves daytime replanning and avoids counting solar already produced. **High-Price Sale** set to *Surplus only* or above needs the configured forecast integration to provide forecasts to Home Assistant’s Energy dashboard, such as Solcast or Forecast.Solar.
 - Decide whether you need an export-price source. It is optional and is used by **Surplus Price Hold** and **High-Price Sale**; leave it empty when export is credited at the import price.
 
 ## How to enable it
 
 1. Open **Settings → Devices & services → Omnibattery → Configure** and choose **Dynamic Pricing** as the predictive charging mode.
-2. Select **Price integration type**, then choose **Electricity price sensor**. Leave the sensor empty for Tibber.
+2. Select **Price integration type**, then choose **Electricity price sensor**. Leave the sensor empty for Tibber and for Tarifa 2.0TD.
+   With **Tarifa 2.0TD** a second form follows: enter your contract’s **punta**, **llano** and **valle** prices (€/kWh, taxes included), the **surplus price** if you have compensation (optional), and pick the **Workday entity** (optional).
 3. Select an optional solar forecast and, if required, an export/feed-in price sensor and its integration type.
 4. Finish the form, then confirm **Predictive Charging** is on in the Omnibattery **Control** tab.
 5. Leave the optional price controls off until the basic schedule behaves as expected; enable only the policy that matches your goal.
@@ -67,7 +69,7 @@ Optional controls in the **Control** tab solve different problems:
 ??? "Advanced details"
     ### Price-source normalization
 
-    Omnibattery supports **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber**, and **BE Electricity Prices**. Provider parsers normalize dated price periods into the same local schedule.
+    Omnibattery supports **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber**, **BE Electricity Prices**, and **Tarifa 2.0TD**. Provider parsers normalize dated price periods into the same local schedule.
 
     Frank Energie needs the [Frank Energie HACS integration](https://github.com/HiDiHo01/home-assistant-frank_energie). It reads the chosen sensor’s `prices` attribute (`from`, `till`, `price`), including tomorrow when available. Prices are already tax-inclusive major currency/kWh and are not rescaled. Use the all-in price sensor for import, for example `sensor.frank_energie_electricity_prices_current_electricity_price_all_in`, and the including-tax-and-markup sensor for export, for example `sensor.frank_energie_electricity_prices_current_electricity_price_including_tax_and_markup`. Periods may be hourly or quarter-hourly.
     EnergyZero calls `energyzero.get_energy_prices` for today and tomorrow using the selected electricity sensor's integration entry, market/all-in price type, and hourly/quarter-hourly interval. Prices include VAT and are already in EUR/kWh; tomorrow is retained when published, while unavailable tomorrow data does not discard today's prices.
@@ -77,6 +79,8 @@ Optional controls in the **Control** tab solve different problems:
     A Nord Pool HACS entity is read from `raw_today` and `raw_tomorrow`. If `price_in_cents` is true, Omnibattery converts the calendar and live price to major currency/kWh. For an official Nord Pool entity, it resolves the market area, calls `nordpool.get_prices_for_date`, converts currency/MWh to currency/kWh, and refreshes the cache hourly.
 
     Tibber calls `tibber.get_prices`, caches today’s prices and tomorrow’s once published, and refreshes the cache hourly. The official Tibber integration must already be configured.
+
+    Tarifa 2.0TD (Spain) reads no sensor: it builds today’s and tomorrow’s hourly periods from the clock and the three prices you typed. On working days, valle runs 00–08, punta 10–14 and 18–22, and llano the rest; Saturdays, Sundays and holidays are valle all day. Holidays are asked from the Workday integration once a day through `workday.check_date` for today and tomorrow (the Workday sensor only knows the current day). Set Workday up with country Spain and no province: with a province, regional and local holidays would wrongly count as valle. Workday also marks Good Friday, which is not valle under 2.0TD because its date moves; the plan treats that day as valle. If the Workday entity is missing or does not answer, only weekends count as valle. The hours are those of the peninsula, the Balearic and the Canary Islands; Ceuta and Melilla (one hour later) are not covered.
 
     The planner uses local wall-clock times. During the autumn daylight saving time (DST) transition, repeated local periods cannot be represented separately; a period whose local end precedes its start is skipped. Review the schedule on clock-change days.
 
@@ -152,7 +156,7 @@ Optional controls in the **Control** tab solve different problems:
 
     Missing prices, forecast, usable SOC/capacity, or finite inputs releases the hold. Charge delay, an active grid-charge period, negative-price charging, anti-curtailment, weekly full charge, peak shaving, electric-vehicle pause, manual control, operating-time ownership, and a battery on its SOC floor also release it.
 
-    **Export/feed-in price sensor** is optional. When absent, the import curve is reused. Tibber cannot supply the export curve because its service cache belongs to the import source. A failed export sensor does not raise the import-price repair issue.
+    **Export/feed-in price sensor** is optional. When absent, the import curve is reused. With Tarifa 2.0TD, the **surplus price** acts as a flat export curve with no sensor; if you have no compensation and exports earn nothing, enter 0 rather than leaving it empty. A configured export sensor takes precedence over that price. Tibber cannot supply the export curve because its service cache belongs to the import source. A failed export sensor does not raise the import-price repair issue.
 
     **Surplus Price Hold Status** reports state, reason, daily target, remaining absorption capacity, deadline, next release, selected periods and their prices, and the curve source. **Integration Status** reports `surplus_price_hold` while active.
 

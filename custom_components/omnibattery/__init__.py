@@ -180,6 +180,11 @@ from .const import (
     CONF_EXPORT_PRICE_INTEGRATION_TYPE,
     CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
     DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+    CONF_TD20_PRICE_PUNTA,
+    CONF_TD20_PRICE_LLANO,
+    CONF_TD20_PRICE_VALLE,
+    CONF_TD20_EXPORT_PRICE,
+    CONF_TD20_WORKDAY_ENTITY,
     CONF_AVERAGE_PRICE_SENSOR,
     CONF_DP_PRICE_DISCHARGE_CONTROL,
     CONF_RT_PRICE_DISCHARGE_CONTROL,
@@ -1120,6 +1125,11 @@ class ChargeDischargeController:
         self.predictive_charging_mode = config_entry.data.get(CONF_PREDICTIVE_CHARGING_MODE, PREDICTIVE_MODE_TIME_SLOT)
         self.price_sensor = config_entry.data.get(CONF_PRICE_SENSOR, None)
         self.price_integration_type = config_entry.data.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL)
+        self.td20_price_punta = config_entry.data.get(CONF_TD20_PRICE_PUNTA)
+        self.td20_price_llano = config_entry.data.get(CONF_TD20_PRICE_LLANO)
+        self.td20_price_valle = config_entry.data.get(CONF_TD20_PRICE_VALLE)
+        self.td20_export_price = config_entry.data.get(CONF_TD20_EXPORT_PRICE)
+        self.td20_workday_entity = config_entry.data.get(CONF_TD20_WORKDAY_ENTITY)
         self.max_price_threshold = effective_price_threshold(
             config_entry.data, CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
         )
@@ -1188,6 +1198,8 @@ class ChargeDischargeController:
         self._dp_planning_end: Optional[datetime] = None  # Extended planning horizon of the last evaluation (#710)
         # Tibber is service-based (no price sensor): the engine polls tibber.get_prices
         # and caches the parsed slots here.
+        # 2.0TD: {date: is_workday} answers of workday.check_date, see the engine.
+        self._td20_workdays: dict = {}
         self._tibber_price_slots: list = []
         self._tibber_prices_fetched_at: Optional[datetime] = None
         # The official Nord Pool integration exposes the daily profile through
@@ -3533,6 +3545,11 @@ class ChargeDischargeController:
         self.predictive_charging_mode = self.config_entry.data.get(CONF_PREDICTIVE_CHARGING_MODE, PREDICTIVE_MODE_TIME_SLOT)
         self.price_sensor = self.config_entry.data.get(CONF_PRICE_SENSOR, None)
         self.price_integration_type = self.config_entry.data.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL)
+        self.td20_price_punta = self.config_entry.data.get(CONF_TD20_PRICE_PUNTA)
+        self.td20_price_llano = self.config_entry.data.get(CONF_TD20_PRICE_LLANO)
+        self.td20_price_valle = self.config_entry.data.get(CONF_TD20_PRICE_VALLE)
+        self.td20_export_price = self.config_entry.data.get(CONF_TD20_EXPORT_PRICE)
+        self.td20_workday_entity = self.config_entry.data.get(CONF_TD20_WORKDAY_ENTITY)
         self.max_price_threshold = effective_price_threshold(
             self.config_entry.data, CONF_MAX_PRICE_THRESHOLD, CONF_MAX_PRICE_THRESHOLD_ENABLED
         )

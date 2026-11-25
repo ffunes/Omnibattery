@@ -521,6 +521,21 @@
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
+      "td20_config": {
+        "title": "Tarifa 2.0TD (Spain)",
+        "description": "Enter the energy price of each period of your contract, taxes included. Periods follow the clock: valle 00–08, punta 10–14 and 18–22, llano the rest; Saturdays and Sundays are valle all day.\n\n**National holidays:** install Home Assistant's **Workday** integration with country **Spain** only (no province, so regional and local holidays are left out) and pick its entity below. Without it only weekends count as valle.",
+        "data": {
+          "td20_price_punta": "Punta price (peak)",
+          "td20_price_llano": "Llano price (mid)",
+          "td20_price_valle": "Valle price (off-peak)",
+          "td20_export_price": "Surplus price (optional)",
+          "td20_workday_entity": "Workday entity (optional)"
+        },
+        "data_description": {
+          "td20_export_price": "What you are paid per exported kWh (compensación de excedentes). Leave empty if you have no compensation contract; enter 0 if exports earn nothing.",
+          "td20_workday_entity": "Binary sensor of the Workday integration, set up for Spain with no province."
+        }
+      },
       "dynamic_pricing_config": {
         "title": "Predictive Charging — Dynamic Pricing",
         "description": "Configure the electricity price sensor and parameters for automatic cheap-hour selection.",
@@ -533,7 +548,7 @@
           "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
+          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty. Tarifa 2.0TD (Spain) needs no sensor either: its prices are asked in the next step.",
           "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
@@ -1309,6 +1324,21 @@
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
         }
       },
+      "td20_config": {
+        "title": "Tarifa 2.0TD (Spain)",
+        "description": "Enter the energy price of each period of your contract, taxes included. Periods follow the clock: valle 00–08, punta 10–14 and 18–22, llano the rest; Saturdays and Sundays are valle all day.\n\n**National holidays:** install Home Assistant's **Workday** integration with country **Spain** only (no province, so regional and local holidays are left out) and pick its entity below. Without it only weekends count as valle.",
+        "data": {
+          "td20_price_punta": "Punta price (peak)",
+          "td20_price_llano": "Llano price (mid)",
+          "td20_price_valle": "Valle price (off-peak)",
+          "td20_export_price": "Surplus price (optional)",
+          "td20_workday_entity": "Workday entity (optional)"
+        },
+        "data_description": {
+          "td20_export_price": "What you are paid per exported kWh (compensación de excedentes). Leave empty if you have no compensation contract; enter 0 if exports earn nothing.",
+          "td20_workday_entity": "Binary sensor of the Workday integration, set up for Spain with no province."
+        }
+      },
       "dynamic_pricing_config": {
         "title": "Predictive Charging — Dynamic Pricing",
         "description": "Configure the electricity price sensor and parameters for automatic cheap-hour selection.",
@@ -1321,7 +1351,7 @@
           "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty.",
+          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty. Tarifa 2.0TD (Spain) needs no sensor either: its prices are asked in the next step.",
           "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
           "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
           "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
@@ -1671,6 +1701,7 @@
         "entsoe": "ENTSO-e (Transparency Platform)",
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
+        "tarifa_20td": "Tarifa 2.0TD (Spain, fixed 3 periods)",
         "energyzero": "EnergyZero",
         "tibber": "Tibber (service-based)",
         "be_electricity_prices": "BE Electricity Prices (Belgium, all-in)"

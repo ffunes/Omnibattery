@@ -273,6 +273,35 @@ def parse_pvpc_prices(attrs: dict) -> list:
     return slots
 
 
+def td20_price_slots(
+    days, punta: float, llano: float, valle: float, workdays: dict | None = None
+) -> list:
+    """Hourly slots of a Spanish 2.0TD three-period contract for ``days``.
+
+    Working days: valle 00-08, punta 10-14 and 18-22, llano the rest. Saturdays,
+    Sundays and holidays are valle all day. ``workdays`` maps a date to the
+    Workday integration's answer; a date it lacks counts as a working day
+    unless it is a weekend. Returns list[PriceSlot] in local time, like PVPC.
+    """
+    from datetime import time as _time
+
+    # ponytail: peninsula/Balearic/Canary clock hours only; Ceuta and Melilla
+    # run one hour later and would need their own table.
+    slots = []
+    for day in days:
+        working = day.weekday() < 5 and (workdays or {}).get(day, True)
+        for hour in range(24):
+            if not working or hour < 8:
+                price = valle
+            elif 10 <= hour < 14 or 18 <= hour < 22:
+                price = punta
+            else:
+                price = llano
+            start = datetime.combine(day, _time(hour=hour))
+            slots.append(PriceSlot(start=start, end=start + timedelta(hours=1), price=price))
+    return slots
+
+
 def parse_ckw_prices(attrs: dict) -> list:
     """Parse CKW (Switzerland) price attributes.
 

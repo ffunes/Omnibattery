@@ -118,6 +118,12 @@ from .const import (
     PRICE_INTEGRATION_ENERGYZERO,
     PRICE_INTEGRATION_BE_ELECTRICITY,
     PRICE_INTEGRATION_TIBBER,
+    PRICE_INTEGRATION_TD20,
+    CONF_TD20_PRICE_PUNTA,
+    CONF_TD20_PRICE_LLANO,
+    CONF_TD20_PRICE_VALLE,
+    CONF_TD20_EXPORT_PRICE,
+    CONF_TD20_WORKDAY_ENTITY,
     PRICE_INTEGRATION_ZONNEPLAN,
     PRICE_INTEGRATION_FRANK_ENERGIE,
     CONF_METER_INVERTED,
@@ -178,6 +184,7 @@ def _price_integration_options() -> list[str]:
         PRICE_INTEGRATION_ZONNEPLAN,
         PRICE_INTEGRATION_FRANK_ENERGIE,
         PRICE_INTEGRATION_BE_ELECTRICITY,
+        PRICE_INTEGRATION_TD20,
     ]
 
 
@@ -185,13 +192,53 @@ def _price_integration_export_options() -> list[str]:
     """Return the providers usable for the export curve.
 
     Tibber is absent: it is service-based and its cache is keyed on the import
-    sensor, so it cannot supply a second, independent curve.
+    sensor, so it cannot supply a second, independent curve. The 2.0TD tariff
+    has no sensor either; its surplus price is a number in its own step.
     """
     return [
         option
         for option in _price_integration_options()
-        if option != PRICE_INTEGRATION_TIBBER
+        if option not in (PRICE_INTEGRATION_TIBBER, PRICE_INTEGRATION_TD20)
     ]
+
+
+_TD20_PRICE_KEYS = (CONF_TD20_PRICE_PUNTA, CONF_TD20_PRICE_LLANO, CONF_TD20_PRICE_VALLE)
+
+
+def _td20_schema(existing: dict[str, Any]) -> vol.Schema:
+    """Form of the Spanish 2.0TD tariff: three period prices typed by hand."""
+    price = NumberSelector(
+        NumberSelectorConfig(
+            min=0, max=2, step="any",
+            mode=NumberSelectorMode.BOX, unit_of_measurement="€/kWh",
+        )
+    )
+
+    def suggested(key: str) -> dict:
+        value = existing.get(key)
+        return {} if value is None else {"suggested_value": value}
+
+    schema: dict = {
+        vol.Required(key, description=suggested(key)): price
+        for key in _TD20_PRICE_KEYS
+    }
+    schema[vol.Optional(
+        CONF_TD20_EXPORT_PRICE, description=suggested(CONF_TD20_EXPORT_PRICE)
+    )] = price
+    schema[vol.Optional(
+        CONF_TD20_WORKDAY_ENTITY, description=suggested(CONF_TD20_WORKDAY_ENTITY)
+    )] = EntitySelector(
+        EntitySelectorConfig(domain="binary_sensor", integration="workday")
+    )
+    return vol.Schema(schema)
+
+
+def _td20_config_from_input(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Values to store; a cleared optional field arrives absent and is stored None."""
+    return {
+        key: user_input.get(key)
+        for key in (*_TD20_PRICE_KEYS, CONF_TD20_EXPORT_PRICE, CONF_TD20_WORKDAY_ENTITY)
+    }
 
 
 def _price_integration_type_selector(options: list[str] | None = None) -> SelectSelector:
@@ -278,8 +325,8 @@ def _validate_export_price_input(
         errors[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = "export_tibber_unsupported"
         return errors
     effective_type = export_type or import_integration_type
-    if effective_type == PRICE_INTEGRATION_TIBBER:
-        # The import curve is service-based, so an export sensor must say which
+    if effective_type in (PRICE_INTEGRATION_TIBBER, PRICE_INTEGRATION_TD20):
+        # The import curve has no sensor layout, so an export sensor must say which
         # attribute layout it uses rather than inheriting an unusable type.
         errors[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = "export_type_required"
         return errors
@@ -1953,6 +2000,9 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                     price_sensor = None
                     if not self.hass.services.has_service("tibber", "get_prices"):
                         errors[CONF_PRICE_INTEGRATION_TYPE] = "tibber_unavailable"
+                elif integration_type == PRICE_INTEGRATION_TD20:
+                    # No sensor: the period prices are typed in the next step.
+                    price_sensor = None
                 elif not price_sensor:
                     errors[CONF_PRICE_SENSOR] = "sensor_not_found"
                 else:
@@ -1992,6 +2042,8 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
                             DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
                         ),
                     )
+                    if integration_type == PRICE_INTEGRATION_TD20:
+                        return await self.async_step_td20_config()
                     return await self._finish_setup()
             except Exception as e:
                 _LOGGER.error("Error validating dynamic pricing config: %s", e)
@@ -2060,6 +2112,17 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             step_id="dynamic_pricing_config",
             data_schema=vol.Schema(schema_dict),
             errors=errors,
+        )
+
+    async def async_step_td20_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Spanish 2.0TD tariff: period prices, surplus price and Workday entity."""
+        if user_input is not None:
+            self.config_data.update(_td20_config_from_input(user_input))
+            return await self._finish_setup()
+        return self.async_show_form(
+            step_id="td20_config", data_schema=_td20_schema(self.config_data)
         )
 
     async def async_step_realtime_price_config(
@@ -3359,6 +3422,9 @@ class OptionsFlowHandler(OptionsFlow):
                     price_sensor = None
                     if not self.hass.services.has_service("tibber", "get_prices"):
                         errors[CONF_PRICE_INTEGRATION_TYPE] = "tibber_unavailable"
+                elif integration_type == PRICE_INTEGRATION_TD20:
+                    # No sensor: the period prices are typed in the next step.
+                    price_sensor = None
                 elif not price_sensor:
                     errors[CONF_PRICE_SENSOR] = "sensor_not_found"
                 else:
@@ -3398,6 +3464,8 @@ class OptionsFlowHandler(OptionsFlow):
                             DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
                         ),
                     )
+                    if integration_type == PRICE_INTEGRATION_TD20:
+                        return await self.async_step_td20_config()
                     return await self._save_and_finish()
             except Exception as e:
                 _LOGGER.error("Error validating dynamic pricing config: %s", e)
@@ -3466,6 +3534,17 @@ class OptionsFlowHandler(OptionsFlow):
             step_id="dynamic_pricing_config",
             data_schema=vol.Schema(schema_dict),
             errors=errors,
+        )
+
+    async def async_step_td20_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Spanish 2.0TD tariff: period prices, surplus price and Workday entity."""
+        if user_input is not None:
+            self.config_data.update(_td20_config_from_input(user_input))
+            return await self._save_and_finish()
+        return self.async_show_form(
+            step_id="td20_config", data_schema=_td20_schema(self.config_entry.data)
         )
 
     async def async_step_realtime_price_config(

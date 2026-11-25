@@ -452,6 +452,21 @@
           "predictive_charging_mode": "Plage horaire : Charge pendant une fenêtre à tarif heures creuses fixe. Prix dynamique : Sélection quotidienne des heures les moins chères basée sur les prix Nordpool/ENTSO-e. Prix en temps réel : Activation immédiate de la charge quand le prix passe sous le seuil."
         }
       },
+      "td20_config": {
+        "title": "Tarifa 2.0TD (Espagne)",
+        "description": "Saisissez le prix de l'énergie de chaque période de votre contrat, taxes comprises. Les périodes suivent l'horloge : valle 00–08, punta 10–14 et 18–22, llano le reste ; les samedis et dimanches sont valle toute la journée.\n\n**Jours fériés nationaux :** installez l'intégration **Workday** de Home Assistant avec uniquement le pays **Espagne** (sans province, pour exclure les fériés régionaux et locaux) et choisissez son entité ci-dessous. Sans elle, seuls les week-ends comptent comme valle.",
+        "data": {
+          "td20_price_punta": "Prix punta (pointe)",
+          "td20_price_llano": "Prix llano (intermédiaire)",
+          "td20_price_valle": "Prix valle (creuse)",
+          "td20_export_price": "Prix du surplus (optionnel)",
+          "td20_workday_entity": "Entité Workday (optionnel)"
+        },
+        "data_description": {
+          "td20_export_price": "Ce qui vous est payé par kWh injecté (compensación de excedentes). Laissez vide si vous n'avez pas de contrat de compensation ; saisissez 0 si l'injection ne rapporte rien.",
+          "td20_workday_entity": "Capteur binaire de l'intégration Workday, configurée pour l'Espagne sans province."
+        }
+      },
       "dynamic_pricing_config": {
         "title": "Configuration de la charge à prix dynamique",
         "description": "Configurez la charge à prix dynamique. Le système lira les prix horaires de l'électricité et sélectionnera automatiquement les heures les moins chères pour charger.",
@@ -464,7 +479,7 @@
           "solar_forecast_sensor": "Capteur de prévision solaire (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Sélectionnez l'intégration domotique qui fournit les données de prix de l'électricité",
+          "price_integration_type": "Sélectionnez l'intégration domotique qui fournit les données de prix de l'électricité. La Tarifa 2.0TD (Espagne) n'a pas besoin de capteur non plus : ses prix sont demandés à l'étape suivante.",
           "price_sensor": "Capteur contenant les prix horaires de l'électricité (ex : sensor.nordpool_kwh_fr_eur_3_10_025)",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
@@ -1318,6 +1333,21 @@
           "predictive_charging_mode": "Plage horaire : Charge pendant une fenêtre à tarif heures creuses fixe. Prix dynamique : Sélection quotidienne des heures les moins chères basée sur les prix Nordpool/ENTSO-e. Prix en temps réel : Activation immédiate de la charge quand le prix passe sous le seuil."
         }
       },
+      "td20_config": {
+        "title": "Tarifa 2.0TD (Espagne)",
+        "description": "Saisissez le prix de l'énergie de chaque période de votre contrat, taxes comprises. Les périodes suivent l'horloge : valle 00–08, punta 10–14 et 18–22, llano le reste ; les samedis et dimanches sont valle toute la journée.\n\n**Jours fériés nationaux :** installez l'intégration **Workday** de Home Assistant avec uniquement le pays **Espagne** (sans province, pour exclure les fériés régionaux et locaux) et choisissez son entité ci-dessous. Sans elle, seuls les week-ends comptent comme valle.",
+        "data": {
+          "td20_price_punta": "Prix punta (pointe)",
+          "td20_price_llano": "Prix llano (intermédiaire)",
+          "td20_price_valle": "Prix valle (creuse)",
+          "td20_export_price": "Prix du surplus (optionnel)",
+          "td20_workday_entity": "Entité Workday (optionnel)"
+        },
+        "data_description": {
+          "td20_export_price": "Ce qui vous est payé par kWh injecté (compensación de excedentes). Laissez vide si vous n'avez pas de contrat de compensation ; saisissez 0 si l'injection ne rapporte rien.",
+          "td20_workday_entity": "Capteur binaire de l'intégration Workday, configurée pour l'Espagne sans province."
+        }
+      },
       "dynamic_pricing_config": {
         "title": "Configuration de la charge à prix dynamique",
         "description": "Configurez la charge à prix dynamique. Le système lira les prix horaires de l'électricité et sélectionnera automatiquement les heures les moins chères pour charger.",
@@ -1330,7 +1360,7 @@
           "solar_forecast_sensor": "Capteur de prévision solaire (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Sélectionnez l'intégration domotique qui fournit les données de prix de l'électricité",
+          "price_integration_type": "Sélectionnez l'intégration domotique qui fournit les données de prix de l'électricité. La Tarifa 2.0TD (Espagne) n'a pas besoin de capteur non plus : ses prix sont demandés à l'étape suivante.",
           "price_sensor": "Capteur contenant les prix horaires de l'électricité (ex : sensor.nordpool_kwh_fr_eur_3_10_025)",
           "export_price_sensor": "Capteur fournissant les prix d'injection. Laisser vide pour utiliser la courbe des prix d'import, ce qui est correct lorsque l'injection est rémunérée au prix d'import (net metering).",
           "export_price_integration_type": "Disposition des attributs du capteur de prix d'export. Laisser vide pour réutiliser l'intégration d'import. Tibber n'est pas disponible ici : il repose sur un service et son cache appartient à la courbe d'import.",
@@ -1676,6 +1706,7 @@
         "entsoe": "ENTSO-e (Plateforme de Transparence)",
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
+        "tarifa_20td": "Tarifa 2.0TD (Espagne, 3 périodes fixes)",
         "energyzero": "EnergyZero",
         "tibber": "Tibber (basé sur un service)",
         "be_electricity_prices": "BE Electricity Prices (Belgique, tout compris)"

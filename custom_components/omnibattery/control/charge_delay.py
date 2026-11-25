@@ -33,6 +33,7 @@ from ..const import (
     DOMAIN,
     PREDICTIVE_MODE_DYNAMIC_PRICING,
     PREDICTIVE_MODE_REALTIME_PRICE,
+    PRICE_INTEGRATION_TD20,
     T_START_FALLBACK_HOUR,
 )
 from .pack_soc import effective_min_soc
@@ -1023,7 +1024,11 @@ class ChargeDelayManager:
         ):
             return None
         pricing = getattr(ctrl, "_pricing_mgr", None)
-        if pricing is None or not getattr(ctrl, "price_sensor", None):
+        if pricing is None or not (
+            getattr(ctrl, "price_sensor", None)
+            # 2.0TD has no sensor: its slots come from the clock.
+            or getattr(ctrl, "price_integration_type", None) == PRICE_INTEGRATION_TD20
+        ):
             return None
         try:
             # Already today-only and future-only (slot.end > now); quiet so this

@@ -452,6 +452,21 @@
           "predictive_charging_mode": "Zeitfenster: Laden während eines festen Niedrigtarifzeitfensters. Dynamischer Preis: Tägliche Auswahl der günstigsten Stunden basierend auf Nordpool/ENTSO-e Preisen. Echtzeit-Preis: Sofortige Aktivierung der Ladung wenn der Preis unter den Schwellenwert fällt."
         }
       },
+      "td20_config": {
+        "title": "Tarifa 2.0TD (Spanien)",
+        "description": "Gib den Energiepreis jeder Zeitzone deines Vertrags inklusive Steuern ein. Die Zeitzonen folgen der Uhr: Valle 00–08, Punta 10–14 und 18–22, Llano der Rest; Samstage und Sonntage sind ganztägig Valle.\n\n**Nationale Feiertage:** Installiere die Home-Assistant-Integration **Workday** nur mit dem Land **Spanien** (ohne Provinz, damit regionale und lokale Feiertage außen vor bleiben) und wähle unten ihre Entität. Ohne sie zählen nur Wochenenden als Valle.",
+        "data": {
+          "td20_price_punta": "Preis Punta (Spitze)",
+          "td20_price_llano": "Preis Llano (Mittel)",
+          "td20_price_valle": "Preis Valle (Schwachlast)",
+          "td20_export_price": "Überschusspreis (optional)",
+          "td20_workday_entity": "Workday-Entität (optional)"
+        },
+        "data_description": {
+          "td20_export_price": "Vergütung pro eingespeister kWh (compensación de excedentes). Leer lassen, wenn du keinen Vergütungsvertrag hast; 0 eintragen, wenn Einspeisung nichts einbringt.",
+          "td20_workday_entity": "Binärsensor der Workday-Integration, eingerichtet für Spanien ohne Provinz."
+        }
+      },
       "dynamic_pricing_config": {
         "title": "Konfiguration dynamischer Preisladung",
         "description": "Konfigurieren Sie dynamische Preisladung. Das System liest stündliche Strompreise und wählt automatisch die günstigsten Stunden zum Laden aus.",
@@ -464,7 +479,7 @@
           "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Wählen Sie die Heimautomatisierungsintegration, die Strompreisdaten liefert",
+          "price_integration_type": "Wählen Sie die Heimautomatisierungsintegration, die Strompreisdaten liefert. Tarifa 2.0TD (Spanien) braucht ebenfalls keinen Sensor: die Preise werden im nächsten Schritt abgefragt.",
           "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
           "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
           "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
@@ -1318,6 +1333,21 @@
           "predictive_charging_mode": "Zeitfenster: Laden während eines festen Niedrigtarifzeitfensters. Dynamischer Preis: Tägliche Auswahl der günstigsten Stunden basierend auf Nordpool/ENTSO-e Preisen. Echtzeit-Preis: Sofortige Aktivierung der Ladung wenn der Preis unter den Schwellenwert fällt."
         }
       },
+      "td20_config": {
+        "title": "Tarifa 2.0TD (Spanien)",
+        "description": "Gib den Energiepreis jeder Zeitzone deines Vertrags inklusive Steuern ein. Die Zeitzonen folgen der Uhr: Valle 00–08, Punta 10–14 und 18–22, Llano der Rest; Samstage und Sonntage sind ganztägig Valle.\n\n**Nationale Feiertage:** Installiere die Home-Assistant-Integration **Workday** nur mit dem Land **Spanien** (ohne Provinz, damit regionale und lokale Feiertage außen vor bleiben) und wähle unten ihre Entität. Ohne sie zählen nur Wochenenden als Valle.",
+        "data": {
+          "td20_price_punta": "Preis Punta (Spitze)",
+          "td20_price_llano": "Preis Llano (Mittel)",
+          "td20_price_valle": "Preis Valle (Schwachlast)",
+          "td20_export_price": "Überschusspreis (optional)",
+          "td20_workday_entity": "Workday-Entität (optional)"
+        },
+        "data_description": {
+          "td20_export_price": "Vergütung pro eingespeister kWh (compensación de excedentes). Leer lassen, wenn du keinen Vergütungsvertrag hast; 0 eintragen, wenn Einspeisung nichts einbringt.",
+          "td20_workday_entity": "Binärsensor der Workday-Integration, eingerichtet für Spanien ohne Provinz."
+        }
+      },
       "dynamic_pricing_config": {
         "title": "Konfiguration dynamischer Preisladung",
         "description": "Konfigurieren Sie dynamische Preisladung. Das System liest stündliche Strompreise und wählt automatisch die günstigsten Stunden zum Laden aus.",
@@ -1330,7 +1360,7 @@
           "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Wählen Sie die Heimautomatisierungsintegration, die Strompreisdaten liefert",
+          "price_integration_type": "Wählen Sie die Heimautomatisierungsintegration, die Strompreisdaten liefert. Tarifa 2.0TD (Spanien) braucht ebenfalls keinen Sensor: die Preise werden im nächsten Schritt abgefragt.",
           "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
           "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
           "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
@@ -1676,6 +1706,7 @@
         "entsoe": "ENTSO-e (Transparency-Plattform)",
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
+        "tarifa_20td": "Tarifa 2.0TD (Spanien, 3 feste Zeitzonen)",
         "energyzero": "EnergyZero",
         "tibber": "Tibber (dienstbasiert)",
         "be_electricity_prices": "BE Electricity Prices (Belgien, Endpreis)"

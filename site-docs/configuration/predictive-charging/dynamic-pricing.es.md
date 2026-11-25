@@ -6,19 +6,21 @@ Precio dinámico lee un calendario de precios futuros y compra el déficit energ
 
 **Úsalo si…** tu proveedor publica precios por intervalos para hoy y el futuro y quieres que Omnibattery elija cuándo cargar.
 
-**No lo necesitas si…** tu tarifa tiene periodos baratos fijos que se repiten; usa [Franja horaria](time-slot.md). Si tu fuente solo expone el precio vigente ahora, usa [Precio en tiempo real](real-time-price.md).
+**No lo necesitas si…** tu tarifa tiene periodos baratos fijos que se repiten; usa [Franja horaria](time-slot.md), salvo que sea la **Tarifa 2.0TD** española, que tiene aquí su propia fuente con los tres tramos. Si tu fuente solo expone el precio vigente ahora, usa [Precio en tiempo real](real-time-price.md).
 
 ## Antes de empezar
 
-- Configura una fuente compatible: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber** o **BE Electricity Prices** (Bélgica).
-- Selecciona la entidad de precio actual del proveedor salvo que uses Tibber. Tibber usa el servicio `tibber.get_prices` de la integración oficial y no necesita sensor de precio.
+- Configura una fuente compatible: **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber**, **BE Electricity Prices** (Bélgica) o **Tarifa 2.0TD** (España, contrato de precio fijo en tres tramos).
+- Selecciona la entidad de precio actual del proveedor salvo que uses Tibber. Tibber usa el servicio `tibber.get_prices` de la integración oficial y no necesita sensor de precio. La Tarifa 2.0TD tampoco: sus precios se escriben a mano.
+- **Solo Tarifa 2.0TD (España):** instala la integración [Workday](https://www.home-assistant.io/integrations/workday/) de Home Assistant y configúrala solo con el país **España**, sin provincia. Omnibattery la usa para tratar los festivos nacionales como valle todo el día; sin ella solo lo son los sábados y domingos.
 - La previsión solar es opcional. Una previsión de energía restante mejora la replanificación diurna y evita contar la solar ya producida. **Venta a precio alto** en *Solo excedente* o superior necesita que la integración de previsión configurada proporcione previsiones al panel de Energía de Home Assistant, como Solcast o Forecast.Solar.
 - Decide si necesitas una fuente de precio de exportación. Es opcional y la usan **Retención de excedente por precio** y **Venta a precio alto**; déjala vacía cuando la exportación se remunere al precio de importación.
 
 ## Cómo activarlo
 
 1. Abre **Ajustes → Dispositivos y servicios → Omnibattery → Configurar** y elige **Precio dinámico** como modo de carga predictiva.
-2. Selecciona **Tipo de integración de precios** y después **Sensor de precio de electricidad**. Deja el sensor vacío para Tibber.
+2. Selecciona **Tipo de integración de precios** y después **Sensor de precio de electricidad**. Deja el sensor vacío para Tibber y para Tarifa 2.0TD.
+   Con **Tarifa 2.0TD** aparece un segundo formulario: escribe el **precio punta**, **llano** y **valle** de tu contrato (€/kWh, con impuestos), el **precio del excedente** si tienes compensación (opcional) y elige la **entidad Workday** (opcional).
 3. Selecciona una previsión solar opcional y, si hace falta, un sensor de precio de exportación/inyección y su tipo de integración.
 4. Termina el formulario y confirma que **Carga predictiva** está activada en la pestaña **Control** de Omnibattery.
 5. Deja desactivados los controles de precio opcionales hasta que el horario básico se comporte como esperas; activa solo la política que corresponda a tu objetivo.
@@ -67,7 +69,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 ??? "Detalles avanzados"
     ### Normalización de fuentes de precio
 
-    Omnibattery admite **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber** y **BE Electricity Prices**. Los analizadores de proveedores normalizan los periodos de precios fechados al mismo horario local.
+    Omnibattery admite **Nordpool**, **PVPC**, **CKW**, **EPEX Spot**, **ENTSO-e**, **EnergyZero**, **Zonneplan**, **Frank Energie**, **Tibber**, **BE Electricity Prices** y **Tarifa 2.0TD**. Los analizadores de proveedores normalizan los periodos de precios fechados al mismo horario local.
 
     Frank Energie necesita la [integración HACS de Frank Energie](https://github.com/HiDiHo01/home-assistant-frank_energie). Lee el atributo `prices` del sensor elegido (`from`, `till`, `price`), incluido mañana cuando está disponible. Los precios ya están en moneda principal/kWh con impuestos incluidos y no se reescalan. Usa el sensor de precio all-in para importación, por ejemplo `sensor.frank_energie_electricity_prices_current_electricity_price_all_in`, y el sensor con impuestos y margen para exportación, por ejemplo `sensor.frank_energie_electricity_prices_current_electricity_price_including_tax_and_markup`. Los periodos pueden ser horarios o cuartohorarios.
     EnergyZero llama a `energyzero.get_energy_prices` para hoy y mañana usando la entidad eléctrica seleccionada, su entrada de integración, el tipo de precio de mercado/todo incluido y el intervalo horario/cuarto horario. Los precios incluyen IVA y ya están en EUR/kWh. Si los precios de mañana aún no están disponibles, se conservan los de hoy.
@@ -77,6 +79,8 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
     Una entidad Nord Pool de HACS se lee desde `raw_today` y `raw_tomorrow`. Si `price_in_cents` es verdadero, Omnibattery convierte el calendario y el precio en vivo a moneda principal/kWh. Para una entidad oficial de Nord Pool, resuelve el área de mercado, llama a `nordpool.get_prices_for_date`, convierte moneda/MWh a moneda/kWh y actualiza la caché cada hora.
 
     Tibber llama a `tibber.get_prices`, almacena en caché los precios de hoy y los de mañana una vez publicados y actualiza la caché cada hora. La integración oficial de Tibber debe estar ya configurada.
+
+    Tarifa 2.0TD (España) no lee ningún sensor: genera los tramos horarios de hoy y mañana a partir del reloj y de los tres precios que has escrito. En días laborables, valle de 00 a 08, punta de 10 a 14 y de 18 a 22, y llano el resto; sábados, domingos y festivos son valle todo el día. Los festivos se consultan cada día a la integración Workday con `workday.check_date` para hoy y mañana (el sensor de Workday solo conoce el día en curso). Configura Workday con el país España y sin provincia: con provincia, los festivos autonómicos y locales se tomarían por valle sin serlo. Workday también marca el Viernes Santo, que en la 2.0TD no es valle por no tener fecha fija; ese día el plan lo tratará como valle. Si la entidad Workday falta o no responde, solo los fines de semana cuentan como valle. Las horas son las de península, Baleares y Canarias; Ceuta y Melilla (una hora más tarde) no están contempladas.
 
     El planificador usa horas locales de reloj. Durante la transición de horario de verano (DST) de otoño, los periodos locales repetidos no pueden representarse por separado; se omite un periodo cuyo final local precede al inicio. Revisa el horario los días de cambio de hora.
 
@@ -152,7 +156,7 @@ Los controles opcionales de la pestaña **Control** resuelven problemas distinto
 
     La falta de precios, previsión, SOC/capacidad utilizable o entradas finitas libera la retención. El retraso de carga, un periodo activo de carga desde red, carga con precio negativo, antilimitación de producción, carga completa semanal, protección de picos, pausa de vehículo eléctrico, control manual, control de franjas horarias y una batería en su suelo de SOC también la liberan.
 
-    **Sensor de precio de exportación/inyección** es opcional. Cuando falta, se reutiliza la curva de importación. Tibber no puede suministrar la curva de exportación porque su caché de servicio pertenece a la fuente de importación. Un sensor de exportación fallido no plantea el problema de reparación del precio de importación.
+    **Sensor de precio de exportación/inyección** es opcional. Cuando falta, se reutiliza la curva de importación. Con Tarifa 2.0TD, el **precio del excedente** hace de curva de exportación plana sin necesidad de sensor; si no tienes compensación y verter no se paga, pon 0 en lugar de dejarlo vacío. Un sensor de exportación configurado tiene prioridad sobre ese precio. Tibber no puede suministrar la curva de exportación porque su caché de servicio pertenece a la fuente de importación. Un sensor de exportación fallido no plantea el problema de reparación del precio de importación.
 
     **Estado de retención de excedente por precio** informa de estado, motivo, objetivo diario, capacidad de absorción restante, plazo, próxima liberación, periodos seleccionados y sus precios, y la fuente de curva. **Estado de integración** informa de `surplus_price_hold` mientras está activa.
 

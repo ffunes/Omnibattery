@@ -1049,6 +1049,15 @@ PRICE_INTEGRATION_FRANK_ENERGIE = "frank_energie"
 # renaudallard/homeassistant_be_electricity_prices: all-in Belgian prices for
 # every supplier contract (fixed, variable, time-of-use, dynamic).
 PRICE_INTEGRATION_BE_ELECTRICITY = "be_electricity_prices"
+# Spanish 2.0TD fixed three-period contract: no sensor and no price service,
+# the user types the punta/llano/valle prices and the periods come from the
+# clock (plus Home Assistant's Workday integration for national holidays).
+PRICE_INTEGRATION_TD20 = "tarifa_20td"
+CONF_TD20_PRICE_PUNTA = "td20_price_punta"
+CONF_TD20_PRICE_LLANO = "td20_price_llano"
+CONF_TD20_PRICE_VALLE = "td20_price_valle"
+CONF_TD20_EXPORT_PRICE = "td20_export_price"
+CONF_TD20_WORKDAY_ENTITY = "td20_workday_entity"
 
 # Tibber and the official Nord Pool integration are service-based rather than
 # forecast-attribute based. How stale either cache may get before a refresh.

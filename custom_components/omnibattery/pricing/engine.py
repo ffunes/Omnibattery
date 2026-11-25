@@ -40,6 +40,7 @@ from ..const import (
     PRICE_INTEGRATION_ENERGYZERO,
     PRICE_INTEGRATION_BE_ELECTRICITY,
     PRICE_INTEGRATION_TIBBER,
+    PRICE_INTEGRATION_TD20,
     PRICE_INTEGRATION_ZONNEPLAN,
     ZONNEPLAN_EXPORT_BONUS_RATE,
     ZONNEPLAN_EXPORT_BONUS_FIXED_EUR_PER_KWH,
@@ -946,6 +947,13 @@ class PricingManager:
                     return slot.price
             return None
 
+        if self._controller.price_integration_type == PRICE_INTEGRATION_TD20:
+            now = self._now()
+            for slot in self._td20_price_slots():
+                if slot.start <= now < slot.end:
+                    return slot.price
+            return None
+
         if self._controller.price_integration_type == PRICE_INTEGRATION_ENERGYZERO:
             now = self._now()
             for slot in self._energyzero_price_slots(self._controller.price_sensor):
@@ -1218,8 +1226,60 @@ class PricingManager:
                 "Dynamic pricing: nordpool.get_prices_for_date returned no usable slots"
             )
 
+    def _td20_price_slots(self) -> list:
+        """Slots of the Spanish 2.0TD fixed tariff for today and tomorrow."""
+        ctrl = self._controller
+        prices = (ctrl.td20_price_punta, ctrl.td20_price_llano, ctrl.td20_price_valle)
+        if None in prices:
+            return []
+        today = self._now().date()
+        # ponytail: two days, like every other provider; the tariff is known
+        # further ahead, widen this if the planner ever looks past tomorrow.
+        return calculations.td20_price_slots(
+            (today, today + timedelta(days=1)), *prices, ctrl._td20_workdays
+        )
+
+    async def _maybe_refresh_td20_workdays(self) -> None:
+        """Ask the Workday integration whether today and tomorrow are holidays.
+
+        The Workday binary sensor only knows today, and the eve of a holiday is
+        exactly when the all-valle day ahead matters, so the dates are asked
+        through ``workday.check_date``. Without a Workday entity only weekends
+        are valle. One round of calls per day: the answer for a date is fixed.
+        """
+        ctrl = self._controller
+        entity_id = getattr(ctrl, "td20_workday_entity", None)
+        if ctrl.price_integration_type != PRICE_INTEGRATION_TD20 or not entity_id:
+            return
+        today = self._now().date()
+        days = (today, today + timedelta(days=1))
+        if all(day in ctrl._td20_workdays for day in days):
+            return
+        if self._refresh_backoff_active("td20"):
+            return
+        try:
+            workdays = {}
+            for day in days:
+                response = await self._call_price_service(
+                    "workday",
+                    "check_date",
+                    {"entity_id": entity_id, "check_date": day.isoformat()},
+                )
+                workdays[day] = bool(response[entity_id]["workday"])
+        except Exception as exc:  # noqa: BLE001 - weekends-only until it answers
+            failures = self._record_refresh_result("td20", False)
+            (_LOGGER.warning if failures == 1 else _LOGGER.debug)(
+                "Dynamic pricing: workday.check_date on %s failed (%d in a row), "
+                "2.0TD holidays are not applied: %r",
+                entity_id, failures, exc,
+            )
+            return
+        ctrl._td20_workdays = workdays
+        self._record_refresh_result("td20", True)
+
     async def _maybe_refresh_service_prices(self, *, force: bool = False) -> None:
         """Refresh whichever service-based price provider is configured."""
+        await self._maybe_refresh_td20_workdays()
         await self._maybe_refresh_tibber_prices(force=force)
         await self._maybe_refresh_nordpool_prices(force=force)
         await self._maybe_refresh_energyzero_prices(force=force)
@@ -1461,6 +1521,7 @@ class PricingManager:
             price_sensor,
             id(state),
             getattr(state, "last_updated", None),
+            tuple(sorted(getattr(self._controller, "_td20_workdays", {}).items())),
             id(getattr(self._controller, "_tibber_price_slots", None)),
             getattr(self._controller, "_tibber_prices_fetched_at", None),
             id(getattr(self._controller, "_nordpool_price_slots", None)),
@@ -1497,6 +1558,14 @@ class PricingManager:
         """
         controller = self._controller
         entity_id = getattr(controller, "export_price_sensor", None)
+        if not entity_id and self._td20_export_price() is not None:
+            # Flat surplus compensation on the hourly grid of the import curve.
+            slots = self._filter_future_slots(
+                normalize_price_slots(self._td20_price_slots()),
+                horizon_end,
+                now=self._now(),
+            )
+            return [slot._replace(price=self._td20_export_price()) for slot in slots]
         if not entity_id:
             # The import parse writes its own health status, and this caller
             # asks for a short horizon (the solar window), which legitimately
@@ -1520,6 +1589,18 @@ class PricingManager:
         if not solar_bonus:
             return slots
         return self._apply_zonneplan_export_bonus(slots, integration_type, entity_id)
+
+    def _td20_export_price(self) -> float | None:
+        """The flat 2.0TD surplus price, when that tariff is the import curve."""
+        if self._controller.price_integration_type != PRICE_INTEGRATION_TD20:
+            return None
+        return getattr(self._controller, "td20_export_price", None)
+
+    def _has_export_curve(self) -> bool:
+        """True when export has its own price: a sensor or the 2.0TD surplus price."""
+        return bool(getattr(self._controller, "export_price_sensor", None)) or (
+            self._td20_export_price() is not None
+        )
 
     def _apply_zonneplan_export_bonus(
         self, slots: list, integration_type: str, entity_id: str | None = None
@@ -1671,6 +1752,11 @@ class PricingManager:
             raw_slots = list(self._controller._tibber_price_slots)
             if not raw_slots:
                 _warn("Dynamic pricing: no Tibber price data cached")
+            return raw_slots, "no_slots"
+        if self._controller.price_integration_type == PRICE_INTEGRATION_TD20:
+            raw_slots = self._td20_price_slots()
+            if not raw_slots:
+                _warn("Dynamic pricing: the 2.0TD period prices are not configured")
             return raw_slots, "no_slots"
         if self._controller.price_integration_type == PRICE_INTEGRATION_ENERGYZERO:
             raw_slots = self._energyzero_price_slots(self._controller.price_sensor)
@@ -2805,7 +2891,7 @@ class PricingManager:
         the import price when a separate export curve (or the Zonneplan sun
         bonus) is configured. Empty keeps the import price.
         """
-        if not getattr(self._controller, "export_price_sensor", None) or not slots:
+        if not self._has_export_curve() or not slots:
             return []
         return self.get_future_export_price_slots(
             horizon_end=max(slot.end for slot in slots)
@@ -3993,7 +4079,7 @@ class PricingManager:
         overlapping price); without a sensor solar exports at 0 (design §3).
         ``solar_bonus=False`` for battery energy (Zonneplan pays the bonus on
         solar production only)."""
-        if not getattr(self._controller, "export_price_sensor", None) or not slots:
+        if not self._has_export_curve() or not slots:
             return None
         local_end = (
             horizon_end.replace(tzinfo=None)
@@ -8959,7 +9045,8 @@ class PricingManager:
 
         # Tibber has no price sensor (service-based); treat it as a valid price source.
         has_price_source = bool(self._controller.price_sensor) or (
-            self._controller.price_integration_type == PRICE_INTEGRATION_TIBBER
+            self._controller.price_integration_type
+            in (PRICE_INTEGRATION_TIBBER, PRICE_INTEGRATION_TD20)
         )
 
         if mode == PREDICTIVE_MODE_DYNAMIC_PRICING:

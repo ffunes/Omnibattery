@@ -452,6 +452,21 @@
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
+      "td20_config": {
+        "title": "Tarifa 2.0TD (España)",
+        "description": "Introduce el precio de la energía de cada tramo de tu contrato, con impuestos. Los tramos siguen el reloj: valle 00–08, punta 10–14 y 18–22, llano el resto; sábados y domingos son valle todo el día.\n\n**Festivos nacionales:** instala la integración **Workday** de Home Assistant solo con el país **España** (sin provincia, para dejar fuera los festivos autonómicos y locales) y elige su entidad abajo. Sin ella solo los fines de semana cuentan como valle.",
+        "data": {
+          "td20_price_punta": "Precio punta",
+          "td20_price_llano": "Precio llano",
+          "td20_price_valle": "Precio valle",
+          "td20_export_price": "Precio del excedente (opcional)",
+          "td20_workday_entity": "Entidad Workday (opcional)"
+        },
+        "data_description": {
+          "td20_export_price": "Lo que te pagan por cada kWh vertido (compensación de excedentes). Déjalo vacío si no tienes compensación contratada; pon 0 si verter no se paga.",
+          "td20_workday_entity": "Sensor binario de la integración Workday, configurada para España sin provincia."
+        }
+      },
       "dynamic_pricing_config": {
         "title": "Carga predictiva — Precio dinámico",
         "description": "Configura el sensor de precio eléctrico y los parámetros para la selección automática de horas baratas.",
@@ -464,7 +479,7 @@
           "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Tibber funciona por servicio, así que su sensor puede dejarse vacío.",
+          "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Tibber funciona por servicio, así que su sensor puede dejarse vacío. La Tarifa 2.0TD (España) tampoco necesita sensor: sus precios se piden en el paso siguiente.",
           "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
@@ -1318,6 +1333,21 @@
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
         }
       },
+      "td20_config": {
+        "title": "Tarifa 2.0TD (España)",
+        "description": "Introduce el precio de la energía de cada tramo de tu contrato, con impuestos. Los tramos siguen el reloj: valle 00–08, punta 10–14 y 18–22, llano el resto; sábados y domingos son valle todo el día.\n\n**Festivos nacionales:** instala la integración **Workday** de Home Assistant solo con el país **España** (sin provincia, para dejar fuera los festivos autonómicos y locales) y elige su entidad abajo. Sin ella solo los fines de semana cuentan como valle.",
+        "data": {
+          "td20_price_punta": "Precio punta",
+          "td20_price_llano": "Precio llano",
+          "td20_price_valle": "Precio valle",
+          "td20_export_price": "Precio del excedente (opcional)",
+          "td20_workday_entity": "Entidad Workday (opcional)"
+        },
+        "data_description": {
+          "td20_export_price": "Lo que te pagan por cada kWh vertido (compensación de excedentes). Déjalo vacío si no tienes compensación contratada; pon 0 si verter no se paga.",
+          "td20_workday_entity": "Sensor binario de la integración Workday, configurada para España sin provincia."
+        }
+      },
       "dynamic_pricing_config": {
         "title": "Carga predictiva — Precio dinámico",
         "description": "Configura el sensor de precio eléctrico y los parámetros para la selección automática de horas baratas.",
@@ -1330,7 +1360,7 @@
           "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Tibber funciona por servicio, así que su sensor puede dejarse vacío.",
+          "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Tibber funciona por servicio, así que su sensor puede dejarse vacío. La Tarifa 2.0TD (España) tampoco necesita sensor: sus precios se piden en el paso siguiente.",
           "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
           "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
           "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
@@ -1676,6 +1706,7 @@
         "entsoe": "ENTSO-e (Plataforma de Transparencia)",
         "zonneplan": "Zonneplan",
         "frank_energie": "Frank Energie",
+        "tarifa_20td": "Tarifa 2.0TD (España, 3 tramos fijos)",
         "energyzero": "EnergyZero",
         "tibber": "Tibber (basado en servicio)",
         "be_electricity_prices": "BE Electricity Prices (Bélgica, todo incluido)"
