@@ -2025,6 +2025,11 @@ class ChargeDischargeController:
         # A pending weekly full charge lifts the ceiling to 100%, the same
         # ceiling every planner charge path uses (_charge_ceiling_soc).
         weekly_pending = ChargeDischargeController._weekly_full_charge_pending(self)
+        # The plan's floor (#941): peak shaving's SOC band is a peak reserve,
+        # not normal-load energy, unless peak shaving already holds the battery
+        # (the engine's own rule, #627).
+        held_check = getattr(self, "_is_capacity_protection_soc_limited", None)
+        held = callable(held_check) and held_check() is True
         result = []
         for index, coordinator in enumerate(getattr(self, "coordinators", ())):
             manual_owned = self._is_battery_manual_owned(coordinator)
@@ -2049,7 +2054,12 @@ class ChargeDischargeController:
                     stored_kwh=capacity * max(0.0, min(100.0, soc)) / 100.0,
                     capacity_kwh=capacity,
                     min_soc_pct=self._daily_operation_float(
-                        effective_min_soc(coordinator), 0.0
+                        effective_min_soc(coordinator)
+                        if held
+                        else ChargeDischargeController._planning_floor_soc(
+                            self, coordinator
+                        ),
+                        0.0,
                     ),
                     max_soc_pct=(
                         100.0
