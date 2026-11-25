@@ -1,0 +1,990 @@
+"""Anker SOLIX Solarbank Modbus TCP driver.
+
+Implements :class:`BatteryDriver` for Solarbank Max AC, Solarbank Max,
+Solarbank 4 E5000 Pro, and Solarbank XE AC over Modbus TCP (identical register
+map; identity differs only by product code).
+
+Register map source of truth (FC03/FC04 batch ranges and write addresses):
+https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/heads/main/custom_components/anker_solix_official/config/8fcbb87c685781b1d70d784a79eb923098955df2aaf199095ce7767bb70b913d.yaml
+(Solarbank Max AC; also aliases XE AC)
+
+https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/heads/main/custom_components/anker_solix_official/config/58f0132b5f7979b2cfa43a0eb1fca770053288032386ff6a4da5ed2d72d4ea35.yaml
+(Solarbank 4 E5000 Pro — same map below ``product_info``)
+
+https://raw.githubusercontent.com/anker-charging/ha-anker-solix-official/refs/heads/main/custom_components/anker_solix_official/config/482b2e95c3aaf78b871f463a71ba7f4fc87f9181872ac6168a90ad198fa3853a.yaml
+(Solarbank Max, DC-coupled with PV input — same map, different product codes)
+
+Sign conventions:
+  Omnibattery net power: +charge / −discharge
+  Anker battery power (10008) and setpoint (10071): +discharge / −charge
+  Therefore wire_w = −net_power_w.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import replace
+from typing import Optional
+
+from .anker_client import AnkerModbusClient
+from ..infra.modbus_helpers import decode_registers
+from .base import (
+    BatteryDriver,
+    DriverCapabilities,
+    DriverContext,
+    DriverReconciliation,
+    DriverTraits,
+    DELIVERED_AC_POWER_KEY,
+    ReadGroup,
+    SetpointResult,
+    TelemetrySnapshot,
+)
+from .anker_flow import ANKER_SETUP, _ANKER_MAX_POWER_W
+
+_LOGGER = logging.getLogger(__name__)
+
+# Official YAML auto_mode_on_connect / third_party_control
+_OPERATING_MODE_THIRD_PARTY = 3
+_ADDR_OPERATING_MODE = 10064
+_ADDR_POWER_SETPOINT = 10071
+_ADDR_CHARGE_SOC_LIMIT = 60000
+_ADDR_DISCHARGE_SOC_LIMIT = 60001
+_ADDR_BATTERY_SOC = 10014
+_ADDR_BATTERY_SOH = 10015
+_ADDR_PV_POWER = 10002
+_ADDR_THIRD_PARTY_PV_POWER = 10004
+_ADDR_PV_TOTAL_GENERATION = 10018
+_ADDR_DEVICE_MODEL = 32768
+_DEVICE_MODEL_REG_COUNT = 5
+_ADDR_DEVICE_SN = 10100
+_DEVICE_SN_REG_COUNT = 12
+
+# Upper clamp on 10036/10038 (see anker_flow). The EFFECTIVE limit is
+# min(register, user-configured max), and the configured value defaults to 3500 W.
+_HW_MAX_POWER_W = _ANKER_MAX_POWER_W
+# A setpoint at least this large counts as "latched" for the 0 W glitch filter.
+# Not a hardware floor: 10071 accepts any value from 0 W (#734).
+_GLITCH_LATCH_MIN_W = 100
+# Consecutive near-zero battery_power polls required before publishing 0 W while
+# a non-trivial setpoint is still latched (filters one-shot Modbus glitches).
+_ZERO_POWER_GLITCH_POLLS = 3
+_ZERO_POWER_GLITCH_W = 50
+
+# Official product_code_mapping (Max AC YAML + E5000 Pro YAML + Max YAML).
+_PRODUCT_LABELS: dict[str, str] = {
+    "DN7M": "Solarbank 4 E5000 Pro",
+    "DPM4": "Solarbank 4 E5000 Pro",
+    "DMWH": "Solarbank Max AC",
+    "DMXU": "Solarbank Max AC",
+    "E25H": "Solarbank Max AC",
+    "DMY6": "Solarbank Max",
+    "DN9U": "Solarbank Max",
+    "DPTK": "Solarbank Max",
+    "DNMS": "Solarbank XE AC",
+    "DPP4": "Solarbank XE AC",
+    "DNN3": "Solarbank XE AC",
+}
+_MAX_AC_PRODUCT_CODES = frozenset({"DMWH", "DMXU", "E25H"})
+# Solarbank Max: DC-coupled, PV input (MPPT). Official product_code_mapping.
+_MAX_PRODUCT_CODES = frozenset({"DMY6", "DN9U", "DPTK"})
+_XE_AC_PRODUCT_CODES = frozenset({"DNMS", "DPP4", "DNN3"})
+_INDEPENDENT_PV_PRODUCT_CODES = frozenset({"DN7M", "DPM4"}) | _MAX_PRODUCT_CODES
+_PV_SOURCE_FIELD_KEYS = frozenset({"pv_power", "third_party_pv_power"})
+_DEFAULT_MODEL_LABEL = "Solarbank Max AC"
+
+# Normalize Anker's battery-status codes to the shared Marstek inverter-state
+# contract consumed by the controller and dashboard.
+_INVERTER_STATE_BY_BATTERY_STATUS: dict[int, int] = {
+    0: 1,  # Anker Standby -> shared Standby
+    1: 2,  # Anker Charging -> shared Charge
+    2: 3,  # Anker Discharging -> shared Discharge
+    3: 0,  # Anker Sleep -> shared Sleep
+}
+
+# Official batch_read_ranges (do not invent other blocks / FCs).
+_BATCH_READ_RANGES: dict[str, list[tuple[int, int]]] = {
+    # FC04 input
+    "input": [
+        (10000, 10050),
+        (10090, 10156),
+        (10208, 10265),
+        (32768, 32774),
+    ],
+    # FC03 holding
+    "holding": [
+        (10060, 10072),
+        (10074, 10081),
+        (60000, 60003),
+    ],
+}
+
+# Fields decoded from batch buffers. register_type must match the YAML range.
+# invert: negate value to Omnibattery +charge/−discharge convention.
+_FIELD_SPECS: list[dict] = [
+    {"key": "device_model", "address": 32768, "register_type": "input",
+     "data_type": "char", "count": 5},
+    {"key": "battery_status", "address": 10001, "register_type": "input",
+     "data_type": "uint16", "count": 1},
+    {"key": "battery_power", "address": 10008, "register_type": "input",
+     "data_type": "int32", "count": 2, "invert": True},
+    {"key": "grid_power", "address": 10012, "register_type": "input",
+     "data_type": "int32", "count": 2},
+    {"key": "battery_soc", "address": _ADDR_BATTERY_SOC, "register_type": "input",
+     "data_type": "uint16", "count": 1},
+    {"key": "battery_soh", "address": _ADDR_BATTERY_SOH, "register_type": "input",
+     "data_type": "uint16", "count": 1},
+    # The official map exposes aggregate PV only. PV total is the PCS value;
+    # third_party_pv_power is an additional source that must be added to it.
+    {"key": "pv_power", "address": _ADDR_PV_POWER, "register_type": "input",
+     "data_type": "int32", "count": 2},
+    {"key": "third_party_pv_power", "address": _ADDR_THIRD_PARTY_PV_POWER,
+     "register_type": "input", "data_type": "int32", "count": 2},
+    {"key": "pv_total_generation", "address": _ADDR_PV_TOTAL_GENERATION,
+     "register_type": "input", "data_type": "uint32", "count": 2},
+    {"key": "max_charge_power", "address": 10036, "register_type": "input",
+     "data_type": "int32", "count": 2},
+    {"key": "max_discharge_power", "address": 10038, "register_type": "input",
+     "data_type": "int32", "count": 2},
+    {"key": "temperature", "address": 10156, "register_type": "input",
+     "data_type": "int16", "count": 1},
+    {"key": "battery_total_energy", "address": 10250, "register_type": "input",
+     "data_type": "uint32", "count": 2},
+    {"key": "total_charging_energy", "address": 10262, "register_type": "input",
+     "data_type": "uint32", "count": 2},
+    {"key": "total_discharging_energy", "address": 10264, "register_type": "input",
+     "data_type": "uint32", "count": 2},
+    {"key": "operating_mode", "address": 10064, "register_type": "holding",
+     "data_type": "uint16", "count": 1},
+    {"key": "charging_cutoff_capacity", "address": 60000, "register_type": "holding",
+     "data_type": "uint16", "count": 1},
+    {"key": "discharging_cutoff_capacity", "address": 60001, "register_type": "holding",
+     "data_type": "uint16", "count": 1},
+    # Backup reserve set in the Anker app (#939): the firmware will not discharge
+    # below it while 60003 is 1. Read-only here; feeds hardware_reserve_soc.
+    {"key": "backup_reserve_soc", "address": 60002, "register_type": "holding",
+     "data_type": "uint16", "count": 1},
+    {"key": "backup_soc_enable", "address": 60003, "register_type": "holding",
+     "data_type": "uint16", "count": 1},
+]
+
+SENSOR_DEFINITIONS: list[dict] = [
+    {"key": "battery_soc", "name": "Battery SOC", "unit": "%",
+     "device_class": "battery", "state_class": "measurement", "scale": 1, "precision": 0,
+     "scan_interval": "medium", "enabled_by_default": True},
+    {"key": "battery_soh", "name": "Battery State of Health (SoH)", "unit": "%",
+     "device_class": None, "state_class": "measurement", "scale": 1, "precision": 0,
+     "icon": "mdi:battery-heart", "enabled_by_default": True},
+    {"key": "battery_power", "name": "Battery Power", "unit": "W",
+     "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
+     "scan_interval": "high", "enabled_by_default": True},
+    # Shared AC-side convention used by system aggregates and daily home energy:
+    # negative charge / positive discharge. Derived from battery_power.
+    {"key": "ac_power", "name": "AC Power", "unit": "W",
+     "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
+     "scan_interval": "high", "enabled_by_default": True},
+    {"key": "grid_power", "name": "Grid Power", "unit": "W",
+     "device_class": "power", "state_class": "measurement", "scale": 1, "precision": 0,
+     "scan_interval": "high", "enabled_by_default": True},
+    # Official PV power is aggregate only (10002 + 10004), not four MPPT
+    # channels. Keep this canonical key so the shared solar tracker can consume
+    # it without pretending that the channels are individually observable.
+    {"key": "solar_power", "name": "Solar Power", "unit": "W",
+     "device_class": "power", "state_class": "measurement", "scale": 1,
+     "precision": 0, "scan_interval": "high", "enabled_by_default": True},
+    {"key": "temperature", "name": "Temperature", "unit": "°C",
+     "device_class": "temperature", "state_class": "measurement", "scale": 0.1, "precision": 1,
+     "scan_interval": "low", "enabled_by_default": True},
+    # Common key consumed by temperature derating and the dashboard. Keep the
+    # original Anker `temperature` entity for entity-ID compatibility.
+    {"key": "internal_temperature", "name": "Internal Temperature", "unit": "°C",
+     "device_class": "temperature", "state_class": "measurement", "scale": 0.1,
+     "precision": 1, "scan_interval": "low", "enabled_by_default": True},
+    {"key": "battery_status", "name": "Battery Status", "unit": None,
+     "device_class": None, "state_class": None, "scale": 1, "precision": 0,
+     "icon": "mdi:battery", "scan_interval": "medium", "enabled_by_default": True,
+     # Official Anker value_mapping for input 10001
+     "states": {
+         0: "Standby",
+         1: "Charging",
+         2: "Discharging",
+         3: "Sleep",
+     }},
+    {"key": "inverter_state", "name": "Inverter State", "unit": None,
+     "device_class": None, "state_class": None, "scale": 1, "precision": 0,
+     "icon": "mdi:state-machine", "scan_interval": "medium", "enabled_by_default": True,
+     "states": {
+         0: "Sleep",
+         1: "Standby",
+         2: "Charge",
+         3: "Discharge",
+     }},
+    {"key": "operating_mode", "name": "Operating Mode", "unit": None,
+     "device_class": None, "state_class": None, "scale": 1, "precision": 0,
+     "icon": "mdi:cog", "scan_interval": "medium", "enabled_by_default": True,
+     # Official Anker operating_mode options for holding 10064
+     "states": {
+         0: "Self Consumption",
+         1: "TOU Mode",
+         3: "Third-Party Control",
+         4: "Custom Mode",
+         5: "Socket Overlay Mode",
+         6: "Smart Mode",
+         7: "Dynamic Pricing",
+     }},
+    # Hardware ceilings (official YAML internal:true) — read-only sensors.
+    # No device_class: these are capability limits, not live power; POWER would
+    # name them "Vermogen"/"Power" when sensor translations are missing.
+    {"key": "max_charge_power", "name": "Max Charge Power", "unit": "W",
+     "device_class": None, "state_class": None, "scale": 1, "precision": 0,
+     "icon": "mdi:battery-charging-high", "scan_interval": "medium",
+     "enabled_by_default": True},
+    {"key": "max_discharge_power", "name": "Max Discharge Power", "unit": "W",
+     "device_class": None, "state_class": None, "scale": 1, "precision": 0,
+     "icon": "mdi:battery-arrow-down-outline", "scan_interval": "medium",
+     "enabled_by_default": True},
+    {"key": "battery_total_energy", "name": "Battery Total Energy", "unit": "kWh",
+     "device_class": "energy", "state_class": "total", "scale": 0.1, "precision": 2,
+     "scan_interval": "low", "enabled_by_default": True},
+    {"key": "total_charging_energy", "name": "Total Charging Energy", "unit": "kWh",
+     "device_class": "energy", "state_class": "total_increasing", "scale": 0.1, "precision": 2,
+     "scan_interval": "low", "enabled_by_default": True},
+    {"key": "total_discharging_energy", "name": "Total Discharging Energy", "unit": "kWh",
+     "device_class": "energy", "state_class": "total_increasing", "scale": 0.1, "precision": 2,
+     "scan_interval": "low", "enabled_by_default": True},
+    # Retained as a lifetime diagnostic counter. It is not an instantaneous
+    # independent PV source and is never consumed by solar totals/profiles.
+    {"key": "pv_total_generation", "name": "PV Total Generation", "unit": "kWh",
+     "device_class": "energy", "state_class": "total_increasing", "scale": 0.1,
+     "precision": 2, "scan_interval": "low", "enabled_by_default": True},
+    # Same key and name as Huawei's backup power SOC: the discharge floor the
+    # hardware holds back for itself (0 while the app's backup reserve is off).
+    {"key": "hardware_reserve_soc", "name": "Backup Power SOC", "unit": "%",
+     "state_class": "measurement", "scale": 1, "precision": 0,
+     "category": "diagnostic", "scan_interval": "medium", "enabled_by_default": True},
+]
+
+NUMBER_DEFINITIONS: list[dict] = [
+    {"key": "charging_cutoff_capacity", "name": "Charging Cutoff Capacity", "unit": "%",
+     "device_class": "battery", "min": 80, "max": 100, "step": 1,
+     "scale": 1, "precision": 0, "scan_interval": "medium", "enabled_by_default": True},
+    {"key": "discharging_cutoff_capacity", "name": "Discharging Cutoff Capacity", "unit": "%",
+     "device_class": "battery", "min": 0, "max": 20, "step": 1,
+     "scale": 1, "precision": 0, "scan_interval": "medium", "enabled_by_default": True},
+]
+
+SELECT_DEFINITIONS: list[dict] = []
+SWITCH_DEFINITIONS: list[dict] = []
+BINARY_SENSOR_DEFINITIONS: list[dict] = []
+BUTTON_DEFINITIONS: list[dict] = []
+
+_WRITE_CONTROL_MAP: dict[str, int] = {
+    "operating_mode": _ADDR_OPERATING_MODE,
+    "charging_cutoff_capacity": _ADDR_CHARGE_SOC_LIMIT,
+    "discharging_cutoff_capacity": _ADDR_DISCHARGE_SOC_LIMIT,
+}
+
+
+def _range_for(address: int, register_type: str) -> tuple[int, int]:
+    for start, end in _BATCH_READ_RANGES[register_type]:
+        if start <= address <= end:
+            return start, end
+    raise ValueError(
+        f"Address {address} is not in official {register_type} batch_read_ranges"
+    )
+
+
+def _clamp_soc(value: float, lo: int, hi: int) -> int:
+    return max(lo, min(hi, int(round(value))))
+
+
+def _extract_product_code(value: Optional[str]) -> Optional[str]:
+    """Extract a known Anker product code from a model value or serial number.
+
+    Anker serial numbers embed the four-character product code rather than
+    necessarily returning it as the first four characters. For example,
+    ``AK7DN7M0G22`` contains ``DN7M``.
+    """
+    if not value:
+        return None
+    normalized = "".join(char for char in str(value).upper() if char.isalnum())
+    if normalized in _PRODUCT_LABELS:
+        return normalized
+    for product_code in sorted(_PRODUCT_LABELS, key=len, reverse=True):
+        if product_code in normalized:
+            return product_code
+    return None
+
+
+def _label_for_product_code(code: Optional[str]) -> str:
+    """Map an official product code or serial number to a model label."""
+    product_code = _extract_product_code(code)
+    return _PRODUCT_LABELS.get(product_code, _DEFAULT_MODEL_LABEL)
+
+
+class AnkerModbusDriver(BatteryDriver):
+    """Modbus TCP driver for Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro / XE AC."""
+
+    BRAND = "anker"
+    SETUP = ANKER_SETUP
+    TRAITS = DriverTraits(
+        supports_voltage_taper=False, ip_addressed=True, min_soc_range=(0, 20, 10)
+    )
+    LABEL = "Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro"
+    MANUFACTURER = "Anker"
+    DEFAULT_MODEL = "Solarbank Max AC"
+
+    @classmethod
+    def from_config(cls, battery_config, context: DriverContext) -> "AnkerModbusDriver":
+        return cls(
+            battery_config["host"],
+            battery_config["port"],
+            battery_config.get("slave_id", 1),
+            max_charge_power_w=context.max_charge_power_w,
+            max_discharge_power_w=context.max_discharge_power_w,
+            rated_charge_w=int(battery_config.get("device_max_charge_power") or 0),
+            rated_discharge_w=int(battery_config.get("device_max_discharge_power") or 0),
+        )
+
+    def __init__(
+        self,
+        host: str,
+        port: int = 502,
+        slave_id: int = 1,
+        *,
+        client: Optional[AnkerModbusClient] = None,
+        max_charge_power_w: int = _HW_MAX_POWER_W,
+        max_discharge_power_w: int = _HW_MAX_POWER_W,
+        rated_charge_w: int = 0,
+        rated_discharge_w: int = 0,
+    ) -> None:
+        self._host = host
+        self._port = port
+        self._slave_id = slave_id
+        self._client = client or AnkerModbusClient(host, port, slave_id=slave_id)
+        self._last_net_power_w: Optional[int] = None
+        self._last_good_battery_power_w: Optional[int] = None
+        self._zero_power_streak = 0
+        self._product_code: Optional[str] = None
+        self._dynamic_max_charge_w = _HW_MAX_POWER_W
+        self._dynamic_max_discharge_w = _HW_MAX_POWER_W
+        # Highest 10036/10038 seen, seeded from the persisted device cap so a
+        # restart does not drop the ceiling to the first (possibly derated) read.
+        self._rated_charge_w = min(_HW_MAX_POWER_W, max(0, rated_charge_w))
+        self._rated_discharge_w = min(_HW_MAX_POWER_W, max(0, rated_discharge_w))
+        # User limits are enforced upstream; capability envelope is hardware max.
+        _ = (max_charge_power_w, max_discharge_power_w)
+
+        self._field_by_key = {f["key"]: f for f in _FIELD_SPECS}
+        self._read_groups = self._build_read_groups()
+        self._capabilities = DriverCapabilities(
+            hardware_soc_cutoff=True,
+            has_force_mode=False,
+            push_telemetry=False,
+            max_charge_power_w=_HW_MAX_POWER_W,
+            max_discharge_power_w=_HW_MAX_POWER_W,
+            has_mppt_pv=False,
+            has_solar_telemetry=True,
+            has_alarm_registers=False,
+            has_rs485_control=False,
+            has_energy_counters=True,
+            has_daily_energy_counters=False,
+            setpoint_confirm_reliable=False,
+            delivered_power_reliable=False,
+            actuator_latency_s=1.0,
+            lifetime_counters_ac=False,  # 10262/10264 count DC to DC (#706)
+        )
+
+    @property
+    def is_solarbank_max_ac(self) -> bool:
+        """Whether the connected unit is a Solarbank Max AC SKU."""
+        return self._product_code in _MAX_AC_PRODUCT_CODES
+
+    @property
+    def is_solarbank_max(self) -> bool:
+        """Whether the connected unit is a (DC-coupled) Solarbank Max SKU."""
+        return self._product_code in _MAX_PRODUCT_CODES
+
+    @property
+    def is_solarbank_xe_ac(self) -> bool:
+        """Whether the connected unit is a Solarbank XE AC SKU."""
+        return self._product_code in _XE_AC_PRODUCT_CODES
+
+    def reconcile(
+        self, data, *, reason, state=None
+    ) -> DriverReconciliation | None:
+        """Drop PV fields a model without independent PV must not keep.
+
+        A reconnect can refine the identity after an earlier poll, and the
+        coordinator merges snapshots instead of expiring keys, so a stale
+        compatible-model reading could otherwise reach totals or the dashboard.
+        """
+        if reason not in ("connect", "read_group") or self.has_independent_pv:
+            return None
+        return DriverReconciliation(
+            drop_keys=("solar_power", "pv_power", "third_party_pv_power")
+        )
+
+    @property
+    def has_independent_pv(self) -> bool:
+        """Whether this SKU's aggregate registers are an independent PV source.
+
+        The official map uses the same 10002/10004 fields for these AC families,
+        but those values are derived from the battery's own AC/P1 calculation on
+        Max AC and XE AC. Only the explicitly verified Solarbank 4 E5000 Pro
+        codes and the DC-coupled Solarbank Max codes are classified as an
+        independent PV source. Unknown SKUs use the external-sensor-only path
+        until a new product is explicitly classified.
+        """
+        return self._product_code in _INDEPENDENT_PV_PRODUCT_CODES
+
+    @property
+    def allows_aggregate_solar(self) -> bool:
+        """Only independent-PV SKUs publish a real aggregate PV value."""
+        return self.has_independent_pv
+
+    OBSOLETE_ENTITY_LEGACY_PREFIXES = True
+
+    def obsolete_entity_suffixes(self) -> tuple[str, ...]:
+        """Models without an independent PV source never own ``solar_power``."""
+        return () if self.has_independent_pv else ("solar_power",)
+
+    def _field_specs_for_model(self) -> list[dict]:
+        """Return the register fields that are meaningful for this model."""
+        if self.has_independent_pv:
+            return _FIELD_SPECS
+        # Max AC and XE AC's PV registers are a derived AC/P1 figure, not an
+        # independent DC-coupled source. Unknown SKUs use the same safe default.
+        # Keep pv_total_generation below as a raw device counter, but do not
+        # decode the instantaneous source fields as solar PV.
+        return [
+            field for field in _FIELD_SPECS if field["key"] not in _PV_SOURCE_FIELD_KEYS
+        ]
+
+    def _build_read_groups(self) -> list[ReadGroup]:
+        """One ReadGroup per official batch range that contains any mapped field."""
+        field_specs = self._field_specs_for_model()
+        groups: list[ReadGroup] = []
+        for register_type, ranges in _BATCH_READ_RANGES.items():
+            for start, end in ranges:
+                keys = tuple(
+                    f["key"]
+                    for f in field_specs
+                    if f["register_type"] == register_type and start <= f["address"] <= end
+                )
+                if not keys:
+                    continue
+                # Prefer high cadence when any power/SOC key is in the group.
+                high_keys = {"battery_power", "grid_power", "battery_soc"}
+                scan = "high" if any(k in high_keys for k in keys) else "medium"
+                if register_type == "holding" and start >= 60000:
+                    scan = "medium"
+                groups.append(ReadGroup(scan_interval=scan, keys=keys))
+        return groups
+
+    # --- identity -----------------------------------------------------------
+
+    @property
+    def capabilities(self) -> DriverCapabilities:
+        # The AC-family PV registers are calculated, not an independent DC PV
+        # input. Capabilities expose the model-aware whitelist to every consumer
+        # (totals, timeline, efficiency and dashboard).
+        return replace(
+            self._capabilities,
+            has_solar_telemetry=self.has_independent_pv,
+        )
+
+    @property
+    def model_label(self) -> Optional[str]:
+        return _label_for_product_code(self._product_code)
+
+    @property
+    def sensor_definitions(self) -> list[dict]:
+        if self.has_independent_pv:
+            return SENSOR_DEFINITIONS
+        # ``SENSOR_DEFINITIONS`` is shared/static, but entity creation must use
+        # the detected SKU. AC and unknown models have no classified independent
+        # solar production entity; pv_total_generation remains a raw device
+        # counter only and is never consumed as instantaneous solar power.
+        return [
+            definition
+            for definition in SENSOR_DEFINITIONS
+            if definition["key"] != "solar_power"
+        ]
+
+    @property
+    def number_definitions(self) -> list[dict]:
+        return NUMBER_DEFINITIONS
+
+    @property
+    def select_definitions(self) -> list[dict]:
+        return SELECT_DEFINITIONS
+
+    @property
+    def switch_definitions(self) -> list[dict]:
+        return SWITCH_DEFINITIONS
+
+    @property
+    def binary_sensor_definitions(self) -> list[dict]:
+        return BINARY_SENSOR_DEFINITIONS
+
+    @property
+    def button_definitions(self) -> list[dict]:
+        return BUTTON_DEFINITIONS
+
+    @property
+    def all_definitions(self) -> list[dict]:
+        return (
+            self.sensor_definitions
+            + NUMBER_DEFINITIONS
+            + SELECT_DEFINITIONS
+            + SWITCH_DEFINITIONS
+            + BINARY_SENSOR_DEFINITIONS
+            + BUTTON_DEFINITIONS
+        )
+
+    # --- connection lifecycle ----------------------------------------------
+
+    @property
+    def connected(self) -> bool:
+        return self._client.connected
+
+    async def connect(self) -> bool:
+        ok = await self._client.async_connect()
+        if not ok:
+            return False
+        # Register 10071 is write-only. A new connection may mean the battery
+        # restarted and lost the previous command, so do not expose its stale
+        # in-memory echo as observable device state.
+        # Do not force Third-Party Control here: mode is ensured only when a
+        # setpoint is written via apply_setpoint(), so Manual Mode idle can
+        # leave Solix app modes alone without reconnect fighting them.
+        self._last_net_power_w = None
+        self._last_good_battery_power_w = None
+        self._zero_power_streak = 0
+        self._client.unit_id = self._slave_id
+        await self._refresh_product_code()
+        self._read_groups = self._build_read_groups()
+        return True
+
+    async def _refresh_product_code(self) -> None:
+        """Read model code, falling back to the product code in the serial."""
+        model_regs = await self._client.async_read_input_block(
+            _ADDR_DEVICE_MODEL, _DEVICE_MODEL_REG_COUNT
+        )
+        model_value = decode_registers(model_regs, "char") if model_regs else None
+        product_code = _extract_product_code(model_value)
+        if product_code:
+            self._set_product_code(product_code)
+            return
+
+        # Some Solarbank firmware returns a generic value from device_model.
+        # The official product code is still embedded in device_sn (10100).
+        serial_regs = await self._client.async_read_input_block(
+            _ADDR_DEVICE_SN, _DEVICE_SN_REG_COUNT
+        )
+        serial_value = decode_registers(serial_regs, "char") if serial_regs else None
+        product_code = _extract_product_code(serial_value)
+        if product_code:
+            self._set_product_code(product_code)
+
+    def _set_product_code(self, product_code: str) -> None:
+        """Store a detected SKU and refresh model-dependent read groups."""
+        if product_code == self._product_code:
+            return
+        self._product_code = product_code
+        self._read_groups = self._build_read_groups()
+
+    async def close(self) -> None:
+        await self._client.async_close()
+
+    def set_shutting_down(self, value: bool) -> None:
+        self._client.set_shutting_down(value)
+
+    # --- telemetry ----------------------------------------------------------
+
+    @property
+    def read_groups(self) -> list[ReadGroup]:
+        return self._read_groups
+
+    async def read_telemetry(self, keys: Optional[list[str]] = None) -> TelemetrySnapshot:
+        self._client.unit_id = self._slave_id
+        wanted = set(keys) if keys is not None else set(self._field_by_key)
+        if not self.has_independent_pv:
+            # A direct caller must not re-enable the derived PV source merely by
+            # asking for the legacy key. The device counter is intentionally not
+            # part of this exclusion and remains a normal energy telemetry key.
+            wanted.difference_update(_PV_SOURCE_FIELD_KEYS)
+            wanted.discard("solar_power")
+        # solar_power is a semantic aggregate rather than a Modbus field. Pull
+        # both official source registers when a caller requests the canonical key.
+        if "solar_power" in wanted and self.has_independent_pv:
+            wanted.update({"pv_power", "third_party_pv_power"})
+        snapshot: TelemetrySnapshot = {}
+
+        # Group wanted fields by the official batch range they belong to.
+        batches: dict[tuple[str, int, int], list[dict]] = {}
+        for key in wanted:
+            field = self._field_by_key.get(key)
+            if field is None:
+                continue
+            start, end = _range_for(field["address"], field["register_type"])
+            batches.setdefault((field["register_type"], start, end), []).append(field)
+
+        for (register_type, start, end), fields in batches.items():
+            count = end - start + 1
+            if register_type == "input":
+                regs = await self._client.async_read_input_block(start, count)
+            else:
+                regs = await self._client.async_read_holding_block(start, count)
+            if regs is None:
+                continue
+            for field in fields:
+                offset = field["address"] - start
+                width = field.get("count", 1)
+                if offset < 0 or offset + width > len(regs):
+                    continue
+                value = decode_registers(regs[offset:offset + width], field["data_type"])
+                if value is None:
+                    continue
+                if field.get("invert"):
+                    value = -int(value)
+                snapshot[field["key"]] = value
+                if field["key"] == "device_model" and isinstance(value, str) and value:
+                    product_code = _extract_product_code(value)
+                    if product_code:
+                        self._set_product_code(product_code)
+                if field["key"] in ("max_charge_power", "max_discharge_power") and isinstance(
+                    value, (int, float)
+                ):
+                    snapshot[field["key"]] = self._track_power_cap(field["key"], int(value))
+
+        # Register 10015 is shared across Solarbank SKUs but only field-verified on
+        # DMWH. Units that do not implement SoH may answer 0 instead of omitting the
+        # field; treat that as unknown rather than a dead battery. None (not a pop)
+        # so the coordinator clears the sensor: it only writes the keys the snapshot
+        # carries, so dropping the key would freeze the last non-zero reading.
+        if snapshot.get("battery_soh") == 0:
+            snapshot["battery_soh"] = None
+
+        pv_power = snapshot.get("pv_power")
+        third_party_pv_power = snapshot.get("third_party_pv_power")
+        if self.has_independent_pv and (
+            isinstance(pv_power, (int, float))
+            or isinstance(third_party_pv_power, (int, float))
+        ):
+            # PV production is physically non-negative. Clamp malformed or
+            # transitional signed-register values before exposing the canonical
+            # solar sensor and feeding the consumption tracker.
+            snapshot["solar_power"] = max(
+                0,
+                int(pv_power or 0) + int(third_party_pv_power or 0),
+            )
+        else:
+            # The first setup poll can start with an unknown model and decode the
+            # source registers before the identity block classifies this unit.
+            # Do not leak derived values from an AC or unknown SKU into telemetry.
+            snapshot.pop("pv_power", None)
+            snapshot.pop("third_party_pv_power", None)
+            snapshot.pop("solar_power", None)
+
+        # Publish semantic aliases expected by the brand-agnostic entity and
+        # control layers. Values remain raw here; coordinator scaling is applied
+        # independently using each derived sensor definition above.
+        battery_power = snapshot.get("battery_power")
+        if isinstance(battery_power, (int, float)):
+            bp = int(battery_power)
+            # Filter one-shot 0 W samples while a charge/discharge setpoint is
+            # still latched. Failed Modbus reads omit the key (coordinator keeps
+            # the previous value); a decoded 0 is "valid" and would otherwise
+            # flash the HA entity even when the inverter UI never stopped.
+            if abs(bp) < _ZERO_POWER_GLITCH_W:
+                last_cmd = self._last_net_power_w
+                last_good = self._last_good_battery_power_w
+                if (
+                    last_cmd is not None
+                    and abs(last_cmd) >= _GLITCH_LATCH_MIN_W
+                    and last_good is not None
+                    and abs(last_good) >= _GLITCH_LATCH_MIN_W
+                ):
+                    self._zero_power_streak += 1
+                    if self._zero_power_streak < _ZERO_POWER_GLITCH_POLLS:
+                        _LOGGER.debug(
+                            "Ignoring transient Anker battery_power=%s W "
+                            "(streak=%d/%d, last_good=%s W, last_cmd=%s W)",
+                            bp,
+                            self._zero_power_streak,
+                            _ZERO_POWER_GLITCH_POLLS,
+                            last_good,
+                            last_cmd,
+                        )
+                        snapshot.pop("battery_power", None)
+                        battery_power = None
+                else:
+                    self._zero_power_streak = 0
+            else:
+                self._zero_power_streak = 0
+                self._last_good_battery_power_w = bp
+        if isinstance(battery_power, (int, float)):
+            snapshot["ac_power"] = -battery_power
+        else:
+            snapshot.pop("ac_power", None)
+        # On a DC-coupled SKU 10008 is pack power, so with the MPPTs producing it
+        # reads "charging" (or 0, passing the array straight through) while the AC
+        # port exports the commanded discharge — issue #366. The unit's own AC
+        # contribution is pack minus array, in the same +in/-out convention.
+        # Not 10012: it matched that on the #366 hardware, but with an Anker CT
+        # meter attached it tracks the house grid — an E5000 read 10012=1550 W
+        # with pack and PV at 0 and no backup load, which the fleet
+        # reconstruction took for a 1550 W charge and capped the discharge (#468). The AC families have no DC array, so
+        # 10008 is already the AC value there.
+        if (
+            self.has_independent_pv
+            and isinstance(battery_power, (int, float))
+            and isinstance(pv_power, (int, float))
+        ):
+            snapshot[DELIVERED_AC_POWER_KEY] = int(battery_power) - int(pv_power)
+        # ponytail: no 0x8007 capability read (bits 2/3), as 60000/60001 aren't
+        # gated on bits 0/1 either. Assumes firmware without 60002/60003 answers
+        # zeros in the batch (enable=0 = no reserve); add the one-shot FC04 read
+        # at connect if a unit ever reports a non-zero 60003 without the feature.
+        enable = snapshot.get("backup_soc_enable")
+        if isinstance(enable, (int, float)):
+            reserve = snapshot.get("backup_reserve_soc")
+            snapshot["hardware_reserve_soc"] = (
+                reserve if int(enable) == 1 and isinstance(reserve, (int, float)) else 0
+            )
+        temperature = snapshot.get("temperature")
+        if isinstance(temperature, (int, float)):
+            snapshot["internal_temperature"] = temperature
+        battery_status = snapshot.get("battery_status")
+        if isinstance(battery_status, (int, float)):
+            inverter_state = _INVERTER_STATE_BY_BATTERY_STATUS.get(int(battery_status))
+            if inverter_state is not None:
+                snapshot["inverter_state"] = inverter_state
+
+        return snapshot
+
+    # --- control ------------------------------------------------------------
+
+    async def _ensure_third_party_mode(self) -> bool:
+        mode = await self._client.async_read_holding_register(
+            _ADDR_OPERATING_MODE, "uint16"
+        )
+        if mode == _OPERATING_MODE_THIRD_PARTY:
+            return True
+        return await self._client.async_write_register(
+            _ADDR_OPERATING_MODE, _OPERATING_MODE_THIRD_PARTY
+        )
+
+    def _track_power_cap(self, key: str, value: int) -> int:
+        """Clamp setpoints to the live reading; publish the highest one seen.
+
+        10036/10038 move with the system's state: three combined units read
+        5138/3608 W, not 10500 (#646). Publishing each read would drag the Max
+        power sliders and the planner's ceiling with it and rewrite the config
+        entry on every change, so the published ceiling is the highest reading.
+        A 0 is a missing answer: the last live clamp stands.
+        """
+        live = max(0, min(_HW_MAX_POWER_W, value))
+        if key == "max_charge_power":
+            if live:
+                self._dynamic_max_charge_w = live
+            self._rated_charge_w = max(self._rated_charge_w, live)
+            return self._rated_charge_w or _HW_MAX_POWER_W
+        if live:
+            self._dynamic_max_discharge_w = live
+        self._rated_discharge_w = max(self._rated_discharge_w, live)
+        return self._rated_discharge_w or _HW_MAX_POWER_W
+
+    def dynamic_charge_limit_w(self, data: dict) -> Optional[int]:
+        """The live 10036 reading, so the controller never allocates past the clamp."""
+        return self._dynamic_max_charge_w
+
+    def dynamic_discharge_limit_w(self, data: dict) -> Optional[int]:
+        """The live 10038 reading, so the controller never allocates past the clamp."""
+        return self._dynamic_max_discharge_w
+
+    def _clamp_net_power(self, net_power_w: int) -> int:
+        """Clamp to the live hardware envelope."""
+        max_charge = min(_HW_MAX_POWER_W, self._dynamic_max_charge_w)
+        max_discharge = min(_HW_MAX_POWER_W, self._dynamic_max_discharge_w)
+        if net_power_w > 0:
+            net = min(net_power_w, max_charge)
+        elif net_power_w < 0:
+            net = -min(-net_power_w, max_discharge)
+        else:
+            return 0
+        return net
+
+    async def apply_setpoint(
+        self,
+        net_power_w: int,
+        *,
+        mode_hint: Optional[str] = None,
+        read_back: bool = True,
+    ) -> SetpointResult:
+        _ = mode_hint  # unused; sign of net_power_w is authoritative
+        if not self.connected:
+            return SetpointResult(
+                ok=False, net_power_w=0, confirmed=False, failure_reason="not_connected"
+            )
+
+        self._client.unit_id = self._slave_id
+        if not await self._ensure_third_party_mode():
+            return SetpointResult(
+                ok=False,
+                net_power_w=0,
+                confirmed=False,
+                failure_reason="mode_failed",
+            )
+
+        net = self._clamp_net_power(int(net_power_w))
+        wire_w = -net  # Anker: +discharge / −charge
+        ok = await self._client.async_write_registers_int32(_ADDR_POWER_SETPOINT, wire_w)
+        if not ok:
+            return SetpointResult(
+                ok=False,
+                net_power_w=net,
+                confirmed=False,
+                failure_reason="write_failed",
+            )
+
+        self._last_net_power_w = net
+        applied = {"commanded_net_power": net, "operating_mode": _OPERATING_MODE_THIRD_PARTY}
+        # Register 10071 is never_read_device — Modbus write success is the ACK.
+        # Returning confirmed=False made the control loop treat every readback
+        # cycle as ack_mismatch (Anker is a "fast" actuator so read_back is
+        # periodically True). When read_back is requested, also sample delivered
+        # power from input 10008 for non-delivery detection.
+        battery_power_w: Optional[int] = None
+        if read_back:
+            snap = await self.read_telemetry(["battery_power"])
+            raw = snap.get("battery_power")
+            if raw is not None:
+                battery_power_w = int(raw)
+                applied["battery_power"] = battery_power_w
+        return SetpointResult(
+            ok=True,
+            net_power_w=net,
+            confirmed=True,
+            exact=True,
+            battery_power_w=battery_power_w,
+            applied=applied,
+        )
+
+    async def write_control(self, key: str, value: int) -> bool:
+        address = _WRITE_CONTROL_MAP.get(key)
+        if address is None:
+            return False
+        self._client.unit_id = self._slave_id
+        return await self._client.async_write_register(address, int(value))
+
+    def ac_register_power_w(self, data: dict):
+        # ``ac_power`` is +discharge / -charge; the query speaks +charge.
+        value = data.get("ac_power")
+        return None if value is None else -float(value)
+
+    def net_power_from_data(self, data: dict) -> Optional[int]:
+        try:
+            mode = int(round(float(data["operating_mode"])))
+        except (KeyError, TypeError, ValueError):
+            return None
+        if mode != _OPERATING_MODE_THIRD_PARTY or self._last_net_power_w is None:
+            return None
+        value = data.get("commanded_net_power")
+        if value is None:
+            return self._last_net_power_w
+        return int(round(float(value)))
+
+    @property
+    def control_dependency_keys(self) -> frozenset:
+        return frozenset({
+            "max_charge_power",
+            "max_discharge_power",
+            "charging_cutoff_capacity",
+            "discharging_cutoff_capacity",
+            # Sources of hardware_reserve_soc, a discharge floor for the control
+            # layer (#939). Same 60000-60003 batch, so no extra read.
+            "backup_reserve_soc",
+            "backup_soc_enable",
+            "operating_mode",
+            "commanded_net_power",
+            # Sources for normalized control telemetry. Keep polling them even if
+            # the user disables the original Anker-facing sensor entities.
+            "battery_power",
+            "battery_status",
+            "temperature",
+            # AC-side delivery = pack - array (#366, #468). Already in the
+            # 10000-10050 batch, so keeping it costs no extra read.
+            "pv_power",
+        })
+
+    async def apply_config(
+        self,
+        *,
+        max_soc_pct: float,
+        min_soc_pct: float,
+        max_charge_power_w: int,
+        max_discharge_power_w: int,
+    ) -> bool:
+        """Write SOC limits to 60000/60001. Power caps are read-only on Anker."""
+        _ = (max_charge_power_w, max_discharge_power_w)
+        self._client.unit_id = self._slave_id
+        charge = _clamp_soc(max_soc_pct, 80, 100)
+        discharge = _clamp_soc(min_soc_pct, 0, 20)
+        ok = await self._client.async_write_register(_ADDR_CHARGE_SOC_LIMIT, charge)
+        ok = await self._client.async_write_register(_ADDR_DISCHARGE_SOC_LIMIT, discharge) and ok
+        return bool(ok)
+
+    async def set_charge_cutoff(self, soc_pct: float) -> bool:
+        """Write only the charge SOC limit (60000)."""
+        self._client.unit_id = self._slave_id
+        value = _clamp_soc(soc_pct, 80, 100)
+        return await self._client.async_write_register(_ADDR_CHARGE_SOC_LIMIT, value)
+
+    async def standby(self) -> bool:
+        """Idle the battery (zero setpoint) for teardown."""
+        self._client.unit_id = self._slave_id
+        ok = await self._client.async_write_registers_int32(_ADDR_POWER_SETPOINT, 0)
+        if ok:
+            self._last_net_power_w = 0
+        return bool(ok)
+
+    @classmethod
+    async def probe(
+        cls,
+        host: str,
+        port: int = 502,
+        slave_id: int = 1,
+    ) -> tuple[bool, dict[str, int]]:
+        """Probe connectivity and read hardware power caps when available.
+
+        Returns ``(ok, caps)`` where ``caps`` may include
+        ``device_max_charge_power`` / ``device_max_discharge_power`` from input
+        registers 10036/10038 (Anker hardware ceilings). Used to seed the
+        battery config envelope; the live values are exposed as sensors.
+        """
+        client = AnkerModbusClient(host, port, slave_id=slave_id, timeout=5.0)
+        try:
+            if not await client.async_connect():
+                return False, {}
+            client.unit_id = slave_id
+            # Short dedicated reads: a truncated 10000–10050 batch can still
+            # return SOC (offset 14) while missing caps at 10036/10038.
+            soc = await client.async_read_input_register(_ADDR_BATTERY_SOC, "uint16")
+            if soc is None:
+                return False, {}
+            caps: dict[str, int] = {}
+            charge = await client.async_read_input_register(10036, "int32")
+            discharge = await client.async_read_input_register(10038, "int32")
+            if isinstance(charge, (int, float)) and int(charge) > 0:
+                caps["device_max_charge_power"] = max(
+                    100, min(_HW_MAX_POWER_W, int(charge))
+                )
+            if isinstance(discharge, (int, float)) and int(discharge) > 0:
+                caps["device_max_discharge_power"] = max(
+                    100, min(_HW_MAX_POWER_W, int(discharge))
+                )
+            return True, caps
+        finally:
+            await client.async_close()
