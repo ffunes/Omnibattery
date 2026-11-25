@@ -107,6 +107,11 @@ RELOAD = {
     "solar_production_sensor",
     "solar_profile_mode",
     "target_grid_power",
+    "td20_export_price",
+    "td20_price_llano",
+    "td20_price_punta",
+    "td20_price_valle",
+    "td20_workday_entity",
     "zonneplan_export_bonus_enabled",
 }
 

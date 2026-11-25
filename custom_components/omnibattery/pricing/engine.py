@@ -1592,7 +1592,7 @@ class PricingManager:
 
     def _td20_export_price(self) -> float | None:
         """The flat 2.0TD surplus price, when that tariff is the import curve."""
-        if self._controller.price_integration_type != PRICE_INTEGRATION_TD20:
+        if getattr(self._controller, "price_integration_type", None) != PRICE_INTEGRATION_TD20:
             return None
         return getattr(self._controller, "td20_export_price", None)
 
