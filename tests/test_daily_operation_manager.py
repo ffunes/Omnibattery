@@ -536,6 +536,35 @@ def test_projection_ceiling_follows_pending_weekly_full_charge(weekly_active, ex
     assert inputs[0].max_soc_pct == pytest.approx(expected)
 
 
+@pytest.mark.parametrize(
+    ("threshold", "held", "expected"),
+    [(25, False, 25), (25, True, 12), (90, False, 12)],
+)
+def test_projection_floor_is_the_plan_floor(threshold, held, expected):
+    """#941: peak shaving's SOC band is not drained by normal load, unless
+    peak shaving already holds the battery or its threshold is at max SOC."""
+    coordinator = SimpleNamespace(
+        name="battery",
+        min_soc=12,
+        max_soc=90,
+        max_charge_power=2000,
+        max_discharge_power=2000,
+        data={"battery_total_energy": 10, "battery_soc": 80},
+    )
+    controller = SimpleNamespace(
+        coordinators=[coordinator],
+        _daily_operation_float=ChargeDischargeController._daily_operation_float,
+        _is_battery_manual_owned=lambda coordinator: False,
+        capacity_protection_enabled=True,
+        capacity_protection_soc_threshold=threshold,
+        _is_capacity_protection_soc_limited=lambda: held,
+    )
+
+    inputs = ChargeDischargeController._daily_operation_battery_inputs(controller)
+
+    assert inputs[0].min_soc_pct == pytest.approx(expected)
+
+
 def test_projection_starts_from_measured_soc_now_instead_of_replaying_the_day():
     now = datetime(2026, 8, 23, 12, 7, tzinfo=MADRID)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
