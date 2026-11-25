@@ -8089,6 +8089,9 @@ class ChargeDischargeController:
                         direction="charge",
                     )
             if skip_write:
+                # The battery already sits at the commanded set-points: the link
+                # works, so a spell opened by a write glitch ends here (#945).
+                self._non_responsive.record_write_ok(coordinator)
                 # Polled set-points match the commanded values exactly — this is
                 # the deferred settled verification a tolerance-only ACK left
                 # pending (see the readback branch below).
@@ -8139,6 +8142,10 @@ class ChargeDischargeController:
                         coordinator.name, attempt + 1, last_fail_reason
                     )
                 continue
+
+            # The write went through: a spell that only comms failures opened
+            # ends here, whatever power was commanded (#945).
+            self._non_responsive.record_write_ok(coordinator)
 
             # Write-only cycle: no readback this cycle, so no ACK check or
             # non-delivery detection. The write itself succeeded.

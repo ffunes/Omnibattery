@@ -113,28 +113,40 @@ def test_full_battery_after_a_charge_flip_ends_the_spell_without_a_repair():
 
 
 @pytest.mark.parametrize(
-    ("record", "reason"),
+    ("record", "reason", "link_ok"),
     [
         (
             lambda tracker, coord: tracker.record_non_delivery(
                 coord, 600, 0, reason="standby_no_delivery",
             ),
             "standby_no_delivery",
+            True,
         ),
         (
             lambda tracker, coord: tracker.record_comm_failure(
                 coord, "modbus_write_failed",
             ),
             "modbus_write_failed",
+            False,
         ),
     ],
     ids=["discharge", "comms"],
 )
-def test_full_battery_after_a_flip_keeps_a_discharge_or_comms_fault(record, reason):
+def test_full_battery_after_a_flip_keeps_a_discharge_or_comms_fault(
+    record, reason, link_ok
+):
     """A full battery is still a discharge candidate: a discharge or comms fault
     survives the flip into discharge and the full-battery sweep, and its Repair
-    names the real reason."""
+    names the real reason. A comms fault lasts only while the link stays broken:
+    a write that goes through ends it (#945)."""
     controller, coord, reported_at = _controller()
+    if not link_ok:
+        coord.apply_power = AsyncMock(
+            return_value=SetpointResult(
+                ok=False, net_power_w=0, confirmed=False,
+                failure_reason="modbus_write_failed",
+            )
+        )
     tracker = controller._non_responsive
     for _ in range(6):
         record(tracker, coord)
@@ -142,7 +154,7 @@ def test_full_battery_after_a_flip_keeps_a_discharge_or_comms_fault(record, reas
     _expire_cooldown(tracker, coord)
 
     asyncio.run(ChargeDischargeController._set_battery_power(controller, coord, 0, 600))
-    assert coord.apply_power.await_count == 1
+    assert coord.apply_power.await_count == (1 if link_ok else 2)
     assert coord in controller._discharge_engage_started
 
     controller._weekly_charge_mgr.is_battery_full = lambda c: True

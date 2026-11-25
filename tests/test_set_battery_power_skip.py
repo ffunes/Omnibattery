@@ -117,6 +117,7 @@ def _controller():
             record_non_delivery=lambda *a, **k: False,
             clear=lambda c, **k: None,
             set_wake_attempted=lambda *a, **k: None,
+            record_write_ok=lambda c: None,
         ),
         _idle_runaway_handled={},
         _weekly_charge_mgr=SimpleNamespace(is_battery_full=lambda c: False),
