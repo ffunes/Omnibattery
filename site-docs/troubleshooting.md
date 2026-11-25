@@ -42,7 +42,7 @@ The battery may be idle by design when the grid is already near target. If house
 | Charge Delay is waiting for solar | **Charge Delay** and **Charge Delay Status** | Review [solar charge delay](features/solar-charge-delay.md) |
 | A time slot blocks charging | **Discharge Window**, time-slot switches, and `charge_blockers` | Review [time slots](configuration/time-slots.md) |
 | Predictive charging found no deficit | **Predictive Charging Active**, its reason, forecast, and consumption estimate | This is expected; review [predictive charging](configuration/predictive-charging/index.md) |
-| The cells are already full but SOC reads low | Max cell voltage when charging stops | Follow [Battery is full while SOC reads much lower](#soc-drift) |
+| The cells are already full but SOC reads low | Max cell voltage when charging stops | Marstek: follow [Battery is full while SOC reads much lower](#soc-drift). Other brands: ask the manufacturer how to recalibrate SOC |
 | Temperature or battery protection limits charging | **Integration Status**, temperature status, battery alarm, and fault entities | Review [temperature charge limit](features/temperature-charge-limit.md) and the battery manual |
 
 **Expected result:** the blocker disappears and charge power rises when surplus solar, a manual request, or an eligible predictive period requires charging.

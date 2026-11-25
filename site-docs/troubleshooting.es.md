@@ -28,7 +28,7 @@ La batería puede estar en reposo intencionadamente cuando la red ya está cerca
 | Charge Delay espera al sol | **Charge Delay** y **Charge Delay Status** | Revisa el [retraso de carga solar](features/solar-charge-delay.md) |
 | Una franja horaria bloquea la carga | **Discharge Window**, interruptores de franja horaria y `charge_blockers` | Revisa las [franjas horarias](configuration/time-slots.md) |
 | La carga predictiva no encontró déficit | **Predictive Charging Active**, su motivo, previsión y estimación de consumo | Es lo esperado; revisa la [carga predictiva](configuration/predictive-charging/index.md) |
-| Las celdas ya están llenas pero el SOC marca poco | Tensión máxima de celda al detenerse la carga | Sigue [La batería está llena y el SOC marca mucho menos](#soc-drift) |
+| Las celdas ya están llenas pero el SOC marca poco | Tensión máxima de celda al detenerse la carga | Marstek: sigue [La batería está llena y el SOC marca mucho menos](#soc-drift). Otras marcas: pregunta al fabricante cómo recalibrar el SOC |
 | La temperatura o la protección de batería limitan la carga | **Integration Status**, estado de temperatura, alarma de batería y entidades de fallo | Revisa el [límite de carga por temperatura](features/temperature-charge-limit.md) y el manual de la batería |
 
 **Resultado esperado:** el bloqueador desaparece y la potencia de carga sube cuando el excedente solar, una solicitud manual o un periodo predictivo apto requieren carga.
