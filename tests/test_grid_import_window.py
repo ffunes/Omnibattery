@@ -148,7 +148,6 @@ def _ctrl(tracker=None, *, window=True, price_block=True):
     ctrl.grid_import_window_enabled = window
     ctrl._consumption_tracker = tracker
     ctrl.capacity_protection_enabled = False
-    ctrl.capacity_protection_excluded_devices = False
     ctrl.capacity_protection_soc_threshold = 20
     ctrl.battery = _Battery()
     ctrl.coordinators = [ctrl.battery]

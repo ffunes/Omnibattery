@@ -226,9 +226,6 @@ class CapacityProtectionStatusSensor(BinarySensorEntity):
         status = self.controller._capacity_protection_status
         return {
             "enabled": self.controller.capacity_protection_enabled,
-            "excluded_devices_enabled": (
-                self.controller.capacity_protection_excluded_devices
-            ),
             # #506: whether the grid import cap is acting, what the battery
             # must deliver to keep the meter under it, and what it delivers.
             "grid_import_cap_active": status.get("grid_import_cap_active", False),

@@ -1717,9 +1717,6 @@
       "grid_import_window_15min": {
         "name": "Fenêtre de 15 min d'Import Réseau"
       },
-      "capacity_protection_excluded_devices": {
-        "name": "Écrêtement des Pointes pour Appareils Exclus"
-      },
       "backup_function": {
         "name": "Fonction de Secours"
       },

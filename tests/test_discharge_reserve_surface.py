@@ -82,7 +82,7 @@ def test_v19_drops_both_keys_and_both_entities_whatever_their_entity_id():
     )
     with patch("homeassistant.helpers.entity_registry.async_get", lambda _hass: fake):
         assert asyncio.run(async_migrate_entry(hass, entry)) is True
-    assert entry.version == 21
+    assert entry.version == 22
     assert not set(GONE) & set(entry.data) and not set(GONE) & set(entry.options)
     assert entry.data["surplus_hold_min_saving"] == 0.02 and entry.options["other"] == 1
     assert sorted(removed) == [

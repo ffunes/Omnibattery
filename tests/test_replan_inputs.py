@@ -62,7 +62,6 @@ LIVE = {
     "_temp_charge_limit_c",
     "_temp_charge_limit_floor_pct",
     "_weekly_full_charge_skip_delay",
-    "capacity_protection_excluded_devices",
     "capacity_protection_soc_threshold",
     # The 15-min window moves only the real-time cap; planners read the
     # configured value (#506).

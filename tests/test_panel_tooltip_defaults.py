@@ -139,7 +139,6 @@ DEFAULTS = {
     "hourly_balance_hysteresis_w": _unit(DEFAULT_HOURLY_BALANCE_HYSTERESIS_W, "W"),
     "system_max_charge_power": _unit(DEFAULT_SYSTEM_MAX_CHARGE_POWER, "W", off=True),
     "system_max_discharge_power": _unit(DEFAULT_SYSTEM_MAX_DISCHARGE_POWER, "W", off=True),
-    "capacity_protection_excluded_devices": "off",
     "grid_import_window_15min": "off (on in Belgium)",
     "capacity_protection_soc_threshold": _pct(DEFAULT_CAPACITY_PROTECTION_SOC),
     # temperature charge limit

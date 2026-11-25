@@ -99,7 +99,6 @@ from .const import (
     MAX_BATTERIES,
     CONF_ENABLE_SYSTEM_POWER_LIMITS,
     CONF_CAPACITY_PROTECTION_ENABLED,
-    CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES,
     CONF_PREDICTIVE_CHARGING_MODE,
     CONF_PRICE_SENSOR,
     CONF_PRICE_INTEGRATION_TYPE,
@@ -1248,7 +1247,7 @@ async def _dispatch_brand_entry(flow, brand: str):
 class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Omnibattery."""
 
-    VERSION = 21
+    VERSION = 22
 
     def __init__(self):
         """Initialize the config flow."""
@@ -2136,7 +2135,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
         self.config_data.setdefault(CONF_DELAY_SOC_SETPOINT_ENABLED, False)
         self.config_data.setdefault(CONF_ENABLE_TEMP_CHARGE_LIMIT, False)
         self.config_data.setdefault(CONF_CAPACITY_PROTECTION_ENABLED, False)
-        self.config_data.setdefault(CONF_CAPACITY_PROTECTION_EXCLUDED_DEVICES, False)
         self.config_data.setdefault(CONF_ENABLE_HOURLY_BALANCE, False)
         self.config_data.setdefault(CONF_ENABLE_SYSTEM_POWER_LIMITS, False)
         self.config_data.setdefault(CONF_THREE_PHASE_ENABLED, DEFAULT_THREE_PHASE_ENABLED)

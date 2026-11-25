@@ -58,7 +58,6 @@ Salvaguardas:
 1. Abre el panel lateral de Omnibattery y selecciona **Control**.
 2. Activa **Peak Shaving**.
 3. Configura **Umbral de SOC de Peak Shaving**. Por debajo de este SOC medio de flota, la batería guarda su reserva para las cargas que superan el Máximo de importación de red.
-4. Opcional: activa **Peak Shaving para dispositivos excluidos**. Solo importa dentro de una franja de carga predictiva; fuera de ella, los dispositivos excluidos siempre se cubren por encima del tope.
 
 | Ajuste | Predeterminado | Rango |
 |---|---:|---:|
@@ -89,7 +88,6 @@ Consulta la [cronología diaria de funcionamiento](daily-operation-timeline.md) 
 |---|---|---|
 | La batería sigue cubriendo demanda ordinaria | El SOC medio de batería está por encima del umbral de conservación | **Umbral de SOC de Peak Shaving** y **Peak Shaving activo** |
 | Un pico permanece por encima del Máximo de importación de red | La potencia de descarga disponible o alguna regla de seguridad limita la salida | SOC mínimo, disponibilidad de batería, límites de fase, estado de respaldo y límites de potencia |
-| No se cubre una carga excluida dentro de una franja predictiva | La opción de dispositivos excluidos está desactivada | **Peak Shaving para dispositivos excluidos** |
 | La batería no pasa a inactividad inmediatamente | El enfriamiento de relé mantiene potencia mínima o la telemetría se está estabilizando | Enfriamiento de relé PD y potencia instantánea de batería |
 | Se pausa la carga predictiva desde red | La importación del hogar alcanzó el techo aplicable | Estado de carga predictiva y **Máximo de importación de red** |
 | La batería descarga durante un periodo protegido por precio | Tiene prioridad un pico físico por encima del Máximo de importación de red | Importación de red y estado de protección activo |
@@ -103,7 +101,7 @@ Consulta la [cronología diaria de funcionamiento](daily-operation-timeline.md) 
 
     El SOC medio excluye baterías no disponibles y controladas manualmente. Siguen aplicándose SOC mínimo, disponibilidad, control manual o por franja, restricciones de respaldo, protección de fase y límites de potencia de batería/sistema.
 
-    **Peak Shaving para dispositivos excluidos** está desactivado de forma predeterminada y solo importa dentro de una franja de carga predictiva; en cualquier otro momento el Máximo de importación de red ya cubre los dispositivos excluidos. Con `1,000 W` de demanda normal, `4,000 W` excluidos y un tope de `3,000 W`, la batería suministra `2,000 W`: `1,000 W` para demanda normal y `1,000 W` para cubrir el exceso de la carga excluida.
+    El Máximo de importación de red siempre cuenta los dispositivos excluidos. Con `1,000 W` de demanda normal, `4,000 W` excluidos y un tope de `3,000 W`, la batería suministra `2,000 W`: `1,000 W` para demanda normal y `1,000 W` para cubrir el exceso de la carga excluida.
 
     Durante un periodo activo de carga predictiva, la demanda del hogar tiene prioridad. Omnibattery reduce primero la carga positiva de batería, después ordena inactividad y espera a que se estabilice la telemetría de inversor y medidor. Si la importación sigue demasiado alta, la importación física por encima del Máximo de importación de red activa descarga de emergencia, también para cargas excluidas que vea la conexión de red.
 
