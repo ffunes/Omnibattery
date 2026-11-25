@@ -6,7 +6,7 @@ Omnibattery controls a Sessy through the local interface on its network dongle. 
 
 **Use it if** Home Assistant can reach the Sessy dongle and you have the username and password printed on it. **Expect a delayed first response:** a Sessy leaving standby can take up to 65 s to follow its first non-zero command.
 
-Sessy support is still looking for more testers. Include the model and firmware when reporting behavior that differs from this page.
+Include the model and firmware when reporting behavior that differs from this page.
 
 ## Before you start
 

@@ -6,7 +6,7 @@ Omnibattery controla una Sessy mediante la interfaz local de su dongle de red. N
 
 **Úsalo si** Home Assistant puede acceder al dongle Sessy y tienes el nombre de usuario y contraseña impresos en él. **Espera una primera respuesta con retraso:** una Sessy que sale del modo de espera puede tardar hasta 65 s en seguir su primera orden distinta de cero.
 
-El soporte de Sessy aún busca más personas para probarlo. Incluye el modelo y el firmware al informar de un comportamiento que difiera de esta página.
+Incluye el modelo y el firmware al informar de un comportamiento que difiera de esta página.
 
 ## Antes de empezar
 
