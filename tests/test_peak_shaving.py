@@ -333,3 +333,25 @@ async def test_v22_removes_the_excluded_devices_switch():
     assert entry.version == 22
     assert "capacity_protection_excluded_devices" not in entry.data
     assert removed == ["switch.old"]
+
+
+def test_planned_grid_charge_counts_excluded_load_for_peak_shaving():
+    # #949: an excluded 2000 W load with the house at 150 W is 2150 W, over the
+    # 2000 W cap, so the planned charge hands over. The switch used to leave
+    # the excluded part out (150 W: keep charging).
+    ctrl = object.__new__(ChargeDischargeController)
+    ctrl.capacity_protection_enabled = True
+    ctrl.max_contracted_power = 2000.0
+    ctrl.deadband = 0.0
+    ctrl._excluded_included_adjustment = 2000.0
+    ctrl._measured_battery_power = lambda: 0.0
+    ctrl._predictive_hard_limit_samples = 0
+
+    def confirmed():
+        return ctrl._predictive_hard_limit_confirmed(
+            sensor_filtered=2150.0, target_power=2000.0,
+            has_fresh_publication=True, sensor_within_stale_tolerance=True,
+        )
+
+    assert confirmed() is False  # first sample
+    assert confirmed() is True
