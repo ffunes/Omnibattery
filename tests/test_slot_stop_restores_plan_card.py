@@ -99,3 +99,76 @@ def test_stop_without_a_start_notice_leaves_the_plan_alone():
     calls = _run({CONF_NOTIFY_EXECUTION_ENABLED: False})
     assert calls == [("create", "PLAN")]
     assert _run({}, start=False) == [("create", "PLAN")]
+
+
+def test_restored_card_is_the_plan_not_a_later_reevaluation():
+    """Real formatters: the re-evaluation that replaced the decision mid-slot
+    (no planner, no holds) must not be what the card shows after the stop."""
+    from datetime import timedelta
+
+    from custom_components.omnibattery.pricing import (
+        DynamicPricingSchedule,
+        PriceSlot,
+        SLOT_PURPOSE_DEFICIT,
+    )
+
+    calls: list[tuple[str, str | None, str | None]] = []
+
+    async def _async_call(_domain, service, data=None, **_kw):
+        if data["notification_id"] == EVAL_ID:
+            calls.append((service, data.get("title"), data.get("message")))
+
+    hass = SimpleNamespace(services=SimpleNamespace(async_call=_async_call), data={})
+    load_categories(hass, {})
+    manager = PricingManager(hass, None)
+    now = manager._now()
+    start = now.replace(minute=0, second=0, microsecond=0)
+    slot = PriceSlot(start, start + timedelta(hours=1), 0.08)
+    hold = PriceSlot(start + timedelta(hours=10), start + timedelta(hours=11), 0.25)
+    schedule = DynamicPricingSchedule(
+        hours_needed=1.0,
+        selected_slots=[slot],
+        average_price=0.08,
+        estimated_cost=0.01,
+        total_available_slots=1,
+        evaluation_time=now,
+        energy_deficit_kwh=0.1,
+        charging_needed=True,
+        slot_purposes={slot: SLOT_PURPOSE_DEFICIT},
+    )
+    plan = {
+        "planner": "optimizer",
+        "should_charge": True,
+        "energy_deficit_kwh": 0.1,
+        "planned_grid_charge_kwh": 0.1,
+        "avg_soc": 60.0,
+        "usable_energy_kwh": 5.0,
+    }
+    controller = SimpleNamespace(
+        max_price_threshold=None,
+        discharge_price_threshold=None,
+        _dp_arbitrage_ceiling=None,
+        max_contracted_power=2500,
+        max_charge_capacity=2500,
+        capacity_protection_enabled=False,
+        _dynamic_pricing_schedule=schedule,
+        _dp_plan_holds=[hold],
+        _last_decision_data=plan,
+        coordinators=[],
+    )
+    manager._controller = controller
+    manager._get_price_unit = lambda: "EUR/kWh"
+
+    async def scenario():
+        await manager._send_dynamic_pricing_notification(decision_data=plan, schedule=schedule)
+        # The pre-slot / spent-decision refresh replaces the decision.
+        controller._last_decision_data = {"should_charge": False, "energy_deficit_kwh": 0.0}
+        await manager._send_dynamic_pricing_slot_start_notification(slot)
+        await manager._stop_dynamic_price_slot("soc_target_reached", write_idle=False)
+
+    asyncio.run(scenario())
+    creates = [(t, m) for s, t, m in calls if s == "create"]
+    assert len(creates) == 3
+    assert creates[1][0] != creates[0][0]  # the start notice took the card
+    assert creates[2] == creates[0]
+    assert calls[-1][0] == "create"

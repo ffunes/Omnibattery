@@ -321,6 +321,7 @@ class PricingManager:
         self._last_dp_notification_key: tuple | None = None
         # The slot-start notice took the plan's card (#955).
         self._slot_start_shown = False
+        self._last_dp_plan_args: tuple | None = None
         self._future_price_slots_cache_base: tuple[Any, ...] | None = None
         self._future_price_slots_cache: dict[Any, tuple[PriceSlot, ...]] = {}
         # Why the last sensor parse failed. Only the import caller promotes it
@@ -6183,6 +6184,9 @@ class PricingManager:
     ) -> None:
         """Send persistent notification for dynamic pricing evaluation."""
         controller = self._controller
+        # Kept for #955: re-evaluations overwrite _last_decision_data with
+        # dicts the plan formatter cannot read (no planner, no holds).
+        self._last_dp_plan_args = (decision_data, schedule)
         orders = {
             "holds": getattr(controller, "_dp_plan_holds", None),
             "exports": getattr(controller, "_dp_plan_exports", None),
@@ -6233,6 +6237,7 @@ class PricingManager:
             title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
         ):
             self._last_dp_notification_key = key
+            self._slot_start_shown = False
 
     async def _async_create_predictive_notification(
         self, title: str, message: str, notification_id: str, category: str
@@ -7963,12 +7968,14 @@ class PricingManager:
                 self._hass, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
             )
             self._last_dp_notification_key = None
-            decision = getattr(controller, "_last_decision_data", None)
-            if decision:
-                await self._send_dynamic_pricing_notification(
-                    decision_data=decision,
-                    schedule=getattr(controller, "_dynamic_pricing_schedule", None),
-                )
+            if self._last_dp_plan_args is not None:
+                decision, schedule = self._last_dp_plan_args
+                try:
+                    await self._send_dynamic_pricing_notification(
+                        decision_data=decision, schedule=schedule
+                    )
+                except Exception:  # noqa: BLE001 - a notice must not stop the control
+                    _LOGGER.debug("Restoring the plan notification failed", exc_info=True)
 
     def _mark_surplus_hold_stale(self, reason: str) -> None:
         """Ask the surplus-absorption plan to rebuild on the next control cycle."""
