@@ -62,6 +62,10 @@ MAX_ASKS = 24
 # lost up to 0.23 c).
 PENDING_MAX_ASKS = 12
 TIE_EUR = 1e-6  # an equal plan that does not charge now wins (charge late)
+# The same for a charge against a hold. Wider: over the sweep's sample that gap
+# runs unbroken from 1e-7 to 1e-4 (the lattice's interpolation), and real
+# money starts at 1e-4 (a 0.05 kWh quota step at 0.002 EUR/kWh).
+HOLD_TIE_EUR = 1e-5
 # Each grid charge start pays this (decides, never reported): with 15-minute
 # prices a plan split its charge over price differences of tenths of a cent.
 # ponytail: per plan, not per fleet (at 5 kW it joins half the price gap per
@@ -578,9 +582,12 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             # by the lattice's noise alone and the charge moved at each re-plan.
             # Not while a weekly charge is pending: it pays no starts, and a
             # top-up put off in a dear run costs the house when the sun fails.
-            waits = chosen is not None and (
-                chosen[1] is None or (chosen[1] == HOLD and not layer))
-            if chosen is None or v < chosen[0] - (TIE_EUR if waits else 0.0):
+            tie = 0.0
+            if chosen is not None and chosen[1] is None:
+                tie = TIE_EUR
+            elif chosen is not None and chosen[1] == HOLD and not layer:
+                tie = HOLD_TIE_EUR if stored[0] > _TOL else TIE_EUR
+            if chosen is None or v < chosen[0] - tie:
                 chosen = row
         (_v, option, e_end, c, stored, open_, path, hit, top, charging, start, held,
          hold_start, adds, paid_after) = chosen

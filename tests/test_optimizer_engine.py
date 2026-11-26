@@ -566,17 +566,17 @@ def test_a_charge_inside_a_long_hold_stays_put_at_the_re_plan():
     a hold run takes the hold's start, so every quarter of it costs the same;
     with no rule for the tie the charge sat at 15:15 in the 00:05 plan and at
     13:45 an hour later (2.48 and 3.64 kWh booked, the sun of those quarters
-    counted in). A hold wins the tie: the charge ends the run, in both."""
+    counted in). A hold wins the tie: the charge waits for the last hour at
+    that price, 23:00, in both."""
     from datetime import datetime
 
     from tests import test_predictive_sweep as sw
 
     case = ("1x10k-800", 60, "flat1.2", "falling-night", True, "sunny", "00:05")
     assert sw.evaluate_stability(case) == []
-    plan = sw.base_run(case, False).plan
-    day = [a.slot for a in plan.allocations if a.slot.start < datetime(2026, 11, 10, 18)]
-    assert day and day[-1].end == datetime(2026, 11, 10, 18)
-    assert day[0].start >= datetime(2026, 11, 10, 17)
+    charged = [a.slot for a in sw.base_run(case, False).plan.allocations]
+    assert charged and charged[0].start >= datetime(2026, 11, 10, 23)
+    assert charged[-1].end == datetime(2026, 11, 11)
 
 
 def test_a_plan_without_charge_keeps_its_projection_for_the_soc_drop_trigger(monkeypatch):
