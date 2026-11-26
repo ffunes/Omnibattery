@@ -10504,6 +10504,11 @@ class ChargeDischargeController:
             # A charge that waits for an autonomous battery to rest has not
             # started: the command is still normal control's.
             if self.grid_charging_active and not self._grid_charge_waiting:
+                # The hour's balance keeps measuring: what the charge buys is
+                # deliberate, not something to export afterwards (#958).
+                balance = getattr(self, "_hourly_balance_mgr", None)
+                if balance is not None:
+                    await balance.async_process(grid_charge=True)
                 ChargeDischargeController._release_grid_import_cap(self)
                 return
 

@@ -56,6 +56,10 @@ class HourlyBalanceManager:
         self._hour_started_local: datetime | None = None
         self._imp_wh: float = 0.0
         self._exp_wh: float = 0.0
+        # Net import (Wh, export negative) of this hour that the plan made on
+        # purpose: a grid charge, a sale, room made for the sun. The hour's
+        # target moves by it, or the balance undoes the purchase (#958).
+        self._deliberate_wh: float = 0.0
         self._last_grid_w: float | None = None
         self._last_sample_monotonic: float | None = None
         self._last_offset_w: float = 0.0
@@ -96,6 +100,7 @@ class HourlyBalanceManager:
                             and saved_hour.hour == now_local.hour):
                         self._imp_wh = stored.get("imp_wh", 0.0)
                         self._exp_wh = stored.get("exp_wh", 0.0)
+                        self._deliberate_wh = stored.get("deliberate_wh", 0.0)
                         self._last_offset_w = stored.get("last_offset_w", 0.0)
                         self._current_hour = now_local.hour
                         self._hour_started_local = now_local.replace(
@@ -268,10 +273,14 @@ class HourlyBalanceManager:
     # Main processing loop (called every PD cycle)
     # ------------------------------------------------------------------
 
-    async def async_process(self) -> None:
+    async def async_process(self, grid_charge: bool = False) -> None:
         """Process one cycle. Reads grid power directly so it can run before
         the PD's deadband / stale-sensor early-returns gate the rest of the
-        control loop."""
+        control loop.
+
+        ``grid_charge``: a predictive grid charge owns the batteries this
+        cycle. The hour is still measured (and the import counted as
+        deliberate), but the offset is left alone: the charge ignores it."""
         # Feature disabled via runtime switch — clear offset and idle
         if not self._controller.hourly_balance_enabled:
             self.clear_offset()
@@ -355,10 +364,13 @@ class HourlyBalanceManager:
             self._hour_started_local = now_local.replace(minute=0, second=0, microsecond=0)
             self._imp_wh = 0.0
             self._exp_wh = 0.0
+            self._deliberate_wh = 0.0
             self._last_sample_monotonic = None
             self._last_grid_w = None
             self._last_offset_w = 0.0
             self._ext_snapshot = None  # snapshot modes take a fresh reference at hour start
+
+        net_before_wh = self._imp_wh - self._exp_wh
 
         # Integrate Wh — two paths depending on integration source.
         if _use_ext_energy:
@@ -399,8 +411,14 @@ class HourlyBalanceManager:
             self._last_sample_monotonic = now_mono
             self._last_grid_w = grid_w
 
+        if grid_charge or self._deliberate_override_active():
+            self._deliberate_wh += (self._imp_wh - self._exp_wh) - net_before_wh
+        if grid_charge:
+            self._push_sensors()
+            return
+
         # Calculate offset
-        target_net_wh = self._target_net_wh()
+        target_net_wh = self._target_net_wh() + self._deliberate_wh
         net_wh = self._imp_wh - self._exp_wh
         elapsed_min = (now_local - self._hour_started_local).total_seconds() / 60.0
         remaining_min = max(0.0, 60.0 - elapsed_min)
@@ -475,6 +493,7 @@ class HourlyBalanceManager:
             "hour_iso": self._hour_started_local.isoformat() if self._hour_started_local else None,
             "imp_wh": self._imp_wh,
             "exp_wh": self._exp_wh,
+            "deliberate_wh": self._deliberate_wh,
             "last_offset_w": self._last_offset_w,
         }
         await self._store.async_save(data)
@@ -487,6 +506,13 @@ class HourlyBalanceManager:
         return float(self._config_entry.data.get(
             CONF_HOURLY_BALANCE_TARGET_NET_WH, DEFAULT_HOURLY_BALANCE_TARGET_NET_WH
         )) * 1000.0
+
+    def _deliberate_override_active(self) -> bool:
+        """A sale or a pre-discharge for the sun exports on purpose."""
+        # ponytail: names match control/high_price_discharge.OVERRIDE_SOURCE and
+        # the pricing engine's curtailment override; imported, they would cycle.
+        overrides = getattr(self._controller, "_setpoint_overrides", None) or {}
+        return "high_price_discharge" in overrides or "curtailment_predischarge" in overrides
 
     def _is_in_active_slot(self) -> bool:
         """Return True if we should apply hourly balance right now.
@@ -562,6 +588,7 @@ class HourlyBalanceManager:
             "net_kwh": round((self._exp_wh - self._imp_wh) / 1000, 3),
             "imp_wh": round(self._imp_wh, 1),
             "exp_wh": round(self._exp_wh, 1),
+            "deliberate_wh": round(self._deliberate_wh, 1),
             "elapsed_min": round(elapsed_min, 1),
             "remaining_min": round(remaining_min, 1),
             "target_net_wh": self._target_net_wh(),

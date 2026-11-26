@@ -9,6 +9,7 @@
 ### Fixed
 
 - **The plan notification comes back when a price slot stops** (#955): the *Predictive Charging: STARTED* notice no longer stays up after the slot reached its target or was cancelled. Thanks to @ssorgatem.
+- **Net Balance no longer undoes a planned grid charge** (#958): what the plan buys from the grid (or sells, or exports to make room for the sun) counts towards the hour's target, so the balance stops exporting it back for the rest of the hour. New `deliberate_wh` attribute on the Net Balance sensor. Thanks to @ssorgatem.
 
 ## [2.0.0b2] - 2026-11-25
 
