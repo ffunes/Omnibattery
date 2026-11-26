@@ -51,7 +51,9 @@ def _setup(ext_mode=None):
         get_charge_blockers=lambda: {},
         coordinators=[],
         _setpoint_overrides={},
+        held=False,
     )
+    controller.discharge_held_for_later = lambda: controller.held
     entry = SimpleNamespace(data={}, entry_id="e")
     async def _save(_data):
         return None
@@ -187,3 +189,58 @@ def _control_cycle(waiting: bool):
 def test_the_control_cycle_measures_the_hour_during_a_grid_charge():
     assert _control_cycle(waiting=False) == [True]
     assert _control_cycle(waiting=True) == [False]
+
+
+def test_house_load_bought_during_a_plan_hold_is_not_exported_back():
+    mgr, clock, grid, offsets, controller = _setup()
+    _first_cycle(mgr, clock)
+    controller.held = True
+    _run(mgr, clock, grid, 20, 900.0)
+    controller.held = False
+    _run(mgr, clock, grid, 2, 0.0)
+    assert mgr._deliberate_wh > 250
+    assert abs(offsets["hourly_balance"]) < 20
+
+
+def test_sun_exported_during_a_hold_is_still_owed():
+    mgr, clock, grid, offsets, controller = _setup()
+    _first_cycle(mgr, clock)
+    controller.held = True
+    _run(mgr, clock, grid, 13, -1000.0)
+    assert mgr._deliberate_wh == 0.0
+    assert offsets["hourly_balance"] > 250  # 216 Wh owed over 47 min
+
+
+def test_a_hold_does_not_feed_the_balance_its_own_import():
+    """Early export, then a hold: the import the balance asks for is not
+    deliberate, so its target does not climb with it."""
+    mgr, clock, grid, offsets, controller = _setup()
+    _first_cycle(mgr, clock)
+    _run(mgr, clock, grid, 10, -1000.0)
+    controller.held = True
+
+    async def follow():
+        for _ in range(80):  # 40 min: the grid does what the balance asks
+            clock.t += timedelta(seconds=30)
+            grid["w"] = offsets.get("hourly_balance", 0.0)
+            await mgr.async_process()
+
+    with patch.object(hb.dt_util, "now", clock.now), patch.object(hb, "monotonic", clock.mono):
+        asyncio.run(follow())
+    assert mgr._deliberate_wh == 0.0
+    assert abs(mgr._imp_wh - mgr._exp_wh) < 60
+    assert offsets["hourly_balance"] < 300  # a runaway would sit at the 1000 W cap
+
+
+def test_only_plan_holds_count_as_held_for_later():
+    from custom_components.omnibattery import ChargeDischargeController
+
+    ctrl = object.__new__(ChargeDischargeController)
+    ctrl._global_discharge_blockers = {"time_slot_discharge": {}}  # a user window
+    ctrl._battery_discharge_blockers = {"b1": {"price_discharge": {}}}
+    assert ctrl.discharge_held_for_later() is False
+    ctrl._battery_discharge_blockers["b1"]["price_reserve"] = {}
+    assert ctrl.discharge_held_for_later() is True
+    ctrl._battery_discharge_blockers = {}
+    ctrl._global_discharge_blockers = {"weekly_refill_hold": {}}
+    assert ctrl.discharge_held_for_later() is True

@@ -4005,6 +4005,15 @@ class ChargeDischargeController:
         merged.update(self._battery_charge_blockers.get(coordinator, {}))
         return self._serialize_blockers(merged)
 
+    def discharge_held_for_later(self) -> bool:
+        """A plan hold keeps stored energy for later: the house buys now."""
+        if _DAILY_OPERATION_HOLD_SOURCES & set(self._global_discharge_blockers):
+            return True
+        return any(
+            _DAILY_OPERATION_HOLD_SOURCES & set(blocks)
+            for blocks in self._battery_discharge_blockers.values()
+        )
+
     def get_discharge_blockers(self, coordinator=None) -> dict:
         """Return discharge blockers for the requested scope."""
         if coordinator is None:

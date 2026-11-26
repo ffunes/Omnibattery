@@ -57,7 +57,8 @@ class HourlyBalanceManager:
         self._imp_wh: float = 0.0
         self._exp_wh: float = 0.0
         # Net import (Wh, export negative) of this hour that the plan made on
-        # purpose: a grid charge, a sale, room made for the sun. The hour's
+        # purpose: a grid charge, a sale, room made for the sun, the house's
+        # load bought during a plan hold. The hour's
         # target moves by it, or the balance undoes the purchase (#958).
         self._deliberate_wh: float = 0.0
         self._last_grid_w: float | None = None
@@ -411,8 +412,14 @@ class HourlyBalanceManager:
             self._last_sample_monotonic = now_mono
             self._last_grid_w = grid_w
 
+        delta_wh = (self._imp_wh - self._exp_wh) - net_before_wh
         if grid_charge or self._deliberate_override_active():
-            self._deliberate_wh += (self._imp_wh - self._exp_wh) - net_before_wh
+            self._deliberate_wh += delta_wh
+        elif delta_wh > 0 and self._last_offset_w <= 0 and self._held_for_later():
+            # A plan hold buys the house's load on purpose. Import only (sun
+            # it exports is still owed), and never while the balance itself
+            # asks for import: that would raise its own target without end.
+            self._deliberate_wh += delta_wh
         if grid_charge:
             await self._save_throttled()
             self._push_sensors()
@@ -509,6 +516,10 @@ class HourlyBalanceManager:
         return float(self._config_entry.data.get(
             CONF_HOURLY_BALANCE_TARGET_NET_WH, DEFAULT_HOURLY_BALANCE_TARGET_NET_WH
         )) * 1000.0
+
+    def _held_for_later(self) -> bool:
+        held = getattr(self._controller, "discharge_held_for_later", None)
+        return bool(held()) if callable(held) else False
 
     def _deliberate_override_active(self) -> bool:
         """A sale or a pre-discharge for the sun exports on purpose."""
