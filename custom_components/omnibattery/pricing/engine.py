@@ -319,6 +319,8 @@ class PricingManager:
         self._hass = hass
         self._controller = controller
         self._last_dp_notification_key: tuple | None = None
+        # The slot-start notice took the plan's card (#955).
+        self._slot_start_shown = False
         self._future_price_slots_cache_base: tuple[Any, ...] | None = None
         self._future_price_slots_cache: dict[Any, tuple[PriceSlot, ...]] = {}
         # Why the last sensor parse failed. Only the import caller promotes it
@@ -6393,7 +6395,7 @@ class PricingManager:
             now=self._now(),
             lang=language(self._hass),
         )
-        await self._async_create_predictive_notification(
+        self._slot_start_shown = await self._async_create_predictive_notification(
             title, message, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation", category
         )
 
@@ -7952,6 +7954,21 @@ class PricingManager:
                     continue
                 await controller._set_battery_power(coordinator, 0, 0)
         _LOGGER.info("Dynamic pricing: stopped active slot (%s)", reason)
+        if self._slot_start_shown:
+            # #955: the start notice took the plan's card; give it back, or
+            # "STARTED" stays up through the hold that follows. Dismissed
+            # first, so a muted plan category leaves no card behind.
+            self._slot_start_shown = False
+            await async_dismiss(
+                self._hass, f"{NOTIFICATION_ID_PREFIX}predictive_charging_evaluation"
+            )
+            self._last_dp_notification_key = None
+            decision = getattr(controller, "_last_decision_data", None)
+            if decision:
+                await self._send_dynamic_pricing_notification(
+                    decision_data=decision,
+                    schedule=getattr(controller, "_dynamic_pricing_schedule", None),
+                )
 
     def _mark_surplus_hold_stale(self, reason: str) -> None:
         """Ask the surplus-absorption plan to rebuild on the next control cycle."""

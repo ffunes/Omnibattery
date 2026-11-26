@@ -29,6 +29,7 @@
 - **Zendure status LEDs stay on**: the firmware turned them off after a while with **Status LEDs** still on; Omnibattery now re-asserts them every 20 minutes.
 - **Anker: the app's backup reserve is a discharge floor** (#939): Omnibattery stops discharging there instead of excluding the battery as not delivering. New **Backup Power SOC** diagnostic sensor. Thanks to @Rene-63.
 - **No false "not delivering" Repair after a short write glitch** (#945): a battery that is idle or waiting its turn no longer gets the Repair 30 minutes after a brief connection error once its writes go through again. Thanks to @Misterzeh.
+- **The plan notification comes back when a price slot stops** (#955): the *Predictive Charging: STARTED* notice no longer stays up after the slot reached its target or was cancelled. Thanks to @ssorgatem.
 
 ## [2.0.0b1] - 2026-11-23
 
