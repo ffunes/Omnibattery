@@ -289,6 +289,10 @@ class ChronologicalEvaluationRequest:
     charging_now: bool = False
     # The plan holds the battery at ``now``: going on is no new hold start.
     holding_now: bool = False
+    # That hold began from normal and no charge has followed (the last plan's
+    # ``paid_holds`` has the slot at ``now``): its start is paid, so the run's
+    # first charge pays none on top of it (#958).
+    hold_start_unused: bool = False
 
     def __post_init__(self) -> None:
         if self.horizon_end <= self.now:

@@ -187,7 +187,7 @@ def scenario(case, *, at: datetime, socs, pending: bool) -> h.Scenario:
 
 
 def run(sc: h.Scenario, *, old: bool = False, daily: bool = False, charging: bool = False,
-        holding: bool = False):
+        holding: bool = False, unused: bool = False):
     """One evaluation: outcome, decision data, plan and the controller. ``old``
     forces the previous allocator for a pending weekly day; ``charging`` /
     ``holding``: a price slot is charging / the plan holds at the evaluation
@@ -200,6 +200,9 @@ def run(sc: h.Scenario, *, old: bool = False, daily: bool = False, charging: boo
         box["c"] = controller(s)
         box["c"]._current_price_slot_active = box["c"].grid_charging_active = charging
         box["c"]._plan_hold_status = {"held_batteries": ["battery_1"] if holding else []}
+        # The slot at now among the last plan's paid holds (#958).
+        box["c"]._dp_plan_paid_holds = (
+            (SimpleNamespace(start=sc.now, end=sc.now + timedelta(minutes=1)),) if unused else ())
         if daily:
             box["c"].config_entry.data["solar_forecast_remaining_sensor"] = "sensor.sweep"
         return box["c"]
@@ -417,6 +420,7 @@ def simulate(case, factor, *, old=False, weekly=True):
     # while a charge or a hold runs tells the engine.
     starts, charging = 0, False
     hold_starts, holding = 0, False
+    unused = False  # a paid hold start no charge used yet (#958): its charge refunds it
 
     def evaluate(at, daily):
         now_socs = list(socs)
@@ -427,10 +431,11 @@ def simulate(case, factor, *, old=False, weekly=True):
         # up to the first re-plan) and, once the weekly charge is over,
         # between the arms.
         key = (old and pending, pending, at, tuple(round(x, 9) for x in now_socs), daily, charging,
-               holding)
+               holding, unused)
         if key not in _EVALS:
             sc = scenario(case, at=at, socs=now_socs, pending=pending)
-            _EVALS[key] = run(sc, old=old, daily=daily, charging=charging, holding=holding)
+            _EVALS[key] = run(sc, old=old, daily=daily, charging=charging, holding=holding,
+                              unused=unused)
         return _EVALS[key]
 
     first = evaluate(t0, t0.hour == 0 and t0.minute == 5)
@@ -482,9 +487,12 @@ def simulate(case, factor, *, old=False, weekly=True):
             q = dataclasses.replace(q, discharge_kwh=0.0)
         e, c, grid, peak, open_ = _step(model, q, (b - a).total_seconds() / 3600, e, target,
                                         pending, socs)
-        starts += grid > 1e-9 and not charging and not pending
+        new_start = grid > 1e-9 and not charging and not pending
+        starts += new_start
         plan_held = held and not pending
-        hold_starts += plan_held and not holding and not charging and not grid > 1e-9
+        hold_start = plan_held and not holding and not charging and not grid > 1e-9
+        hold_starts += hold_start - (new_start and unused)
+        unused = hold_start or (unused and plan_held and not grid > 1e-9)
         holding = plan_held
         charging = grid > 1e-9 and open_
         if a < WINDOW_END:

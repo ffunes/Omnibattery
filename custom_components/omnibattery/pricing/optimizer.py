@@ -464,33 +464,49 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     # START_COST_EUR; a hold from neither that stores nothing HOLD_START_EUR:
     # after a charge the charge start already paid for the change);
     # pending_values[k] the same while a weekly charge is still to complete
-    # (no start cost there).
+    # (no start cost there). values_paid: holding on a hold start no charge
+    # has followed yet; the first charge pays its start and refunds the hold's:
+    # a run of holds and charges pays one start, so "hold, then charge" costs
+    # what "charge, then hold" does and an equal-price run charges late (#958).
     values_on = [-end_value * levels]
     values_off = [values_on[0]]
     values_hold = [values_on[0]]
+    values_paid = [values_on[0]]
     pending_values = [values_on[0]]
     for k in reversed(range(len(groups))):
         slot, quarters, slot_ends = groups[k]
         nxt_on, nxt_off, nxt_hold = values_on[-1], values_off[-1], values_hold[-1]
+        nxt_paid = values_paid[-1]
         nxt_pending = pending_values[-1]
-        best_on = best_off = best_hold = None
+        best_on = best_off = best_hold = best_paid = None
         for option, (e1, _c, decide, stored, _te, _p, _pk, on, _a) in run_menu(
                 slot, done_quarters[k], levels, slot_ends):
             after = np.interp(e1, levels, nxt_off)
+            after_paid = after
             hold = 0.0
             if _holds(option):
                 held = ~on  # a charge that never reached its target never held
+                pure = held & (stored <= _TOL)
                 after = np.where(held, np.interp(e1, levels, nxt_hold), after)
-                hold = HOLD_START_EUR * (held & (stored <= _TOL))
-            v = decide + np.where(on, np.interp(e1, levels, nxt_on), after)
+                # A hold that stores nothing, from normal or on a paid start:
+                # the start stays unused.
+                after_paid = np.where(pure, np.interp(e1, levels, nxt_paid), after)
+                hold = HOLD_START_EUR * pure
+            on_value = np.interp(e1, levels, nxt_on)
+            v = decide + np.where(on, on_value, after)
+            v_paid_on = decide + np.where(on, on_value, after_paid)
             charge = START_COST_EUR * (stored > _TOL)
-            v_on, v_off, v_hold = v, v + charge + hold, v + charge
+            first_charge = (START_COST_EUR - HOLD_START_EUR) * (stored > _TOL)
+            v_on, v_off, v_hold = v, v_paid_on + charge + hold, v + charge
+            v_paid_on = v_paid_on + first_charge  # its start, less the hold's
             best_on = v_on if best_on is None else np.minimum(best_on, v_on)
             best_off = v_off if best_off is None else np.minimum(best_off, v_off)
             best_hold = v_hold if best_hold is None else np.minimum(best_hold, v_hold)
+            best_paid = v_paid_on if best_paid is None else np.minimum(best_paid, v_paid_on)
         values_on.append(best_on)
         values_off.append(best_off)
         values_hold.append(best_hold)
+        values_paid.append(best_paid)
         best = best_off
         if pending0 and k <= last_k:
             best_pending = None
@@ -505,6 +521,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     values_on.reverse()
     values_off.reverse()
     values_hold.reverse()
+    values_paid.reverse()
     pending_values.reverse()
 
     # Forward pass from the exact energy.
@@ -513,6 +530,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     allocations: list[SlotAllocation] = []
     holds: list = []
     weekly_holds: list = []
+    paid_holds: list = []  # held on a hold start no charge has used yet (#958)
     exports: list = []
     sales: list = []
     rooms: list = []
@@ -526,6 +544,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     full_at = None  # when the plan touches the top of a pending weekly charge
     charging = bool(request.charging_now)  # a slot charging at now goes on: no start
     holding = bool(request.holding_now)  # likewise a hold
+    paid = holding and bool(request.hold_start_unused)  # a hold start no charge used yet
     starts = hold_starts = 0
     for k, (slot, quarters, ends) in enumerate(groups):
         layer = pending and k <= last_k
@@ -533,7 +552,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         run_quarters = quarters if layer else done_quarters[k]
         for option, (e1, c, decide, stored, open_, path, peaks, on, adds) in run_menu(
                 slot, run_quarters, [e], ends, layer):
-            start = held = hold_start = False
+            start = held = hold_start = paid_next = False
             if layer:
                 after, hit = onward(k, ends, e1, path, peaks, on, values_on[k + 1],
                                     values_off[k + 1], pending_values[k + 1])
@@ -541,22 +560,32 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             else:
                 start = bool(stored[0] > _TOL) and not charging
                 held = _holds(option) and not on[0]
-                hold_start = bool(held and not holding and not charging and stored[0] <= _TOL)
-                nxt = values_on[k + 1] if on[0] else (values_hold if held else values_off)[k + 1]
+                pure = held and stored[0] <= _TOL
+                hold_start = bool(pure and not holding and not charging)
+                paid_next = bool(pure and (hold_start or paid))
+                nxt = values_on[k + 1] if on[0] else (
+                    values_paid if paid_next else values_hold if held else values_off)[k + 1]
                 v, hit = float(decide[0] + START_COST_EUR * start
+                               - HOLD_START_EUR * (start and paid)
                                + HOLD_START_EUR * hold_start
                                + np.interp(e1[0], levels, nxt)), False
             row = (v, option, float(e1[0]), float(c[0]), float(stored[0]),
                    bool(open_[0]), [float(x[0]) for x in path], hit,
                    [float(x[0]) for x in peaks], bool(on[0]), start, held, hold_start,
-                   [float(x[0]) for x in adds])
-            if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] is None else 0.0):
+                   [float(x[0]) for x in adds], paid_next)
+            # A hold wins a tie like normal does: inside a hold run the first
+            # charge is free of its start, so charging now or later differed
+            # by the lattice's noise alone and the charge moved at each re-plan.
+            if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] in (None, HOLD) else 0.0):
                 chosen = row
         (_v, option, e_end, c, stored, open_, path, hit, top, charging, start, held,
-         hold_start, adds) = chosen
+         hold_start, adds, paid_after) = chosen
+        refunds, paid = paid, paid_after
         starts += start
-        hold_starts += hold_start
+        hold_starts += hold_start - (start and refunds)
         holding = held
+        if paid:
+            paid_holds.append(slot)
         if layer and hit:
             full_at = next(end for end, x in zip(ends, top)
                            if end <= deadline and x >= cap - _FULL_TOL)
@@ -660,6 +689,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     plan.charge_starts = starts
     plan.hold_starts = hold_starts
     plan.weekly_holds = tuple(weekly_holds)
+    plan.paid_holds = frozenset(paid_holds)
     plan.weekly_full_at = full_at
     # The plan decided Smart Pre-Discharge (with export prices, design §2.6 A).
     plan.room_allowed = request.room_threshold is not None and bool(request.export_prices)

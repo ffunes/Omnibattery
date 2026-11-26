@@ -517,6 +517,68 @@ def test_a_re_plan_while_the_plan_holds_tells_the_optimizer(monkeypatch, status,
     assert outcome.request.holding_now is expected
 
 
+@pytest.mark.parametrize("paid", [True, False, None])
+def test_the_paid_hold_start_comes_from_the_last_plan_and_cannot_be_re_armed(monkeypatch, paid):
+    """#958: the first charge of a hold run takes the hold's start, once. Every
+    evaluation drops the plan's holds first, so a control cycle in that gap
+    sees the hold end and begin again; whether its start is still unused is
+    read from the plan that ordered it, which no cycle changes. None: after a
+    restart there is no such plan, and the charge pays its own start."""
+    from types import SimpleNamespace
+
+    from custom_components.omnibattery import ChargeDischargeController
+    from tests import test_predictive_scenarios as h
+
+    scenario = h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json")
+    held = next(s for s in scenario.slots if s.start <= scenario.now < s.end)
+    monkeypatch.setattr(ChargeDischargeController, "_is_battery_manual_owned",
+                        staticmethod(lambda _c: False))
+    real_controller = h._controller
+    box = {}
+
+    def controller(s):
+        c = box["c"] = real_controller(s)
+        c._pricing_mgr = SimpleNamespace(_now=lambda: s.now)
+        c._discharge_reserve_mgr = SimpleNamespace(
+            mark_stale=lambda _reason: None, dynamic_pricing_active=lambda: True,
+            _release_guard=lambda: None)
+        c.set_discharge_block = c.remove_discharge_block = lambda *a, **k: None
+        if paid is not None:
+            c._dp_plan_paid_holds = frozenset({held} if paid else ())
+        # The plan holds, an evaluation drops its holds, the next plan holds
+        # again: three control cycles.
+        for holds in (frozenset({held}), None, frozenset({held})):
+            c._dp_plan_holds = holds
+            ChargeDischargeController._refresh_price_reserve_blocks(c)
+        return c
+
+    monkeypatch.setattr(h, "_controller", controller)
+    outcome = h._run_engine(scenario, monkeypatch)
+    assert outcome.planner == "optimizer"
+    assert outcome.request.holding_now is True
+    assert outcome.request.hold_start_unused is bool(paid)
+    # The new plan's own, for the evaluation after this one.
+    assert box["c"]._dp_plan_paid_holds == outcome.plan.paid_holds
+
+
+def test_a_charge_inside_a_long_hold_stays_put_at_the_re_plan():
+    """#958: a day at one price held from 05:00 to 18:00. The first charge of
+    a hold run takes the hold's start, so every quarter of it costs the same;
+    with no rule for the tie the charge sat at 15:15 in the 00:05 plan and at
+    13:45 an hour later (2.48 and 3.64 kWh booked, the sun of those quarters
+    counted in). A hold wins the tie: the charge ends the run, in both."""
+    from datetime import datetime
+
+    from tests import test_predictive_sweep as sw
+
+    case = ("1x10k-800", 60, "flat1.2", "falling-night", True, "sunny", "00:05")
+    assert sw.evaluate_stability(case) == []
+    plan = sw.base_run(case, False).plan
+    day = [a.slot for a in plan.allocations if a.slot.start < datetime(2026, 11, 10, 18)]
+    assert day and day[-1].end == datetime(2026, 11, 10, 18)
+    assert day[0].start >= datetime(2026, 11, 10, 17)
+
+
 def test_a_plan_without_charge_keeps_its_projection_for_the_soc_drop_trigger(monkeypatch):
     """Without a charge slot there is no schedule; the SOC-drop re-evaluation
     then fell back to a 30-point drop. The optimizer's trajectory is kept."""

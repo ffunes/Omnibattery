@@ -150,13 +150,18 @@ def scenario(case, *, scale=1.0, soc=None, now=None) -> h.Scenario:
     )
 
 
-def run(sc: h.Scenario, *, daily=False):
+def run(sc: h.Scenario, *, daily=False, holding=False, paid_holds=()):
     """One evaluation: the outcome, the decision data and the full plan."""
     box = {}
     controller = h._controller
 
     def capture(s):
         box["c"] = controller(s)
+        # Held at the evaluation, and the hold slots of the plan before it
+        # that ride on a hold start no charge has used (#958), as the engine
+        # leaves them on the controller.
+        box["c"]._plan_hold_status = {"held_batteries": ["battery_1"] if holding else []}
+        box["c"]._dp_plan_paid_holds = frozenset(paid_holds)
         if daily:
             # The scheduled 00:05 run reads the configured remaining-today
             # sensor; without it production takes the legacy path.
@@ -319,7 +324,9 @@ def evaluate_stability(case, *, daily=False) -> list[tuple[str, str]]:
     later += timedelta(minutes=(-later.minute) % 15)
     if any(x.slot.start < later for x in a.plan.allocations):
         return []  # a charge before the re-evaluation: transition not modelled
-    b = run(scenario(case, soc=projected_soc(sc, a, later), now=later.strftime("%H:%M")))
+    held = any(s.start <= later < s.end for s in getattr(a.plan, "holds", ()) or ())
+    b = run(scenario(case, soc=projected_soc(sc, a, later), now=later.strftime("%H:%M")),
+            holding=held, paid_holds=getattr(a.plan, "paid_holds", ()))
     rest = sum(x.planned_battery_kwh for x in a.plan.allocations if x.slot.start >= later)
     again = b.plan.allocated_kwh
     if abs(again - rest) > max(0.3, 0.15 * rest):

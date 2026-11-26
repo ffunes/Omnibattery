@@ -3977,6 +3977,13 @@ class PricingManager:
             if decision_data.get("planner") == "optimizer"
             else None
         )
+        # The hold slots that ride on a hold start no charge has used (#958),
+        # for the next evaluation: _clear_plan_orders leaves them alone.
+        self._controller._dp_plan_paid_holds = (
+            frozenset(getattr(plan, "paid_holds", None) or ())
+            if decision_data.get("planner") == "optimizer"
+            else frozenset()
+        )
         self._controller._dp_plan_saving = (
             getattr(plan, "plan_saving", None)
             if decision_data.get("planner") == "optimizer"
@@ -4929,6 +4936,13 @@ class PricingManager:
                     holding_now=bool(
                         (getattr(self._controller, "_plan_hold_status", None) or {})
                         .get("held_batteries")
+                    ),
+                    # Read from the last plan, not from a flag a control
+                    # cycle could set again once a charge has used the start;
+                    # after a restart there is none and the charge pays its own.
+                    hold_start_unused=any(
+                        s.start <= now < s.end
+                        for s in getattr(self._controller, "_dp_plan_paid_holds", None) or ()
                     ),
                 )
             )

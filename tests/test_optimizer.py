@@ -146,13 +146,10 @@ def test_cheap_hours_at_one_price_stop_less(monkeypatch, prices, soc, usable):
     ([0.13, 0.12, 0.11, 0.10], 2),
 ])
 @pytest.mark.parametrize(("soc", "usable"), [(10.0, 0.3), (40.0, 2.7)])
-def test_cheap_hours_charge_in_one_block_when_the_plan_holds(monkeypatch, prices, expected,
-                                                             soc, usable):
+def test_cheap_hours_charge_in_one_block_when_the_plan_holds(prices, expected, soc, usable):
     # #899 as the engine asks for it in Dynamic Pricing (hold allowed): the
     # block charges on, fills and holds, so a part hour ends it.
     import dataclasses
-
-    from custom_components.omnibattery.pricing import optimizer
 
     request = dataclasses.replace(
         _request(prices + [0.40] * 4, house=[0.05] * 16 + [0.5] * 16, slot_quarters=4,
@@ -164,10 +161,6 @@ def test_cheap_hours_charge_in_one_block_when_the_plan_holds(monkeypatch, prices
     assert _replay(request, plan, held=set(plan.holds), starts=starts) == pytest.approx(
         plan.optimizer_cost, abs=1e-4)
     assert plan.charge_starts == starts[0] == expected
-    if len(set(prices)) == 1 and soc == 40.0:
-        # The start cost is what joins it.
-        monkeypatch.setattr(optimizer, "START_COST_EUR", 0.0)
-        assert optimize_charge(request).plan.charge_starts == 3
 
 
 def test_the_last_charge_of_a_run_keeps_its_quota(monkeypatch):
@@ -1389,3 +1382,74 @@ def test_the_plan_never_costs_more_than_no_plan(prices):
     plan = optimize_charge(_with_hold(_request(prices, house=0.25))).plan
     assert plan.plan_saving >= -0.02
 
+
+
+def _tied_run(last=0.116, *, quarters, usable, holding=False):
+    """#958: four hours at one price, a dear hour, then a cheap night."""
+    import dataclasses
+
+    hours = [0.116] * 3 + [last] + [0.20] + [0.079] * 6
+    prices = hours if quarters == 4 else [p for p in hours for _ in range(4)]
+    request = _with_hold(_request(prices, house=0.25, usable=usable, slot_quarters=quarters))
+    return dataclasses.replace(request, holding_now=holding)
+
+
+@pytest.mark.parametrize("quarters", [4, 1])
+@pytest.mark.parametrize("holding", [False, True])
+def test_an_equal_price_run_charges_at_its_end(quarters, holding):
+    # Hold-then-charge pays one start, as charge-then-hold does: the charge
+    # goes to the end of the run, and a nudge in the need does not move it.
+    run_end = T0 + 4 * timedelta(hours=1)
+    for usable in (0.2, 0.21, 0.5, 0.51):
+        plan = optimize_charge(_tied_run(quarters=quarters, usable=usable, holding=holding)).plan
+        assert plan.allocations
+        assert plan.allocations[-1].slot.end == run_end
+        assert all(a.slot.start >= run_end - timedelta(hours=1) for a in plan.allocations)
+
+
+@pytest.mark.parametrize("quarters", [4, 1])
+def test_a_slightly_cheaper_last_hour_of_a_run_gets_the_charge(quarters):
+    # Real money: from normal operation the hold start's waiver after a charge
+    # made the 0.116 first hour win over the 0.114 last one.
+    plan = optimize_charge(_tied_run(0.114, quarters=quarters, usable=0.2)).plan
+    assert {a.slot.price for a in plan.allocations} == {0.114}
+
+
+@pytest.mark.parametrize("usable", [0.5, 0.6])
+def test_a_re_plan_inside_an_unused_hold_keeps_its_charge(usable):
+    # #958: a top-up worth under a cent rides on the hold's paid start. A
+    # re-plan an hour into that hold must see the start as still paid, or the
+    # charge it announced is withdrawn.
+    import dataclasses
+
+    hours = [0.116] * 4 + [0.14] + [0.079] * 6
+
+    def request(start_h, energy, **flags):
+        r = _with_hold(_request(hours[start_h:], house=0.25, usable=energy, slot_quarters=4))
+        return dataclasses.replace(r, **flags)
+
+    first = optimize_charge(request(0, usable)).plan
+    booked = sum(a.planned_battery_kwh for a in first.allocations)
+    assert booked > 0 and first.holds
+    later = T0 + timedelta(hours=1)
+    energy = usable
+    for end, value in first.trajectory:
+        if end > later:
+            break
+        energy = value
+    again = optimize_charge(request(1, energy, holding_now=True, hold_start_unused=True)).plan
+    assert sum(a.planned_battery_kwh for a in again.allocations) == pytest.approx(booked, abs=0.05)
+    # A hold after a charge has no paid start left: the top-up pays its own.
+    spent = optimize_charge(request(1, energy, holding_now=True)).plan
+    assert not spent.allocations
+
+
+def test_the_plan_names_the_holds_whose_paid_start_no_charge_used():
+    # #958: the next evaluation reads these to know whether the hold it finds
+    # still has its start to give to a charge. Holds before the charge do;
+    # a hold after it does not.
+    plan = optimize_charge(_tied_run(quarters=4, usable=0.2)).plan
+    charge = plan.allocations[0].slot
+    before = {s for s in plan.holds if s.end <= charge.start}
+    assert before and before <= plan.paid_holds
+    assert not any(s.start >= charge.start for s in plan.paid_holds)
