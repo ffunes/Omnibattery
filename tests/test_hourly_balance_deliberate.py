@@ -12,6 +12,8 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from custom_components.omnibattery.const import PREDICTIVE_MODE_DYNAMIC_PRICING
+from custom_components.omnibattery.control.high_price_discharge import OVERRIDE_SOURCE as SALE
 from custom_components.omnibattery.tracking import hourly_balance as hb
 from custom_components.omnibattery.tracking.hourly_balance import HourlyBalanceManager
 
@@ -112,7 +114,7 @@ def test_external_energy_sensor_path():
 def test_a_sale_is_not_bought_back():
     mgr, clock, grid, offsets, controller = _setup()
     _first_cycle(mgr, clock)
-    controller._setpoint_overrides = {"high_price_discharge": (7, -2000.0)}
+    controller._setpoint_overrides = {SALE: (7, -2000.0)}
     _run(mgr, clock, grid, 13, -2000.0)
     controller._setpoint_overrides = {}
     _run(mgr, clock, grid, 2, 0.0)
@@ -127,3 +129,61 @@ def test_deliberate_energy_resets_with_the_hour():
     clock.t = T0 + timedelta(hours=1)
     _run(mgr, clock, grid, 1, 0.0)
     assert mgr._deliberate_wh == 0.0
+
+
+def test_the_purchase_survives_a_restart_mid_hour():
+    mgr, clock, grid, _offsets, _ = _setup()
+    saved = {}
+
+    async def _save(data):
+        saved.update(data)
+
+    async def _load():
+        return dict(saved)
+
+    mgr._store = SimpleNamespace(async_save=_save, async_load=_load)
+    _first_cycle(mgr, clock)
+    _run(mgr, clock, grid, 13, 2400.0, grid_charge=True)  # saves during the charge
+    assert saved["deliberate_wh"] > 0
+
+    again, _c, _g, _o, _ = _setup()
+    again._store = mgr._store
+
+    async def _no_detect():
+        return None
+
+    again._detect_external_sensor = _no_detect
+    with patch.object(hb.dt_util, "now", clock.now):
+        asyncio.run(again.async_setup())
+    assert again._deliberate_wh == saved["deliberate_wh"]
+
+
+def _control_cycle(waiting: bool):
+    """One real control cycle with a dynamic-pricing grid charge active."""
+    from datetime import timezone
+
+    from tests.test_control_sample_scheduling import _main_controller, _state
+
+    calls = []
+
+    class _Balance:
+        async def async_process(self, grid_charge=False):
+            calls.append(grid_charge)
+
+    async def _slot():
+        controller.grid_charging_active = True
+        controller._grid_charge_waiting = waiting  # set by the charge, per cycle
+
+    first = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    controller = _main_controller({"state": _state(6000, first)}, [])
+    controller.predictive_charging_enabled = True
+    controller.predictive_charging_mode = PREDICTIVE_MODE_DYNAMIC_PRICING
+    controller._handle_dynamic_pricing_predictive_charging = _slot
+    controller._hourly_balance_mgr = _Balance()
+    asyncio.run(controller._run_control_cycle(now=first + timedelta(seconds=1)))
+    return calls
+
+
+def test_the_control_cycle_measures_the_hour_during_a_grid_charge():
+    assert _control_cycle(waiting=False) == [True]
+    assert _control_cycle(waiting=True) == [False]

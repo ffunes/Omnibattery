@@ -10508,7 +10508,10 @@ class ChargeDischargeController:
                 # deliberate, not something to export afterwards (#958).
                 balance = getattr(self, "_hourly_balance_mgr", None)
                 if balance is not None:
-                    await balance.async_process(grid_charge=True)
+                    try:
+                        await balance.async_process(grid_charge=True)
+                    except Exception:  # noqa: BLE001 - the charge must keep its cycle
+                        _LOGGER.debug("Hourly balance failed during a grid charge", exc_info=True)
                 ChargeDischargeController._release_grid_import_cap(self)
                 return
 

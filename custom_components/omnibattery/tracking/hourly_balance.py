@@ -414,6 +414,7 @@ class HourlyBalanceManager:
         if grid_charge or self._deliberate_override_active():
             self._deliberate_wh += (self._imp_wh - self._exp_wh) - net_before_wh
         if grid_charge:
+            await self._save_throttled()
             self._push_sensors()
             return
 
@@ -475,14 +476,16 @@ class HourlyBalanceManager:
         self._controller.set_setpoint_offset("hourly_balance", offset_w)
         self._last_offset_w = offset_w
 
+        await self._save_throttled()
+        self._push_sensors()
+
+    async def _save_throttled(self) -> None:
         # Throttled save (~5 min). Time-based, not a cycle count: the control loop
         # is event-driven (variable cadence) so a count would drift the interval.
         now_mono = monotonic()
         if now_mono - self._last_save_monotonic >= 300:
             self._last_save_monotonic = now_mono
             await self._save()
-
-        self._push_sensors()
 
     # ------------------------------------------------------------------
     # Persistence
