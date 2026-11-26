@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **No more recorder warning for Consumption Profile Capture** (#956): the sensor now uses the `total` state class, since its value can drop when better-covered data replaces energy captured earlier. Thanks to @cmseasy.
+
 ## [2.0.0b2] - 2026-11-25
 
 ### Added

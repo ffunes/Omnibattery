@@ -2607,13 +2607,16 @@ class ConsumptionProfileCaptureSensor(SensorEntity):
     """Live raw energy captured for the current profile day.
 
     The value is a daily accumulated total and resets at the next local day.
+    It is the sum of interval bins, and a bin is replaced when better-covered
+    data (e.g. the Recorder backfill) arrives, so it can also drop during the
+    day: the state class is TOTAL, not TOTAL_INCREASING.
     """
 
     _attr_has_entity_name = True
     _attr_translation_key = "consumption_profile_capture"
     _attr_unique_id = f"{SYSTEM_UNIQUE_ID_PREFIX}consumption_profile_capture"
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.TOTAL
     _attr_native_unit_of_measurement = "kWh"
     _attr_suggested_display_precision = 3
     _attr_icon = "mdi:chart-timeline-variant-shimmer"
