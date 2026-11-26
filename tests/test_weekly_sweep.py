@@ -255,28 +255,31 @@ def policy_of(r) -> Policy:
     )
 
 
-def _split(stored: float, socs) -> list[float]:
-    """Battery SOCs holding ``stored`` kWh, moved by the same SOC points.
+def _spread(socs, kwh: float, top: float) -> list[float]:
+    """Battery SOCs after the fleet stores ``kwh`` (negative: delivers it).
 
-    The batteries have one capacity, so the SOCs add up: their clipped sum is
-    piecewise linear in the shift, solved between its breakpoints. Each stops
-    at MIN_SOC, as the controller stops it (clipped at 0 %, an empty uneven
-    fleet left one battery at 0 % and the other above its floor: energy the
-    next plan counted and the battery did not have, #888)."""
-    def at(delta):
-        return [min(100.0, max(MIN_SOC, s + delta)) for s in socs]
-
-    want = stored / 5.12 * 100.0
-    points = sorted({MIN_SOC - s for s in socs} | {100.0 - s for s in socs})
-    delta = points[-1]
-    if want <= sum(at(points[0])):
-        delta = points[0]
-    for a, b in zip(points, points[1:]):
-        low, high = sum(at(a)), sum(at(b))
-        if low <= want <= high:
-            delta = a + (want - low) / (high - low) * (b - a) if high > low else b
+    The batteries have one capacity and one power: each that can take it
+    (below ``top``) or give it (above MIN_SOC) moves the same SOC points, and
+    one that fills or empties leaves its share to the rest. The spread between
+    them is what the day made of it: an empty fleet meets at MIN_SOC and
+    charges together from there. (Rebuilt each time from the first SOCs'
+    offsets, the higher battery hit its ceiling with the fleet at 6.1 kWh
+    instead of 7.5, and a charge planned at the fleet's power fell short.)"""
+    socs = list(socs)
+    points = kwh / 5.12 * 100.0
+    while abs(points) > 1e-9:
+        if points > 0:
+            live = [i for i, x in enumerate(socs) if x < top - 1e-9]
+        else:
+            live = [i for i, x in enumerate(socs) if x > MIN_SOC + 1e-9]
+        if not live:
             break
-    return at(delta)
+        share = points / len(live)
+        for i in live:
+            step = min(share, top - socs[i]) if points > 0 else max(share, MIN_SOC - socs[i])
+            socs[i] += step
+            points -= step
+    return socs
 
 
 def _world_quarters(case, factor, start, end):
@@ -305,33 +308,33 @@ SUBSTEPS = 15  # one-minute slices: a battery reaching its taper or 100 % change
 TAIL_PCT = 5.0  # WEEKLY_CHARGE_TAIL_PCT, at WEEKLY_CHARGE_TAIL_POWER_RATIO = 0.5
 
 
-def _power_w(case, e, pending) -> float:
-    """The fleet's charge power at stored energy ``e``, from each battery's
-    SOC: the controller splits a slot's charge by what each battery charges in
-    time (``_shares_within_window``), so each charges at its own power, half
-    of it in its last 5 % (the BMS taper) while the weekly charge runs, and
-    none once at its ceiling (100 %, max_soc after the run). Equal batteries
-    charge the same SOC points (``_split``)."""
+def _power_w(socs, pending) -> float:
+    """The fleet's charge power from each battery's SOC: the controller
+    splits a slot's charge by what each battery charges in time
+    (``_shares_within_window``), so each charges at its own power, half of it
+    in its last 5 % (the BMS taper) while the weekly charge runs, and none
+    once at its ceiling (100 %, max_soc after the run)."""
     top = 100.0 if pending else MAX_SOC
     total = 0.0
-    for soc in _split(_fleet(case)[1] + e, socs0(case)):
+    for soc in socs:
         if soc < top - 1e-6:
             total += POWER_W * (0.5 if pending and soc >= 100.0 - TAIL_PCT else 1.0)
     return min(CONTRACTED_W, total)
 
 
-def _step(case, model, q, hours, e, target, pending):
+def _step(model, q, hours, e, target, pending, socs):
     """(energy after, cost, kWh stored from the grid, highest energy, still
     charging at its end) of one quarter, in SUBSTEPS slices with the power
     re-read each slice. A slot charge stops once its target is reached (the
-    controller completes it)."""
+    controller completes it). ``socs``: the batteries' SOCs, moved in place."""
     k = SUBSTEPS
+    top = 100.0 if pending else MAX_SOC
     cost = grid = 0.0
     peak = e
     for _ in range(k):
         sub = dataclasses.replace(
             q, house_kwh=q.house_kwh / k, solar_kwh=q.solar_kwh / k,
-            charge_kwh=_power_w(case, e, pending) / 1000 * hours / k,
+            charge_kwh=_power_w(socs, pending) / 1000 * hours / k,
             discharge_kwh=q.discharge_kwh / k, ceiling_kwh=q.ceiling_kwh / k,
         )
         t = target if target is not None and e < target - FULL_TOL else None
@@ -342,6 +345,7 @@ def _step(case, model, q, hours, e, target, pending):
             if e + add >= target - FULL_TOL:
                 target = None  # complete: normal behaviour for the rest
         e1, c = model.normal_step(sub, e, t)
+        socs[:] = _spread(socs, float(e1) - e, top)
         e, cost = float(e1), cost + float(c)
         peak = max(peak, e)
     return e, cost, grid, peak, target is not None and peak < model.cap - FULL_TOL
@@ -366,9 +370,10 @@ def _model(case, pending):
 def fits(case, factor) -> bool:
     """W1's "it fits": charging at full power in every quarter from now."""
     model = _model(case, True)
-    e = sum(5.12 * s / 100 for s in socs0(case)) - _fleet(case)[1]
+    socs = socs0(case)
+    e = sum(5.12 * s / 100 for s in socs) - _fleet(case)[1]
     for a, b, _s, q in _world_quarters(case, factor, start_of(case), WINDOW_END):
-        e, _c, _g, peak, _o = _step(case, model, q, (b - a).total_seconds() / 3600, e, model.cap, True)
+        e, _c, _g, peak, _o = _step(model, q, (b - a).total_seconds() / 3600, e, model.cap, True, socs)
         if peak >= model.cap - FULL_TOL:
             return True
     return False
@@ -377,9 +382,10 @@ def fits(case, factor) -> bool:
 def sun_fills(case) -> bool:
     """The forecast sun alone (no grid charge) fills the gap before the window ends."""
     model = _model(case, True)
-    e = sum(5.12 * s / 100 for s in socs0(case)) - _fleet(case)[1]
+    socs = socs0(case)
+    e = sum(5.12 * s / 100 for s in socs) - _fleet(case)[1]
     for a, b, _s, q in _world_quarters(case, 1.0, start_of(case), WINDOW_END):
-        e, _c, _g, peak, _o = _step(case, model, q, (b - a).total_seconds() / 3600, e, None, True)
+        e, _c, _g, peak, _o = _step(model, q, (b - a).total_seconds() / 3600, e, None, True, socs)
         if peak >= model.cap - FULL_TOL:
             return True
     return False
@@ -413,7 +419,7 @@ def simulate(case, factor, *, old=False, weekly=True):
     hold_starts, holding = 0, False
 
     def evaluate(at, daily):
-        now_socs = _split(floor + e, socs)
+        now_socs = list(socs)
         # The 00:05 run with a zero forecast defers to the retry ladder, whose
         # evaluation is a REMAINING one.
         daily = daily and SOLAR[case[4]] > 0
@@ -474,8 +480,8 @@ def simulate(case, factor, *, old=False, weekly=True):
                 weekly_held = q.import_price < max(s.price for s in later) / RTE
         if held or weekly_held:
             q = dataclasses.replace(q, discharge_kwh=0.0)
-        e, c, grid, peak, open_ = _step(case, model, q, (b - a).total_seconds() / 3600, e, target,
-                                        pending)
+        e, c, grid, peak, open_ = _step(model, q, (b - a).total_seconds() / 3600, e, target,
+                                        pending, socs)
         starts += grid > 1e-9 and not charging and not pending
         plan_held = held and not pending
         hold_starts += plan_held and not holding and not charging and not grid > 1e-9
@@ -575,7 +581,8 @@ def _stability(case, a) -> list[tuple[str, str]]:
     soc = sw.projected_soc(sc, a, later)
     # The fleet SOC spread as the arbiter spreads it: equal SOCs on an uneven
     # fleet change each battery's charge curve, not the plan (#888).
-    socs = _split(_fleet(case)[0] * soc / 100, socs0(case))
+    first = socs0(case)
+    socs = _spread(first, _fleet(case)[0] * soc / 100 - sum(5.12 * x / 100 for x in first), 100.0)
     b = run(scenario(case, at=later, socs=socs, pending=True))
     rest = sum(x.planned_battery_kwh for x in a.plan.allocations if x.slot.start >= later)
     again = b.plan.allocated_kwh
