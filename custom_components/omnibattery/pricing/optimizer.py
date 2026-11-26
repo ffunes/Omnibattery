@@ -576,7 +576,11 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
             # A hold wins a tie like normal does: inside a hold run the first
             # charge is free of its start, so charging now or later differed
             # by the lattice's noise alone and the charge moved at each re-plan.
-            if chosen is None or v < chosen[0] - (TIE_EUR if chosen[1] in (None, HOLD) else 0.0):
+            # Not while a weekly charge is pending: it pays no starts, and a
+            # top-up put off in a dear run costs the house when the sun fails.
+            waits = chosen is not None and (
+                chosen[1] is None or (chosen[1] == HOLD and not layer))
+            if chosen is None or v < chosen[0] - (TIE_EUR if waits else 0.0):
                 chosen = row
         (_v, option, e_end, c, stored, open_, path, hit, top, charging, start, held,
          hold_start, adds, paid_after) = chosen
