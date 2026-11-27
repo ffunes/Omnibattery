@@ -280,6 +280,20 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         return options + asks + holding + room
 
     floor = min(max(0.0, float(request.floor_kwh or 0.0)), cap)
+    # With a charge ceiling the floor is worth its rebuy, not any price (#957):
+    # a kWh short at the sun costs at least the ceiling's stored kWh (plus the
+    # margin a charge pays), so the plan discharges under the floor only in
+    # hours dearer than that and still buys it back at or under the ceiling.
+    # Without a ceiling the rebuy has no bound: FLOOR_PENALTY_EUR per quarter.
+    rebuy = floor_k = None
+    if floor > 0 and request.floor_until is not None and request.max_price_threshold is not None:
+        # ponytail: + a start per kWh so a slot at the ceiling itself still
+        # books (a tie lost to START_COST_EUR); a short < 1 kWh may still lose.
+        rebuy = (max(0.0, float(request.max_price_threshold)) + margin) / model.eff + START_COST_EUR
+        # ponytail: the floor ends after the last slot that ends by the sun (an
+        # hourly slot straddling it is outside); per quarter if a case needs it.
+        floor_k = max((k for k, (_s, _q, ends) in enumerate(groups)
+                       if ends[-1] <= request.floor_until), default=None)
     export_saving = max(0.0, float(request.export_choice_min_saving or 0.0))
     sell_prices = dict(request.battery_export_prices or request.export_prices or {})
 
@@ -377,7 +391,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                      - np.maximum(-grid, 0.0) * (room_prices if room else sell_prices)[slot_start])
                 cost += c
                 decide += c if room else c + margin * out
-                if floor > 0 and request.floor_until is not None and end <= request.floor_until:
+                if rebuy is None and floor > 0 and request.floor_until is not None and end <= request.floor_until:
                     decide += FLOOR_PENALTY_EUR * np.maximum(floor - e, 0.0)
                 ends.append(e)
                 peaks.append(e)
@@ -405,7 +419,7 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
                 decide += delay.weight(end) * kept * delayed  # stored early costs a hair more (D9)
             cost += c
             decide += c
-            if floor > 0 and request.floor_until is not None and end <= request.floor_until:
+            if rebuy is None and floor > 0 and request.floor_until is not None and end <= request.floor_until:
                 decide += FLOOR_PENALTY_EUR * np.maximum(floor - e, 0.0)
             ends.append(e)
             peaks.append(np.maximum(top, e))
@@ -477,8 +491,19 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
     values_hold = [values_on[0]]
     values_paid = [values_on[0]]
     pending_values = [values_on[0]]
+
+    def rebought(values):
+        """Under the floor a kWh costs the larger of its own value and its
+        rebuy at the floor's end, never both (#957)."""
+        at_floor = np.interp(floor, levels, values)
+        return np.where(levels < floor,
+                        np.maximum(values, at_floor + rebuy * (floor - levels)), values)
+
     for k in reversed(range(len(groups))):
         slot, quarters, slot_ends = groups[k]
+        if k == floor_k:
+            for values in (values_on, values_off, values_hold, values_paid, pending_values):
+                values[-1] = rebought(values[-1])
         nxt_on, nxt_off, nxt_hold = values_on[-1], values_off[-1], values_hold[-1]
         nxt_paid = values_paid[-1]
         nxt_pending = pending_values[-1]

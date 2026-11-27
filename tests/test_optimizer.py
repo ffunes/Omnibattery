@@ -406,6 +406,85 @@ def _replay_hold(request, plan):
     return _replay(request, plan, held=set(plan.holds))
 
 
+def test_957_under_an_unreachable_floor_dear_hours_still_discharge():
+    # #957: 4 Venus (20.5 kWh) at 54.5 %, guaranteed floor 60 % (10 % cutoff),
+    # charge ceiling 0.195, hourly prices from 12:00 all above it: the floor
+    # can't be bought back. Holding at 0.30 makes the house import at 0.30 to
+    # keep energy that would cost at most 0.195 / 0.85 = 0.23 to rebuy.
+    cap = 20.5
+    prices = [0.299, 0.307, 0.261, 0.204] + [0.20] * 8
+    request = _with_hold(_with_floor(_request(
+        prices, slot_quarters=4, house=0.125, cap=cap, soc=54.5,
+        usable=cap * 0.445, room=cap * 0.9, power=10.0, discharge=10.0,
+        threshold=0.195), cap * 0.50, 48))
+    plan = optimize_charge(request).plan
+    assert not plan.allocations  # nothing under the ceiling
+    held = {s.price for s in plan.holds}
+    assert not held & {0.299, 0.307, 0.261}, held
+    assert 0.204 in held  # 0.204 x 0.92 < 0.195 / 0.92: worth less than its rebuy
+    assert _replay_hold(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+def _floor_957(prices, until_quarter, soc=54.5, **kw):
+    cap = 20.5
+    return _with_hold(_with_floor(_request(
+        prices, slot_quarters=4, house=0.125, cap=cap, soc=soc,
+        usable=cap * (soc - 10.0) / 100, room=cap * 0.9, power=10.0, discharge=10.0,
+        threshold=0.195, **kw), cap * 0.50, until_quarter))
+
+
+def test_957_the_floor_ending_inside_the_prices_costs_its_rebuy_not_more():
+    # Tomorrow's prices published (12:00 to 12:00), all above the ceiling, the
+    # sun at 08:00: a kWh short then costs the larger of its rebuy and what it
+    # saves after the sun, not both.
+    prices = [0.299, 0.307, 0.261, 0.204] + [0.22] * 16 + [0.25] * 4
+    request = _floor_957(prices, 80)
+    plan = optimize_charge(request).plan
+    held = {s.price for s in plan.holds}
+    assert not held & {0.299, 0.307, 0.261}, held
+    assert _replay_hold(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+@pytest.mark.parametrize("price", [0.15, 0.195])
+def test_957_under_the_floor_a_slot_at_or_under_the_ceiling_buys_it_back(price):
+    prices = [0.25] * 4 + [price] + [0.25] * 3
+    request = _floor_957(prices, 32)
+    plan = optimize_charge(request).plan
+    assert [a.slot.price for a in plan.allocations] == [price]
+    energy = dict(plan.trajectory)
+    assert energy[T0 + 20 * Q] >= request.floor_kwh - 0.21
+    assert _replay_hold(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
+
+
+def test_957_the_floor_never_spends_what_the_plain_plan_keeps():
+    # A 0.60 hour after the sun: without the floor the plan keeps the battery
+    # through the 0.30 night for it; the floor must not discharge there.
+    import dataclasses
+    prices = [0.30] * 8 + [0.60] * 4
+    request = _floor_957(prices, 32, soc=20.0)
+    plain = optimize_charge(dataclasses.replace(request, floor_kwh=0.0, floor_until=None)).plan
+    plan = optimize_charge(request).plan
+    kept = {s for s in plain.holds if s.end <= T0 + 32 * Q}
+    assert kept and kept <= set(plan.holds)
+
+
+def test_957_2_0td_night_charge_to_the_floor_is_not_eaten_in_valle():
+    # The maintainer's case: 2.0TD, no charge ceiling, floor 60 % until the
+    # sun (08:00). Valle charges to the floor once; the battery must not
+    # spend it in valle and buy it again.
+    prices = [0.08] * 8 + [0.13] * 2 + [0.20] * 4 + [0.13] * 4 + [0.20] * 4 + [0.13] * 2
+    request = _with_hold(_with_floor(_request(
+        prices, slot_quarters=4, house=0.075, cap=10.0, soc=20.0, usable=1.0,
+        room=9.0, power=2.5, discharge=2.5), 5.0, 32))
+    plan = optimize_charge(request).plan
+    starts = []
+    _replay(request, plan, held=set(plan.holds), starts=starts)
+    assert starts[0] == 1
+    energy = [e for t, e in plan.trajectory if t <= T0 + 32 * Q]
+    reached = next(i for i, e in enumerate(energy) if e >= 5.0 - 0.11)
+    assert min(energy[reached:]) >= 5.0 - 0.11, energy
+
+
 def _with_hold(request):
     import dataclasses
     return dataclasses.replace(request, hold_allowed=True)

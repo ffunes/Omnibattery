@@ -21,6 +21,7 @@
 - **Daily energy sensors no longer step back after a Home Assistant restart** (#956): the daily totals are saved when Home Assistant stops, not only every 5 minutes. **Consumption Profile Capture** no longer has a state class; its old statistics can be deleted in Developer Tools → Statistics. Thanks to @cmseasy.
 - **A night charge for the morning before the sun is no longer dropped an hour before it starts**: the check an hour before each Dynamic Pricing slot weighed the whole day's sun and cancelled the charge the plan booked for dear hours before sunrise (the plan re-booked it some minutes late). It now leaves the plan's charges alone, and the *charging still needed* notice before the slot is no longer sent with the plan, which already lists its charges.
 - **The Daily operation chart no longer goes stale while the plan holds the battery** (#958, PR#964): a time-zone mismatch in the paid-hold check raised a TypeError, leaving the chart without a projection and raising the *planner fallback* repair. Thanks to @anorakophobia.
+- **Guaranteed Minimum SOC no longer holds the battery through dear hours it can't buy back** (#957): with a manual charge price ceiling, the plan discharges under the floor in hours dearer than buying that energy back at the ceiling, and holds in the cheaper ones. Without a ceiling it holds as before. Thanks to @trolli-ch.
 
 ## [2.0.0b2] - 2026-11-25
 
