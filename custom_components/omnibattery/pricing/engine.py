@@ -6483,7 +6483,20 @@ class PricingManager:
 
         decision = None
         deficit_needed = False
-        if has_deficit and bool(
+        optimizer_plan = (
+            (getattr(self._controller, "_last_decision_data", None) or {}).get("planner")
+            == "optimizer"
+        )
+        if has_deficit and optimizer_plan:
+            # The optimizer booked this charge against its own quarters; the
+            # scalar balance below counts the whole day's sun and dropped a
+            # night charge meant for the dear morning before it. A battery off
+            # the plan's line re-plans through the SOC trigger instead. No
+            # notification: no balance is taken, and the plan already listed it.
+            deficit_needed = bool(
+                getattr(schedule, "deficit_charging_needed", schedule.charging_needed)
+            )
+        elif has_deficit and bool(
             getattr(schedule, "deficit_charging_needed", schedule.charging_needed)
         ):
             # Same horizon the schedule was last planned on (#710), or its slots

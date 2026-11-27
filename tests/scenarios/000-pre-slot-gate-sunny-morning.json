@@ -1,0 +1,50 @@
+{
+  "source": {
+    "issue": 0,
+    "kind": "synthetic",
+    "reporter": "-",
+    "date": "2026-11-27",
+    "url": "-"
+  },
+  "note": [
+    "A cheap night, a dear morning before the sun and a sunny day: the plan charges at the end of the night for 06:00-09:00.",
+    "The day's sun covers the day's house, so the old scalar balance sees no deficit; the pre-slot gate used to drop this charge an hour before it (test_pre_slot_gate_keeps_the_optimizer_charge)."
+  ],
+  "level": "engine",
+  "now": "2026-11-10T23:00:00",
+  "time_zone": "Europe/Amsterdam",
+  "sun": {"sunrise": "07:49", "solar_noon": "12:22"},
+  "prices": {
+    "slot_minutes": 60,
+    "blocks": [
+      {"start": "2026-11-10T00:00:00", "end": "2026-11-11T00:00:00", "price": 0.30},
+      {"start": "2026-11-11T00:00:00", "end": "2026-11-11T06:00:00", "price": 0.10},
+      {"start": "2026-11-11T06:00:00", "end": "2026-11-11T12:00:00", "price": 0.40},
+      {"start": "2026-11-11T12:00:00", "end": "2026-11-12T00:00:00", "price": 0.30}
+    ]
+  },
+  "consumption": {"profile_kw": [{"from": "00:00", "kw": 0.5}]},
+  "solar": {
+    "remaining_kwh": 0.0,
+    "periods": [
+      {"start": "2026-11-11T09:00:00", "end": "2026-11-11T15:00:00", "kwh": 12.0}
+    ]
+  },
+  "fleet": [
+    {"capacity_kwh": 10.0, "soc": 15, "min_soc": 10, "max_soc": 100, "max_charge_w": 2500, "max_discharge_w": 2500}
+  ],
+  "settings": {
+    "max_price_threshold": null,
+    "min_arbitrage_margin": 0.0,
+    "round_trip_efficiency": 0.85,
+    "peak_shaving": null,
+    "contracted_power_w": 10000,
+    "guaranteed_floor_soc": null,
+    "safety_margin_pct": 0.0
+  },
+  "expected": {
+    "windows": [
+      {"start": "2026-11-11T00:00:00", "end": "2026-11-11T06:00:00", "min_kwh": 1.0}
+    ]
+  }
+}
