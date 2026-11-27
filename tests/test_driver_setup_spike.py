@@ -55,7 +55,7 @@ TODAY_OPTIONS = [
     {"value": "marstek", "label": "Marstek Venus"},
     {"value": "zendure", "label": "Zendure SolarFlow"},
     {"value": "esphome", "label": "Marstek via LilyGo RS485 (ESPHome)"},
-    {"value": "anker", "label": "Anker SOLIX Solarbank Max AC / 4 E5000 Pro"},
+    {"value": "anker", "label": "Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro"},
     {"value": "sessy", "label": "Sessy"},
     {"value": "indevolt", "label": "Indevolt SolidFlex / PowerFlex"},
     {"value": "hoymiles", "label": "Hoymiles MQTT"},

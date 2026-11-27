@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Anker SOLIX Solarbank Max support** (PR#952): the DC-coupled Max (with PV input) is recognised by its product code and gets its solar power sensor; it used to show up as a Max AC. Thanks to @funonwheels.
 - **Tarifa 2.0TD (Spain) price provider**: Dynamic Pricing for fixed three-period contracts with no price sensor; enter the punta, llano and valle prices and, optionally, the surplus price. Install Home Assistant's Workday integration (country Spain, no province, *Viernes Santo* removed) so national holidays count as valle.
 
 ### Changed

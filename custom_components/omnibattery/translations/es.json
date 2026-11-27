@@ -154,7 +154,7 @@
           "brand": "Marca de la batería"
         },
         "data_description": {
-          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS debe estar desactivado para el control de Omnibattery). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS debe estar desactivado para el control de Omnibattery). Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
         }
       },
       "battery_connection": {
@@ -721,7 +721,7 @@
       },
       "reconfigure_battery_anker": {
         "title": "Reconfigure battery {battery_num} — Connection (Anker)",
-        "description": "Update connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
+        "description": "Update connection details for Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro battery {battery_num}. All other settings are preserved.",
         "data": {
           "name": "Name",
           "host": "IP Address",
@@ -872,7 +872,7 @@
       },
       "battery_connection_anker": {
         "title": "Configure battery {battery_num} — Connection (Anker)",
-        "description": "Enter connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
+        "description": "Enter connection details for Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
         "data": {
           "name": "Name",
           "host": "IP Address",
@@ -1041,7 +1041,7 @@
           "brand": "Marca de la batería"
         },
         "data_description": {
-          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS debe estar desactivado para el control de Omnibattery). Anker SOLIX Solarbank Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
+          "brand": "Marstek Venus: Modbus TCP. Zendure SolarFlow: local HTTP (HEMS debe estar desactivado para el control de Omnibattery). Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro: Modbus TCP (enable Modbus TCP under Third-Party Control in the Anker app; only one Modbus client at a time). Sessy: local HTTP."
         }
       },
       "battery_connection": {
@@ -1581,7 +1581,7 @@
       },
       "battery_connection_anker": {
         "title": "Configure battery {battery_num} — Connection (Anker)",
-        "description": "Modify connection details for Anker SOLIX Solarbank Max AC / 4 E5000 Pro battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
+        "description": "Modify connection details for Anker SOLIX Solarbank Max / Max AC / 4 E5000 Pro battery {battery_num}. Enable Modbus TCP under Third-Party Control in the Anker app first. Only one Modbus client can connect at a time.",
         "data": {
           "name": "Name",
           "host": "IP Address",

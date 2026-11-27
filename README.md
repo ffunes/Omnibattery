@@ -6,7 +6,7 @@
 
 - Marstek Venus E and C (v2 and v3), Venus D and Venus A via Modbus TCP, or Venus E v2 through a LilyGo RS485 board running ESPHome
 - Zendure SolarFlow 4000 Mix Pro, 4000 Mix AC+, 3000 Mix AC+, 2400 AC+, 2400 AC Pro, 1600 AC+, 800 Pro, 800 Plus and 800 (Local API)
-- Anker SOLIX Solarbank Max AC, XE AC and Solarbank 4 E5000 Pro via Modbus TCP (thanks @wouterbouvy!)
+- Anker SOLIX Solarbank Max, Max AC, XE AC and Solarbank 4 E5000 Pro via Modbus TCP (thanks @wouterbouvy!)
 - Sessy Home Battery
 - Hoymiles MS-A2 and HiBattery MQTT models
 - Indevolt SolidFlex 1200, 2000, 3000 and 3600, and PowerFlex 1200, 2000 and 3000 (Local HTTP API)
@@ -59,7 +59,7 @@ Full documentation (configuration, features, entities, troubleshooting) is avail
 | Requirement | Details |
 |---|---|
 | Battery | One of the batteries listed at the top; check your exact model in [Is my battery compatible?](https://ffunes.github.io/Omnibattery/compatibility/) |
-| Modbus bridge | Elfin-EW11 or compatible RS485-to-TCP converter. Venus E v3, Venus A and Venus D can also be connected via Ethernet with native Modbus TCP support. Anker Solarbank Max AC and 4 E5000 Pro use native Modbus TCP (enable in the Anker app under Third-Party Control; only one Modbus client at a time). |
+| Modbus bridge | Elfin-EW11 or compatible RS485-to-TCP converter. Venus E v3, Venus A and Venus D can also be connected via Ethernet with native Modbus TCP support. Anker Solarbank Max, Max AC and 4 E5000 Pro use native Modbus TCP (enable in the Anker app under Third-Party Control; only one Modbus client at a time). |
 | Wireless connection | Required for Zendure SolarFlow 4000 Mix AC+, 3000 Mix AC+, 2400 AC+ and 2400 AC Pro |
 | Grid sensor | HA sensor measuring total grid consumption (e.g. Shelly EM3, Neurio, smart meter) |
 | Network | Battery reachable by IP from Home Assistant |
