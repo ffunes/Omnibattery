@@ -290,10 +290,11 @@ def optimize_charge(request: ChronologicalEvaluationRequest) -> ChronologicalEva
         # ponytail: + a start per kWh so a slot at the ceiling itself still
         # books (a tie lost to START_COST_EUR); a short < 1 kWh may still lose.
         rebuy = (max(0.0, float(request.max_price_threshold)) + margin) / model.eff + START_COST_EUR
-        # ponytail: the floor ends after the last slot that ends by the sun (an
-        # hourly slot straddling it is outside); per quarter if a case needs it.
-        floor_k = max((k for k, (_s, _q, ends) in enumerate(groups)
-                       if ends[-1] <= request.floor_until), default=None)
+        # ponytail: the floor ends after the slot holding the sun (an hourly
+        # slot keeps it up to an hour past it, never drops it); per quarter if
+        # a case needs it.
+        floor_k = max((k for k, (s, _q, _e) in enumerate(groups)
+                       if s.start < request.floor_until), default=None)
     export_saving = max(0.0, float(request.export_choice_min_saving or 0.0))
     sell_prices = dict(request.battery_export_prices or request.export_prices or {})
 

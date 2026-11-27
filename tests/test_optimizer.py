@@ -456,6 +456,17 @@ def test_957_under_the_floor_a_slot_at_or_under_the_ceiling_buys_it_back(price):
     assert _replay_hold(request, plan) == pytest.approx(plan.optimizer_cost, abs=1e-4)
 
 
+def test_957_a_sun_inside_the_first_slot_still_counts_the_floor():
+    # 07:24, the sun at 07:50, hourly prices: no whole slot ends by the sun,
+    # the floor still buys at 0.15 (the plain plan would not, at 0.16 later).
+    import dataclasses
+    prices = [0.15] + [0.16] * 3
+    request = _floor_957(prices, 2)
+    plain = optimize_charge(dataclasses.replace(request, floor_kwh=0.0, floor_until=None)).plan
+    assert not plain.allocations
+    assert [a.slot.price for a in optimize_charge(request).plan.allocations] == [0.15]
+
+
 def test_957_the_floor_never_spends_what_the_plain_plan_keeps():
     # A 0.60 hour after the sun: without the floor the plan keeps the battery
     # through the 0.30 night for it; the floor must not discharge there.
