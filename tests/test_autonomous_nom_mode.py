@@ -562,7 +562,11 @@ async def test_stopping_home_assistant_takes_the_batteries_to_manual_for_good():
     assert battery.driver.mode is MANUAL and battery.driver.writes == []
     assert battery.persisted == {}, "the preference is not touched"
     setup = inspect.getsource(integration._async_setup_entry)
-    assert "EVENT_HOMEASSISTANT_STOP" in setup and "async_rest_all" in setup
+    assert "EVENT_HOMEASSISTANT_STOP" in setup and "async_on_homeassistant_stop" in setup
+    on_stop = inspect.getsource(
+        integration.ChargeDischargeController.async_on_homeassistant_stop
+    )
+    assert "async_rest_all" in on_stop
 
 
 @pytest.mark.asyncio
