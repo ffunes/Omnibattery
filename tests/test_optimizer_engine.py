@@ -1358,3 +1358,42 @@ def test_the_plan_s_holds_are_published_without_any_switch(monkeypatch):
     assert holds is not None
     # Hourly slots in this file.
     assert {s.start for s in holds} == {datetime(2026, 11, 11, hour) for hour in (5, 6, 7)}
+
+
+def test_the_paid_hold_start_check_takes_an_aware_now(monkeypatch):
+    """The paid hold slots are kept from the control plan, in naive local time;
+    the Daily Operation projection and the diagnostics refresh run with
+    Home Assistant's aware now. The check whether the slot at now is a paid
+    hold compares them in now's frame instead of raising TypeError (which
+    turned the timeline stale and raised the planner fallback repair)."""
+    from zoneinfo import ZoneInfo
+
+    from tests import test_predictive_scenarios as h
+
+    box = {}
+    real_controller = h._controller
+    monkeypatch.setattr(h, "_controller", lambda s: box.setdefault("c", real_controller(s)))
+    scenario = h.load_scenario(h.SCENARIO_DIR / "834-midnight-reevaluation.json")
+    h._run_engine(scenario, monkeypatch)
+    controller = box["c"]
+    held = next(s for s in scenario.slots if s.start <= scenario.now < s.end)
+    assert held.start.tzinfo is None
+    controller._dp_plan_paid_holds = frozenset({held})
+
+    tz = ZoneInfo("Europe/Berlin")
+    aware_now = scenario.now.replace(tzinfo=tz)
+    aware_slots = [
+        type(s)(s.start.replace(tzinfo=tz), s.end.replace(tzinfo=tz), s.price)
+        for s in scenario.slots
+    ]
+    manager = controller._pricing_mgr
+    manager._planner_fallback_logged = False
+    projection = manager.build_extended_chronological_projection(
+        now=aware_now,
+        slots=aware_slots,
+        base_decision_data=dict(controller._last_decision_data or {}),
+        price_ceiling=None,
+        horizon_end=aware_now.replace(hour=12, minute=0) + timedelta(days=1),
+    )
+    assert projection.plan is not None
+    assert manager._planner_fallback_logged is False

@@ -11,6 +11,7 @@
 - **The plan notification comes back when a price slot stops** (#955): the *Predictive Charging: STARTED* notice no longer stays up after the slot reached its target or was cancelled. Thanks to @ssorgatem.
 - **Net Balance no longer undoes a planned grid charge** (#958): what the plan buys from the grid (or sells, or exports to make room for the sun, or the house buys while the plan holds the battery) counts towards the hour's target, so the balance stops exporting it back for the rest of the hour. New `deliberate_wh` attribute on the Net Balance sensor. Thanks to @ssorgatem.
 - **Equal-price hours charge at the end of the run** (#958): with the plan's holds on, a charge in a run of hours at one price went to its first hour and held the rest; it now goes to the last hours, and a slightly cheaper last hour is no longer passed over. On 15-minute prices the charge now ends right at the end of the run, as it already did with holds off. Thanks to @ssorgatem.
+- **The Daily operation chart no longer goes stale while the plan holds the battery** (#958 follow-up): the check whether a hold's start is already paid compared the plan's naive local times with the dashboard's time-zone-aware clock and raised a TypeError, so the chart showed no projection and the *planner fell back to the cheapest hours* repair came up although the control plan kept working.
 
 ## [2.0.0b2] - 2026-11-25
 
