@@ -248,6 +248,20 @@ _CHRONOLOGICAL_DIAGNOSTIC_KEYS = (
 )
 
 
+def _in_frame_of(value: datetime, now: datetime) -> datetime:
+    """Express a stored control-calendar time in ``now``'s frame.
+
+    The control plan runs on naive local time, the Daily Operation projection
+    and the diagnostics refresh on Home Assistant's aware now; a slot kept
+    from one plan is compared with the other's clock.
+    """
+    if now.tzinfo is None:
+        return value.replace(tzinfo=None)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=now.tzinfo)
+    return value.astimezone(now.tzinfo)
+
+
 def _periods_cover(
     periods: Sequence[SolarForecastPeriod] | None,
     start: datetime,
@@ -4941,7 +4955,7 @@ class PricingManager:
                     # cycle could set again once a charge has used the start;
                     # after a restart there is none and the charge pays its own.
                     hold_start_unused=any(
-                        s.start <= now < s.end
+                        _in_frame_of(s.start, now) <= now < _in_frame_of(s.end, now)
                         for s in getattr(self._controller, "_dp_plan_paid_holds", None) or ()
                     ),
                 )

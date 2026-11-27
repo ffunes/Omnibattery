@@ -17,6 +17,7 @@
 - **Net Balance no longer undoes a planned grid charge** (#958): what the plan buys from the grid (or sells, or exports to make room for the sun, or the house buys while the plan holds the battery) counts towards the hour's target, so the balance stops exporting it back for the rest of the hour. New `deliberate_wh` attribute on the Net Balance sensor. Thanks to @ssorgatem.
 - **Equal-price hours charge at the end of the run** (#958): with the plan's holds on, a charge in a run of hours at one price went to its first hour and held the rest; it now goes to the last hours, and a slightly cheaper last hour is no longer passed over. On 15-minute prices the charge now ends right at the end of the run, as it already did with holds off. Thanks to @ssorgatem.
 - **A night charge for the morning before the sun is no longer dropped an hour before it starts**: the check an hour before each Dynamic Pricing slot weighed the whole day's sun and cancelled the charge the plan booked for dear hours before sunrise (the plan re-booked it some minutes late). It now leaves the plan's charges alone, and the *charging still needed* notice before the slot is no longer sent with the plan, which already lists its charges.
+- **The Daily operation chart no longer goes stale while the plan holds the battery** (#958, PR#964): a time-zone mismatch in the paid-hold check raised a TypeError, leaving the chart without a projection and raising the *planner fallback* repair. Thanks to @anorakophobia.
 
 ## [2.0.0b2] - 2026-11-25
 
