@@ -18,6 +18,12 @@ if [ -z "$py" ]; then
     echo "pre-merge-commit: no .venv-test, planner sweep skipped" >&2
     exit 0
 fi
+# A sweep that already passed on this code (a full run, or this hook's sample)
+# left its fingerprint in the git dir: the same code is not swept twice.
+if "$py" tests/sweep_stamp.py; then
+    echo "pre-merge-commit: the planner sweep already passed on this code, skipped" >&2
+    exit 0
+fi
 # One case in eleven (~185 of 2016): the full grid takes ~3 minutes since the
 # optimizer; run it in full (`pytest -m sweep -n auto`) before a release.
 echo "pre-merge-commit: running a sample of the planner sweep (under a minute); git merge --no-verify skips it" >&2
