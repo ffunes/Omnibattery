@@ -50,6 +50,20 @@ def pytest_configure(config: pytest.Config) -> None:
     pytest_socket.enable_socket()
 
 
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Record a passing planner sweep: the pre-merge hook skips the same code.
+    Only a run at least as wide as the hook's sample (one case in eleven)."""
+    import os
+
+    if (exitstatus != 0 or hasattr(session.config, "workerinput")
+            or session.config.getoption("markexpr") != "sweep" or not session.testscollected
+            or int(os.environ.get("OMNI_SWEEP_SAMPLE") or 1) > 11):
+        return
+    from tests import sweep_stamp
+
+    sweep_stamp.record()
+
+
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
