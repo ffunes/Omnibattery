@@ -6,11 +6,16 @@
 
 - **Tarifa 2.0TD (Spain) price provider**: Dynamic Pricing for fixed three-period contracts with no price sensor; enter the punta, llano and valle prices and, optionally, the surplus price. Install Home Assistant's Workday integration (country Spain, no province, *Viernes Santo* removed) so national holidays count as valle.
 
+### Changed
+
+- **Predictive Charging status attributes follow the plan in Dynamic Pricing**: `decision_reason` now says what the plan buys from the grid and why (e.g. *Plan: 1.70 kWh from the grid (ok)*), and `deadline_required_kwh`, `flexible_required_kwh`, `deadline_shortfall_kwh`, `total_shortfall_kwh` and `energy_deadlines` are empty, since the plan has no deadlines. `energy_deficit_kwh` stays the energy balance; what the plan buys is `planned_grid_charge_kwh`. Automations reading those attributes must be updated.
+
 ### Fixed
 
 - **The plan notification comes back when a price slot stops** (#955): the *Predictive Charging: STARTED* notice no longer stays up after the slot reached its target or was cancelled. Thanks to @ssorgatem.
 - **Net Balance no longer undoes a planned grid charge** (#958): what the plan buys from the grid (or sells, or exports to make room for the sun, or the house buys while the plan holds the battery) counts towards the hour's target, so the balance stops exporting it back for the rest of the hour. New `deliberate_wh` attribute on the Net Balance sensor. Thanks to @ssorgatem.
 - **Equal-price hours charge at the end of the run** (#958): with the plan's holds on, a charge in a run of hours at one price went to its first hour and held the rest; it now goes to the last hours, and a slightly cheaper last hour is no longer passed over. On 15-minute prices the charge now ends right at the end of the run, as it already did with holds off. Thanks to @ssorgatem.
+- **A night charge for the morning before the sun is no longer dropped an hour before it starts**: the check an hour before each Dynamic Pricing slot weighed the whole day's sun and cancelled the charge the plan booked for dear hours before sunrise (the plan re-booked it some minutes late). It now leaves the plan's charges alone, and the *charging still needed* notice before the slot is no longer sent with the plan, which already lists its charges.
 
 ## [2.0.0b2] - 2026-11-25
 

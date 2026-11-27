@@ -896,6 +896,20 @@ class PredictiveChargingStatusSensor(BinarySensorEntity):
             shadow_source = _chronological_value("solar_shadow_selected_source")
             if shadow_source is not None:
                 attrs["solar_shadow_selected_source"] = shadow_source
+            if decision.get("planner") == "optimizer":
+                # The old balance's reason and the allocator's deadlines say
+                # what this plan does not do; the plan has no deadlines.
+                # ``energy_deficit_kwh`` stays the energy balance: what the
+                # plan buys is ``planned_grid_charge_kwh``.
+                attrs["decision_reason"] = "Plan: {:.2f} kWh from the grid ({})".format(
+                    float(decision.get("planned_grid_charge_kwh") or 0.0),
+                    _chronological_value("chronological_plan_reason"),
+                )
+                for key in (
+                    "deadline_required_kwh", "flexible_required_kwh",
+                    "deadline_shortfall_kwh", "total_shortfall_kwh", "energy_deadlines",
+                ):
+                    attrs[key] = None
 
         schedule = getattr(self.controller, "_dynamic_pricing_schedule", None)
         if schedule is not None and getattr(schedule, "chronological_planning_active", False):

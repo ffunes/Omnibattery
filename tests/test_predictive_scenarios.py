@@ -18,7 +18,9 @@ Assistant, naive local wall clock, the clock pinned to the file's ``now``.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -35,6 +37,7 @@ from custom_components.omnibattery.const import (
 )
 from custom_components.omnibattery.pricing import (
     SLOT_PURPOSE_COMBINED,
+    SLOT_PURPOSE_DEFICIT,
     SLOT_PURPOSE_NEGATIVE_PRICE,
     PriceSlot,
     calculations,
@@ -893,3 +896,56 @@ def test_more_consumption_never_drops_the_guaranteed_floor(tmp_path, monkeypatch
         assert outcome.request.floor_kwh > 0, daily_kwh
         totals.append(sum(k for _s, k in outcome.booked))
     assert all(b >= a - _EPS for a, b in zip(totals, totals[1:])), totals
+
+
+def test_pre_slot_gate_keeps_the_optimizer_charge(monkeypatch):
+    """The gate an hour before a slot decided on the old scalar balance, which
+    counts the whole day's sun: it dropped the night charge the optimizer
+    booked for the dear morning before the sun, and replaced the decision
+    (``planner`` lost, so the panel fell back to the old projection)."""
+    scenario = load_scenario(SCENARIO_DIR / "000-pre-slot-gate-sunny-morning.json")
+    built = {}
+    make = _controller
+    monkeypatch.setattr(
+        sys.modules[__name__], "_controller",
+        lambda s: built.setdefault("controller", make(s)),
+    )
+    outcome = _run_engine(scenario, monkeypatch)
+    controller = built["controller"]
+    manager = controller._pricing_mgr
+    first = min(slot for slot, _kwh in outcome.booked)
+    assert outcome.planner == "optimizer"
+
+    # An hour before the slot: the battery on the plan's line, and the
+    # remaining-today sensor now reporting the whole day's sun.
+    gate_at = first.start.replace(tzinfo=None) - timedelta(hours=1)
+    _pin_clock(monkeypatch, manager, dataclasses.replace(scenario, now=gate_at))
+    for coordinator in controller.coordinators:
+        coordinator.data["battery_soc"] = int(manager.projected_soc_now() + 1e-6)
+    sun_today = SolarForecastInput(
+        sum(period.energy_kwh for period in scenario.solar_periods),
+        "remaining_sensor",
+        periods=scenario.solar_periods,
+        original_source="remaining",
+    )
+    manager._read_remaining_solar_input = lambda **_kwargs: sun_today
+    sent = []
+
+    async def _record(slot, _decision):
+        sent.append(slot)
+
+    manager._send_dp_pre_slot_reevaluation_notification = _record
+    # The old balance really sees no deficit here; otherwise this proves nothing.
+    scalar = asyncio.run(
+        manager._evaluate_remaining_grid_charging(
+            now=gate_at, horizon_end=controller._dp_planning_end
+        )
+    )
+    assert scalar["should_charge"] is False
+
+    controller._current_price_slot_active = False  # no slot charging yet
+    asyncio.run(manager._check_dp_pre_slot_reevaluation())
+
+    assert manager._effective_slot_purpose(first) == SLOT_PURPOSE_DEFICIT
+    assert controller._last_decision_data["planner"] == "optimizer"
+    assert sent == []  # no balance was taken: nothing to announce
