@@ -202,3 +202,47 @@ def test_excluded_demand_claim_is_not_recorded():
 
     assert "excluded_demand_claim_kwh" in unrecorded
     assert "solar_available_to_battery_kwh" in unrecorded
+
+
+def test_with_the_optimizer_the_reason_is_the_plan_s_and_no_deadlines():
+    """The old balance's reason and deadlines said what the plan does not do
+    (a weekly day: "charging 3.58 kWh" while the plan bought nothing)."""
+    controller = _predictive_controller(
+        decision={
+            "planner": "optimizer",
+            "reason": "Weekly full charge: charging 3.58 kWh to reach 100% (current avg 30%)",
+            "planned_grid_charge_kwh": 0.0,
+            "energy_deficit_kwh": 3.58,
+            "chronological_plan_reason": "cheaper_to_import",
+        },
+        chronological={
+            "deadline_required_kwh": 7.842,
+            "flexible_required_kwh": 0.0,
+            "deadline_shortfall_kwh": 0.0,
+            "total_shortfall_kwh": 0.0,
+            "energy_deadlines": [{"deadline": "2026-11-10T03:15:00", "required_kwh": 0.084}],
+        },
+    )
+
+    attrs = PredictiveChargingStatusSensor(None, None, controller).extra_state_attributes
+
+    assert attrs["decision_reason"] == "Plan: 0.00 kWh from the grid (cheaper_to_import)"
+    for key in (
+        "deadline_required_kwh", "flexible_required_kwh", "deadline_shortfall_kwh",
+        "total_shortfall_kwh", "energy_deadlines",
+    ):
+        assert attrs[key] is None, key
+    assert attrs["planned_grid_charge_kwh"] == 0.0
+    assert attrs["energy_deficit_kwh"] == 3.58  # the balance, kept
+
+
+def test_without_the_optimizer_the_old_reason_and_deadlines_stay():
+    controller = _predictive_controller(
+        decision={"reason": "Energy deficit: 3.00 kWh", "chronological_plan_reason": "ok"},
+        chronological={"deadline_required_kwh": 3.0, "energy_deadlines": []},
+    )
+
+    attrs = PredictiveChargingStatusSensor(None, None, controller).extra_state_attributes
+
+    assert attrs["decision_reason"] == "Energy deficit: 3.00 kWh"
+    assert attrs["deadline_required_kwh"] == 3.0

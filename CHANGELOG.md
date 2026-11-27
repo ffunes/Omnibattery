@@ -6,6 +6,10 @@
 
 - **Tarifa 2.0TD (Spain) price provider**: Dynamic Pricing for fixed three-period contracts with no price sensor; enter the punta, llano and valle prices and, optionally, the surplus price. Install Home Assistant's Workday integration (country Spain, no province, *Viernes Santo* removed) so national holidays count as valle.
 
+### Changed
+
+- **Predictive Charging status attributes follow the plan in Dynamic Pricing**: `decision_reason` now says what the plan buys from the grid and why (e.g. *Plan: 1.70 kWh from the grid (ok)*), and `deadline_required_kwh`, `flexible_required_kwh`, `deadline_shortfall_kwh`, `total_shortfall_kwh` and `energy_deadlines` are empty, since the plan has no deadlines. `energy_deficit_kwh` stays the energy balance; what the plan buys is `planned_grid_charge_kwh`. Automations reading those attributes must be updated.
+
 ### Fixed
 
 - **The plan notification comes back when a price slot stops** (#955): the *Predictive Charging: STARTED* notice no longer stays up after the slot reached its target or was cancelled. Thanks to @ssorgatem.
