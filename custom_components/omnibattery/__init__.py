@@ -1426,6 +1426,7 @@ class ChargeDischargeController:
         # ConsumptionTracker owns its own Stores (consumption history, accumulators,
         # solar T_start). Set from async_setup_entry after the controller exists.
         self._consumption_tracker = None
+        self._accumulation_frozen = False
         self._daily_operation_timeline = None
         self.daily_operation_timeline = None
         self._daily_operation_last_runtime_at: datetime | None = None
@@ -10322,6 +10323,21 @@ class ChargeDischargeController:
             <= self._max_sensor_stale_s
         )
 
+    async def async_on_homeassistant_stop(self) -> None:
+        """Rest NOM and flush the daily accumulators when Home Assistant stops.
+
+        Home Assistant does not unload the entries when it stops, so without
+        this the restart reloads the last throttled (~5 min) save and the daily
+        TOTAL_INCREASING sensors step backwards (#956). Accumulation is frozen
+        first, so nothing is counted after the save.
+        """
+        self._accumulation_frozen = True
+        try:
+            await self._autonomous_mode_mgr.async_rest_all()
+        finally:
+            if self._consumption_tracker is not None:
+                await self._consumption_tracker.async_save_all()
+
     async def _run_control_cycle(self, now=None):
         """Update the charge/discharge power of the batteries."""
         if DEBUG_CONTROL_LOOP_DETAIL:
@@ -10370,7 +10386,9 @@ class ChargeDischargeController:
 
         # === HOUSEHOLD CONSUMPTION ACCUMULATION ===
         # Run before manual mode check so samples are never lost
-        if self._consumption_tracker is not None:
+        if self._consumption_tracker is not None and not getattr(
+            self, "_accumulation_frozen", False
+        ):
             self._consumption_tracker.handle_accumulator_daily_reset()
             await self._consumption_tracker.accumulate_household_consumption()
             # Exact full-day totals from the real power sensors (panel "Energía hoy")
@@ -12979,7 +12997,7 @@ async def _async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, opened: li
     # left in NOM would go on regulating with nobody watching the excluded
     # devices. Setup restores the user's choice.
     async def _on_homeassistant_stop(_event):
-        await controller._autonomous_mode_mgr.async_rest_all()
+        await controller.async_on_homeassistant_stop()
 
     entry.async_on_unload(_call_once(
         hass.bus.async_listen(EVENT_HOMEASSISTANT_STOP, _on_homeassistant_stop)
