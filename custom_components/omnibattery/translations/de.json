@@ -460,31 +460,43 @@
           "td20_price_llano": "Preis Llano (Mittel)",
           "td20_price_valle": "Preis Valle (Schwachlast)",
           "td20_export_price": "Überschusspreis (optional)",
-          "td20_workday_entity": "Workday-Entität (optional)"
+          "td20_workday_entity": "Workday-Entität (optional)",
+          "export_price_sensor": "Sensor für Einspeise-/Exportpreise",
+          "zonneplan_export_bonus_enabled": "Zonneplan-Einspeisebonus anwenden"
         },
         "data_description": {
           "td20_export_price": "Vergütung pro eingespeister kWh (compensación de excedentes). Leer lassen, wenn du keinen Vergütungsvertrag hast.",
-          "td20_workday_entity": "Binärsensor der Workday-Integration, eingerichtet für Spanien ohne Provinz."
+          "td20_workday_entity": "Binärsensor der Workday-Integration, eingerichtet für Spanien ohne Provinz.",
+          "export_price_sensor": "Sensor, der Ihre Einspeisepreise liefert, im Format des gewählten Exportanbieters.",
+          "zonneplan_export_bonus_enabled": "Addiert den Zonneplan-Sonnenbonus zum Einspeisepreis von Solarstrom inkl. Steuern: der Bonus sind 0,02 €/kWh auf den Preis ohne Steuern, danach +10 %. Gilt nur zwischen Sonnenaufgang und Sonnenuntergang und nur, wenn dieser Preis plus 0,02 € positiv ist. Einspeisung aus dem Akku wird nie mit dem Bonus bewertet."
         }
       },
       "dynamic_pricing_config": {
         "title": "Konfiguration dynamischer Preisladung",
-        "description": "Konfigurieren Sie dynamische Preisladung. Das System liest stündliche Strompreise und wählt automatisch die günstigsten Stunden zum Laden aus.",
+        "description": "Wählen Sie Ihre Preisanbieter. Der nächste Schritt fragt nur ab, was diese benötigen.",
         "data": {
           "price_integration_type": "Preisintegration",
-          "price_sensor": "Preissensor",
-          "export_price_sensor": "Sensor für Einspeise-/Exportpreise (optional)",
           "export_price_integration_type": "Integration für den Exportpreis (optional)",
-          "zonneplan_export_bonus_enabled": "Zonneplan-Einspeisebonus anwenden",
           "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Wählen Sie die Heimautomatisierungsintegration, die Strompreisdaten liefert. Tarifa 2.0TD (Spanien) braucht ebenfalls keinen Sensor: die Preise werden im nächsten Schritt abgefragt.",
-          "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
-          "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
-          "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
-          "zonneplan_export_bonus_enabled": "Addiert den Zonneplan-Sonnenbonus zum Einspeisepreis von Solarstrom inkl. Steuern: der Bonus sind 0,02 €/kWh auf den Preis ohne Steuern, danach +10 %. Gilt nur zwischen Sonnenaufgang und Sonnenuntergang und nur, wenn dieser Preis plus 0,02 € positiv ist. Einspeisung aus dem Akku wird nie mit dem Bonus bewertet. Hat keine Wirkung, wenn die tatsächlich verwendete Exportpreisintegration nicht Zonneplan ist.",
+          "price_integration_type": "Wählen Sie die Integration, die Strompreisdaten liefert. Ihr Sensor wird im nächsten Schritt abgefragt; Tibber braucht keinen (dienstbasiert), und Tarifa 2.0TD (Spanien) fragt stattdessen die Preise der Zeiträume ab.",
+          "export_price_integration_type": "Nur wenn die Einspeisung anders als der Bezug vergütet wird: der Anbieter Ihres Einspeisepreis-Sensors, der im nächsten Schritt abgefragt wird. Leer lassen, um die Einspeisung zum Importpreis zu bewerten (Net Metering) bzw. mit Tarifa 2.0TD zum Überschusspreis. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve. Für den Zonneplan-Einspeisebonus wählen Sie auch hier Zonneplan (es kann derselbe Sensor sein).",
           "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
+        }
+      },
+      "dynamic_pricing_provider": {
+        "title": "Dynamische Preisladung — Preissensoren",
+        "description": "Wählen Sie die Sensoren der im vorherigen Schritt gewählten Anbieter.",
+        "data": {
+          "price_sensor": "Preissensor",
+          "export_price_sensor": "Sensor für Einspeise-/Exportpreise",
+          "zonneplan_export_bonus_enabled": "Zonneplan-Einspeisebonus anwenden"
+        },
+        "data_description": {
+          "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
+          "export_price_sensor": "Sensor, der Ihre Einspeisepreise liefert, im Format des gewählten Exportanbieters.",
+          "zonneplan_export_bonus_enabled": "Addiert den Zonneplan-Sonnenbonus zum Einspeisepreis von Solarstrom inkl. Steuern: der Bonus sind 0,02 €/kWh auf den Preis ohne Steuern, danach +10 %. Gilt nur zwischen Sonnenaufgang und Sonnenuntergang und nur, wenn dieser Preis plus 0,02 € positiv ist. Einspeisung aus dem Akku wird nie mit dem Bonus bewertet."
         }
       },
       "realtime_price_config": {
@@ -924,8 +936,6 @@
       "no_price_data": "Der ausgewählte Sensor ist keine unterstützte Preisquelle. Nord Pool: Wähle eine Entität der offiziellen Integration oder einen HACS-Sensor mit `raw_today`. PVPC benötigt `price_00h` … `price_23h`, CKW eine `prices`-Liste, EPEX eine `data`-Liste und ENTSO-e eine `prices_today`-Liste.",
       "tibber_unavailable": "Die Tibber-Integration ist nicht installiert oder ihr Dienst `tibber.get_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst Tibber.",
       "energyzero_unavailable": "Die EnergyZero-Integration ist nicht installiert oder ihr Dienst `energyzero.get_energy_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst EnergyZero.",
-      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Die Entlade-Preisuntergrenze darf nicht unter dem maximalen (Lade-)Preis liegen. Setze sie gleich oder höher oder lass sie leer, um den Ladeschwellenwert wiederzuverwenden.",
       "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein.",
       "missing_power_sensor": "Wähle einen Geräte-Leistungssensor oder aktiviere EV-Ladestation ohne Telemetrie und wähle einen Aktivitätssensor.",
@@ -1341,31 +1351,43 @@
           "td20_price_llano": "Preis Llano (Mittel)",
           "td20_price_valle": "Preis Valle (Schwachlast)",
           "td20_export_price": "Überschusspreis (optional)",
-          "td20_workday_entity": "Workday-Entität (optional)"
+          "td20_workday_entity": "Workday-Entität (optional)",
+          "export_price_sensor": "Sensor für Einspeise-/Exportpreise",
+          "zonneplan_export_bonus_enabled": "Zonneplan-Einspeisebonus anwenden"
         },
         "data_description": {
           "td20_export_price": "Vergütung pro eingespeister kWh (compensación de excedentes). Leer lassen, wenn du keinen Vergütungsvertrag hast.",
-          "td20_workday_entity": "Binärsensor der Workday-Integration, eingerichtet für Spanien ohne Provinz."
+          "td20_workday_entity": "Binärsensor der Workday-Integration, eingerichtet für Spanien ohne Provinz.",
+          "export_price_sensor": "Sensor, der Ihre Einspeisepreise liefert, im Format des gewählten Exportanbieters.",
+          "zonneplan_export_bonus_enabled": "Addiert den Zonneplan-Sonnenbonus zum Einspeisepreis von Solarstrom inkl. Steuern: der Bonus sind 0,02 €/kWh auf den Preis ohne Steuern, danach +10 %. Gilt nur zwischen Sonnenaufgang und Sonnenuntergang und nur, wenn dieser Preis plus 0,02 € positiv ist. Einspeisung aus dem Akku wird nie mit dem Bonus bewertet."
         }
       },
       "dynamic_pricing_config": {
         "title": "Konfiguration dynamischer Preisladung",
-        "description": "Konfigurieren Sie dynamische Preisladung. Das System liest stündliche Strompreise und wählt automatisch die günstigsten Stunden zum Laden aus.",
+        "description": "Wählen Sie Ihre Preisanbieter. Der nächste Schritt fragt nur ab, was diese benötigen.",
         "data": {
           "price_integration_type": "Preisintegration",
-          "price_sensor": "Preissensor",
-          "export_price_sensor": "Sensor für Einspeise-/Exportpreise (optional)",
           "export_price_integration_type": "Integration für den Exportpreis (optional)",
-          "zonneplan_export_bonus_enabled": "Zonneplan-Einspeisebonus anwenden",
           "solar_forecast_sensor": "Solarprognose-Sensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Wählen Sie die Heimautomatisierungsintegration, die Strompreisdaten liefert. Tarifa 2.0TD (Spanien) braucht ebenfalls keinen Sensor: die Preise werden im nächsten Schritt abgefragt.",
-          "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
-          "export_price_sensor": "Sensor, der die Einspeisevergütung liefert. Leer lassen, um die Importpreiskurve zu verwenden — das ist korrekt, wenn die Einspeisung zum Importpreis vergütet wird (Net Metering).",
-          "export_price_integration_type": "Attributaufbau des Exportpreis-Sensors. Leer lassen, um die Import-Integration zu übernehmen. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve.",
-          "zonneplan_export_bonus_enabled": "Addiert den Zonneplan-Sonnenbonus zum Einspeisepreis von Solarstrom inkl. Steuern: der Bonus sind 0,02 €/kWh auf den Preis ohne Steuern, danach +10 %. Gilt nur zwischen Sonnenaufgang und Sonnenuntergang und nur, wenn dieser Preis plus 0,02 € positiv ist. Einspeisung aus dem Akku wird nie mit dem Bonus bewertet. Hat keine Wirkung, wenn die tatsächlich verwendete Exportpreisintegration nicht Zonneplan ist.",
+          "price_integration_type": "Wählen Sie die Integration, die Strompreisdaten liefert. Ihr Sensor wird im nächsten Schritt abgefragt; Tibber braucht keinen (dienstbasiert), und Tarifa 2.0TD (Spanien) fragt stattdessen die Preise der Zeiträume ab.",
+          "export_price_integration_type": "Nur wenn die Einspeisung anders als der Bezug vergütet wird: der Anbieter Ihres Einspeisepreis-Sensors, der im nächsten Schritt abgefragt wird. Leer lassen, um die Einspeisung zum Importpreis zu bewerten (Net Metering) bzw. mit Tarifa 2.0TD zum Überschusspreis. Tibber steht hier nicht zur Verfügung: Es ist dienstbasiert und sein Cache gehört zur Importkurve. Für den Zonneplan-Einspeisebonus wählen Sie auch hier Zonneplan (es kann derselbe Sensor sein).",
           "solar_forecast_sensor": "Sensor, der die Solarproduktionsprognose in kWh liefert (z.B. Solcast). Mit Solaranlage: konfigurieren — das System lädt nur dann aus dem Netz, wenn die Solarprognose unzureichend ist. Ohne Solaranlage: leer lassen — das System lädt, wenn die Batterieenergie für den Tag nicht ausreicht. Nicht erforderlich, wenn dieser Sensor bereits im ersten Schritt konfiguriert wurde — er wird automatisch verwendet."
+        }
+      },
+      "dynamic_pricing_provider": {
+        "title": "Dynamische Preisladung — Preissensoren",
+        "description": "Wählen Sie die Sensoren der im vorherigen Schritt gewählten Anbieter.",
+        "data": {
+          "price_sensor": "Preissensor",
+          "export_price_sensor": "Sensor für Einspeise-/Exportpreise",
+          "zonneplan_export_bonus_enabled": "Zonneplan-Einspeisebonus anwenden"
+        },
+        "data_description": {
+          "price_sensor": "Sensor, der stündliche Strompreise enthält (z.B. sensor.nordpool_kwh_de_eur_3_10_025)",
+          "export_price_sensor": "Sensor, der Ihre Einspeisepreise liefert, im Format des gewählten Exportanbieters.",
+          "zonneplan_export_bonus_enabled": "Addiert den Zonneplan-Sonnenbonus zum Einspeisepreis von Solarstrom inkl. Steuern: der Bonus sind 0,02 €/kWh auf den Preis ohne Steuern, danach +10 %. Gilt nur zwischen Sonnenaufgang und Sonnenuntergang und nur, wenn dieser Preis plus 0,02 € positiv ist. Einspeisung aus dem Akku wird nie mit dem Bonus bewertet."
         }
       },
       "realtime_price_config": {
@@ -1633,8 +1655,6 @@
       "no_price_data": "Der ausgewählte Sensor ist keine unterstützte Preisquelle. Nord Pool: Wähle eine Entität der offiziellen Integration oder einen HACS-Sensor mit `raw_today`. PVPC benötigt `price_00h` … `price_23h`, CKW eine `prices`-Liste, EPEX eine `data`-Liste und ENTSO-e eine `prices_today`-Liste.",
       "tibber_unavailable": "Die Tibber-Integration ist nicht installiert oder ihr Dienst `tibber.get_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst Tibber.",
       "energyzero_unavailable": "Die EnergyZero-Integration ist nicht installiert oder ihr Dienst `energyzero.get_energy_prices` ist nicht verfügbar. Installiere und konfiguriere zuerst EnergyZero.",
-      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "Die Entlade-Preisuntergrenze darf nicht unter dem maximalen (Lade-)Preis liegen. Setze sie gleich oder höher oder lass sie leer, um den Ladeschwellenwert wiederzuverwenden.",
       "host_or_serial_required": "Gib entweder eine IP-Adresse (TCP) oder einen seriellen Port-Pfad (Modbus RTU) ein.",
       "missing_power_sensor": "Wähle einen Geräte-Leistungssensor oder aktiviere EV-Ladestation ohne Telemetrie und wähle einen Aktivitätssensor.",

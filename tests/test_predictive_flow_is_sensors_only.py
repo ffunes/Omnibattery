@@ -8,6 +8,7 @@ cannot do.
 """
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -51,17 +52,101 @@ def _flow_with_states(data: dict, states: dict, options: bool):
     return flow
 
 
-async def test_dynamic_pricing_asks_only_for_price_sources():
+async def test_dynamic_pricing_picks_providers_first():
     result = await _flow({}).async_step_dynamic_pricing_config()
 
+    assert result["step_id"] == "dynamic_pricing_config"
     assert _schema_keys(result) == {
         "price_integration_type",
-        "price_sensor",
-        "export_price_sensor",
         "export_price_integration_type",
-        "zonneplan_export_bonus_enabled",
         "solar_forecast_sensor",
     }
+
+
+@pytest.mark.parametrize(
+    ("import_type", "export_type", "step_id", "keys"),
+    [
+        ("nordpool", None, "dynamic_pricing_provider", {"price_sensor"}),
+        ("nordpool", "entsoe", "dynamic_pricing_provider",
+         {"price_sensor", "export_price_sensor"}),
+        ("nordpool", "zonneplan", "dynamic_pricing_provider",
+         {"price_sensor", "export_price_sensor", "zonneplan_export_bonus_enabled"}),
+        ("tibber", "nordpool", "dynamic_pricing_provider", {"export_price_sensor"}),
+        ("tarifa_20td", "pvpc", "td20_config",
+         {"td20_price_punta", "td20_price_llano", "td20_price_valle",
+          "td20_workday_entity", "export_price_sensor"}),
+    ],
+)
+async def test_second_screen_asks_only_what_the_providers_need(
+    import_type, export_type, step_id, keys
+):
+    user_input = {"price_integration_type": import_type}
+    if export_type:
+        user_input["export_price_integration_type"] = export_type
+
+    result = await _flow({}).async_step_dynamic_pricing_config(user_input)
+
+    assert result["step_id"] == step_id
+    assert _schema_keys(result) == keys
+
+
+async def test_tibber_without_export_curve_skips_the_second_screen():
+    flow = _flow({"price_sensor": "sensor.old", "export_price_sensor": "sensor.old_export"})
+    flow._save_and_finish = AsyncMock(return_value={"type": "create_entry"})
+
+    await flow.async_step_dynamic_pricing_config({"price_integration_type": "tibber"})
+
+    flow._save_and_finish.assert_awaited_once()
+    assert flow.config_data["price_sensor"] is None
+    assert flow.config_data["export_price_sensor"] is None
+
+
+async def test_switching_provider_clears_the_old_sensors():
+    """Options merge config_data over entry.data: what a branch does not ask
+    must still be written, or the engine keeps reading the old sensor."""
+    stored = {
+        "price_integration_type": "nordpool",
+        "price_sensor": "sensor.import",
+        "export_price_sensor": "sensor.export",
+        "export_price_integration_type": "nordpool",
+    }
+    flow = _flow(stored)
+    flow.hass.states = SimpleNamespace(
+        get=lambda _e: SimpleNamespace(attributes={"prices_today": [0.1]})
+    )
+    flow._save_and_finish = AsyncMock(return_value={"type": "create_entry"})
+
+    await flow.async_step_dynamic_pricing_config({"price_integration_type": "entsoe"})
+    await flow.async_step_dynamic_pricing_provider({"price_sensor": "sensor.entsoe"})
+
+    flow._save_and_finish.assert_awaited_once()
+    saved = {**stored, **flow.config_data}
+    assert saved["price_integration_type"] == "entsoe"
+    assert saved["price_sensor"] == "sensor.entsoe"
+    assert saved["export_price_sensor"] is None
+    assert saved["export_price_integration_type"] is None
+
+
+async def test_legacy_export_sensor_shows_the_import_layout_as_export_provider():
+    """Before the export provider was mandatory, empty meant "same as import"."""
+    result = await _flow(
+        {"price_integration_type": "entsoe", "export_price_sensor": "sensor.export"}
+    ).async_step_dynamic_pricing_config()
+
+    fields = {marker.schema: marker for marker in result["data_schema"].schema}
+    assert fields["export_price_integration_type"].description == {
+        "suggested_value": "entsoe"
+    }
+
+
+async def test_export_type_without_sensor_is_not_prefilled():
+    """The old form saved a type with no sensor; prefilling it would demand one."""
+    result = await _flow(
+        {"price_integration_type": "entsoe", "export_price_integration_type": "pvpc"}
+    ).async_step_dynamic_pricing_config()
+
+    fields = {marker.schema: marker for marker in result["data_schema"].schema}
+    assert fields["export_price_integration_type"].description == {}
 
 
 async def test_realtime_price_asks_only_for_price_sources():
@@ -93,9 +178,8 @@ async def test_submitting_leaves_the_entity_owned_keys_alone():
     """A saved step must not reset a slider the dashboard owns."""
     flow = _flow({"max_price_threshold": 0.12, "predischarge_reserve_soc": 35})
 
-    await flow.async_step_dynamic_pricing_config(
-        {"price_integration_type": "nordpool", "price_sensor": "sensor.price"}
-    )
+    await flow.async_step_dynamic_pricing_config({"price_integration_type": "entsoe"})
+    await flow.async_step_dynamic_pricing_provider({"price_sensor": "sensor.price"})
 
     assert "max_price_threshold" not in flow.config_data
     assert "predischarge_reserve_soc" not in flow.config_data

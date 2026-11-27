@@ -460,31 +460,43 @@
           "td20_price_llano": "Precio llano",
           "td20_price_valle": "Precio valle",
           "td20_export_price": "Precio del excedente (opcional)",
-          "td20_workday_entity": "Entidad Workday (opcional)"
+          "td20_workday_entity": "Entidad Workday (opcional)",
+          "export_price_sensor": "Sensor de precio de inyección/exportación",
+          "zonneplan_export_bonus_enabled": "Aplicar la bonificación de exportación de Zonneplan"
         },
         "data_description": {
           "td20_export_price": "Lo que te pagan por cada kWh vertido (compensación de excedentes). Déjalo vacío si no tienes compensación contratada.",
-          "td20_workday_entity": "Sensor binario de la integración Workday, configurada para España sin provincia."
+          "td20_workday_entity": "Sensor binario de la integración Workday, configurada para España sin provincia.",
+          "export_price_sensor": "Sensor que proporciona tus precios de inyección, con el formato del proveedor de exportación elegido.",
+          "zonneplan_export_bonus_enabled": "Suma la bonificación solar de Zonneplan al precio de exportación con impuestos de la energía solar: la bonificación son 0,02 €/kWh sobre el precio sin impuestos, más un 10%. Solo se aplica entre la salida y la puesta del sol y solo si ese precio más 0,02 € es positivo. La exportación desde la batería nunca se valora con la bonificación."
         }
       },
       "dynamic_pricing_config": {
         "title": "Carga predictiva — Precio dinámico",
-        "description": "Configura el sensor de precio eléctrico y los parámetros para la selección automática de horas baratas.",
+        "description": "Elige tus proveedores de precio. La siguiente pantalla pide solo lo que necesitan.",
         "data": {
           "price_integration_type": "Integración de precios",
-          "price_sensor": "Sensor de precio eléctrico",
-          "export_price_sensor": "Sensor de precio de inyección/exportación (opcional)",
           "export_price_integration_type": "Integración del precio de exportación (opcional)",
-          "zonneplan_export_bonus_enabled": "Aplicar la bonificación de exportación de Zonneplan",
           "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Tibber funciona por servicio, así que su sensor puede dejarse vacío. La Tarifa 2.0TD (España) tampoco necesita sensor: sus precios se piden en el paso siguiente.",
-          "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
-          "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
-          "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
-          "zonneplan_export_bonus_enabled": "Suma la bonificación solar de Zonneplan al precio de exportación con impuestos de la energía solar: la bonificación son 0,02 €/kWh sobre el precio sin impuestos, más un 10%. Solo se aplica entre la salida y la puesta del sol y solo si ese precio más 0,02 € es positivo. La exportación desde la batería nunca se valora con la bonificación. No tiene efecto si la integración efectiva del precio de exportación no es Zonneplan.",
+          "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Su sensor se pide en la siguiente pantalla; Tibber no necesita ninguno (funciona por servicio) y la Tarifa 2.0TD (España) pide en su lugar los precios de cada periodo.",
+          "export_price_integration_type": "Solo si la inyección se paga distinto que la importación: el proveedor de tu sensor de precio de inyección, que se pide en la siguiente pantalla. Déjalo vacío para valorar la inyección al precio de importación (balance neto), o al precio de excedentes con la Tarifa 2.0TD. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación. Para la bonificación de exportación de Zonneplan, elige Zonneplan también aquí (puede ser el mismo sensor).",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
+        }
+      },
+      "dynamic_pricing_provider": {
+        "title": "Carga predictiva — Sensores de precio",
+        "description": "Elige los sensores de los proveedores seleccionados en la pantalla anterior.",
+        "data": {
+          "price_sensor": "Sensor de precio eléctrico",
+          "export_price_sensor": "Sensor de precio de inyección/exportación",
+          "zonneplan_export_bonus_enabled": "Aplicar la bonificación de exportación de Zonneplan"
+        },
+        "data_description": {
+          "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
+          "export_price_sensor": "Sensor que proporciona tus precios de inyección, con el formato del proveedor de exportación elegido.",
+          "zonneplan_export_bonus_enabled": "Suma la bonificación solar de Zonneplan al precio de exportación con impuestos de la energía solar: la bonificación son 0,02 €/kWh sobre el precio sin impuestos, más un 10%. Solo se aplica entre la salida y la puesta del sol y solo si ese precio más 0,02 € es positivo. La exportación desde la batería nunca se valora con la bonificación."
         }
       },
       "realtime_price_config": {
@@ -924,8 +936,6 @@
       "no_price_data": "El sensor seleccionado no es una fuente de precios compatible. Nord Pool: selecciona una entidad de la integración oficial o un sensor de HACS con `raw_today`. PVPC necesita `price_00h` … `price_23h`; CKW, una lista `prices`; EPEX, una lista `data`; y ENTSO-e, una lista `prices_today`.",
       "tibber_unavailable": "La integración Tibber no está instalada, o su servicio `tibber.get_prices` no está disponible. Instala y configura Tibber primero.",
       "energyzero_unavailable": "La integración EnergyZero no está instalada o su servicio `energyzero.get_energy_prices` no está disponible. Instala y configura EnergyZero primero.",
-      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El precio mínimo de descarga no puede ser inferior al precio máximo (de carga). Ponlo igual o superior, o déjalo vacío para reutilizar el umbral de carga.",
       "host_or_serial_required": "Introduce una dirección IP (TCP) o la ruta de un puerto serie (Modbus RTU).",
       "missing_power_sensor": "Selecciona un sensor de potencia, o activa Cargador VE sin telemetría y selecciona un sensor de actividad.",
@@ -1341,31 +1351,43 @@
           "td20_price_llano": "Precio llano",
           "td20_price_valle": "Precio valle",
           "td20_export_price": "Precio del excedente (opcional)",
-          "td20_workday_entity": "Entidad Workday (opcional)"
+          "td20_workday_entity": "Entidad Workday (opcional)",
+          "export_price_sensor": "Sensor de precio de inyección/exportación",
+          "zonneplan_export_bonus_enabled": "Aplicar la bonificación de exportación de Zonneplan"
         },
         "data_description": {
           "td20_export_price": "Lo que te pagan por cada kWh vertido (compensación de excedentes). Déjalo vacío si no tienes compensación contratada.",
-          "td20_workday_entity": "Sensor binario de la integración Workday, configurada para España sin provincia."
+          "td20_workday_entity": "Sensor binario de la integración Workday, configurada para España sin provincia.",
+          "export_price_sensor": "Sensor que proporciona tus precios de inyección, con el formato del proveedor de exportación elegido.",
+          "zonneplan_export_bonus_enabled": "Suma la bonificación solar de Zonneplan al precio de exportación con impuestos de la energía solar: la bonificación son 0,02 €/kWh sobre el precio sin impuestos, más un 10%. Solo se aplica entre la salida y la puesta del sol y solo si ese precio más 0,02 € es positivo. La exportación desde la batería nunca se valora con la bonificación."
         }
       },
       "dynamic_pricing_config": {
         "title": "Carga predictiva — Precio dinámico",
-        "description": "Configura el sensor de precio eléctrico y los parámetros para la selección automática de horas baratas.",
+        "description": "Elige tus proveedores de precio. La siguiente pantalla pide solo lo que necesitan.",
         "data": {
           "price_integration_type": "Integración de precios",
-          "price_sensor": "Sensor de precio eléctrico",
-          "export_price_sensor": "Sensor de precio de inyección/exportación (opcional)",
           "export_price_integration_type": "Integración del precio de exportación (opcional)",
-          "zonneplan_export_bonus_enabled": "Aplicar la bonificación de exportación de Zonneplan",
           "solar_forecast_sensor": "Sensor de predicción solar (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Tibber funciona por servicio, así que su sensor puede dejarse vacío. La Tarifa 2.0TD (España) tampoco necesita sensor: sus precios se piden en el paso siguiente.",
-          "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
-          "export_price_sensor": "Sensor que proporciona los precios de inyección. Déjalo vacío para usar la curva de precios de importación, que es lo correcto cuando la inyección se retribuye al precio de importación (balance neto).",
-          "export_price_integration_type": "Disposición de atributos del sensor de precio de exportación. Déjalo vacío para reutilizar la integración de importación. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación.",
-          "zonneplan_export_bonus_enabled": "Suma la bonificación solar de Zonneplan al precio de exportación con impuestos de la energía solar: la bonificación son 0,02 €/kWh sobre el precio sin impuestos, más un 10%. Solo se aplica entre la salida y la puesta del sol y solo si ese precio más 0,02 € es positivo. La exportación desde la batería nunca se valora con la bonificación. No tiene efecto si la integración efectiva del precio de exportación no es Zonneplan.",
+          "price_integration_type": "Selecciona tu integración de precios de electricidad. Nord Pool admite tanto la integración oficial de Home Assistant como la de HACS. Su sensor se pide en la siguiente pantalla; Tibber no necesita ninguno (funciona por servicio) y la Tarifa 2.0TD (España) pide en su lugar los precios de cada periodo.",
+          "export_price_integration_type": "Solo si la inyección se paga distinto que la importación: el proveedor de tu sensor de precio de inyección, que se pide en la siguiente pantalla. Déjalo vacío para valorar la inyección al precio de importación (balance neto), o al precio de excedentes con la Tarifa 2.0TD. Tibber no está disponible aquí: está basado en servicio y su caché pertenece a la curva de importación. Para la bonificación de exportación de Zonneplan, elige Zonneplan también aquí (puede ser el mismo sensor).",
           "solar_forecast_sensor": "Sensor que proporciona la predicción de producción solar en kWh (ej: Solcast). Si tienes paneles solares, configúralo — el sistema solo cargará desde la red cuando la previsión solar sea insuficiente. Si no tienes paneles, déjalo vacío — el sistema cargará cuando la batería no tenga energía suficiente para el día. No es necesario si ya configuraste este sensor en el paso inicial: se usará automáticamente."
+        }
+      },
+      "dynamic_pricing_provider": {
+        "title": "Carga predictiva — Sensores de precio",
+        "description": "Elige los sensores de los proveedores seleccionados en la pantalla anterior.",
+        "data": {
+          "price_sensor": "Sensor de precio eléctrico",
+          "export_price_sensor": "Sensor de precio de inyección/exportación",
+          "zonneplan_export_bonus_enabled": "Aplicar la bonificación de exportación de Zonneplan"
+        },
+        "data_description": {
+          "price_sensor": "Sensor de precios (por ejemplo, el sensor de precio actual de Nord Pool oficial, un sensor Nordpool de HACS, sensor.esios_pvpc o tu sensor de CKW)",
+          "export_price_sensor": "Sensor que proporciona tus precios de inyección, con el formato del proveedor de exportación elegido.",
+          "zonneplan_export_bonus_enabled": "Suma la bonificación solar de Zonneplan al precio de exportación con impuestos de la energía solar: la bonificación son 0,02 €/kWh sobre el precio sin impuestos, más un 10%. Solo se aplica entre la salida y la puesta del sol y solo si ese precio más 0,02 € es positivo. La exportación desde la batería nunca se valora con la bonificación."
         }
       },
       "realtime_price_config": {
@@ -1633,8 +1655,6 @@
       "no_price_data": "El sensor seleccionado no es una fuente de precios compatible. Nord Pool: selecciona una entidad de la integración oficial o un sensor de HACS con `raw_today`. PVPC necesita `price_00h` … `price_23h`; CKW, una lista `prices`; EPEX, una lista `data`; y ENTSO-e, una lista `prices_today`.",
       "tibber_unavailable": "La integración Tibber no está instalada, o su servicio `tibber.get_prices` no está disponible. Instala y configura Tibber primero.",
       "energyzero_unavailable": "La integración EnergyZero no está instalada o su servicio `energyzero.get_energy_prices` no está disponible. Instala y configura EnergyZero primero.",
-      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "El precio mínimo de descarga no puede ser inferior al precio máximo (de carga). Ponlo igual o superior, o déjalo vacío para reutilizar el umbral de carga.",
       "host_or_serial_required": "Introduce una dirección IP (TCP) o la ruta de un puerto serie (Modbus RTU).",
       "missing_power_sensor": "Selecciona un sensor de potencia, o activa Cargador VE sin telemetría y selecciona un sensor de actividad.",

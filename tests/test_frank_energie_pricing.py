@@ -163,9 +163,8 @@ async def test_setup_and_options_validate_and_save_frank_energie(options, valid)
     form = await flow.async_step_dynamic_pricing_config()
     selector = next(value for marker, value in form["data_schema"].schema.items() if marker.schema == "price_integration_type")
     assert "frank_energie" in selector.config["options"]
-    result = await flow.async_step_dynamic_pricing_config(
-        {"price_integration_type": "frank_energie", "price_sensor": "sensor.tariff"}
-    )
+    await flow.async_step_dynamic_pricing_config({"price_integration_type": "frank_energie"})
+    result = await flow.async_step_dynamic_pricing_provider({"price_sensor": "sensor.tariff"})
     if valid:
         assert flow.config_data["price_integration_type"] == "frank_energie"
         assert flow.config_data["price_sensor"] == "sensor.tariff"
