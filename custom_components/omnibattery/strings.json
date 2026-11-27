@@ -529,31 +529,43 @@
           "td20_price_llano": "Llano price (mid)",
           "td20_price_valle": "Valle price (off-peak)",
           "td20_export_price": "Surplus price (optional)",
-          "td20_workday_entity": "Workday entity (optional)"
+          "td20_workday_entity": "Workday entity (optional)",
+          "export_price_sensor": "Export/feed-in price sensor",
+          "zonneplan_export_bonus_enabled": "Apply Zonneplan export bonus"
         },
         "data_description": {
           "td20_export_price": "What you are paid per exported kWh (compensación de excedentes). Leave empty if you have no compensation contract.",
-          "td20_workday_entity": "Binary sensor of the Workday integration, set up for Spain with no province."
+          "td20_workday_entity": "Binary sensor of the Workday integration, set up for Spain with no province.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices, in the layout of the export provider you picked.",
+          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus."
         }
       },
       "dynamic_pricing_config": {
         "title": "Predictive Charging — Dynamic Pricing",
-        "description": "Configure the electricity price sensor and parameters for automatic cheap-hour selection.",
+        "description": "Choose your price providers. The next screen asks only for what they need.",
         "data": {
           "price_integration_type": "Price integration",
-          "price_sensor": "Electricity price sensor",
-          "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
-          "zonneplan_export_bonus_enabled": "Apply Zonneplan export bonus",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty. Tarifa 2.0TD (Spain) needs no sensor either: its prices are asked in the next step.",
-          "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
-          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
-          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
-          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus. Has no effect unless the effective export price integration is Zonneplan.",
+          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Its sensor is asked on the next screen; Tibber needs none (it is service-based) and Tarifa 2.0TD (Spain) asks for its period prices instead.",
+          "export_price_integration_type": "Only if export is paid differently from import: the provider of your export/feed-in price sensor, asked on the next screen. Leave empty to value export at the import price (net metering), or at the surplus price with Tarifa 2.0TD. Tibber is not available here: it is service-based and its cache belongs to the import curve. For the Zonneplan export bonus, pick Zonneplan here too (it can be the same sensor).",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "dynamic_pricing_provider": {
+        "title": "Predictive Charging — Price sensors",
+        "description": "Pick the sensors of the providers chosen on the previous screen.",
+        "data": {
+          "price_sensor": "Electricity price sensor",
+          "export_price_sensor": "Export/feed-in price sensor",
+          "zonneplan_export_bonus_enabled": "Apply Zonneplan export bonus"
+        },
+        "data_description": {
+          "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
+          "export_price_sensor": "Sensor providing your export/feed-in prices, in the layout of the export provider you picked.",
+          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus."
         }
       },
       "realtime_price_config": {
@@ -920,8 +932,6 @@
       "no_price_data": "Selected sensor is not a supported price source. Nord Pool: select an entity from the official integration or a HACS sensor with `raw_today`. PVPC: needs `price_00h` … `price_23h`. CKW: needs a `prices` list. EPEX: needs a `data` list. ENTSO-e: needs a `prices_today` list.",
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
       "energyzero_unavailable": "The EnergyZero integration is not installed, or its `energyzero.get_energy_prices` service is unavailable. Install and configure EnergyZero first.",
-      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
       "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
       "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."
@@ -1332,31 +1342,43 @@
           "td20_price_llano": "Llano price (mid)",
           "td20_price_valle": "Valle price (off-peak)",
           "td20_export_price": "Surplus price (optional)",
-          "td20_workday_entity": "Workday entity (optional)"
+          "td20_workday_entity": "Workday entity (optional)",
+          "export_price_sensor": "Export/feed-in price sensor",
+          "zonneplan_export_bonus_enabled": "Apply Zonneplan export bonus"
         },
         "data_description": {
           "td20_export_price": "What you are paid per exported kWh (compensación de excedentes). Leave empty if you have no compensation contract.",
-          "td20_workday_entity": "Binary sensor of the Workday integration, set up for Spain with no province."
+          "td20_workday_entity": "Binary sensor of the Workday integration, set up for Spain with no province.",
+          "export_price_sensor": "Sensor providing your export/feed-in prices, in the layout of the export provider you picked.",
+          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus."
         }
       },
       "dynamic_pricing_config": {
         "title": "Predictive Charging — Dynamic Pricing",
-        "description": "Configure the electricity price sensor and parameters for automatic cheap-hour selection.",
+        "description": "Choose your price providers. The next screen asks only for what they need.",
         "data": {
           "price_integration_type": "Price integration",
-          "price_sensor": "Electricity price sensor",
-          "export_price_sensor": "Export/feed-in price sensor (optional)",
           "export_price_integration_type": "Export price integration (optional)",
-          "zonneplan_export_bonus_enabled": "Apply Zonneplan export bonus",
           "solar_forecast_sensor": "Solar forecast sensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Tibber is service-based, so its price sensor can be left empty. Tarifa 2.0TD (Spain) needs no sensor either: its prices are asked in the next step.",
-          "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
-          "export_price_sensor": "Sensor providing your export/feed-in prices. Leave empty to use the import price curve, which is correct when export is credited at the import price (net metering).",
-          "export_price_integration_type": "Attribute layout of the export price sensor. Leave empty to reuse the import integration. Tibber is not available here: it is service-based and its cache belongs to the import curve.",
-          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus. Has no effect unless the effective export price integration is Zonneplan.",
+          "price_integration_type": "Select your electricity price provider integration. Nord Pool supports both the official Home Assistant integration and HACS. Its sensor is asked on the next screen; Tibber needs none (it is service-based) and Tarifa 2.0TD (Spain) asks for its period prices instead.",
+          "export_price_integration_type": "Only if export is paid differently from import: the provider of your export/feed-in price sensor, asked on the next screen. Leave empty to value export at the import price (net metering), or at the surplus price with Tarifa 2.0TD. Tibber is not available here: it is service-based and its cache belongs to the import curve. For the Zonneplan export bonus, pick Zonneplan here too (it can be the same sensor).",
           "solar_forecast_sensor": "Sensor providing the solar production forecast in kWh (e.g., Solcast). If you have solar panels, configure this sensor — the system will only charge from the grid when solar forecast is insufficient. If you have no solar panels, leave this empty — the system will charge whenever battery energy is not enough for the day. Not required if you already configured this sensor in the initial setup step — it will be used automatically."
+        }
+      },
+      "dynamic_pricing_provider": {
+        "title": "Predictive Charging — Price sensors",
+        "description": "Pick the sensors of the providers chosen on the previous screen.",
+        "data": {
+          "price_sensor": "Electricity price sensor",
+          "export_price_sensor": "Export/feed-in price sensor",
+          "zonneplan_export_bonus_enabled": "Apply Zonneplan export bonus"
+        },
+        "data_description": {
+          "price_sensor": "Sensor providing electricity prices (e.g., the official Nord Pool current-price sensor, a HACS Nordpool sensor, sensor.esios_pvpc for PVPC, or your CKW sensor for Switzerland)",
+          "export_price_sensor": "Sensor providing your export/feed-in prices, in the layout of the export provider you picked.",
+          "zonneplan_export_bonus_enabled": "Adds the Zonneplan sun bonus to the tax-inclusive export price of solar power: the bonus is €0.02/kWh on top of the tax-excluded price, then +10%. Only applies between sunrise and sunset and only when that price plus €0.02 is positive. Battery export is never valued with the bonus."
         }
       },
       "realtime_price_config": {
@@ -1624,8 +1646,6 @@
       "no_price_data": "Selected sensor is not a supported price source. Nord Pool: select an entity from the official integration or a HACS sensor with `raw_today`. PVPC: needs `price_00h` … `price_23h`. CKW: needs a `prices` list. EPEX: needs a `data` list. ENTSO-e: needs a `prices_today` list.",
       "tibber_unavailable": "The Tibber integration is not installed, or its `tibber.get_prices` service is unavailable. Install and configure Tibber first.",
       "energyzero_unavailable": "The EnergyZero integration is not installed, or its `energyzero.get_energy_prices` service is unavailable. Install and configure EnergyZero first.",
-      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "host_or_serial_required": "Enter either an IP address (TCP) or a serial port path (Modbus RTU).",
       "missing_power_sensor": "Select a device power sensor, or enable EV charger without power telemetry and select an activity sensor.",
       "missing_activity_sensor": "Select an Activity / EV charging sensor for Dynamic Power Control or an EV charger without power telemetry."

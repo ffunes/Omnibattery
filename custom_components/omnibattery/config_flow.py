@@ -205,8 +205,39 @@ def _price_integration_export_options() -> list[str]:
 _TD20_PRICE_KEYS = (CONF_TD20_PRICE_PUNTA, CONF_TD20_PRICE_LLANO, CONF_TD20_PRICE_VALLE)
 
 
-def _td20_schema(existing: dict[str, Any]) -> vol.Schema:
-    """Form of the Spanish 2.0TD tariff: three period prices typed by hand."""
+def _suggested(existing: dict[str, Any], key: str) -> dict:
+    """Pre-fill a field without voluptuous restoring the old value when it is cleared."""
+    value = existing.get(key)
+    return {} if value is None or value == "" else {"suggested_value": value}
+
+
+def _export_sensor_fields(existing: dict[str, Any], export_type: str | None) -> dict:
+    """The export sensor when an export provider was picked, plus Zonneplan's bonus."""
+    if not export_type:
+        return {}
+    fields: dict = {
+        vol.Required(
+            CONF_EXPORT_PRICE_SENSOR,
+            description=_suggested(existing, CONF_EXPORT_PRICE_SENSOR),
+        ): EntitySelector(EntitySelectorConfig(domain="sensor"))
+    }
+    if export_type == PRICE_INTEGRATION_ZONNEPLAN:
+        fields[vol.Optional(
+            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+            default=existing.get(
+                CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+                DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
+            ),
+        )] = BooleanSelector()
+    return fields
+
+
+def _td20_schema(existing: dict[str, Any], export_type: str | None = None) -> vol.Schema:
+    """Form of the Spanish 2.0TD tariff: three period prices typed by hand.
+
+    With an export provider the surplus comes from its sensor, so the flat
+    surplus price (which the engine would ignore) gives way to that sensor.
+    """
     price = NumberSelector(
         NumberSelectorConfig(
             min=0, max=2, step="any",
@@ -214,22 +245,20 @@ def _td20_schema(existing: dict[str, Any]) -> vol.Schema:
         )
     )
 
-    def suggested(key: str) -> dict:
-        value = existing.get(key)
-        return {} if value is None else {"suggested_value": value}
-
     schema: dict = {
-        vol.Required(key, description=suggested(key)): price
+        vol.Required(key, description=_suggested(existing, key)): price
         for key in _TD20_PRICE_KEYS
     }
+    if not export_type:
+        schema[vol.Optional(
+            CONF_TD20_EXPORT_PRICE, description=_suggested(existing, CONF_TD20_EXPORT_PRICE)
+        )] = price
     schema[vol.Optional(
-        CONF_TD20_EXPORT_PRICE, description=suggested(CONF_TD20_EXPORT_PRICE)
-    )] = price
-    schema[vol.Optional(
-        CONF_TD20_WORKDAY_ENTITY, description=suggested(CONF_TD20_WORKDAY_ENTITY)
+        CONF_TD20_WORKDAY_ENTITY, description=_suggested(existing, CONF_TD20_WORKDAY_ENTITY)
     )] = EntitySelector(
         EntitySelectorConfig(domain="binary_sensor", integration="workday")
     )
+    schema.update(_export_sensor_fields(existing, export_type))
     return vol.Schema(schema)
 
 
@@ -308,34 +337,21 @@ def _validate_price_sensor(
     return "no_price_data"
 
 
-def _validate_export_price_input(
-    hass: HomeAssistant, user_input: dict[str, Any], import_integration_type: str
+def _export_sensor_errors(
+    hass: HomeAssistant, user_input: dict[str, Any], export_type: str | None
 ) -> dict[str, str]:
-    """Validate the optional export/feed-in price sensor.
+    """Validate the export sensor asked for the picked export provider.
 
-    Tibber is rejected here on purpose: its slots come from a service poll whose
-    cache is keyed on the import sensor, so it cannot serve a second curve.
+    The Nord Pool service cache belongs to the import curve, so the export
+    sensor must carry real attributes.
     """
-    errors: dict[str, str] = {}
     export_sensor = user_input.get(CONF_EXPORT_PRICE_SENSOR)
-    export_type = user_input.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
-    if not export_sensor:
-        return errors
-    if export_type == PRICE_INTEGRATION_TIBBER:
-        errors[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = "export_tibber_unsupported"
-        return errors
-    effective_type = export_type or import_integration_type
-    if effective_type in (PRICE_INTEGRATION_TIBBER, PRICE_INTEGRATION_TD20):
-        # The import curve has no sensor layout, so an export sensor must say which
-        # attribute layout it uses rather than inheriting an unusable type.
-        errors[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = "export_type_required"
-        return errors
+    if not export_type or not export_sensor:
+        return {}
     error = _validate_price_sensor(
-        hass, export_sensor, effective_type, allow_service_cache=False
+        hass, export_sensor, export_type, allow_service_cache=False
     )
-    if error:
-        errors[CONF_EXPORT_PRICE_SENSOR] = error
-    return errors
+    return {CONF_EXPORT_PRICE_SENSOR: error} if error else {}
 
 
 def _validate_offgrid_power_sensor(
@@ -1290,8 +1306,148 @@ async def _dispatch_brand_entry(flow, brand: str):
     return await getattr(flow, f"async_step_{setup.entry_step}")()
 
 
+class _DynamicPricingSteps:
+    """Dynamic-pricing steps shared by the setup and options flows.
+
+    The first screen picks the import and export providers; the next one asks
+    only what those providers need. Each flow supplies ``_pricing_existing``
+    (the stored values to pre-fill) and ``_pricing_finish``. Only the price
+    sources live here: thresholds and limits are dashboard entities.
+    """
+
+    async def async_step_dynamic_pricing_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Pick the import price provider and, optionally, an export one."""
+        errors: dict[str, str] = {}
+        existing = self._pricing_existing()
+
+        if user_input is not None:
+            integration_type = user_input[CONF_PRICE_INTEGRATION_TYPE]
+            # Cleared select fields arrive absent, which is what clears the export curve.
+            export_type = user_input.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
+            if integration_type == PRICE_INTEGRATION_TIBBER and not self.hass.services.has_service(
+                "tibber", "get_prices"
+            ):
+                errors[CONF_PRICE_INTEGRATION_TYPE] = "tibber_unavailable"
+            forecast_sensor = _resolve_forecast_sensor(self.hass, existing, user_input, errors)
+            if not errors:
+                self.config_data.update({
+                    "enable_predictive_charging": True,
+                    CONF_PREDICTIVE_CHARGING_MODE: PREDICTIVE_MODE_DYNAMIC_PRICING,
+                    CONF_PRICE_INTEGRATION_TYPE: integration_type,
+                    CONF_EXPORT_PRICE_INTEGRATION_TYPE: export_type,
+                    CONF_SOLAR_FORECAST_SENSOR: forecast_sensor,
+                    "charging_time_slot": None,
+                })
+                if integration_type == PRICE_INTEGRATION_TD20:
+                    return await self.async_step_td20_config()
+                if integration_type == PRICE_INTEGRATION_TIBBER and not export_type:
+                    # Service-based and no export curve: nothing left to ask.
+                    self.config_data[CONF_PRICE_SENSOR] = None
+                    self.config_data[CONF_EXPORT_PRICE_SENSOR] = None
+                    return await self._pricing_finish()
+                return await self.async_step_dynamic_pricing_provider()
+
+        # Only an entry with an export sensor has an export curve. One saved
+        # before the export provider was mandatory reused the import layout for
+        # that sensor, so show that layout explicitly.
+        default_export_type = (
+            existing.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
+            or existing.get(CONF_PRICE_INTEGRATION_TYPE)
+            if existing.get(CONF_EXPORT_PRICE_SENSOR)
+            else None
+        )
+        schema: dict = {
+            vol.Required(
+                CONF_PRICE_INTEGRATION_TYPE,
+                default=existing.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL),
+            ): _price_integration_type_selector(),
+            vol.Optional(
+                CONF_EXPORT_PRICE_INTEGRATION_TYPE,
+                description=_suggested(
+                    {CONF_EXPORT_PRICE_INTEGRATION_TYPE: default_export_type},
+                    CONF_EXPORT_PRICE_INTEGRATION_TYPE,
+                ),
+            ): _price_integration_type_selector(_price_integration_export_options()),
+        }
+        if not _has_global_forecast_sensor(existing):
+            schema[vol.Optional(
+                "solar_forecast_sensor",
+                description=_suggested(existing, "solar_forecast_sensor"),
+            )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
+        return self.async_show_form(
+            step_id="dynamic_pricing_config",
+            data_schema=vol.Schema(schema),
+            errors=errors,
+        )
+
+    async def async_step_dynamic_pricing_provider(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Ask the sensors of the providers picked on the previous screen."""
+        integration_type = self.config_data[CONF_PRICE_INTEGRATION_TYPE]
+        export_type = self.config_data.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            if integration_type != PRICE_INTEGRATION_TIBBER:
+                error = _validate_price_sensor(
+                    self.hass, user_input[CONF_PRICE_SENSOR], integration_type
+                )
+                if error:
+                    errors[CONF_PRICE_SENSOR] = error
+            errors.update(_export_sensor_errors(self.hass, user_input, export_type))
+            if not errors:
+                self.config_data[CONF_PRICE_SENSOR] = user_input.get(CONF_PRICE_SENSOR)
+                self._store_export_sensor(user_input)
+                return await self._pricing_finish()
+
+        existing = self._pricing_existing()
+        schema: dict = {}
+        if integration_type != PRICE_INTEGRATION_TIBBER:
+            schema[vol.Required(
+                CONF_PRICE_SENSOR, description=_suggested(existing, CONF_PRICE_SENSOR)
+            )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
+        schema.update(_export_sensor_fields(existing, export_type))
+        return self.async_show_form(
+            step_id="dynamic_pricing_provider",
+            data_schema=vol.Schema(schema),
+            errors=errors,
+        )
+
+    async def async_step_td20_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Spanish 2.0TD tariff: period prices, surplus price and Workday entity."""
+        export_type = self.config_data.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _export_sensor_errors(self.hass, user_input, export_type)
+            if not errors:
+                self.config_data.update(_td20_config_from_input(user_input))
+                self.config_data[CONF_PRICE_SENSOR] = None
+                self._store_export_sensor(user_input)
+                return await self._pricing_finish()
+        return self.async_show_form(
+            step_id="td20_config",
+            data_schema=_td20_schema(self._pricing_existing(), export_type),
+            errors=errors,
+        )
+
+    def _store_export_sensor(self, user_input: dict[str, Any]) -> None:
+        """Store the export sensor; absent means no export curve, so it is cleared."""
+        self.config_data[CONF_EXPORT_PRICE_SENSOR] = user_input.get(CONF_EXPORT_PRICE_SENSOR)
+        if CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED in user_input:
+            self.config_data[CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED] = user_input[
+                CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED
+            ]
+
+
 @_preserve_values_in_error_forms
-class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN):
+class MarstekVenusConfigFlow(
+    _DynamicPricingSteps, LegacyDomainMigrationMixin, ConfigFlow, domain=DOMAIN
+):
     """Handle a config flow for Omnibattery."""
 
     VERSION = 22
@@ -1978,153 +2134,6 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             errors=errors,
         )
 
-    async def async_step_dynamic_pricing_config(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Step 11b: Configure dynamic pricing predictive grid charging.
-
-        Only the price sources live here: they need validating against
-        ``hass.states`` and a platform reload. Thresholds, feature toggles and
-        every power/SOC limit are dashboard entities writing the same keys.
-        """
-        errors: dict[str, str] = {}
-        existing_config = self.config_data
-
-        if user_input is not None:
-            try:
-                integration_type = user_input[CONF_PRICE_INTEGRATION_TYPE]
-                price_sensor = user_input.get(CONF_PRICE_SENSOR)
-
-                # Tibber has no price sensor - it polls the tibber.get_prices service.
-                if integration_type == PRICE_INTEGRATION_TIBBER:
-                    price_sensor = None
-                    if not self.hass.services.has_service("tibber", "get_prices"):
-                        errors[CONF_PRICE_INTEGRATION_TYPE] = "tibber_unavailable"
-                elif integration_type == PRICE_INTEGRATION_TD20:
-                    # No sensor: the period prices are typed in the next step.
-                    price_sensor = None
-                elif not price_sensor:
-                    errors[CONF_PRICE_SENSOR] = "sensor_not_found"
-                else:
-                    error = _validate_price_sensor(
-                        self.hass, price_sensor, integration_type
-                    )
-                    if error:
-                        errors[CONF_PRICE_SENSOR] = error
-
-                errors.update(
-                    _validate_export_price_input(self.hass, user_input, integration_type)
-                )
-                forecast_sensor = _resolve_forecast_sensor(
-                    self.hass, existing_config, user_input, errors
-                )
-
-                if not errors:
-                    self.config_data["enable_predictive_charging"] = True
-                    self.config_data[CONF_PREDICTIVE_CHARGING_MODE] = PREDICTIVE_MODE_DYNAMIC_PRICING
-                    self.config_data[CONF_PRICE_INTEGRATION_TYPE] = integration_type
-                    self.config_data[CONF_PRICE_SENSOR] = price_sensor
-                    self.config_data[CONF_SOLAR_FORECAST_SENSOR] = forecast_sensor
-                    self.config_data["charging_time_slot"] = None
-                    # Cleared entity/select fields arrive absent, so read them
-                    # straight from the submission rather than falling back to
-                    # the stored value - that is what makes the clear button work.
-                    self.config_data[CONF_EXPORT_PRICE_SENSOR] = user_input.get(
-                        CONF_EXPORT_PRICE_SENSOR
-                    )
-                    self.config_data[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = user_input.get(
-                        CONF_EXPORT_PRICE_INTEGRATION_TYPE
-                    )
-                    self.config_data[CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED] = user_input.get(
-                        CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                        existing_config.get(
-                            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                            DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                        ),
-                    )
-                    if integration_type == PRICE_INTEGRATION_TD20:
-                        return await self.async_step_td20_config()
-                    return await self._finish_setup()
-            except Exception as e:
-                _LOGGER.error("Error validating dynamic pricing config: %s", e)
-                errors["base"] = "unknown"
-
-        form_input = user_input or {}
-        default_integration = form_input.get(
-            CONF_PRICE_INTEGRATION_TYPE,
-            existing_config.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL),
-        )
-        default_sensor = form_input.get(
-            CONF_PRICE_SENSOR, existing_config.get(CONF_PRICE_SENSOR, "")
-        )
-        default_export_sensor = (
-            form_input.get(CONF_EXPORT_PRICE_SENSOR)
-            if user_input is not None
-            else existing_config.get(CONF_EXPORT_PRICE_SENSOR)
-        )
-        default_export_type = (
-            form_input.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
-            if user_input is not None
-            else existing_config.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
-        )
-
-        schema_dict: dict = {
-            vol.Required(CONF_PRICE_INTEGRATION_TYPE, default=default_integration):
-                _price_integration_type_selector(),
-            # Optional: not used by Tibber, which polls the tibber.get_prices service.
-            vol.Optional(CONF_PRICE_SENSOR, default=default_sensor if default_sensor else vol.UNDEFINED):
-                EntitySelector(EntitySelectorConfig(domain="sensor")),
-        }
-        # Clearable: suggested_value pre-fills without voluptuous restoring the
-        # old value when the field is emptied.
-        schema_dict[vol.Optional(
-            CONF_EXPORT_PRICE_SENSOR,
-            description={"suggested_value": default_export_sensor} if default_export_sensor else {},
-        )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
-        schema_dict[vol.Optional(
-            CONF_EXPORT_PRICE_INTEGRATION_TYPE,
-            description={"suggested_value": default_export_type} if default_export_type else {},
-        )] = _price_integration_type_selector(_price_integration_export_options())
-        # Always shown: the provider is picked in this same form, so hiding it
-        # until Zonneplan is saved meant a second visit. The engine ignores it
-        # unless the export curve is Zonneplan.
-        schema_dict[vol.Optional(
-            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-            default=form_input.get(
-                CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                existing_config.get(
-                    CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                    DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                ),
-            ),
-        )] = BooleanSelector()
-        if not _has_global_forecast_sensor(existing_config):
-            default_forecast = (
-                form_input.get("solar_forecast_sensor")
-                if user_input is not None
-                else existing_config.get("solar_forecast_sensor", "")
-            )
-            schema_dict[vol.Optional(
-                "solar_forecast_sensor",
-                description={"suggested_value": default_forecast} if default_forecast else {},
-            )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
-        return self.async_show_form(
-            step_id="dynamic_pricing_config",
-            data_schema=vol.Schema(schema_dict),
-            errors=errors,
-        )
-
-    async def async_step_td20_config(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Spanish 2.0TD tariff: period prices, surplus price and Workday entity."""
-        if user_input is not None:
-            self.config_data.update(_td20_config_from_input(user_input))
-            return await self._finish_setup()
-        return self.async_show_form(
-            step_id="td20_config", data_schema=_td20_schema(self.config_data)
-        )
-
     async def async_step_realtime_price_config(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
@@ -2180,6 +2189,12 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
             data_schema=vol.Schema(schema_dict),
             errors=errors,
         )
+
+    def _pricing_existing(self) -> dict[str, Any]:
+        return self.config_data
+
+    async def _pricing_finish(self) -> FlowResult:
+        return await self._finish_setup()
 
     async def _finish_setup(self) -> FlowResult:
         """Finish setup: dashboard-configurable features start present but disabled.
@@ -2438,7 +2453,7 @@ class MarstekVenusConfigFlow(LegacyDomainMigrationMixin, ConfigFlow, domain=DOMA
 
 
 @_preserve_values_in_error_forms
-class OptionsFlowHandler(OptionsFlow):
+class OptionsFlowHandler(_DynamicPricingSteps, OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""
         # NOTE: Do NOT set self.config_entry - it's a read-only property from OptionsFlow base class
@@ -2452,6 +2467,11 @@ class OptionsFlowHandler(OptionsFlow):
         self._pending_slot_step_a: dict | None = None  # Buffer between slot step A and step B
         _LOGGER.info("OptionsFlowHandler initialized successfully for entry: %s", config_entry.entry_id)
 
+    def _pricing_existing(self) -> dict[str, Any]:
+        return {**self.config_entry.data, **self.config_data}
+
+    async def _pricing_finish(self) -> FlowResult:
+        return await self._save_and_finish()
 
     async def _save_and_finish(self) -> FlowResult:
         """Merge config_data into existing entry data, save, and reload."""
@@ -3398,153 +3418,6 @@ class OptionsFlowHandler(OptionsFlow):
             step_id="predictive_charging_config",
             data_schema=vol.Schema(schema_dict),
             errors=errors,
-        )
-
-    async def async_step_dynamic_pricing_config(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Configure dynamic pricing predictive grid charging in options flow.
-
-        Only the price sources live here: they need validating against
-        ``hass.states`` and a platform reload. Thresholds, feature toggles and
-        every power/SOC limit are dashboard entities writing the same keys.
-        """
-        errors: dict[str, str] = {}
-        existing_config = self.config_entry.data
-
-        if user_input is not None:
-            try:
-                integration_type = user_input[CONF_PRICE_INTEGRATION_TYPE]
-                price_sensor = user_input.get(CONF_PRICE_SENSOR)
-
-                # Tibber has no price sensor - it polls the tibber.get_prices service.
-                if integration_type == PRICE_INTEGRATION_TIBBER:
-                    price_sensor = None
-                    if not self.hass.services.has_service("tibber", "get_prices"):
-                        errors[CONF_PRICE_INTEGRATION_TYPE] = "tibber_unavailable"
-                elif integration_type == PRICE_INTEGRATION_TD20:
-                    # No sensor: the period prices are typed in the next step.
-                    price_sensor = None
-                elif not price_sensor:
-                    errors[CONF_PRICE_SENSOR] = "sensor_not_found"
-                else:
-                    error = _validate_price_sensor(
-                        self.hass, price_sensor, integration_type
-                    )
-                    if error:
-                        errors[CONF_PRICE_SENSOR] = error
-
-                errors.update(
-                    _validate_export_price_input(self.hass, user_input, integration_type)
-                )
-                forecast_sensor = _resolve_forecast_sensor(
-                    self.hass, existing_config, user_input, errors
-                )
-
-                if not errors:
-                    self.config_data["enable_predictive_charging"] = True
-                    self.config_data[CONF_PREDICTIVE_CHARGING_MODE] = PREDICTIVE_MODE_DYNAMIC_PRICING
-                    self.config_data[CONF_PRICE_INTEGRATION_TYPE] = integration_type
-                    self.config_data[CONF_PRICE_SENSOR] = price_sensor
-                    self.config_data[CONF_SOLAR_FORECAST_SENSOR] = forecast_sensor
-                    self.config_data["charging_time_slot"] = None
-                    # Cleared entity/select fields arrive absent, so read them
-                    # straight from the submission rather than falling back to
-                    # the stored value - that is what makes the clear button work.
-                    self.config_data[CONF_EXPORT_PRICE_SENSOR] = user_input.get(
-                        CONF_EXPORT_PRICE_SENSOR
-                    )
-                    self.config_data[CONF_EXPORT_PRICE_INTEGRATION_TYPE] = user_input.get(
-                        CONF_EXPORT_PRICE_INTEGRATION_TYPE
-                    )
-                    self.config_data[CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED] = user_input.get(
-                        CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                        existing_config.get(
-                            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                            DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                        ),
-                    )
-                    if integration_type == PRICE_INTEGRATION_TD20:
-                        return await self.async_step_td20_config()
-                    return await self._save_and_finish()
-            except Exception as e:
-                _LOGGER.error("Error validating dynamic pricing config: %s", e)
-                errors["base"] = "unknown"
-
-        form_input = user_input or {}
-        default_integration = form_input.get(
-            CONF_PRICE_INTEGRATION_TYPE,
-            existing_config.get(CONF_PRICE_INTEGRATION_TYPE, PRICE_INTEGRATION_NORDPOOL),
-        )
-        default_sensor = form_input.get(
-            CONF_PRICE_SENSOR, existing_config.get(CONF_PRICE_SENSOR, "")
-        )
-        default_export_sensor = (
-            form_input.get(CONF_EXPORT_PRICE_SENSOR)
-            if user_input is not None
-            else existing_config.get(CONF_EXPORT_PRICE_SENSOR)
-        )
-        default_export_type = (
-            form_input.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
-            if user_input is not None
-            else existing_config.get(CONF_EXPORT_PRICE_INTEGRATION_TYPE)
-        )
-
-        schema_dict: dict = {
-            vol.Required(CONF_PRICE_INTEGRATION_TYPE, default=default_integration):
-                _price_integration_type_selector(),
-            # Optional: not used by Tibber, which polls the tibber.get_prices service.
-            vol.Optional(CONF_PRICE_SENSOR, default=default_sensor if default_sensor else vol.UNDEFINED):
-                EntitySelector(EntitySelectorConfig(domain="sensor")),
-        }
-        # Clearable: suggested_value pre-fills without voluptuous restoring the
-        # old value when the field is emptied.
-        schema_dict[vol.Optional(
-            CONF_EXPORT_PRICE_SENSOR,
-            description={"suggested_value": default_export_sensor} if default_export_sensor else {},
-        )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
-        schema_dict[vol.Optional(
-            CONF_EXPORT_PRICE_INTEGRATION_TYPE,
-            description={"suggested_value": default_export_type} if default_export_type else {},
-        )] = _price_integration_type_selector(_price_integration_export_options())
-        # Always shown: the provider is picked in this same form, so hiding it
-        # until Zonneplan is saved meant a second visit. The engine ignores it
-        # unless the export curve is Zonneplan.
-        schema_dict[vol.Optional(
-            CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-            default=form_input.get(
-                CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                existing_config.get(
-                    CONF_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                    DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED,
-                ),
-            ),
-        )] = BooleanSelector()
-        if not _has_global_forecast_sensor(existing_config):
-            default_forecast = (
-                form_input.get("solar_forecast_sensor")
-                if user_input is not None
-                else existing_config.get("solar_forecast_sensor", "")
-            )
-            schema_dict[vol.Optional(
-                "solar_forecast_sensor",
-                description={"suggested_value": default_forecast} if default_forecast else {},
-            )] = EntitySelector(EntitySelectorConfig(domain="sensor"))
-        return self.async_show_form(
-            step_id="dynamic_pricing_config",
-            data_schema=vol.Schema(schema_dict),
-            errors=errors,
-        )
-
-    async def async_step_td20_config(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Spanish 2.0TD tariff: period prices, surplus price and Workday entity."""
-        if user_input is not None:
-            self.config_data.update(_td20_config_from_input(user_input))
-            return await self._save_and_finish()
-        return self.async_show_form(
-            step_id="td20_config", data_schema=_td20_schema(self.config_entry.data)
         )
 
     async def async_step_realtime_price_config(

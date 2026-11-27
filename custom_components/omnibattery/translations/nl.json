@@ -460,31 +460,43 @@
           "td20_price_llano": "Prijs llano (midden)",
           "td20_price_valle": "Prijs valle (dal)",
           "td20_export_price": "Overschotprijs (optioneel)",
-          "td20_workday_entity": "Workday-entiteit (optioneel)"
+          "td20_workday_entity": "Workday-entiteit (optioneel)",
+          "export_price_sensor": "Sensor voor teruglever-/exportprijs",
+          "zonneplan_export_bonus_enabled": "Zonneplan-exportbonus toepassen"
         },
         "data_description": {
           "td20_export_price": "Wat je per teruggeleverde kWh krijgt (compensación de excedentes). Laat leeg als je geen compensatiecontract hebt.",
-          "td20_workday_entity": "Binaire sensor van de Workday-integratie, ingesteld voor Spanje zonder provincie."
+          "td20_workday_entity": "Binaire sensor van de Workday-integratie, ingesteld voor Spanje zonder provincie.",
+          "export_price_sensor": "Sensor met je terugleverprijzen, in de indeling van de gekozen exportleverancier.",
+          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd."
         }
       },
       "dynamic_pricing_config": {
         "title": "Configuratie dynamische prijslading",
-        "description": "Configureer dynamische prijslading. Het systeem leest uurlijkse stroomprijzen en selecteert automatisch de goedkoopste uren om te laden.",
+        "description": "Kies je prijsleveranciers. Het volgende scherm vraagt alleen wat zij nodig hebben.",
         "data": {
           "price_integration_type": "Prijsintegratie",
-          "price_sensor": "Prijssensor",
-          "export_price_sensor": "Sensor voor teruglever-/exportprijs (optioneel)",
           "export_price_integration_type": "Integratie voor de exportprijs (optioneel)",
-          "zonneplan_export_bonus_enabled": "Zonneplan-exportbonus toepassen",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Selecteer de domoticaintegratie die stroomprijs gegevens levert. Tarifa 2.0TD (Spanje) heeft ook geen sensor nodig: de prijzen worden in de volgende stap gevraagd.",
-          "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
-          "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
-          "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
-          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
+          "price_integration_type": "Selecteer de integratie die stroomprijzen levert. De sensor wordt in het volgende scherm gevraagd; Tibber heeft er geen nodig (servicegebaseerd) en Tarifa 2.0TD (Spanje) vraagt in plaats daarvan de prijzen per periode.",
+          "export_price_integration_type": "Alleen als teruglevering anders wordt vergoed dan afname: de leverancier van je terugleverprijssensor, die in het volgende scherm wordt gevraagd. Laat leeg om teruglevering tegen de importprijs te waarderen (salderen), of met Tarifa 2.0TD tegen de overschotprijs. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve. Voor de Zonneplan-exportbonus kies je hier ook Zonneplan (het mag dezelfde sensor zijn).",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt."
+        }
+      },
+      "dynamic_pricing_provider": {
+        "title": "Dynamische prijslading — Prijssensoren",
+        "description": "Kies de sensoren van de leveranciers die je in het vorige scherm hebt gekozen.",
+        "data": {
+          "price_sensor": "Prijssensor",
+          "export_price_sensor": "Sensor voor teruglever-/exportprijs",
+          "zonneplan_export_bonus_enabled": "Zonneplan-exportbonus toepassen"
+        },
+        "data_description": {
+          "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
+          "export_price_sensor": "Sensor met je terugleverprijzen, in de indeling van de gekozen exportleverancier.",
+          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd."
         }
       },
       "realtime_price_config": {
@@ -924,8 +936,6 @@
       "no_price_data": "De geselecteerde sensor is geen ondersteunde prijsbron. Nord Pool: selecteer een entiteit van de officiële integratie of een HACS-sensor met `raw_today`. PVPC vereist `price_00h` … `price_23h`, CKW een `prices`-lijst, EPEX een `data`-lijst en ENTSO-e een `prices_today`-lijst.",
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
       "energyzero_unavailable": "De EnergyZero-integratie is niet geïnstalleerd of de service `energyzero.get_energy_prices` is niet beschikbaar. Installeer en configureer eerst EnergyZero.",
-      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
       "host_or_serial_required": "Voer een IP-adres (TCP) of een pad naar een seriële poort (Modbus RTU) in.",
       "missing_power_sensor": "Selecteer een vermogenssensor, of activeer EV-lader zonder telemetrie en selecteer een activiteitssensor.",
@@ -1341,31 +1351,43 @@
           "td20_price_llano": "Prijs llano (midden)",
           "td20_price_valle": "Prijs valle (dal)",
           "td20_export_price": "Overschotprijs (optioneel)",
-          "td20_workday_entity": "Workday-entiteit (optioneel)"
+          "td20_workday_entity": "Workday-entiteit (optioneel)",
+          "export_price_sensor": "Sensor voor teruglever-/exportprijs",
+          "zonneplan_export_bonus_enabled": "Zonneplan-exportbonus toepassen"
         },
         "data_description": {
           "td20_export_price": "Wat je per teruggeleverde kWh krijgt (compensación de excedentes). Laat leeg als je geen compensatiecontract hebt.",
-          "td20_workday_entity": "Binaire sensor van de Workday-integratie, ingesteld voor Spanje zonder provincie."
+          "td20_workday_entity": "Binaire sensor van de Workday-integratie, ingesteld voor Spanje zonder provincie.",
+          "export_price_sensor": "Sensor met je terugleverprijzen, in de indeling van de gekozen exportleverancier.",
+          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd."
         }
       },
       "dynamic_pricing_config": {
         "title": "Configuratie dynamische prijslading",
-        "description": "Configureer dynamische prijslading. Het systeem leest uurlijkse stroomprijzen en selecteert automatisch de goedkoopste uren om te laden.",
+        "description": "Kies je prijsleveranciers. Het volgende scherm vraagt alleen wat zij nodig hebben.",
         "data": {
           "price_integration_type": "Prijsintegratie",
-          "price_sensor": "Prijssensor",
-          "export_price_sensor": "Sensor voor teruglever-/exportprijs (optioneel)",
           "export_price_integration_type": "Integratie voor de exportprijs (optioneel)",
-          "zonneplan_export_bonus_enabled": "Zonneplan-exportbonus toepassen",
           "solar_forecast_sensor": "Zonnevoorspellingssensor (kWh)"
         },
         "data_description": {
-          "price_integration_type": "Selecteer de domoticaintegratie die stroomprijs gegevens levert. Tarifa 2.0TD (Spanje) heeft ook geen sensor nodig: de prijzen worden in de volgende stap gevraagd.",
-          "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
-          "export_price_sensor": "Sensor met de terugleverprijzen. Laat leeg om de importprijscurve te gebruiken; dat klopt wanneer teruglevering tegen de importprijs wordt vergoed (salderen).",
-          "export_price_integration_type": "Attribuutindeling van de exportprijssensor. Laat leeg om de importintegratie te hergebruiken. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve.",
-          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd. Heeft geen effect tenzij de effectieve exportprijsintegratie Zonneplan is.",
+          "price_integration_type": "Selecteer de integratie die stroomprijzen levert. De sensor wordt in het volgende scherm gevraagd; Tibber heeft er geen nodig (servicegebaseerd) en Tarifa 2.0TD (Spanje) vraagt in plaats daarvan de prijzen per periode.",
+          "export_price_integration_type": "Alleen als teruglevering anders wordt vergoed dan afname: de leverancier van je terugleverprijssensor, die in het volgende scherm wordt gevraagd. Laat leeg om teruglevering tegen de importprijs te waarderen (salderen), of met Tarifa 2.0TD tegen de overschotprijs. Tibber is hier niet beschikbaar: die is servicegebaseerd en de cache hoort bij de importcurve. Voor de Zonneplan-exportbonus kies je hier ook Zonneplan (het mag dezelfde sensor zijn).",
           "solar_forecast_sensor": "Sensor die de zonneproductievoorspelling in kWh levert (bijv. Solcast). Met zonnepanelen: configureer deze sensor — het systeem laadt alleen van het net als de voorspelling onvoldoende is. Zonder zonnepanelen: laat leeg — het systeem laadt wanneer de batterij-energie niet voldoende is voor de dag. Niet vereist als u deze sensor al in de eerste stap heeft geconfigureerd — hij wordt automatisch gebruikt."
+        }
+      },
+      "dynamic_pricing_provider": {
+        "title": "Dynamische prijslading — Prijssensoren",
+        "description": "Kies de sensoren van de leveranciers die je in het vorige scherm hebt gekozen.",
+        "data": {
+          "price_sensor": "Prijssensor",
+          "export_price_sensor": "Sensor voor teruglever-/exportprijs",
+          "zonneplan_export_bonus_enabled": "Zonneplan-exportbonus toepassen"
+        },
+        "data_description": {
+          "price_sensor": "Sensor met uurlijkse stroomprijzen (bijv. sensor.nordpool_kwh_nl_eur_3_10_025)",
+          "export_price_sensor": "Sensor met je terugleverprijzen, in de indeling van de gekozen exportleverancier.",
+          "zonneplan_export_bonus_enabled": "Telt de Zonneplan-zonnebonus op bij de exportprijs van zonnestroom inclusief belastingen: de bonus is €0,02/kWh bovenop de prijs exclusief belastingen, daarna +10%. Geldt alleen tussen zonsopkomst en zonsondergang en alleen als die prijs plus €0,02 positief is. Export vanuit de accu wordt nooit met de bonus gewaardeerd."
         }
       },
       "realtime_price_config": {
@@ -1633,8 +1655,6 @@
       "no_price_data": "De geselecteerde sensor is geen ondersteunde prijsbron. Nord Pool: selecteer een entiteit van de officiële integratie of een HACS-sensor met `raw_today`. PVPC vereist `price_00h` … `price_23h`, CKW een `prices`-lijst, EPEX een `data`-lijst en ENTSO-e een `prices_today`-lijst.",
       "tibber_unavailable": "De Tibber-integratie is niet geïnstalleerd, of de service `tibber.get_prices` is niet beschikbaar. Installeer en configureer eerst Tibber.",
       "energyzero_unavailable": "De EnergyZero-integratie is niet geïnstalleerd of de service `energyzero.get_energy_prices` is niet beschikbaar. Installeer en configureer eerst EnergyZero.",
-      "export_tibber_unsupported": "Tibber cannot be used for the export price curve: it is service-based and its price cache belongs to the import curve. Choose a sensor-based provider instead.",
-      "export_type_required": "Select the export price integration explicitly. The import curve has no sensor, so its type cannot be reused for a sensor.",
       "discharge_below_charge": "De ontlaad-prijsondergrens mag niet lager zijn dan de maximale (laad)prijsdrempel. Stel deze gelijk of hoger in, of laat leeg om de laaddrempel te hergebruiken.",
       "host_or_serial_required": "Voer een IP-adres (TCP) of een pad naar een seriële poort (Modbus RTU) in.",
       "missing_power_sensor": "Selecteer een vermogenssensor, of activeer EV-lader zonder telemetrie en selecteer een activiteitssensor.",

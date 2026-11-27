@@ -9,6 +9,7 @@
 
 ### Changed
 
+- **Dynamic Pricing setup in two screens**: pick the import and (optional) export price providers first; the next screen asks only for what they need, and the Zonneplan export bonus shows only for a Zonneplan export curve.
 - **Predictive Charging status attributes follow the plan in Dynamic Pricing**: `decision_reason` now says what the plan buys from the grid and why (e.g. *Plan: 1.70 kWh from the grid (ok)*), and `deadline_required_kwh`, `flexible_required_kwh`, `deadline_shortfall_kwh`, `total_shortfall_kwh` and `energy_deadlines` are empty, since the plan has no deadlines. `energy_deficit_kwh` stays the energy balance; what the plan buys is `planned_grid_charge_kwh`. Automations reading those attributes must be updated.
 
 ### Fixed

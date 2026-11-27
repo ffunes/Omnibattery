@@ -240,9 +240,12 @@ def test_shared_export_selector_and_validation():
 
 
 @pytest.mark.parametrize("options", [False, True])
-async def test_zonneplan_export_bonus_shown_before_zonneplan_is_saved(options):
-    """A fresh setup still on the Nordpool default must offer the bonus in the
-    same form where Zonneplan gets picked, not only after a second visit."""
+@pytest.mark.parametrize("export_type", ["zonneplan", "nordpool", None])
+async def test_zonneplan_export_bonus_shown_only_for_a_zonneplan_export_curve(
+    options, export_type
+):
+    """The bonus is picked on the screen after the providers, and only when the
+    export curve is Zonneplan: the engine ignores it otherwise."""
     from custom_components.omnibattery.config_flow import (
         MarstekVenusConfigFlow,
         OptionsFlowHandler,
@@ -256,10 +259,20 @@ async def test_zonneplan_export_bonus_shown_before_zonneplan_is_saved(options):
         config_entries=SimpleNamespace(async_get_known_entry=lambda _: config_entry),
         states=SimpleNamespace(get=lambda _: None),
     )
-    form = await flow.async_step_dynamic_pricing_config()
+    first = await flow.async_step_dynamic_pricing_config()
+    assert "zonneplan_export_bonus_enabled" not in {
+        marker.schema for marker in first["data_schema"].schema
+    }
+
+    user_input = {"price_integration_type": "nordpool"}
+    if export_type:
+        user_input["export_price_integration_type"] = export_type
+    form = await flow.async_step_dynamic_pricing_config(user_input)
     fields = {marker.schema: marker for marker in form["data_schema"].schema}
-    assert fields["price_integration_type"].default() == "nordpool"
-    assert fields["zonneplan_export_bonus_enabled"].default() is False
+    if export_type == "zonneplan":
+        assert fields["zonneplan_export_bonus_enabled"].default() is False
+    else:
+        assert "zonneplan_export_bonus_enabled" not in fields
 
 
 @pytest.mark.parametrize("options", [False, True])
@@ -309,35 +322,30 @@ async def test_switching_export_provider_keeps_selection_after_validation_error(
         states=SimpleNamespace(get=states.get),
     )
 
-    form = await flow.async_step_dynamic_pricing_config(
+    await flow.async_step_dynamic_pricing_config(
         {
             "price_integration_type": "nordpool",
-            "price_sensor": "sensor.import",
-            "export_price_sensor": "sensor.export",
             "export_price_integration_type": "zonneplan",
             "solar_forecast_sensor": "sensor.forecast",
         }
     )
+    form = await flow.async_step_dynamic_pricing_provider(
+        {"price_sensor": "sensor.import", "export_price_sensor": "sensor.export"}
+    )
 
     assert form["type"] == "form"
+    assert form["step_id"] == "dynamic_pricing_provider"
     assert form["errors"]["export_price_sensor"] == "no_price_data"
     schema = form["data_schema"].schema
     fields = {marker.schema: marker for marker in schema}
-    assert "zonneplan_export_bonus_enabled" in fields
-    assert fields["price_integration_type"].default() == "nordpool"
-    assert fields["price_sensor"].default() == "sensor.import"
+    assert fields["price_sensor"].description == {"suggested_value": "sensor.import"}
     assert fields["export_price_sensor"].description == {
         "suggested_value": "sensor.export"
-    }
-    assert fields["export_price_integration_type"].description == {
-        "suggested_value": "zonneplan"
     }
     assert fields["zonneplan_export_bonus_enabled"].default() is (
         DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED
     )
-    assert fields["solar_forecast_sensor"].description == {
-        "suggested_value": "sensor.forecast"
-    }
+    assert flow.config_data["export_price_integration_type"] == "zonneplan"
 
 
 def test_parse_error_logs_offending_entry(caplog):
@@ -374,16 +382,20 @@ async def test_setup_and_options_validate_and_save_zonneplan(options, valid, bon
     form = await flow.async_step_dynamic_pricing_config()
     selector = next(value for marker, value in form["data_schema"].schema.items() if marker.schema == "price_integration_type")
     assert "zonneplan" in selector.config["options"]
-    user_input = {
-        "price_integration_type": "zonneplan", "price_sensor": "sensor.tariff",
-    }
+    await flow.async_step_dynamic_pricing_config(
+        {"price_integration_type": "zonneplan", "export_price_integration_type": "zonneplan"}
+    )
+    user_input = {"price_sensor": "sensor.tariff", "export_price_sensor": "sensor.tariff"}
     if bonus_enabled is not None:
         user_input["zonneplan_export_bonus_enabled"] = bonus_enabled
-    result = await flow.async_step_dynamic_pricing_config(user_input)
+    result = await flow.async_step_dynamic_pricing_provider(user_input)
     if valid:
         assert flow.config_data["price_integration_type"] == "zonneplan"
         assert flow.config_data["price_sensor"] == "sensor.tariff"
-        assert flow.config_data["zonneplan_export_bonus_enabled"] is (
+        # HA fills the selector default; a direct call without it stores nothing.
+        assert flow.config_data.get(
+            "zonneplan_export_bonus_enabled", DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED
+        ) is (
             DEFAULT_ZONNEPLAN_EXPORT_BONUS_ENABLED
             if bonus_enabled is None
             else bonus_enabled

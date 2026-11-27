@@ -21,7 +21,7 @@ from custom_components.omnibattery.const import (
 )
 from custom_components.omnibattery.config_flow import (
     _price_integration_export_options,
-    _validate_export_price_input,
+    _export_sensor_errors,
 )
 from custom_components.omnibattery.infra.clock import local_now
 from custom_components.omnibattery.pricing import calculations
@@ -182,36 +182,13 @@ def test_tibber_is_not_offered_as_an_export_provider():
     assert PRICE_INTEGRATION_NORDPOOL in _price_integration_export_options()
 
 
-def test_no_export_sensor_is_valid():
-    assert _validate_export_price_input(_hass({}), {}, PRICE_INTEGRATION_NORDPOOL) == {}
-
-
-def test_tibber_is_rejected_for_the_export_curve():
-    errors = _validate_export_price_input(
-        _hass({}),
-        {
-            "export_price_sensor": EXPORT_SENSOR,
-            "export_price_integration_type": PRICE_INTEGRATION_TIBBER,
-        },
-        PRICE_INTEGRATION_NORDPOOL,
-    )
-
-    assert errors == {"export_price_integration_type": "export_tibber_unsupported"}
-
-
-def test_export_type_is_required_when_the_import_curve_is_service_based():
-    errors = _validate_export_price_input(
-        _hass({}),
-        {"export_price_sensor": EXPORT_SENSOR},
-        PRICE_INTEGRATION_TIBBER,
-    )
-
-    assert errors == {"export_price_integration_type": "export_type_required"}
+def test_no_export_provider_asks_for_no_sensor():
+    assert _export_sensor_errors(_hass({}), {}, None) == {}
 
 
 def test_export_sensor_without_price_data_is_rejected():
     states = {EXPORT_SENSOR: SimpleNamespace(state="0.1", attributes={})}
-    errors = _validate_export_price_input(
+    errors = _export_sensor_errors(
         _hass(states),
         {"export_price_sensor": EXPORT_SENSOR},
         PRICE_INTEGRATION_NORDPOOL,
@@ -221,7 +198,7 @@ def test_export_sensor_without_price_data_is_rejected():
 
 
 def test_missing_export_sensor_entity_is_rejected():
-    errors = _validate_export_price_input(
+    errors = _export_sensor_errors(
         _hass({}),
         {"export_price_sensor": EXPORT_SENSOR},
         PRICE_INTEGRATION_NORDPOOL,
@@ -232,7 +209,7 @@ def test_missing_export_sensor_entity_is_rejected():
 
 def test_valid_export_sensor_passes():
     states = {EXPORT_SENSOR: SimpleNamespace(state="0.1", attributes=_raw_today([0.1]))}
-    errors = _validate_export_price_input(
+    errors = _export_sensor_errors(
         _hass(states),
         {"export_price_sensor": EXPORT_SENSOR},
         PRICE_INTEGRATION_NORDPOOL,
@@ -249,7 +226,7 @@ def test_an_official_nordpool_sensor_is_rejected_for_the_export_curve():
     original = config_flow.is_official_nordpool_sensor
     config_flow.is_official_nordpool_sensor = lambda *_args, **_kwargs: True
     try:
-        errors = _validate_export_price_input(
+        errors = _export_sensor_errors(
             _hass(states),
             {"export_price_sensor": EXPORT_SENSOR},
             PRICE_INTEGRATION_NORDPOOL,
