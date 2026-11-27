@@ -117,7 +117,7 @@ def _slave_selector():
 
 
 async def _connection(flow, user_input: dict[str, Any] | None, ctx: SetupContext) -> FlowResult | dict:
-    """Add (config flow) or edit (options flow) an Anker Solarbank Max AC / 4 E5000 Pro."""
+    """Add (config flow) or edit (options flow) an Anker Solarbank (Max / Max AC / 4 E5000 Pro / XE AC)."""
     from .anker import AnkerModbusDriver  # local: anker.py imports this module
 
     errors = {}

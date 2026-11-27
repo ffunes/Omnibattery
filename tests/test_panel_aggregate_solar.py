@@ -14,6 +14,7 @@ import pytest
 
 from custom_components.omnibattery.drivers import registry
 from custom_components.omnibattery.drivers.anker import (
+    _MAX_PRODUCT_CODES,
     _PRODUCT_LABELS,
     AnkerModbusDriver,
 )
@@ -39,10 +40,25 @@ def _anker(product_code):
     return driver
 
 
-@pytest.mark.parametrize("code", [*_PRODUCT_LABELS, "ZZZZ", None])
+@pytest.mark.parametrize(
+    "code", [c for c in _PRODUCT_LABELS if c not in _MAX_PRODUCT_CODES] + ["ZZZZ", None]
+)
 def test_anker_flag_matches_the_old_panel_rule(code):
     driver = _anker(code)
     assert driver.allows_aggregate_solar is _legacy_panel_rule(driver.model_label)
+    assert driver.allows_aggregate_solar is driver.has_independent_pv
+
+
+@pytest.mark.parametrize("code", sorted(_MAX_PRODUCT_CODES))
+def test_solarbank_max_publishes_aggregate_solar(code):
+    """The Solarbank Max postdates the old panel rule, which only knew the E5000 Pro.
+
+    It is DC-coupled with its own PV input, so the aggregate PV value is a real
+    source and the panel may read it (same as the E5000 Pro).
+    """
+    driver = _anker(code)
+    assert driver.model_label == "Solarbank Max"
+    assert driver.allows_aggregate_solar is True
     assert driver.allows_aggregate_solar is driver.has_independent_pv
 
 
