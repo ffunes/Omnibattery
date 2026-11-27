@@ -312,6 +312,9 @@ class DynamicPricingEvaluationHorizon(Enum):
 SOC_DROP_BELOW_PROJECTION = 3.0
 # The same points above the line re-plan too, once the plan is this old.
 SOC_RISE_MIN_PLAN_AGE = timedelta(hours=1)
+# Within this time before a grid charge the margin's sun counts too (#958).
+# No longer than SOC_RISE_MIN_PLAN_AGE, so it re-plans at most once a slot.
+SOC_RISE_PRE_SLOT = timedelta(hours=1)
 # After the plan's own completion time, how long a pending weekly full charge
 # waits for the manager to see 100 % before the plan is rebuilt: its cutoff
 # check takes seconds, and every minute after the slot the battery covers the
@@ -6799,7 +6802,8 @@ class PricingManager:
             # (2026-11-20: it drew the battery empty at 15 % at 22:45 and left
             # the rest to the grid). Only an optimizer plan, whose rows carry
             # the sun its safety margin took off: a sunny day beats the
-            # margined line by design. Never mid-slot (a re-plan can cut a
+            # margined line by design, except within the hour before a grid
+            # charge (below). Never mid-slot (a re-plan can cut a
             # running charge), and one per plan hour so a battery that cannot
             # follow the plan (held, excluded) re-plans at most hourly.
             rows = getattr(self._controller, "_dp_eval_rows", None)
@@ -6812,6 +6816,22 @@ class PricingManager:
             # ponytail: plain mean SOC against a fleet-energy line, as the
             # downward check; a mixed-size fleet can drift off it on its own.
             margin_sun = sum(row[5] for row in rows if row[1] <= end)
+            schedule = getattr(self._controller, "_dynamic_pricing_schedule", None)
+            purpose_for = getattr(schedule, "purpose_for", None)
+            clock = self._now()
+            if any(
+                clock < slot.start <= clock + SOC_RISE_PRE_SLOT
+                and (
+                    purpose_for is None
+                    or purpose_for(slot) in {SLOT_PURPOSE_DEFICIT, SLOT_PURPOSE_COMBINED}
+                )
+                for slot in getattr(schedule, "selected_slots", ())
+            ):
+                # #958: except before a grid charge. The slot buys its quota
+                # from the SOC it starts at, so the margin's sun already in the
+                # battery would be bought again: re-plan first (at most once a
+                # slot, the window being no longer than the plan-age guard).
+                margin_sun = 0.0
             high = max(projected, at_end) + margin_sun / capacity * 100.0
             return current - high >= SOC_DROP_BELOW_PROJECTION
         schedule = getattr(self._controller, "_dynamic_pricing_schedule", None)

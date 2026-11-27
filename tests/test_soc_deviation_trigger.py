@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from custom_components.omnibattery.pricing import PriceSlot
 from tests import test_predictive_scenarios as scenarios
 from tests.test_pricing_engine import _controller, _mgr
 
@@ -24,14 +25,15 @@ def _coord(soc, kwh=10.0):
     return SimpleNamespace(data={"battery_soc": soc, "battery_total_energy": kwh})
 
 
-def _trigger(*, ref, soc, now, projection=None, chronological=True, **extra):
+def _trigger(*, ref, soc, now, projection=None, chronological=True, slots=(), purpose=None, **extra):
+    schedule = SimpleNamespace(chronological_planning_active=chronological, selected_slots=slots)
+    if purpose is not None:
+        schedule.purpose_for = lambda _slot: purpose
     ctrl = _controller(
         _dp_last_eval_soc=ref,
         _dp_eval_projection=projection,
         _dp_eval_projection_capacity_kwh=10.0,
-        _dynamic_pricing_schedule=SimpleNamespace(
-            chronological_planning_active=chronological
-        ),
+        _dynamic_pricing_schedule=schedule,
         coordinators=[_coord(soc)],
         **extra,
     )
@@ -150,3 +152,35 @@ def test_a_planned_charge_reached_early_in_its_quarter_does_not_replan():
     rows = ((_at(12), _at(12, 15), 0.0, 0.0, 0.6, 0.0),)
     assert not _trigger(ref=50.0, soc=58.0, now=_at(12, 7), projection=projection, _dp_eval_rows=rows)
     assert _trigger(ref=50.0, soc=60.0, now=_at(12, 7), projection=projection, _dp_eval_rows=rows)
+
+
+# #958: a slot charges a fixed quota from the SOC it starts at, so the sun the
+# margin took off is spent re-planning before it, not after.
+_MARGIN_ROWS = ((_at(20), _at(20, 30), 0.0, 0.0, -1.5, 0.5),) + _ROWS
+
+
+def test_the_margin_s_sun_before_a_charge_slot_replans():
+    slot = PriceSlot(_at(21, 30), _at(22, 30), 0.1)
+    assert _trigger(ref=100.0, soc=74.0, now=_at(21), projection=_DISCHARGE,
+                    _dp_eval_rows=_MARGIN_ROWS, slots=(slot,))
+    # Still on the line: nothing to re-plan.
+    assert not _trigger(ref=100.0, soc=72.0, now=_at(21), projection=_DISCHARGE,
+                        _dp_eval_rows=_MARGIN_ROWS, slots=(slot,))
+
+
+def test_the_margin_s_sun_far_from_a_charge_slot_does_not_replan():
+    slot = PriceSlot(_at(22, 30), _at(23, 30), 0.1)
+    assert not _trigger(ref=100.0, soc=74.0, now=_at(21), projection=_DISCHARGE,
+                        _dp_eval_rows=_MARGIN_ROWS, slots=(slot,))
+
+
+def test_the_margin_s_sun_before_a_negative_price_slot_does_not_replan():
+    slot = PriceSlot(_at(21, 30), _at(22, 30), -0.01)
+    assert not _trigger(ref=100.0, soc=74.0, now=_at(21), projection=_DISCHARGE,
+                        _dp_eval_rows=_MARGIN_ROWS, slots=(slot,), purpose="negative_price")
+
+
+def test_the_margin_s_sun_during_a_charge_slot_does_not_replan():
+    slot = PriceSlot(_at(20, 30), _at(21, 30), 0.1)
+    assert not _trigger(ref=100.0, soc=80.0, now=_at(21), projection=_DISCHARGE,
+                        _dp_eval_rows=_MARGIN_ROWS, slots=(slot,), _current_price_slot_active=True)
